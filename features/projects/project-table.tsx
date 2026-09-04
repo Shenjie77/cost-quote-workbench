@@ -1,0 +1,211 @@
+/** Dense project portfolio table with direct status and module navigation. */
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { BiText } from '@/components/workbench/bilingual-text';
+import {
+  initialProjectStatusDefinitions,
+  type Project,
+  type ProjectStatus,
+} from '@/features/projects/types';
+import { formatSgd } from '@/lib/formatters';
+
+export function ProjectTable({
+  projects,
+  onProject,
+  onCost,
+  onQuote,
+  onStatusChange,
+  onWorkflowChange,
+}: {
+  projects: Project[];
+  onProject: (project: Project) => void;
+  onCost: (project: Project) => void;
+  onQuote: (project: Project) => void;
+  onStatusChange: (project: Project, status: ProjectStatus) => void;
+  onWorkflowChange: (project: Project, workflowCode: string) => void;
+}) {
+  return (
+    <Table className="min-w-[1580px]">
+      <TableHeader>
+        <TableRow className="bg-[#f2f0ea] hover:bg-[#f2f0ea]">
+          <TableHead className="w-[285px] px-3">
+            <BiText en="Project" zh="项目名称" />
+          </TableHead>
+          <TableHead className="w-[178px]">
+            <BiText en="Current Status" zh="当前状态" />
+          </TableHead>
+          <TableHead className="w-[220px]">
+            <BiText en="Current Workflow" zh="当前流程节点" />
+          </TableHead>
+          <TableHead className="text-right">
+            <BiText en="Service Cost" zh="服务成本" className="items-end" />
+          </TableHead>
+          <TableHead className="text-right">
+            <BiText en="Subcontract" zh="分包成本" className="items-end" />
+          </TableHead>
+          <TableHead className="text-right">
+            <BiText en="Total Cost" zh="项目总成本" className="items-end" />
+          </TableHead>
+          <TableHead className="text-right">
+            <BiText en="Mandays" zh="项目总人天" className="items-end" />
+          </TableHead>
+          <TableHead className="text-right">
+            <BiText en="Total Quote" zh="项目总报价" className="items-end" />
+          </TableHead>
+          <TableHead className="pr-3 text-right">
+            <BiText en="Sales GM" zh="项目销毛" className="items-end" />
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {projects.map((project) => {
+          const statusDefinitions = project.statusDefinitions?.length
+            ? project.statusDefinitions
+            : initialProjectStatusDefinitions;
+          const visibleStatuses = statusDefinitions.filter(
+            (definition) =>
+              definition.active || definition.code === project.projectStatus,
+          );
+          const status = statusDefinitions.some(
+            (definition) => definition.code === project.projectStatus,
+          )
+            ? project.projectStatus
+            : visibleStatuses[0]?.code;
+          const workflowSteps = project.workflowSteps || [];
+          const workflowCode = workflowSteps.some(
+            (step) => step.code === project.currentWorkflowStepCode,
+          )
+            ? project.currentWorkflowStepCode
+            : workflowSteps[0]?.code;
+          return (
+            <TableRow
+              key={project.id}
+              className="h-[54px] bg-card hover:bg-[#f7f5f0]"
+            >
+              <TableCell className="px-3 py-1.5">
+                <button
+                  className="block max-w-[270px] text-left"
+                  onClick={() => onProject(project)}
+                  title="Open project cost workspace / 打开项目成本工作区"
+                >
+                  <span className="block truncate text-[12px] font-semibold text-[#173a52] hover:underline">
+                    {project.name}
+                  </span>
+                  <span className="financial-numeral mt-0.5 block truncate text-[9px] text-muted-foreground">
+                    {project.id} · {project.client}
+                  </span>
+                </button>
+              </TableCell>
+              <TableCell className="py-1.5">
+                {status ? (
+                  <Select
+                    value={status}
+                    onValueChange={(value) =>
+                      onStatusChange(project, value as ProjectStatus)
+                    }
+                  >
+                    <SelectTrigger size="sm" className="w-[165px] bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      {visibleStatuses.map((definition) => (
+                        <SelectItem
+                          key={definition.code}
+                          value={definition.code}
+                        >
+                          {definition.name} · {definition.nameZh}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">
+                    No status / 请先新增状态
+                  </span>
+                )}
+              </TableCell>
+              <TableCell className="py-1.5">
+                {workflowCode ? (
+                  <Select
+                    value={workflowCode}
+                    onValueChange={(value) => {
+                      if (value) onWorkflowChange(project, value);
+                    }}
+                  >
+                    <SelectTrigger
+                      size="sm"
+                      className="w-[205px] bg-white"
+                      aria-label={`${project.name} current workflow`}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      {workflowSteps.map((step) => (
+                        <SelectItem key={step.code} value={step.code}>
+                          {step.no} · {step.name} · {step.nameZh}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">
+                    No nodes / 请先新增节点
+                  </span>
+                )}
+              </TableCell>
+              <TableCell className="financial-numeral py-1.5 text-right text-[11px]">
+                {formatSgd(Number(project.serviceCost || 0))}
+              </TableCell>
+              <TableCell className="financial-numeral py-1.5 text-right text-[11px]">
+                {formatSgd(Number(project.subcontractCost || 0))}
+              </TableCell>
+              <TableCell className="py-1.5 text-right">
+                <button
+                  className="financial-numeral text-[11px] font-semibold text-[#2e6f77] hover:underline"
+                  onClick={() => onCost(project)}
+                  title="Open Cost Workspace / 打开成本界面"
+                >
+                  {formatSgd(Number(project.totalCost || 0))}
+                </button>
+                <span className="financial-numeral mt-0.5 block text-[8px] text-muted-foreground">
+                  {project.version}
+                </span>
+              </TableCell>
+              <TableCell className="financial-numeral py-1.5 text-right text-[11px]">
+                {Number(project.totalMandays || 0).toLocaleString('en-SG', {
+                  maximumFractionDigits: 4,
+                })}
+              </TableCell>
+              <TableCell className="py-1.5 text-right">
+                <button
+                  className="financial-numeral text-[11px] font-semibold text-[#2e6f77] hover:underline"
+                  onClick={() => onQuote(project)}
+                  title="Open Pricing & Quote / 打开报价界面"
+                >
+                  {formatSgd(Number(project.totalQuote || 0))}
+                </button>
+              </TableCell>
+              <TableCell className="financial-numeral py-1.5 pr-3 text-right text-[11px] font-semibold">
+                {Number(project.grossMarginPercent || 0).toFixed(2)}%
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+}

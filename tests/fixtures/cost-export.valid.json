@@ -1,0 +1,191 @@
+{
+  "schemaVersion": "2.0.0",
+  "exportedAt": "2026-09-04T08:00:00.000Z",
+  "project": {
+    "id": "PRJ-2026-018",
+    "name": "Xinglan Retail Cloud Migration & 3-Year Maintenance",
+    "client": "Xinglan Retail",
+    "currency": "SGD"
+  },
+  "costVersion": { "code": "V3", "status": "Pending freeze" },
+  "rateSettings": {
+    "quoteAsOf": "2026-09-04",
+    "tdStart": "2027-03-15",
+    "tdEnd": "2031-12-31",
+    "baseYear": 2026,
+    "defaultUplift": 5,
+    "annualUplifts": [5, 5, 5, 5, 5]
+  },
+  "travelSettings": {
+    "monthlyAllowance": 4200,
+    "airfarePerTrip": 850,
+    "trips": 4
+  },
+  "resourceTypes": [
+    {
+      "id": "rt-hq",
+      "code": "HQ",
+      "name": "Headquarters Resource",
+      "category": "internal",
+      "gradePool": "HQ",
+      "rateUnit": "MD",
+      "mandaysPerMonth": 21.75,
+      "hqTravel": true,
+      "active": true
+    },
+    {
+      "id": "rt-local",
+      "code": "LOCAL",
+      "name": "Local Resource",
+      "category": "internal",
+      "gradePool": "LOCAL",
+      "rateUnit": "MD",
+      "mandaysPerMonth": 21.75,
+      "hqTravel": false,
+      "active": true
+    },
+    {
+      "id": "rt-sub",
+      "code": "SUBCON",
+      "name": "Subcontract Resource",
+      "category": "subcontract",
+      "gradePool": null,
+      "rateUnit": "MD",
+      "mandaysPerMonth": 21.75,
+      "hqTravel": false,
+      "active": true
+    }
+  ],
+  "resourceGrades": [
+    {
+      "id": "grade-hq-l1",
+      "code": "HQ-L1",
+      "name": "HQ L1",
+      "pool": "HQ",
+      "level": "L1",
+      "sortOrder": 10,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "",
+      "active": true
+    },
+    {
+      "id": "grade-hq-l2",
+      "code": "HQ-L2",
+      "name": "HQ L2",
+      "pool": "HQ",
+      "level": "L2",
+      "sortOrder": 20,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "",
+      "active": true
+    },
+    {
+      "id": "grade-hq-l3",
+      "code": "HQ-L3",
+      "name": "HQ L3",
+      "pool": "HQ",
+      "level": "L3",
+      "sortOrder": 30,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "",
+      "active": true
+    },
+    {
+      "id": "grade-hq-l4",
+      "code": "HQ-L4",
+      "name": "HQ L4",
+      "pool": "HQ",
+      "level": "L4",
+      "sortOrder": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "",
+      "active": true
+    },
+    {
+      "id": "grade-local-l1",
+      "code": "LOCAL-L1",
+      "name": "Local L1",
+      "pool": "LOCAL",
+      "level": "L1",
+      "sortOrder": 50,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "",
+      "active": true
+    },
+    {
+      "id": "grade-local-l2",
+      "code": "LOCAL-L2",
+      "name": "Local L2",
+      "pool": "LOCAL",
+      "level": "L2",
+      "sortOrder": 60,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "",
+      "active": true
+    },
+    {
+      "id": "grade-local-l3",
+      "code": "LOCAL-L3",
+      "name": "Local L3",
+      "pool": "LOCAL",
+      "level": "L3",
+      "sortOrder": 70,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "",
+      "active": true
+    },
+    {
+      "id": "grade-local-l4",
+      "code": "LOCAL-L4",
+      "name": "Local L4",
+      "pool": "LOCAL",
+      "level": "L4",
+      "sortOrder": 80,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "",
+      "active": true
+    }
+  ],
+  "costRows": [
+    {
+      "id": "CI-001",
+      "scope": "Solution Design",
+      "bu": "Cloud BU",
+      "reTypeId": "rt-hq",
+      "gradeId": "grade-hq-l3",
+      "mdPerSite": 80,
+      "years": [
+        { "bucket": "Y1", "sites": 1, "cost": 184000 },
+        { "bucket": "Y2", "sites": 0, "cost": 0 },
+        { "bucket": "Y3", "sites": 0, "cost": 0 },
+        { "bucket": "Y4", "sites": 0, "cost": 0 },
+        { "bucket": "Y5", "sites": 0, "cost": 0 }
+      ]
+    },
+    {
+      "id": "CI-002",
+      "scope": "Cutover Subcontract",
+      "bu": "Infrastructure BU",
+      "reTypeId": "rt-sub",
+      "gradeId": null,
+      "mdPerSite": 5.5,
+      "years": [
+        { "bucket": "Y1", "sites": 6, "cost": 165000 },
+        { "bucket": "Y2", "sites": 3, "cost": 90000 },
+        { "bucket": "Y3", "sites": 1, "cost": 30000 },
+        { "bucket": "Y4", "sites": 1, "cost": 25000 },
+        { "bucket": "Y5", "sites": 1, "cost": 20000 }
+      ]
+    }
+  ],
+  "manualCosts": {
+    "localPurchasedEquipment": 10000,
+    "inlandLogistics": 2000,
+    "countryWarehousing": 1000,
+    "nonInHouseLabour": 0,
+    "settlement": 500,
+    "carFee": 0,
+    "otherService": 250,
+    "riskContingency": 15000
+  }
+}

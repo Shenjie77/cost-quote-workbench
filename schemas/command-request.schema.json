@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.cost-workbench/schemas/command-request/2.0.0",
+  "title": "CostCliRequestEnvelopeV2",
+  "description": "Strict stdin envelope for cost-cli commands that consume JSON data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "requestId", "data"],
+  "properties": {
+    "apiVersion": { "const": "cost-workbench/v2" },
+    "kind": {
+      "enum": [
+        "CostSnapshotRequest",
+        "MaintenancePriceRequest",
+        "WorkspaceSaveRequest"
+      ]
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "\\S"
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "enum": ["user", "agent", "system"] },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "\\S"
+        }
+      }
+    },
+    "data": {
+      "description": "Validated by the command-specific cost-export or maintenance-price schema after this envelope is accepted."
+    }
+  }
+}

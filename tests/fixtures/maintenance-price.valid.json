@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "records": [
+    {
+      "id": "mh-001",
+      "client": "Xinglan Retail",
+      "service": "Storage hardware maintenance",
+      "productModel": "Storage X9000",
+      "serviceLevel": "24x7 · 4-hour onsite",
+      "site": "Singapore DC1",
+      "coverageMonths": 12,
+      "quantity": 2,
+      "costAmount": 16400,
+      "quotedAmount": 22000,
+      "currency": "SGD",
+      "quoteDate": "2026-05-16",
+      "outcome": "Won",
+      "source": "QT-2026-006"
+    }
+  ]
+}

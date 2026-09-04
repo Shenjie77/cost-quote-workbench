@@ -1,0 +1,659 @@
+/**
+ * Cost-domain types and calculations shared by the web UI, Excel exporter,
+ * and local CLI. Keeping the arithmetic here prevents the three interfaces
+ * from drifting as the platform grows.
+ *
+ * Business invariants:
+ * - Y1 is the first delivery year and can be the current calendar year.
+ * - Mandays are always Sites × MD/Site.
+ * - HQ travel is calculated only for internal resource types marked HQ.
+ * - Cost-statement parent rows are roll-ups; only leaf rows can be entered.
+ */
+
+export const YEAR_BUCKETS = ['Y1', 'Y2', 'Y3', 'Y4', 'Y5'] as const;
+
+/**
+ * All SGD amounts round upward at two decimal places. Near-cent float noise is
+ * normalized first so 100.00000000001 stays 100.00, while 18848.282 becomes
+ * 18848.29.
+ */
+export const roundMoney = (value: number) => {
+  const number = Number(value);
+  const scaled = number * 100;
+  const nearestCent = Math.round(scaled);
+  const tolerance = Math.max(1e-7, Number.EPSILON * Math.abs(scaled));
+  const rounded =
+    Math.abs(scaled - nearestCent) < tolerance
+      ? nearestCent / 100
+      : Math.ceil(scaled) / 100;
+  return Object.is(rounded, -0) ? 0 : rounded;
+};
+
+/** Operational quantities retain four decimals without leaking float noise. */
+export const roundQuantity = (value: number) =>
+  Math.round((Number(value) + Number.EPSILON) * 10_000) / 10_000;
+
+export type YearBucket = (typeof YEAR_BUCKETS)[number];
+
+export type YearAllocation = {
+  bucket: YearBucket;
+  sites: number;
+  cost: number;
+};
+
+export type CostInputRow = {
+  id: string;
+  scope: string;
+  bu: string;
+  reTypeId: string;
+  mdPerSite: number;
+  years: YearAllocation[];
+};
+
+export type RateSettings = {
+  quoteAsOf: string;
+  tdStart: string;
+  tdEnd: string;
+  baseYear: number;
+  defaultUplift: number;
+  annualUplifts: number[];
+};
+
+export type ResourceType = {
+  id: string;
+  code: string;
+  name: string;
+  category: 'internal' | 'subcontract';
+  /** Personnel family and level are part of RE Type, not a second master. */
+  pool: 'LOCAL' | 'HQ' | 'ARP' | null;
+  level: 'L0' | 'L1' | 'L2' | 'L3' | 'L4' | null;
+  /** Governed base-year SGD rate for one manday. */
+  mandayRate: number;
+  /** Unit conversions maintained with the rate definition. */
+  mandaysPerMonth: number;
+  hoursPerManday: number;
+  hqTravel: boolean;
+  effectiveFrom: string;
+  effectiveTo: string;
+  active: boolean;
+};
+
+export type TravelSettings = {
+  monthlyAllowance: number;
+  airfarePerTrip: number;
+  trips: number;
+};
+
+export type ManualCostInputs = {
+  localPurchasedEquipment: number;
+  inlandLogistics: number;
+  countryWarehousing: number;
+  nonInHouseLabour: number;
+  settlement: number;
+  carFee: number;
+  otherService: number;
+  riskContingency: number;
+};
+
+/**
+ * A cost version is a complete editable input snapshot. Master data such as
+ * RE Types remains shared by the project, while every value that can change a
+ * project cost is copied into the version. This prevents V2 edits from
+ * silently changing V1.
+ */
+/**
+ * User-controlled lifecycle for a cost snapshot. Creating another version
+ * never changes this value on an existing snapshot.
+ */
+export type CostVersionState = 'Draft' | 'Suspended' | 'Confirmed';
+
+export type CostVersionSnapshot = {
+  code: string;
+  state: CostVersionState;
+  createdAt: string;
+  sourceVersion: string | null;
+  costRows: CostInputRow[];
+  rateSettings: RateSettings;
+  travelSettings: TravelSettings;
+  travelRows: import('@/features/cost/additional-travel-domain').TravelCostRow[];
+  travelUplift: number;
+  manualCosts: ManualCostInputs;
+};
+
+export type CostStatementValues = {
+  inHouseLabour: number;
+  subcontract: number;
+  travel: number;
+  logistics: number;
+  period: number;
+  labour: number;
+  otherService: number;
+  service: number;
+  sales: number;
+  totalWithRisk: number;
+};
+
+export type CostStatementRow = {
+  code: string;
+  en: string;
+  zh: string;
+  level: number;
+  mode: 'section' | 'subtotal' | 'auto' | 'manual' | 'grand-total';
+  amount: number;
+  source: string;
+  manualKey?: keyof ManualCostInputs;
+};
+
+export type CostDimension = 'scope' | 'bu' | 'resourceType';
+
+export type CostDimensionSummary = {
+  key: string;
+  label: string;
+  sites: number;
+  mandays: number;
+  cost: number;
+  /** Ratio from 0 to 1; format as a percentage only at the presentation edge. */
+  shareRatio: number;
+  allocationStatus: 'ALLOCATED' | 'UNALLOCATED';
+  resourceCategory?: ResourceType['category'] | 'unmapped';
+};
+
+/** Returns mandays for one annual bucket using the TD allocation rule. */
+export const yearRowMandays = (row: CostInputRow, yearIndex: number) =>
+  roundQuantity(
+    Number(row.mdPerSite || 0) * Number(row.years[yearIndex]?.sites || 0),
+  );
+
+/** Sums all Y1–Y5 site allocations for one cost row. */
+export const totalRowSites = (row: CostInputRow) =>
+  roundQuantity(
+    row.years.reduce((sum, year) => sum + Number(year.sites || 0), 0),
+  );
+
+/** Sums calculated Sites × MD/Site across Y1–Y5 for one cost row. */
+export const totalRowMandays = (row: CostInputRow) =>
+  roundQuantity(
+    row.years.reduce(
+      (sum, _year, yearIndex) => sum + yearRowMandays(row, yearIndex),
+      0,
+    ),
+  );
+
+/**
+ * Sums normalized annual cost values for one cost row. Each source amount is
+ * rounded first so the displayed Y1–Y5 cells always reconcile to the row total.
+ */
+export const totalRowCost = (row: CostInputRow) =>
+  roundMoney(
+    row.years.reduce(
+      (sum, year) => sum + roundMoney(Number(year.cost || 0)),
+      0,
+    ),
+  );
+
+/**
+ * Resolves the real calendar year represented by Y1. A missing delivery start
+ * returns null and blocks annual cost allocation until TD dates are recorded.
+ */
+export const getY1Year = (settings: RateSettings) => {
+  const year = Number(settings.tdStart.slice(0, 4));
+  return Number.isFinite(year) && year > 0 ? year : null;
+};
+
+/** Returns the Y1–Y5 calendar-year labels derived from the TD start date. */
+export const getActualYears = (settings: RateSettings) =>
+  Array.from({ length: 5 }, (_, index) => {
+    const y1Year = getY1Year(settings);
+    return y1Year === null ? null : y1Year + index;
+  });
+
+/**
+ * Calculates cumulative labour-rate factors. Y1 has no uplift when delivery
+ * starts in the base year; future years compound each configured uplift.
+ */
+export const getLabourRateFactors = (settings: RateSettings) => {
+  const y1Year = getY1Year(settings);
+  if (y1Year === null) return [1, 1, 1, 1, 1];
+  let factor = 1;
+  return Array.from({ length: 5 }, (_, index) => {
+    const uplift =
+      index === 0 && y1Year === settings.baseYear
+        ? 0
+        : Number(settings.annualUplifts[index] ?? settings.defaultUplift ?? 0);
+    const periods = index === 0 ? Math.max(0, y1Year - settings.baseYear) : 1;
+    factor *= Math.pow(1 + uplift / 100, periods);
+    return factor;
+  });
+};
+
+/** Converts a governed MD rate to the equivalent MM and Hour rates. */
+export const getResourceRateConversions = (resourceType: ResourceType) => ({
+  perManday: roundMoney(resourceType.mandayRate),
+  perMonth: roundMoney(
+    resourceType.mandayRate * Math.max(resourceType.mandaysPerMonth, 0),
+  ),
+  perHour: roundMoney(
+    resourceType.hoursPerManday > 0
+      ? resourceType.mandayRate / resourceType.hoursPerManday
+      : 0,
+  ),
+});
+
+/** Calculates an internal annual cost from Sites × MD/Site × annual MD rate. */
+export const calculatedYearCost = (
+  row: CostInputRow,
+  yearIndex: number,
+  resourceTypes: ResourceType[],
+  rateSettings: RateSettings,
+) => {
+  const resourceType = resourceTypes.find((item) => item.id === row.reTypeId);
+  if (!resourceType || resourceType.category !== 'internal') {
+    return roundMoney(Number(row.years[yearIndex]?.cost || 0));
+  }
+  const factor = getLabourRateFactors(rateSettings)[yearIndex] ?? 1;
+  return roundMoney(
+    yearRowMandays(row, yearIndex) * resourceType.mandayRate * factor,
+  );
+};
+
+/**
+ * Calculates travel only for internal HQ resources. Monthly allowance uses
+ * actual HQ mandays divided by the resource type's MD/month; airfare uses the
+ * user-entered trip count and is never inferred from mandays.
+ */
+export const getHQTravelSummary = (
+  rows: CostInputRow[],
+  resourceTypes: ResourceType[],
+  settings: TravelSettings,
+) => {
+  const hqRows = rows.filter((row) =>
+    resourceTypes.some(
+      (resourceType) =>
+        resourceType.id === row.reTypeId &&
+        resourceType.category === 'internal' &&
+        resourceType.hqTravel,
+    ),
+  );
+  const hqMandays = roundQuantity(
+    hqRows.reduce((sum, row) => sum + totalRowMandays(row), 0),
+  );
+  const yearMandays = YEAR_BUCKETS.map((_, yearIndex) =>
+    roundQuantity(
+      hqRows.reduce((sum, row) => sum + yearRowMandays(row, yearIndex), 0),
+    ),
+  );
+  const months = roundQuantity(
+    hqRows.reduce((sum, row) => {
+      const resourceType = resourceTypes.find(
+        (item) => item.id === row.reTypeId,
+      );
+      const mandaysPerMonth = Number(resourceType?.mandaysPerMonth || 21.75);
+      return sum + totalRowMandays(row) / Math.max(mandaysPerMonth, 0.01);
+    }, 0),
+  );
+  const required = hqMandays > 0;
+  const allowanceCost = roundMoney(
+    required ? months * roundMoney(settings.monthlyAllowance) : 0,
+  );
+  const airfareCost = roundMoney(
+    required ? settings.trips * roundMoney(settings.airfarePerTrip) : 0,
+  );
+  return {
+    hqRows,
+    hqMandays,
+    yearMandays,
+    months,
+    required,
+    allowanceCost,
+    airfareCost,
+    totalCost: roundMoney(allowanceCost + airfareCost),
+  };
+};
+
+/**
+ * Maps cost lines into the company statement. `subcontract` resource rows are
+ * treated as packaged/partner cost. Time-and-material non-house labour stays a
+ * separate manual leaf until the data model can identify the commercial basis.
+ */
+export const getCostStatementValues = (
+  rows: CostInputRow[],
+  resourceTypes: ResourceType[],
+  travelCost: number,
+  manual: ManualCostInputs,
+): CostStatementValues => {
+  // Normalize every monetary leaf before roll-up. This makes the arithmetic
+  // agree with the two-decimal values visible in the statement and workbook.
+  const equipment = roundMoney(manual.localPurchasedEquipment);
+  const inlandLogistics = roundMoney(manual.inlandLogistics);
+  const countryWarehousing = roundMoney(manual.countryWarehousing);
+  const nonInHouseLabour = roundMoney(manual.nonInHouseLabour);
+  const settlement = roundMoney(manual.settlement);
+  const carFee = roundMoney(manual.carFee);
+  const otherServiceCost = roundMoney(manual.otherService);
+  const riskContingency = roundMoney(manual.riskContingency);
+  const normalizedTravelCost = roundMoney(travelCost);
+  const inHouseLabour = roundMoney(
+    rows
+      .filter(
+        (row) =>
+          resourceTypes.find((item) => item.id === row.reTypeId)?.category ===
+          'internal',
+      )
+      .reduce((sum, row) => sum + totalRowCost(row), 0),
+  );
+  const subcontract = roundMoney(
+    rows
+      .filter(
+        (row) =>
+          resourceTypes.find((item) => item.id === row.reTypeId)?.category ===
+          'subcontract',
+      )
+      .reduce((sum, row) => sum + totalRowCost(row), 0),
+  );
+  const logistics = roundMoney(inlandLogistics + countryWarehousing);
+  const period = logistics;
+  const labour = roundMoney(
+    inHouseLabour + nonInHouseLabour + normalizedTravelCost,
+  );
+  const otherService = roundMoney(carFee + otherServiceCost);
+  const service = roundMoney(labour + subcontract + settlement + otherService);
+  const sales = roundMoney(equipment + period + service);
+  return {
+    inHouseLabour,
+    subcontract,
+    travel: normalizedTravelCost,
+    logistics,
+    period,
+    labour,
+    otherService,
+    service,
+    sales,
+    totalWithRisk: roundMoney(sales + riskContingency),
+  };
+};
+
+/**
+ * Builds the canonical statement row order used by both the UI and Excel.
+ * Parent rows are deliberately calculated here and are never editable.
+ */
+export const buildCostStatementRows = (
+  rows: CostInputRow[],
+  resourceTypes: ResourceType[],
+  travelCost: number,
+  manualCosts: ManualCostInputs,
+): CostStatementRow[] => {
+  const values = getCostStatementValues(
+    rows,
+    resourceTypes,
+    travelCost,
+    manualCosts,
+  );
+  return [
+    {
+      code: '2',
+      en: 'Sales Cost',
+      zh: '销售成本',
+      level: 0,
+      mode: 'section',
+      amount: values.sales,
+      source: 'Calculated subtotal / 自动小计',
+    },
+    {
+      code: '2.1.2',
+      en: 'Local Purchased Equipment Cost',
+      zh: '本地采购设备成本',
+      level: 1,
+      mode: 'manual',
+      amount: roundMoney(manualCosts.localPurchasedEquipment),
+      source: 'Manual input / 手动录入',
+      manualKey: 'localPurchasedEquipment',
+    },
+    {
+      code: '2.2',
+      en: 'Period Cost',
+      zh: '期间成本',
+      level: 0,
+      mode: 'subtotal',
+      amount: values.period,
+      source: 'Calculated subtotal / 自动小计',
+    },
+    {
+      code: '2.2.1',
+      en: 'Logistics Cost',
+      zh: '供应物流成本',
+      level: 1,
+      mode: 'subtotal',
+      amount: values.logistics,
+      source: 'Calculated subtotal / 自动小计',
+    },
+    {
+      code: '2.2.1.2',
+      en: 'Inland Logistics Cost',
+      zh: '内陆物流成本',
+      level: 2,
+      mode: 'manual',
+      amount: roundMoney(manualCosts.inlandLogistics),
+      source: 'Manual input / 手动录入',
+      manualKey: 'inlandLogistics',
+    },
+    {
+      code: '2.2.1.3',
+      en: 'Country Warehousing Expense',
+      zh: '国家仓储费',
+      level: 2,
+      mode: 'manual',
+      amount: roundMoney(manualCosts.countryWarehousing),
+      source: 'Manual input / 手动录入',
+      manualKey: 'countryWarehousing',
+    },
+    {
+      code: '2.3',
+      en: 'Service Cost',
+      zh: '服务成本',
+      level: 0,
+      mode: 'subtotal',
+      amount: values.service,
+      source: 'Calculated subtotal / 自动小计',
+    },
+    {
+      code: '2.3.1',
+      en: 'Labour Cost',
+      zh: '人力成本',
+      level: 1,
+      mode: 'subtotal',
+      amount: values.labour,
+      source: 'Calculated subtotal / 自动小计',
+    },
+    {
+      code: '2.3.1.1',
+      en: 'In-house Labour Cost',
+      zh: '自有人力成本',
+      level: 2,
+      mode: 'auto',
+      amount: values.inHouseLabour,
+      source: 'Cost Input · Internal RE / 成本表自有资源',
+    },
+    {
+      code: '2.3.1.2',
+      en: 'Non-in-house Labour Cost',
+      zh: '外包人力成本',
+      level: 2,
+      mode: 'manual',
+      amount: roundMoney(manualCosts.nonInHouseLabour),
+      source: 'Manual input / 手动录入',
+      manualKey: 'nonInHouseLabour',
+    },
+    {
+      code: '2.3.1.3',
+      en: 'Travelling Expense',
+      zh: '差旅费',
+      level: 2,
+      mode: 'auto',
+      amount: values.travel,
+      source: 'HQ Travel / HQ 差旅自动计算',
+    },
+    {
+      code: '2.3.2',
+      en: 'Subcontract Cost',
+      zh: '合作成本',
+      level: 1,
+      mode: 'auto',
+      amount: values.subcontract,
+      source: 'Cost Input · Subcontract RE / 成本表合作资源',
+    },
+    {
+      code: '2.3.3',
+      en: 'Settlement Cost',
+      zh: '结算成本',
+      level: 1,
+      mode: 'manual',
+      amount: roundMoney(manualCosts.settlement),
+      source: 'Manual input / 手动录入',
+      manualKey: 'settlement',
+    },
+    {
+      code: '2.3.4',
+      en: 'Other Service Costs (EHS)',
+      zh: '其他服务成本 EHS',
+      level: 1,
+      mode: 'subtotal',
+      amount: values.otherService,
+      source: 'Calculated subtotal / 自动小计',
+    },
+    {
+      code: '2.3.4.1',
+      en: 'Car Fee',
+      zh: '汽车费',
+      level: 2,
+      mode: 'manual',
+      amount: roundMoney(manualCosts.carFee),
+      source: 'Manual input / 手动录入',
+      manualKey: 'carFee',
+    },
+    {
+      code: '2.3.4.2',
+      en: 'Other Service Costs',
+      zh: '其他服务成本_其他',
+      level: 2,
+      mode: 'manual',
+      amount: roundMoney(manualCosts.otherService),
+      source: 'Manual input / 手动录入',
+      manualKey: 'otherService',
+    },
+    {
+      code: '15',
+      en: 'Risk Contingency',
+      zh: '风险准备金',
+      level: 0,
+      mode: 'manual',
+      amount: roundMoney(manualCosts.riskContingency),
+      source: 'Manual input / 手动录入',
+      manualKey: 'riskContingency',
+    },
+    {
+      code: '',
+      en: 'Total Cost with Risk',
+      zh: '含风险总成本（2. 销售成本 + 15. 风险准备金）',
+      level: 0,
+      mode: 'grand-total',
+      amount: values.totalWithRisk,
+      source: 'Calculated total / 自动合计',
+    },
+  ];
+};
+
+/**
+ * Groups cost-input rows for Scope, BU, or resource-type reporting. Resource
+ * types use their stable master-data ID as the key so duplicate display names
+ * cannot be merged silently.
+ */
+export const buildCostDimensionSummary = (
+  rows: CostInputRow[],
+  dimension: CostDimension,
+  resourceTypes: ResourceType[],
+): CostDimensionSummary[] => {
+  const groups = new Map<string, Omit<CostDimensionSummary, 'shareRatio'>>();
+  for (const row of rows) {
+    const resourceType = resourceTypes.find((item) => item.id === row.reTypeId);
+    const key =
+      dimension === 'scope'
+        ? row.scope.trim() || 'UNSPECIFIED'
+        : dimension === 'bu'
+          ? row.bu.trim() || 'UNSPECIFIED'
+          : resourceType?.id || 'UNMAPPED';
+    const label =
+      dimension === 'resourceType'
+        ? resourceType
+          ? `${resourceType.code} · ${resourceType.name}`
+          : 'UNMAPPED · Unmapped Resource Type'
+        : key;
+    const current = groups.get(key) ?? {
+      key,
+      label,
+      sites: 0,
+      mandays: 0,
+      cost: 0,
+      allocationStatus: 'ALLOCATED',
+      resourceCategory: resourceType?.category ?? 'unmapped',
+    };
+    current.sites = roundQuantity(current.sites + totalRowSites(row));
+    current.mandays = roundQuantity(current.mandays + totalRowMandays(row));
+    current.cost = roundMoney(current.cost + totalRowCost(row));
+    groups.set(key, current);
+  }
+  const totalCost = roundMoney(
+    [...groups.values()].reduce((sum, item) => sum + item.cost, 0),
+  );
+  return [...groups.values()]
+    .map((item) => ({
+      ...item,
+      shareRatio: totalCost > 0 ? item.cost / totalCost : 0,
+    }))
+    .sort((a, b) => b.cost - a.cost || a.label.localeCompare(b.label));
+};
+
+/**
+ * Adds project-level HQ travel and manual statement costs as one explicit
+ * non-resource/unallocated line. UI, CLI, and Excel call this same function so
+ * their dimensional totals always reconcile to Sales Cost.
+ */
+export const buildReconciledCostDimensionSummary = (
+  rows: CostInputRow[],
+  dimension: CostDimension,
+  resourceTypes: ResourceType[],
+  travelCost: number,
+  manualCosts: ManualCostInputs,
+): CostDimensionSummary[] => {
+  const items = buildCostDimensionSummary(rows, dimension, resourceTypes).map(
+    ({ shareRatio: _shareRatio, ...item }) => item,
+  );
+  const statementValues = getCostStatementValues(
+    rows,
+    resourceTypes,
+    travelCost,
+    manualCosts,
+  );
+  const allocatedCost = roundMoney(
+    rows.reduce((sum, row) => sum + totalRowCost(row), 0),
+  );
+  const unallocatedCost = roundMoney(statementValues.sales - allocatedCost);
+  if (unallocatedCost > 0) {
+    items.push({
+      key:
+        dimension === 'resourceType' ? '__NON_RESOURCE__' : '__UNALLOCATED__',
+      label: dimension === 'resourceType' ? 'Non-resource cost' : 'UNALLOCATED',
+      sites: 0,
+      mandays: 0,
+      cost: unallocatedCost,
+      allocationStatus: 'UNALLOCATED',
+      resourceCategory: 'unmapped',
+    });
+  }
+  const totalCost = roundMoney(items.reduce((sum, item) => sum + item.cost, 0));
+  return items
+    .map((item) => ({
+      ...item,
+      shareRatio: totalCost > 0 ? item.cost / totalCost : 0,
+    }))
+    .sort((a, b) => b.cost - a.cost || a.label.localeCompare(b.label));
+};

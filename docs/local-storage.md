@@ -1,0 +1,75 @@
+# Local SQLite storage and backup
+
+## Runtime boundary
+
+`npm run dev` launches two loopback-only processes:
+
+- the workbench UI at `http://localhost:3000`;
+- the local data API at `http://127.0.0.1:3210`.
+
+The API stores data in `data/workbench.sqlite`. Its WAL sidecar files may exist
+while the application is running. No company quotation platform, cloud
+database, or external model receives this data.
+
+## Stored records
+
+`projects` is the searchable project index. `workspace_snapshots` contains one
+atomic JSON workspace per project with:
+
+- schema version and monotonically increasing revision;
+- SHA-256 of the exact JSON payload;
+- project-specific workflow nodes (editable names, owners, states, and required
+  flags) plus the selected node;
+- manual project status and pricing parameters;
+- active cost version plus independent version snapshots with manual `Draft`,
+  `Suspended`, or `Confirmed` states;
+- cost rows, rate/travel assumptions, and manual costs;
+- consolidated RE Type/rate, subcontract, supplemental-cost, and maintenance master
+  data;
+- review gates with follow-up history;
+- quote templates, assumptions, pricing, and quote-history snapshots;
+- update timestamp.
+
+The schema is defined in `db/schema.ts`. Initialization uses idempotent,
+single-statement migrations and enables foreign keys, WAL, busy timeout, and
+`PRAGMA optimize`.
+
+## Save and conflict behavior
+
+The browser first loads the saved project. If none exists, it writes the
+bundled starting data once. Later edits autosave after 900 ms. Every save sends
+the last loaded revision. SQLite accepts the save only when that revision is
+still current, then increments it. A second stale tab receives
+`REVISION_CONFLICT` and must reload; it cannot silently overwrite newer data.
+
+Agent writes use the same rule:
+
+```bash
+npm run --silent cost-cli -- workspace get \
+  --project-id PRJ-2026-018 --pretty
+
+npm run --silent cost-cli -- workspace save \
+  --input /absolute/path/workspace-request.json \
+  --expected-revision 7 --pretty
+```
+
+Use `--expected-revision none` only for a project known not to exist.
+
+## Backup and recovery
+
+In the UI, select the three-dot action beside the workspace identity to
+download the active project as a restore-ready `WorkspaceSaveRequest` JSON
+file. It can be validated or restored with `workspace save` after checking the
+target revision.
+
+Close the workbench before copying the database so the WAL is fully checkpointed.
+Copy `data/workbench.sqlite` to a company-approved encrypted location. Do not
+commit it to Git or place it in a personal cloud drive. Recovery is replacing
+the stopped application's database file with a known-good copy. Keep the
+source copy until the restored application has passed `system doctor` and
+`workspace list`.
+
+Confirmed versions are lifecycle states rather than cryptographically signed
+records. General row changes do not have a separate event ledger; revision,
+payload hash, cost-version snapshots, review follow-ups, and quote history form
+the current traceability model.

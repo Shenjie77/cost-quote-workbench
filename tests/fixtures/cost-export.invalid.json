@@ -1,0 +1,4 @@
+{
+  "schemaVersion": "1.0.0",
+  "unexpectedField": "This fixture must be rejected by the strict schema."
+}
