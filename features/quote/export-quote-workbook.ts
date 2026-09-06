@@ -3,6 +3,7 @@
 import type { CostExportSnapshot } from '../cost/contracts.ts';
 import type { PricingResult } from './domain.ts';
 import type { QuoteAssumption, QuoteTemplate } from './types.ts';
+import { matchesClient } from './catalog-domain.ts';
 
 export type QuoteWorkbookInput = {
   project: CostExportSnapshot['project'];
@@ -17,13 +18,21 @@ const CURRENCY_FORMAT = '"S$" #,##0.00;[Red]-"S$" #,##0.00;-';
 
 /** Builds a compact internal/client handoff workbook from one immutable input. */
 export const buildQuoteWorkbookBuffer = async (input: QuoteWorkbookInput) => {
+  if (
+    !input.template.active ||
+    !matchesClient(input.template.clientPattern, input.project.client)
+  ) {
+    throw new Error(
+      'Quotation template is inactive or does not match the customer.',
+    );
+  }
   const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Cost & Quote Workbench';
   workbook.created = new Date();
   const sheet = workbook.addWorksheet('Quotation', {
     views: [{ showGridLines: false }],
-    pageSetup: { fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
+    pageSetup: { fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 },
   });
   sheet.columns = [{ width: 4 }, { width: 30 }, { width: 28 }, { width: 22 }];
 
@@ -91,19 +100,44 @@ export const buildQuoteWorkbookBuffer = async (input: QuoteWorkbookInput) => {
     'Commercial Terms & Assumptions / 商务条款与报价假设';
   sheet.getCell(row, 2).font = { bold: true, color: { argb: 'FF173A52' } };
   row += 1;
+  const bilingual = (primary: string, translation: string) =>
+    [primary, translation].filter(Boolean).join(' / ');
   const terms = [
     `Validity: ${input.template.validityDays} days / 有效期 ${input.template.validityDays} 天`,
-    `Payment terms: ${input.template.paymentTerms} / ${input.template.paymentTermsZh}`,
+    `Payment terms: ${bilingual(input.template.paymentTerms, input.template.paymentTermsZh)}`,
+    ...(input.template.termsAndConditions
+      ? ['Terms & Conditions / 商务条款', input.template.termsAndConditions]
+      : []),
+    'Quotation Assumptions / 报价假设',
     ...input.assumptions
       .filter((item) => item.included)
-      .map((item) => `${item.text} / ${item.textZh}`),
+      .map((item) => bilingual(item.text, item.textZh)),
   ];
+  // Split long paragraphs into bounded rows so Excel's row-height limit cannot
+  // hide T&C. Fit width only: long client documents may print on multiple pages.
   terms.forEach((term) => {
-    sheet.mergeCells(row, 2, row, 4);
-    sheet.getCell(row, 2).value = `• ${term}`;
-    sheet.getCell(row, 2).alignment = { wrapText: true, vertical: 'top' };
-    sheet.getRow(row).height = 30;
-    row += 1;
+    for (const paragraph of term.split('\n')) {
+      const characters = Array.from(paragraph);
+      for (
+        let offset = 0;
+        offset < Math.max(1, characters.length);
+        offset += 180
+      ) {
+        const text = characters.slice(offset, offset + 180).join('');
+        sheet.mergeCells(row, 2, row, 4);
+        sheet.getCell(row, 2).value = text;
+        sheet.getCell(row, 2).alignment = { wrapText: true, vertical: 'top' };
+        const displayWidth = Array.from(text).reduce(
+          (width, char) => width + (char.charCodeAt(0) > 255 ? 2 : 1),
+          0,
+        );
+        sheet.getRow(row).height = Math.max(
+          18,
+          Math.ceil(displayWidth / 64) * 15 + 8,
+        );
+        row += 1;
+      }
+    }
   });
 
   sheet.eachRow((sheetRow) => {

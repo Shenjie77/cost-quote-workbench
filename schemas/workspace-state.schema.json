@@ -23,40 +23,63 @@
     "manualCosts"
   ],
   "properties": {
-    "schemaVersion": { "const": "1.0.0" },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
     "project": {
       "$ref": "https://local.cost-workbench/schemas/cost-export/2.0.0#/$defs/project"
     },
-    "selectedStep": { "type": "integer", "minimum": 0, "maximum": 1000 },
-    "currentWorkflowStepCode": { "$ref": "#/$defs/text" },
+    "selectedStep": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000
+    },
+    "currentWorkflowStepCode": {
+      "$ref": "#/$defs/text"
+    },
     "processSteps": {
       "type": "array",
       "maxItems": 1000,
-      "items": { "$ref": "#/$defs/workflowStep" }
+      "items": {
+        "$ref": "#/$defs/workflowStep"
+      }
     },
-    "projectStatus": { "$ref": "#/$defs/identifier" },
+    "projectStatus": {
+      "$ref": "#/$defs/identifier"
+    },
     "projectStatusDefinitions": {
       "type": "array",
       "minItems": 1,
       "maxItems": 1000,
-      "items": { "$ref": "#/$defs/projectStatusDefinition" }
+      "items": {
+        "$ref": "#/$defs/projectStatusDefinition"
+      }
     },
     "reviewGates": {
       "type": "array",
       "maxItems": 10000,
-      "items": { "$ref": "#/$defs/reviewGate" }
+      "items": {
+        "$ref": "#/$defs/reviewGate"
+      }
     },
-    "activeVersion": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
+    "activeVersion": {
+      "type": "string",
+      "pattern": "^V[1-9][0-9]*$"
+    },
     "costVersions": {
       "type": "array",
       "minItems": 1,
       "maxItems": 1000,
-      "items": { "$ref": "#/$defs/costVersion" }
+      "items": {
+        "$ref": "#/$defs/costVersion"
+      }
     },
     "costRows": {
       "type": "array",
       "maxItems": 100000,
-      "items": { "$ref": "#/$defs/draftCostRow" }
+      "items": {
+        "$ref": "#/$defs/draftCostRow"
+      }
     },
     "rateSettings": {
       "$ref": "https://local.cost-workbench/schemas/cost-export/2.0.0#/$defs/rateSettings"
@@ -72,17 +95,23 @@
     "subcontractItems": {
       "type": "array",
       "maxItems": 100000,
-      "items": { "$ref": "#/$defs/subcontractItem" }
+      "items": {
+        "$ref": "#/$defs/subcontractItem"
+      }
     },
     "supplementalCostItems": {
       "type": "array",
       "maxItems": 100000,
-      "items": { "$ref": "#/$defs/supplementalCostItem" }
+      "items": {
+        "$ref": "#/$defs/supplementalCostItem"
+      }
     },
     "maintenancePriceRecords": {
       "type": "array",
       "maxItems": 100000,
-      "items": { "$ref": "#/$defs/maintenancePriceRecord" }
+      "items": {
+        "$ref": "#/$defs/maintenancePriceRecord"
+      }
     },
     "travelSettings": {
       "$ref": "https://local.cost-workbench/schemas/cost-export/2.0.0#/$defs/travelSettings"
@@ -90,9 +119,15 @@
     "travelRows": {
       "type": "array",
       "maxItems": 100000,
-      "items": { "$ref": "#/$defs/travelRow" }
+      "items": {
+        "$ref": "#/$defs/travelRow"
+      }
     },
-    "travelUplift": { "type": "number", "minimum": -100, "maximum": 1000 },
+    "travelUplift": {
+      "type": "number",
+      "minimum": -100,
+      "maximum": 1000
+    },
     "manualCosts": {
       "$ref": "https://local.cost-workbench/schemas/cost-export/2.0.0#/$defs/manualCosts"
     },
@@ -101,31 +136,68 @@
       "additionalProperties": false,
       "required": ["targetGrossMargin", "discount", "gstPercent"],
       "properties": {
-        "targetGrossMargin": { "type": "number", "minimum": 0, "maximum": 95 },
-        "discount": { "$ref": "#/$defs/money" },
-        "gstPercent": { "type": "number", "minimum": 0, "maximum": 100 }
+        "targetGrossMargin": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 95
+        },
+        "discount": {
+          "$ref": "#/$defs/money"
+        },
+        "gstPercent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "assumptionLibrary": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/assumptionDefinition"
       }
     },
     "quoteTemplates": {
       "type": "array",
       "minItems": 1,
       "maxItems": 1000,
-      "items": { "$ref": "#/$defs/quoteTemplate" }
+      "items": {
+        "$ref": "#/$defs/quoteTemplate"
+      }
     },
-    "selectedQuoteTemplateId": { "$ref": "#/$defs/identifier" },
+    "selectedQuoteTemplateId": {
+      "$ref": "#/$defs/identifier"
+    },
     "quoteAssumptions": {
       "type": "array",
       "maxItems": 10000,
-      "items": { "$ref": "#/$defs/quoteAssumption" }
+      "items": {
+        "$ref": "#/$defs/quoteAssumption"
+      }
     },
     "quoteHistory": {
       "type": "array",
       "maxItems": 10000,
-      "items": { "$ref": "#/$defs/quoteHistoryRecord" }
+      "items": {
+        "$ref": "#/$defs/quoteHistoryRecord"
+      }
+    },
+    "cpq": {
+      "$ref": "#/$defs/cpqWorkspace"
+    },
+    "ssr": {
+      "$ref": "#/$defs/ssrWorkspace"
+    },
+    "maintenanceBoq": {
+      "$ref": "#/$defs/maintenanceWorkspace"
     }
   },
   "$defs": {
-    "text": { "type": "string", "maxLength": 2000 },
+    "text": {
+      "type": "string",
+      "maxLength": 2000
+    },
     "nonBlankText": {
       "type": "string",
       "minLength": 1,
@@ -138,7 +210,11 @@
       "maxLength": 160,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
     },
-    "money": { "type": "number", "minimum": 0, "maximum": 1000000000000 },
+    "money": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1000000000000
+    },
     "costVersion": {
       "type": "object",
       "additionalProperties": false,
@@ -155,19 +231,47 @@
         "manualCosts"
       ],
       "properties": {
-        "code": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
-        "state": { "enum": ["Draft", "Suspended", "Confirmed"] },
-        "createdAt": { "type": "string", "minLength": 20, "maxLength": 40 },
+        "code": {
+          "type": "string",
+          "pattern": "^V[1-9][0-9]*$"
+        },
+        "state": {
+          "enum": ["Draft", "Suspended", "Confirmed"]
+        },
+        "createdAt": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 40
+        },
+        "resourceTypes": {
+          "description": "Independent rate/conversion snapshot; legacy documents are backfilled from the project catalogue.",
+          "type": "array",
+          "items": {
+            "$ref": "https://local.cost-workbench/schemas/cost-export/2.0.0#/$defs/resourceType"
+          },
+          "maxItems": 10000
+        },
+        "calculationNote": {
+          "type": "string",
+          "maxLength": 2000
+        },
         "sourceVersion": {
           "anyOf": [
-            { "type": "string", "pattern": "^V[1-9][0-9]*$" },
-            { "type": "null" }
+            {
+              "type": "string",
+              "pattern": "^V[1-9][0-9]*$"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "costRows": {
           "type": "array",
           "maxItems": 100000,
-          "items": { "$ref": "#/$defs/draftCostRow" }
+          "items": {
+            "$ref": "#/$defs/draftCostRow"
+          }
         },
         "rateSettings": {
           "$ref": "https://local.cost-workbench/schemas/cost-export/2.0.0#/$defs/rateSettings"
@@ -178,9 +282,15 @@
         "travelRows": {
           "type": "array",
           "maxItems": 100000,
-          "items": { "$ref": "#/$defs/travelRow" }
+          "items": {
+            "$ref": "#/$defs/travelRow"
+          }
         },
-        "travelUplift": { "type": "number", "minimum": -100, "maximum": 1000 },
+        "travelUplift": {
+          "type": "number",
+          "minimum": -100,
+          "maximum": 1000
+        },
         "manualCosts": {
           "$ref": "https://local.cost-workbench/schemas/cost-export/2.0.0#/$defs/manualCosts"
         }
@@ -192,11 +302,26 @@
       "additionalProperties": false,
       "required": ["id", "scope", "bu", "reTypeId", "mdPerSite", "years"],
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "scope": { "type": "string", "maxLength": 500 },
-        "bu": { "type": "string", "maxLength": 200 },
-        "reTypeId": { "type": "string", "maxLength": 100 },
-        "mdPerSite": { "type": "number", "minimum": 0, "maximum": 1000000 },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "scope": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "bu": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "reTypeId": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "mdPerSite": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        },
         "years": {
           "type": "array",
           "minItems": 5,
@@ -209,7 +334,11 @@
                 },
                 {
                   "type": "object",
-                  "properties": { "bucket": { "const": "Y1" } }
+                  "properties": {
+                    "bucket": {
+                      "const": "Y1"
+                    }
+                  }
                 }
               ]
             },
@@ -220,7 +349,11 @@
                 },
                 {
                   "type": "object",
-                  "properties": { "bucket": { "const": "Y2" } }
+                  "properties": {
+                    "bucket": {
+                      "const": "Y2"
+                    }
+                  }
                 }
               ]
             },
@@ -231,7 +364,11 @@
                 },
                 {
                   "type": "object",
-                  "properties": { "bucket": { "const": "Y3" } }
+                  "properties": {
+                    "bucket": {
+                      "const": "Y3"
+                    }
+                  }
                 }
               ]
             },
@@ -242,7 +379,11 @@
                 },
                 {
                   "type": "object",
-                  "properties": { "bucket": { "const": "Y4" } }
+                  "properties": {
+                    "bucket": {
+                      "const": "Y4"
+                    }
+                  }
                 }
               ]
             },
@@ -253,12 +394,65 @@
                 },
                 {
                   "type": "object",
-                  "properties": { "bucket": { "const": "Y5" } }
+                  "properties": {
+                    "bucket": {
+                      "const": "Y5"
+                    }
+                  }
                 }
               ]
             }
           ],
           "items": false
+        },
+        "inputMode": {
+          "enum": ["sites", "mandays"]
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fileName",
+            "sha256",
+            "sheet",
+            "row",
+            "mappingKey",
+            "role",
+            "importedAt"
+          ],
+          "properties": {
+            "fileName": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "sheet": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "row": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "mappingKey": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "role": {
+              "enum": ["TD", "PM"]
+            },
+            "importedAt": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "importedValues": {
+              "type": "string",
+              "maxLength": 10000
+            }
+          }
         }
       }
     },
@@ -282,11 +476,21 @@
         "required"
       ],
       "properties": {
-        "code": { "$ref": "#/$defs/identifier" },
-        "no": { "$ref": "#/$defs/nonBlankText" },
-        "name": { "$ref": "#/$defs/nonBlankText" },
-        "nameZh": { "$ref": "#/$defs/text" },
-        "owner": { "$ref": "#/$defs/nonBlankText" },
+        "code": {
+          "$ref": "#/$defs/identifier"
+        },
+        "no": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "name": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "nameZh": {
+          "$ref": "#/$defs/text"
+        },
+        "owner": {
+          "$ref": "#/$defs/nonBlankText"
+        },
         "state": {
           "enum": [
             "completed",
@@ -296,14 +500,30 @@
             "not_started"
           ]
         },
-        "tone": { "enum": ["green", "amber", "red", "blue", "gray", "navy"] },
-        "date": { "$ref": "#/$defs/text" },
-        "dateZh": { "$ref": "#/$defs/text" },
-        "detail": { "$ref": "#/$defs/text" },
-        "detailZh": { "$ref": "#/$defs/text" },
-        "input": { "$ref": "#/$defs/text" },
-        "inputZh": { "$ref": "#/$defs/text" },
-        "required": { "type": "boolean" }
+        "tone": {
+          "enum": ["green", "amber", "red", "blue", "gray", "navy"]
+        },
+        "date": {
+          "$ref": "#/$defs/text"
+        },
+        "dateZh": {
+          "$ref": "#/$defs/text"
+        },
+        "detail": {
+          "$ref": "#/$defs/text"
+        },
+        "detailZh": {
+          "$ref": "#/$defs/text"
+        },
+        "input": {
+          "$ref": "#/$defs/text"
+        },
+        "inputZh": {
+          "$ref": "#/$defs/text"
+        },
+        "required": {
+          "type": "boolean"
+        }
       }
     },
     "projectStatusDefinition": {
@@ -311,10 +531,18 @@
       "additionalProperties": false,
       "required": ["code", "name", "nameZh", "active"],
       "properties": {
-        "code": { "$ref": "#/$defs/identifier" },
-        "name": { "$ref": "#/$defs/nonBlankText" },
-        "nameZh": { "$ref": "#/$defs/text" },
-        "active": { "type": "boolean" }
+        "code": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "nameZh": {
+          "$ref": "#/$defs/text"
+        },
+        "active": {
+          "type": "boolean"
+        }
       }
     },
     "reviewFollowUp": {
@@ -328,9 +556,17 @@
         "nextFollowUpAt"
       ],
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "createdAt": { "type": "string", "minLength": 20, "maxLength": 40 },
-        "summary": { "$ref": "#/$defs/nonBlankText" },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "createdAt": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 40
+        },
+        "summary": {
+          "$ref": "#/$defs/nonBlankText"
+        },
         "statusAfter": {
           "enum": [
             "not_started",
@@ -343,8 +579,13 @@
         },
         "nextFollowUpAt": {
           "anyOf": [
-            { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
-            { "const": "" }
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            {
+              "const": ""
+            }
           ]
         }
       }
@@ -367,12 +608,25 @@
         "followUps"
       ],
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "projectId": { "$ref": "#/$defs/identifier" },
-        "gate": { "$ref": "#/$defs/nonBlankText" },
-        "gateZh": { "$ref": "#/$defs/text" },
-        "owner": { "$ref": "#/$defs/nonBlankText" },
-        "dueDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "projectId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "gate": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "gateZh": {
+          "$ref": "#/$defs/text"
+        },
+        "owner": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "dueDate": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
         "status": {
           "enum": [
             "not_started",
@@ -383,14 +637,62 @@
             "cancelled"
           ]
         },
-        "note": { "$ref": "#/$defs/text" },
-        "noteZh": { "$ref": "#/$defs/text" },
-        "workflowStepCode": { "$ref": "#/$defs/text" },
-        "lastUpdatedAt": { "type": "string", "minLength": 20, "maxLength": 40 },
+        "note": {
+          "$ref": "#/$defs/text"
+        },
+        "noteZh": {
+          "$ref": "#/$defs/text"
+        },
+        "workflowStepCode": {
+          "$ref": "#/$defs/text"
+        },
+        "lastUpdatedAt": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 40
+        },
         "followUps": {
           "type": "array",
           "maxItems": 10000,
-          "items": { "$ref": "#/$defs/reviewFollowUp" }
+          "items": {
+            "$ref": "#/$defs/reviewFollowUp"
+          }
+        }
+      }
+    },
+    "assumptionDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "category",
+        "clientPattern",
+        "text",
+        "textZh",
+        "active"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "category": {
+          "$ref": "#/$defs/text"
+        },
+        "clientPattern": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "text": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "textZh": {
+          "$ref": "#/$defs/text"
+        },
+        "active": {
+          "type": "boolean"
         }
       }
     },
@@ -410,16 +712,50 @@
         "active"
       ],
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "name": { "$ref": "#/$defs/nonBlankText" },
-        "nameZh": { "$ref": "#/$defs/text" },
-        "clientPattern": { "$ref": "#/$defs/nonBlankText" },
-        "documentTitle": { "$ref": "#/$defs/nonBlankText" },
-        "documentTitleZh": { "$ref": "#/$defs/text" },
-        "validityDays": { "type": "integer", "minimum": 1, "maximum": 3650 },
-        "paymentTerms": { "$ref": "#/$defs/nonBlankText" },
-        "paymentTermsZh": { "$ref": "#/$defs/text" },
-        "active": { "type": "boolean" }
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "nameZh": {
+          "$ref": "#/$defs/text"
+        },
+        "clientPattern": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "documentTitle": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "documentTitleZh": {
+          "$ref": "#/$defs/text"
+        },
+        "validityDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650
+        },
+        "paymentTerms": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "paymentTermsZh": {
+          "$ref": "#/$defs/text"
+        },
+        "termsAndConditions": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "defaultAssumptionIds": {
+          "type": "array",
+          "maxItems": 10000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "active": {
+          "type": "boolean"
+        }
       }
     },
     "quoteAssumption": {
@@ -427,10 +763,21 @@
       "additionalProperties": false,
       "required": ["id", "text", "textZh", "included"],
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "text": { "$ref": "#/$defs/nonBlankText" },
-        "textZh": { "$ref": "#/$defs/text" },
-        "included": { "type": "boolean" }
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "text": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "textZh": {
+          "$ref": "#/$defs/text"
+        },
+        "included": {
+          "type": "boolean"
+        },
+        "sourceAssumptionId": {
+          "$ref": "#/$defs/identifier"
+        }
       }
     },
     "quoteHistoryRecord": {
@@ -451,22 +798,57 @@
         "note"
       ],
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "quoteNumber": { "$ref": "#/$defs/nonBlankText" },
-        "generatedAt": { "type": "string", "minLength": 20, "maxLength": 40 },
-        "costVersion": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
-        "templateId": { "$ref": "#/$defs/identifier" },
-        "status": { "enum": ["Draft", "Final"] },
-        "costAmount": { "$ref": "#/$defs/money" },
-        "quoteBeforeTax": { "$ref": "#/$defs/money" },
-        "gstAmount": { "$ref": "#/$defs/money" },
-        "quoteAfterTax": { "$ref": "#/$defs/money" },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "quoteNumber": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "generatedAt": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 40
+        },
+        "costVersion": {
+          "type": "string",
+          "pattern": "^V[1-9][0-9]*$"
+        },
+        "templateId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "templateSnapshot": {
+          "$ref": "#/$defs/quoteTemplate"
+        },
+        "assumptionSnapshots": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/quoteAssumption"
+          }
+        },
+        "status": {
+          "enum": ["Draft", "Final"]
+        },
+        "costAmount": {
+          "$ref": "#/$defs/money"
+        },
+        "quoteBeforeTax": {
+          "$ref": "#/$defs/money"
+        },
+        "gstAmount": {
+          "$ref": "#/$defs/money"
+        },
+        "quoteAfterTax": {
+          "$ref": "#/$defs/money"
+        },
         "grossMarginPercent": {
           "type": "number",
           "minimum": -100000,
           "maximum": 100
         },
-        "note": { "$ref": "#/$defs/text" }
+        "note": {
+          "$ref": "#/$defs/text"
+        }
       }
     },
     "subcontractItem": {
@@ -483,14 +865,30 @@
         "active"
       ],
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "code": { "$ref": "#/$defs/nonBlankText" },
-        "item": { "$ref": "#/$defs/nonBlankText" },
-        "bu": { "$ref": "#/$defs/nonBlankText" },
-        "supplier": { "$ref": "#/$defs/nonBlankText" },
-        "pricingBasis": { "$ref": "#/$defs/nonBlankText" },
-        "currency": { "$ref": "#/$defs/nonBlankText" },
-        "active": { "type": "boolean" }
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "code": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "item": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "bu": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "supplier": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "pricingBasis": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "currency": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "active": {
+          "type": "boolean"
+        }
       }
     },
     "supplementalCostItem": {
@@ -508,15 +906,33 @@
         "active"
       ],
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "code": { "$ref": "#/$defs/nonBlankText" },
-        "name": { "$ref": "#/$defs/nonBlankText" },
-        "statementCode": { "$ref": "#/$defs/nonBlankText" },
-        "defaultAmount": { "$ref": "#/$defs/money" },
-        "currency": { "const": "SGD" },
-        "owner": { "$ref": "#/$defs/text" },
-        "sourceNote": { "$ref": "#/$defs/text" },
-        "active": { "type": "boolean" }
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "code": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "name": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "statementCode": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "defaultAmount": {
+          "$ref": "#/$defs/money"
+        },
+        "currency": {
+          "const": "SGD"
+        },
+        "owner": {
+          "$ref": "#/$defs/text"
+        },
+        "sourceNote": {
+          "$ref": "#/$defs/text"
+        },
+        "active": {
+          "type": "boolean"
+        }
       }
     },
     "maintenancePriceRecord": {
@@ -539,20 +955,53 @@
         "source"
       ],
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "client": { "$ref": "#/$defs/nonBlankText" },
-        "service": { "$ref": "#/$defs/nonBlankText" },
-        "productModel": { "$ref": "#/$defs/nonBlankText" },
-        "serviceLevel": { "$ref": "#/$defs/nonBlankText" },
-        "site": { "$ref": "#/$defs/nonBlankText" },
-        "coverageMonths": { "type": "integer", "minimum": 0, "maximum": 1200 },
-        "quantity": { "type": "number", "minimum": 0, "maximum": 1000000000 },
-        "costAmount": { "$ref": "#/$defs/money" },
-        "quotedAmount": { "$ref": "#/$defs/money" },
-        "currency": { "const": "SGD" },
-        "quoteDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
-        "outcome": { "enum": ["Quoted", "Won", "Lost", "Reference"] },
-        "source": { "$ref": "#/$defs/nonBlankText" }
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "client": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "service": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "productModel": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "serviceLevel": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "site": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "coverageMonths": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1200
+        },
+        "quantity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000
+        },
+        "costAmount": {
+          "$ref": "#/$defs/money"
+        },
+        "quotedAmount": {
+          "$ref": "#/$defs/money"
+        },
+        "currency": {
+          "const": "SGD"
+        },
+        "quoteDate": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "outcome": {
+          "enum": ["Quoted", "Won", "Lost", "Reference"]
+        },
+        "source": {
+          "$ref": "#/$defs/nonBlankText"
+        }
       }
     },
     "travelRow": {
@@ -572,22 +1021,869 @@
         "treatment"
       ],
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "scope": { "$ref": "#/$defs/nonBlankText" },
-        "bu": { "$ref": "#/$defs/nonBlankText" },
-        "destination": { "$ref": "#/$defs/nonBlankText" },
-        "expenseType": { "$ref": "#/$defs/nonBlankText" },
-        "unitBasis": { "$ref": "#/$defs/nonBlankText" },
-        "baseUnitRate": { "$ref": "#/$defs/money" },
-        "currency": { "$ref": "#/$defs/nonBlankText" },
-        "rateBaseYear": { "type": "integer", "minimum": 2000, "maximum": 2200 },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "scope": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "bu": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "destination": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "expenseType": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "unitBasis": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "baseUnitRate": {
+          "$ref": "#/$defs/money"
+        },
+        "currency": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "rateBaseYear": {
+          "type": "integer",
+          "minimum": 2000,
+          "maximum": 2200
+        },
         "quantities": {
           "type": "array",
           "minItems": 5,
           "maxItems": 5,
-          "items": { "type": "number", "minimum": 0, "maximum": 1000000000 }
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000000
+          }
         },
-        "treatment": { "enum": ["included", "reimbursable", "excluded"] }
+        "treatment": {
+          "enum": ["included", "reimbursable", "excluded"]
+        }
+      }
+    },
+    "cpqCatalogItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "scope",
+        "unit",
+        "unitCost",
+        "kind",
+        "adjustable",
+        "active",
+        "step",
+        "minQty",
+        "maxQty",
+        "referenceQty",
+        "tags",
+        "revision"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/identifier"
+        },
+        "scope": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "unit": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "unitCost": {
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 100000000.0
+        },
+        "kind": {
+          "enum": ["equipment", "service"]
+        },
+        "adjustable": {
+          "type": "boolean"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "step": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000.0
+        },
+        "minQty": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000.0
+        },
+        "maxQty": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000.0
+        },
+        "referenceQty": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000.0
+        },
+        "tags": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "revision": {
+          "$ref": "#/$defs/nonBlankText"
+        }
+      }
+    },
+    "cpqSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "quantity", "locked", "weight", "reason"],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/identifier"
+        },
+        "quantity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000.0
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0.0001,
+          "maximum": 100000000000000
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 10000
+        }
+      }
+    },
+    "cpqLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item",
+        "quantity",
+        "referenceQty",
+        "amount",
+        "locked",
+        "reason"
+      ],
+      "properties": {
+        "item": {
+          "$ref": "#/$defs/cpqCatalogItem"
+        },
+        "quantity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000.0
+        },
+        "referenceQty": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000.0
+        },
+        "amount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000.0
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 10000
+        }
+      }
+    },
+    "cpqResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputKey",
+        "lines",
+        "targetCost",
+        "totalCost",
+        "difference",
+        "acceptable",
+        "searchComplete",
+        "visited",
+        "generatedAt",
+        "allocationBasis"
+      ],
+      "properties": {
+        "inputKey": {
+          "type": "string",
+          "maxLength": 4000000
+        },
+        "lines": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/cpqLine"
+          }
+        },
+        "targetCost": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000.0
+        },
+        "totalCost": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000.0
+        },
+        "difference": {
+          "type": "number",
+          "minimum": -1000000000000.0,
+          "maximum": 1000000000000.0
+        },
+        "acceptable": {
+          "type": "boolean"
+        },
+        "searchComplete": {
+          "type": "boolean"
+        },
+        "visited": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "generatedAt": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "allocationBasis": {
+          "type": "string",
+          "maxLength": 10000
+        }
+      }
+    },
+    "cpqDraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "brief",
+        "costVersion",
+        "targetCost",
+        "targetBasis",
+        "tolerance",
+        "rounding",
+        "allocationBasis",
+        "selections"
+      ],
+      "properties": {
+        "brief": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "costVersion": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "targetCost": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000.0
+        },
+        "targetBasis": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "tolerance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000.0
+        },
+        "rounding": {
+          "enum": ["ceil-cent", "half-up-cent"]
+        },
+        "allocationBasis": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "selections": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/cpqSelection"
+          }
+        },
+        "confirmation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["key", "by", "at"],
+          "properties": {
+            "key": {
+              "type": "string",
+              "maxLength": 4000000
+            },
+            "by": {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            "at": {
+              "type": "string",
+              "maxLength": 10000
+            }
+          }
+        },
+        "result": {
+          "$ref": "#/$defs/cpqResult"
+        }
+      }
+    },
+    "cpqArchive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "createdAt",
+        "costVersion",
+        "costBaseline",
+        "costKey",
+        "draft",
+        "result",
+        "proposalNumber"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "costVersion": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "costBaseline": {
+          "$ref": "#/$defs/costVersion"
+        },
+        "costKey": {
+          "type": "string",
+          "maxLength": 4000000
+        },
+        "draft": {
+          "$ref": "#/$defs/cpqDraft"
+        },
+        "result": {
+          "$ref": "#/$defs/cpqResult"
+        },
+        "proposalNumber": {
+          "type": "string",
+          "maxLength": 10000
+        }
+      }
+    },
+    "cpqWorkspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["catalog", "draft", "archives"],
+      "properties": {
+        "catalog": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/cpqCatalogItem"
+          }
+        },
+        "draft": {
+          "$ref": "#/$defs/cpqDraft"
+        },
+        "archives": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/cpqArchive"
+          }
+        }
+      }
+    },
+    "ssrResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "outcome", "evidence", "recordedAt", "conditions"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "outcome": {
+          "enum": ["approved", "rejected", "conditional", "withdrawn"]
+        },
+        "evidence": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "recordedAt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "maxItems": 100
+        }
+      }
+    },
+    "ssrSubmission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "domain",
+        "owner",
+        "dueDate",
+        "applicationNumber",
+        "evidence",
+        "createdAt",
+        "scopeBasis",
+        "dependencies",
+        "costBaseline",
+        "costKey",
+        "results",
+        "closures",
+        "followUps",
+        "bidKey",
+        "commercialKey",
+        "dependencyResults"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "kind": {
+          "enum": [
+            "DTRB",
+            "DRB",
+            "BUDGET",
+            "SPECIALIST",
+            "QUOTE_DECISION",
+            "BID_REVIEW"
+          ]
+        },
+        "domain": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "owner": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "dueDate": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "applicationNumber": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "evidence": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "scopeBasis": {
+          "type": "string",
+          "maxLength": 4000000
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "maxItems": 100
+        },
+        "costBaseline": {
+          "$ref": "#/$defs/costVersion"
+        },
+        "costKey": {
+          "type": "string",
+          "maxLength": 4000000
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ssrResult"
+          },
+          "maxItems": 100
+        },
+        "closures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["resultId", "condition", "evidence", "recordedAt"],
+            "properties": {
+              "resultId": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "condition": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "evidence": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "recordedAt": {
+                "type": "string",
+                "maxLength": 300
+              }
+            }
+          },
+          "maxItems": 1000
+        },
+        "followUps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "note", "nextDate", "recordedAt"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "nextDate": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              "recordedAt": {
+                "type": "string",
+                "maxLength": 300
+              }
+            }
+          },
+          "maxItems": 1000
+        },
+        "bidKey": {
+          "type": "string",
+          "maxLength": 4000000
+        },
+        "commercialKey": {
+          "type": "string",
+          "maxLength": 4000000
+        },
+        "dependencyResults": {
+          "type": "object",
+          "maxProperties": 100,
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
+      }
+    },
+    "ssrWorkspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "proposalNumber",
+        "companyUrl",
+        "scopeBrief",
+        "technicalBasis",
+        "mode",
+        "requiredDomains",
+        "submissions",
+        "bidResponses",
+        "commercialBasis"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "proposalNumber": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "companyUrl": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "scopeBrief": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "technicalBasis": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "mode": {
+          "enum": ["service", "tender"]
+        },
+        "requiredDomains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "maxItems": 50
+        },
+        "submissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ssrSubmission"
+          },
+          "maxItems": 300
+        },
+        "bidResponses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "clause",
+              "requirement",
+              "domain",
+              "response",
+              "deviation",
+              "owner",
+              "dueDate"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "clause": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "requirement": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "domain": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "response": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "deviation": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "owner": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "dueDate": {
+                "type": "string",
+                "maxLength": 10
+              }
+            }
+          },
+          "maxItems": 5000
+        },
+        "commercialBasis": {
+          "type": "string",
+          "maxLength": 4000000
+        }
+      }
+    },
+    "boqLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "model",
+        "quantity",
+        "serviceLevel",
+        "site",
+        "referenceId",
+        "unitAnnualQuote",
+        "basis",
+        "source"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "serviceLevel": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "site": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "referenceId": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "unitAnnualQuote": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000000000000.0
+        },
+        "basis": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "originalQuantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "originalModel": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "maintenanceLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boq",
+        "reference",
+        "annualReferenceQuote",
+        "annualReferenceCost",
+        "cost",
+        "quote"
+      ],
+      "properties": {
+        "boq": {
+          "$ref": "#/$defs/boqLine"
+        },
+        "reference": {
+          "$ref": "#/$defs/maintenancePriceRecord"
+        },
+        "annualReferenceQuote": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000000000000.0
+        },
+        "annualReferenceCost": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000000000000.0
+        },
+        "cost": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000000000000.0
+        },
+        "quote": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000000000000.0
+        }
+      }
+    },
+    "maintenanceArchive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "createdAt",
+        "client",
+        "coverageMonths",
+        "lines",
+        "cost",
+        "quote"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "client": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "coverageMonths": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1200
+        },
+        "lines": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/maintenanceLine"
+          }
+        },
+        "cost": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000000000000.0
+        },
+        "quote": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000000000000.0
+        }
+      }
+    },
+    "maintenanceWorkspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coverageMonths", "boq", "archives"],
+      "properties": {
+        "coverageMonths": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1200
+        },
+        "boq": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/boqLine"
+          }
+        },
+        "archives": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/maintenanceArchive"
+          }
+        }
       }
     }
   }

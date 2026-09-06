@@ -1,6 +1,6 @@
 /** Pricing, client-template output, assumptions, and quotation history. */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Download, FileCheck2, Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,12 +31,24 @@ import {
 } from '@/features/quote/domain';
 import { downloadQuoteWorkbook } from '@/features/quote/export-quote-workbook';
 import type {
+  AssumptionDefinition,
   QuoteAssumption,
   QuoteHistoryRecord,
   QuoteHistoryStatus,
   QuoteTemplate,
 } from '@/features/quote/types';
+import { Textarea } from '@/components/ui/textarea';
+import { AssumptionPicker } from './assumption-picker';
+import { QuoteTemplatePicker } from './template-picker';
+import {
+  applicableTemplates,
+  matchesClient,
+  referenceAssumptions,
+} from './catalog-domain';
+import { ManualHistoryForm } from './manual-history-form';
+import { validatePricingSettings } from './domain';
 import { formatSgd } from '@/lib/formatters';
+import type { QuoteMasterDataTab } from '@/features/master-data/navigation';
 
 const newId = (prefix: string) => `${prefix}-${globalThis.crypto.randomUUID()}`;
 
@@ -45,8 +57,15 @@ export function QuoteView({
   activeVersion,
   versionState,
   totalCost,
+  costErrors,
+  decisionError,
+  onSave,
+  onOpenMasterData,
+  onExportStateChange,
+  exportInProgress,
   pricing,
   setPricing,
+  assumptionLibrary,
   quoteTemplates,
   selectedQuoteTemplateId,
   setSelectedQuoteTemplateId,
@@ -60,8 +79,17 @@ export function QuoteView({
   activeVersion: string;
   versionState: CostVersionState;
   totalCost: number;
+  costErrors: string[];
+  decisionError?: string;
+  onSave: () => Promise<boolean>;
+  /** Catalog maintenance stays outside Quote; this callback only changes views. */
+  onOpenMasterData: (tab: QuoteMasterDataTab) => void;
+  /** Parent prevents cross-project switching while allowing same-project navigation. */
+  onExportStateChange: (exporting: boolean) => void;
+  exportInProgress: boolean;
   pricing: PricingSettings;
   setPricing: React.Dispatch<React.SetStateAction<PricingSettings>>;
+  assumptionLibrary: AssumptionDefinition[];
   quoteTemplates: QuoteTemplate[];
   selectedQuoteTemplateId: string;
   setSelectedQuoteTemplateId: React.Dispatch<React.SetStateAction<string>>;
@@ -71,11 +99,52 @@ export function QuoteView({
   setQuoteHistory: React.Dispatch<React.SetStateAction<QuoteHistoryRecord[]>>;
   announce: (message: string) => void;
 }) {
+  const [showManualHistory, setShowManualHistory] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const result = calculatePricing(totalCost, pricing);
-  const template =
-    quoteTemplates.find((item) => item.id === selectedQuoteTemplateId) ||
-    quoteTemplates[0];
+  const template = quoteTemplates.find(
+    (item) => item.id === selectedQuoteTemplateId,
+  );
+  const choices = applicableTemplates(quoteTemplates, project.client);
+  const templateAvailable = Boolean(
+    template?.active && matchesClient(template.clientPattern, project.client),
+  );
+  const outputErrors = [
+    ...costErrors,
+    ...validatePricingSettings(pricing, totalCost),
+    ...(!templateAvailable
+      ? [
+          'Select an active template matching this client / 请选择当前客户适用的启用模板',
+        ]
+      : []),
+    ...(quoteAssumptions.some((row) => row.included && !row.text.trim())
+      ? ['Included assumption text is required / 已包含假设的正文不可为空']
+      : []),
+  ];
+  /** Explicit selection applies eligible defaults once, retaining all local changes. */
+  const applyTemplate = (id: string) => {
+    const chosen = choices.find((item) => item.id === id);
+    if (!chosen) return;
+    setSelectedQuoteTemplateId(id);
+    setQuoteAssumptions((rows) =>
+      referenceAssumptions(
+        rows,
+        assumptionLibrary,
+        chosen.defaultAssumptionIds,
+        project.client,
+      ),
+    );
+    announce(
+      'Template selected; eligible default assumptions added without overwriting existing text. / 已选择模板并补入适用默认假设，原内容保留。',
+    );
+  };
   const updateNumber = (key: keyof PricingSettings, raw: string) => {
     const value = Number(raw);
     setPricing((current) => ({
@@ -86,7 +155,17 @@ export function QuoteView({
 
   /** Generates one real XLSX file and records the exact commercial snapshot. */
   const generateDraft = async () => {
-    if (!template || isExporting) return;
+    if (!template || isExporting || exportInProgress) return;
+    if (decisionError) {
+      announce(decisionError);
+      return;
+    }
+    if (outputErrors.length) {
+      announce(
+        `Quotation validation failed: ${outputErrors[0]} / 请先修正输入`,
+      );
+      return;
+    }
     if (versionState !== 'Confirmed') {
       announce(
         'Confirm the selected cost version before generating a customer quotation. / 生成客户报价前请先确认当前成本版本。',
@@ -94,6 +173,7 @@ export function QuoteView({
       return;
     }
     setIsExporting(true);
+    onExportStateChange(true);
     const timestamp = new Date();
     const quoteNumber = `QT-${project.id.replace(/^PRJ-/, '')}-${activeVersion}-${timestamp
       .toISOString()
@@ -121,7 +201,13 @@ export function QuoteView({
         quoteAfterTax: result.quoteAfterTax,
         grossMarginPercent: result.grossMarginPercent,
         note: `Generated ${exported.fileName}`,
+        templateSnapshot: structuredClone(template),
+        assumptionSnapshots: structuredClone(
+          quoteAssumptions.filter((row) => row.included),
+        ),
       };
+      // Parent keeps the project fixed during export. Its state setter survives
+      // navigation away from this view, so every completed output keeps history.
       setQuoteHistory((records) => [history, ...records]);
       announce(
         `Exported ${exported.fileName} and recorded quotation history. / 已导出报价并记录历史。`,
@@ -131,32 +217,13 @@ export function QuoteView({
         `Quote export failed: ${error instanceof Error ? error.message : 'Unknown error'} / 报价导出失败。`,
       );
     } finally {
-      setIsExporting(false);
+      onExportStateChange(false);
+      if (mounted.current) setIsExporting(false);
     }
   };
 
   /** Adds a historical reference without generating a new client document. */
-  const addManualHistory = () => {
-    const generatedAt = new Date().toISOString();
-    setQuoteHistory((records) => [
-      {
-        id: newId('quote-history'),
-        quoteNumber: `MANUAL-${project.id}-${records.length + 1}`,
-        generatedAt,
-        costVersion: activeVersion,
-        templateId: template?.id || quoteTemplates[0].id,
-        status: 'Draft',
-        costAmount: result.cost,
-        quoteBeforeTax: result.quoteBeforeTax,
-        gstAmount: result.gstAmount,
-        quoteAfterTax: result.quoteAfterTax,
-        grossMarginPercent: result.grossMarginPercent,
-        note: 'Manual historical reference',
-      },
-      ...records,
-    ]);
-    announce('Manual quotation history added. / 已新增手工报价历史。');
-  };
+  const addManualHistory = () => setShowManualHistory(true);
 
   return (
     <div className="space-y-4">
@@ -169,6 +236,15 @@ export function QuoteView({
             <BiInline en="Pricing draft" zh="定价草稿" />
           </StatusBadge>
         }
+      />
+      <QuoteTemplatePicker
+        key={project.id}
+        templates={quoteTemplates}
+        client={project.client}
+        selectedId={selectedQuoteTemplateId}
+        onApply={applyTemplate}
+        onManage={() => onOpenMasterData('quote-templates')}
+        busy={exportInProgress}
       />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
         <section className="border border-border bg-card">
@@ -287,9 +363,11 @@ export function QuoteView({
           <div className="flex flex-wrap justify-end gap-2 border-t border-border p-3">
             <Button
               variant="outline"
-              onClick={() =>
+              onClick={async () =>
                 announce(
-                  'Pricing saved by local autosave / 定价参数已由本地自动保存',
+                  (await onSave())
+                    ? 'Pricing saved / 定价已保存'
+                    : 'Pricing save failed; edits are retained / 保存失败，修改已保留',
                 )
               }
             >
@@ -299,7 +377,11 @@ export function QuoteView({
             <Button
               onClick={generateDraft}
               disabled={
-                !template || isExporting || versionState !== 'Confirmed'
+                !template ||
+                isExporting ||
+                exportInProgress ||
+                versionState !== 'Confirmed' ||
+                outputErrors.length > 0
               }
               title={
                 versionState === 'Confirmed'
@@ -312,39 +394,20 @@ export function QuoteView({
               <span className="text-[9px] opacity-60">生成报价</span>
             </Button>
           </div>
+          {outputErrors.length > 0 ? (
+            <p role="alert" className="px-3 pb-3 text-xs text-red-700">
+              Validation · 输入校验：{outputErrors[0]}
+            </p>
+          ) : null}
         </section>
         <section className="border border-border bg-card">
           <SectionHeading
             index="02"
             title="Client Output Preview"
             titleZh="客户输出预览"
-            description="Select a maintained client template before generating the workbook."
-            descriptionZh="生成工作簿前选择已维护的客户模板。"
+            description="Preview the currently applied quotation template."
+            descriptionZh="预览当前已引用模板；请在页面顶部选择并点击“引用模板”。"
           />
-          <div className="border-b border-border p-3">
-            <Select
-              value={template?.id}
-              onValueChange={(value) =>
-                value && setSelectedQuoteTemplateId(value)
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select template / 选择模板" />
-              </SelectTrigger>
-              <SelectContent>
-                {quoteTemplates
-                  .filter(
-                    (item) =>
-                      item.active || item.id === selectedQuoteTemplateId,
-                  )
-                  .map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name} · {item.nameZh}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div className="p-5">
             <div className="mx-auto max-w-[520px] border border-[#c8c4ba] bg-[#fffefa] p-7 shadow-[0_8px_24px_rgba(23,58,82,0.08)]">
               <div className="flex items-start justify-between border-b-2 border-[#173a52] pb-5">
@@ -409,6 +472,26 @@ export function QuoteView({
                   • Payment: {template?.paymentTerms || 'Not set'} / 付款条件
                 </p>
                 <p>• Cost baseline: {activeVersion} / 成本基线</p>
+                {template?.termsAndConditions && (
+                  <div className="border-t pt-2">
+                    <p className="font-semibold">
+                      Terms & Conditions / 商务条款
+                    </p>
+                    <p className="whitespace-pre-wrap break-words">
+                      {template.termsAndConditions}
+                    </p>
+                  </div>
+                )}
+                {quoteAssumptions
+                  .filter((row) => row.included)
+                  .map((row) => (
+                    <p className="whitespace-pre-wrap break-words" key={row.id}>
+                      • {row.text}
+                      {row.textZh && (
+                        <span className="block">{row.textZh}</span>
+                      )}
+                    </p>
+                  ))}
               </div>
             </div>
           </div>
@@ -421,34 +504,52 @@ export function QuoteView({
           title="Quote Assumptions"
           titleZh="报价假设"
           description="Included rows are written into the generated client workbook."
-          descriptionZh="勾选的假设将写入生成的客户报价工作簿。"
+          descriptionZh="这里只修改当前报价的假设，不回写假设库；勾选内容将进入客户报价单。"
           action={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                setQuoteAssumptions((rows) => [
-                  ...rows,
-                  {
-                    id: newId('assumption'),
-                    text: 'New quotation assumption',
-                    textZh: '新报价假设',
-                    included: true,
-                  },
-                ])
-              }
-            >
-              <Plus /> Add assumption / 新增
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onOpenMasterData('assumptions')}
+              >
+                Manage library{' '}
+                <span className="text-[10px] opacity-60">管理假设库</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setQuoteAssumptions((rows) => [
+                    ...rows,
+                    {
+                      id: newId('assumption'),
+                      text: 'New quotation assumption',
+                      textZh: '',
+                      included: true,
+                    },
+                  ])
+                }
+              >
+                <Plus /> Add for this quote{' '}
+                <span className="text-[10px] opacity-60">本次新增</span>
+              </Button>
+            </div>
           }
+        />
+        <AssumptionPicker
+          key={project.id}
+          library={assumptionLibrary}
+          client={project.client}
+          assumptions={quoteAssumptions}
+          setAssumptions={setQuoteAssumptions}
         />
         <div className="overflow-x-auto">
           <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow className="bg-[#f2f0ea]">
                 <TableHead className="w-24">Include</TableHead>
-                <TableHead>Assumption / 英文</TableHead>
-                <TableHead>中文说明</TableHead>
+                <TableHead>Assumption / 正文（任意语言）</TableHead>
+                <TableHead>Translation / 译文（可选）</TableHead>
                 <TableHead className="w-20 text-center">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -472,9 +573,16 @@ export function QuoteView({
                         {item.included ? 'Included' : 'Excluded'}
                       </StatusBadge>
                     </button>
+                    {item.sourceAssumptionId && (
+                      <small className="mt-1 block text-muted-foreground">
+                        Library copy / 库引用
+                      </small>
+                    )}
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <Textarea
+                      aria-label="Quotation assumption text"
+                      maxLength={2000}
                       value={item.text}
                       onChange={(event) =>
                         setQuoteAssumptions((rows) =>
@@ -488,7 +596,9 @@ export function QuoteView({
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <Textarea
+                      aria-label="Quotation assumption translation"
+                      maxLength={2000}
                       value={item.textZh}
                       onChange={(event) =>
                         setQuoteAssumptions((rows) =>
@@ -534,6 +644,18 @@ export function QuoteView({
             </Button>
           }
         />
+        {showManualHistory ? (
+          <ManualHistoryForm
+            costVersion={activeVersion}
+            templateId={template?.id || ''}
+            onCancel={() => setShowManualHistory(false)}
+            onAdd={(record) => {
+              setQuoteHistory((records) => [record, ...records]);
+              setShowManualHistory(false);
+              announce('Historical quote added / 历史报价已录入');
+            }}
+          />
+        ) : null}
         <div className="overflow-x-auto">
           <Table className="min-w-[1180px]">
             <TableHeader>
@@ -556,6 +678,31 @@ export function QuoteView({
                   <TableRow key={record.id}>
                     <TableCell className="financial-numeral font-semibold">
                       {record.quoteNumber}
+                      {record.templateSnapshot && (
+                        <details className="mt-1 max-w-sm text-xs font-normal">
+                          <summary className="cursor-pointer text-muted-foreground">
+                            Saved T&C & assumptions / 当时报价条款
+                          </summary>
+                          <div className="space-y-2 whitespace-pre-wrap py-2">
+                            <p>{record.templateSnapshot.name}</p>
+                            <p>
+                              Validity: {record.templateSnapshot.validityDays}{' '}
+                              days
+                            </p>
+                            <p>{record.templateSnapshot.paymentTerms}</p>
+                            <p>{record.templateSnapshot.paymentTermsZh}</p>
+                            <p>{record.templateSnapshot.termsAndConditions}</p>
+                            {record.assumptionSnapshots?.map((row) => (
+                              <p key={row.id}>
+                                • {row.text}
+                                {row.textZh && (
+                                  <span className="block">{row.textZh}</span>
+                                )}
+                              </p>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                     </TableCell>
                     <TableCell className="financial-numeral text-[10px]">
                       {new Date(record.generatedAt).toLocaleString('en-SG')}

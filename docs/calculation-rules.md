@@ -6,19 +6,28 @@
 - If Y1 equals the base year, Y1 uplift is zero.
 - Later years compound each configured annual uplift.
 - Each row contains exactly Y1–Y5 in that explicit order. There is no Y0.
-- A row with sites or cost requires a TD delivery start year.
+- A row with sites, direct mandays or cost requires a TD delivery start year.
 
 ## Sites and mandays
 
-For every annual bucket:
+The default site mode uses, for every annual bucket:
 
 ```text
 Mandays = Sites × MD per Site
 ```
 
-Total sites, mandays, and cost sum Y1 through Y5. Annual cost remains a user
-input in the current version; uplift factors are displayed assumptions and do
-not silently rewrite a user-entered annual amount.
+`inputMode: "mandays"` instead reads `years[].mandays`; all sites and MD/site fields must be zero. It does not create artificial site counts.
+
+Total sites, mandays, and cost sum Y1 through Y5. Internal annual cost is
+derived as `Mandays × version MD rate × cumulative uplift`. Changing direct mandays, sites,
+MD/site or delivery/uplift assumptions recalculates it immediately. The same
+normalization runs on workspace saves. Packaged subcontract costs remain
+manually entered monetary inputs.
+
+Each version captures RE Type rates, MD/month, hours/MD and HQ designation.
+Editing the master catalogue leaves existing version snapshots unchanged.
+**Apply Master Rates** refreshes only the selected version. Cost exports reject
+stale supplied labour amounts instead of exporting a contradictory calculation.
 
 ## Money normalization
 

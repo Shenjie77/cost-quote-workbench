@@ -12,6 +12,58 @@ import {
   initialQuoteTemplates,
 } from '../features/quote/types.ts';
 
+test('client T&C and long multilingual assumptions survive XLSX serialization without fixed-page shrink', async () => {
+  const tc = 'Client A only\n' + '中文条款'.repeat(600);
+  const input = {
+    project: { id: 'P1', name: 'Test', client: 'Client A', currency: 'SGD' },
+    quoteNumber: 'QT-TEST',
+    costVersion: 'V1',
+    template: {
+      ...initialQuoteTemplates[0],
+      clientPattern: 'Client A',
+      termsAndConditions: tc,
+    },
+    assumptions: [
+      { id: 'a1', text: 'Included clause', textZh: '', included: true },
+      { id: 'a2', text: 'Excluded clause', textZh: '', included: false },
+    ],
+    pricing: calculatePricing(100, {
+      targetGrossMargin: 20,
+      discount: 0,
+      gstPercent: 0,
+    }),
+  };
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildQuoteWorkbookBuffer(input));
+  const sheet = workbook.worksheets[0];
+  const text = [];
+  sheet.eachRow((row) => {
+    text.push(row.getCell(2).text);
+    assert.ok((row.height ?? 15) < 409.5);
+  });
+  assert.match(text.join(''), /Client A only/);
+  assert.ok(text.join('').includes('中文条款'.repeat(600)));
+  assert.ok(text.includes('Included clause'));
+  assert.equal(text.includes('Excluded clause'), false);
+  assert.equal(sheet.pageSetup.fitToHeight, 0);
+  await assert.rejects(
+    () =>
+      buildQuoteWorkbookBuffer({
+        ...input,
+        project: { ...input.project, client: 'Client B' },
+      }),
+    /does not match/,
+  );
+  await assert.rejects(
+    () =>
+      buildQuoteWorkbookBuffer({
+        ...input,
+        template: { ...input.template, active: false },
+      }),
+    /inactive/,
+  );
+});
+
 test('quotation workbook contains pricing, template terms, and assumptions', async () => {
   const bytes = await buildQuoteWorkbookBuffer({
     project: {

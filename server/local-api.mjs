@@ -2,6 +2,7 @@
 
 /** Minimal same-device JSON API for the SQLite workbench repository. */
 
+import { openReminderService } from './reminder-service.mjs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +23,17 @@ const DATABASE_PATH = path.resolve(
 );
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const repository = openWorkspaceRepository(DATABASE_PATH);
+const reminders = openReminderService(DATABASE_PATH, repository);
+const scanReminders = () => {
+  try {
+    reminders.scan();
+  } catch (e) {
+    process.stderr.write(`[reminders] ${e.message}\n`);
+  }
+};
+scanReminders();
+const reminderTimer = setInterval(scanReminders, 60000);
+reminderTimer.unref();
 const ALLOWED_ORIGINS = new Set([
   'http://localhost:3000',
   'http://127.0.0.1:3000',
@@ -90,6 +102,25 @@ const route = async (request, response) => {
       kind: 'WorkspaceList',
       ok: true,
       data: repository.list(),
+    });
+    return;
+  }
+  if (url.pathname === '/api/local/reminders' && request.method === 'GET') {
+    respond(200, {
+      apiVersion: LOCAL_API_VERSION,
+      kind: 'LocalReminderList',
+      ok: true,
+      data: reminders.scan(),
+    });
+    return;
+  }
+  if (url.pathname === '/api/local/reminders' && request.method === 'PUT') {
+    const body = await readJson(request);
+    respond(200, {
+      apiVersion: LOCAL_API_VERSION,
+      kind: 'LocalReminderList',
+      ok: true,
+      data: { items: reminders.acknowledge(body.id, body.fingerprint) },
     });
     return;
   }
@@ -189,6 +220,8 @@ server.listen(PORT, '127.0.0.1', () => {
 
 const shutdown = () => {
   server.close(() => {
+    clearInterval(reminderTimer);
+    reminders.close();
     repository.close();
     process.exit(0);
   });

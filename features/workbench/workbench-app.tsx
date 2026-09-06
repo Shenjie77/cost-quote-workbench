@@ -9,6 +9,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -23,7 +24,6 @@ import {
   Plus,
   Save,
   Search,
-  Settings2,
   WifiOff,
   X,
 } from 'lucide-react';
@@ -31,9 +31,28 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AgentView } from '@/features/agent/agent-view';
+import { MaintenanceView } from '@/features/maintenance/maintenance-view';
+import {
+  emptyMaintenance,
+  type MaintenanceWorkspace,
+} from '@/features/maintenance/domain';
+import { ReminderInbox } from '@/features/agent/reminder-inbox';
+import { SsrView } from '@/features/ssr/ssr-view';
+import {
+  assertQuoteDecision,
+  commercialBasisKey,
+  emptySsr,
+  ssrAttention,
+  type SsrWorkspace,
+} from '@/features/ssr/domain';
+import { normalizeDigestDate } from '@/features/agent/digest-domain';
+import { CpqView } from '@/features/cpq/cpq-view';
+import { emptyCpq, type CpqWorkspace } from '@/features/cpq/domain';
 import type { TravelCostRow } from '@/features/cost/additional-travel-domain';
 import { CostView } from '@/features/cost/cost-view';
 import type { CostExportSnapshot } from '@/features/cost/contracts';
+import { buildCostExportSnapshot } from '@/features/cost/build-export-snapshot';
+import { validateCostExportSnapshot } from '@/features/cost/validation';
 import {
   initialCostRows,
   initialManualCostInputs,
@@ -54,6 +73,7 @@ import {
   getCostStatementValues,
   getHQTravelSummary,
   roundMoney,
+  recalculateCostRows,
   totalRowMandays,
 } from '@/features/cost/domain';
 import type { CostViewKey } from '@/features/cost/ui-types';
@@ -69,6 +89,10 @@ import {
 } from '@/features/master-data/domain';
 import type { SubcontractItem } from '@/features/master-data/types';
 import { MasterDataView } from '@/features/master-data/master-data-view';
+import type {
+  MasterDataTab,
+  QuoteMasterDataTab,
+} from '@/features/master-data/navigation';
 import { OverviewView } from '@/features/overview/overview-view';
 import { initialProcessSteps, projects } from '@/features/projects/demo-data';
 import type {
@@ -77,7 +101,14 @@ import type {
   ProjectStatusDefinition,
   WorkflowStep,
 } from '@/features/projects/types';
-import { initialProjectStatusDefinitions } from '@/features/projects/types';
+import {
+  createBlankWorkflowSteps,
+  createProjectStatusDefinitions,
+  defaultWorkflowCode,
+  projectRecord,
+  createCostVersion,
+  createBlankWorkspace,
+} from './workspace-factories';
 import { ProjectView } from '@/features/projects/project-view';
 import { QuoteView } from '@/features/quote/quote-view';
 import {
@@ -86,6 +117,8 @@ import {
   type PricingSettings,
 } from '@/features/quote/domain';
 import {
+  createAssumptionLibrary,
+  type AssumptionDefinition,
   initialQuoteAssumptions,
   initialQuoteTemplates,
   type QuoteAssumption,
@@ -106,156 +139,10 @@ import {
 } from '@/features/workbench/local-persistence';
 import type { PanelState, ViewKey } from '@/features/workbench/types';
 
-/** Creates an independent workflow template for a new project. */
-const createBlankWorkflowSteps = () =>
-  initialProcessSteps.map((step) => ({
-    ...step,
-    state: 'not_started' as const,
-    tone: 'gray' as const,
-  }));
-
-/** Creates an independent editable project-status dictionary. */
-const createProjectStatusDefinitions = () =>
-  structuredClone(initialProjectStatusDefinitions);
-
-/** Maps the broad project status to the most useful initial workflow node. */
-const defaultWorkflowCode = (status?: ProjectStatus) => {
-  const workflowCodeByStatus: Record<string, string> = {
-    input_preparation: 'SOLUTION_SCOPE',
-    solution_review: 'TD_EFFORT_REVIEW',
-    delivery_review: 'DELIVERY_REVIEW',
-    costing: 'COST_BUILD',
-    cost_review: 'COST_BASELINE_APPROVAL',
-    pricing: 'PRICING',
-    quote_review: 'QUOTE_PACKAGE',
-    completed: 'COMMERCIAL_ARCHIVE',
-    on_hold: 'SOLUTION_SCOPE',
-  };
-  return (
-    workflowCodeByStatus[status || 'input_preparation'] || 'SOLUTION_SCOPE'
-  );
-};
-
-/** Builds a complete UI project record from the minimal persisted index. */
-const projectRecord = (id: string, name: string, client: string): Project => ({
-  id,
-  name,
-  nameZh: '',
-  client,
-  clientZh: '',
-  stage: 'Input Preparation',
-  stageZh: '输入准备',
-  version: 'V1',
-  versionState: 'Draft',
-  versionStateZh: '草稿',
-  cost: 'Pending',
-  delta: '—',
-  nextReview: 'Not set',
-  nextReviewZh: '未设置',
-  reviewOwner: 'Me',
-  risk: 'low',
-  progress: 0,
-  projectStatus: 'input_preparation',
-  statusDefinitions: createProjectStatusDefinitions(),
-  reviewGates: [],
-  currentWorkflowStepCode: 'SOLUTION_SCOPE',
-  workflowSteps: createBlankWorkflowSteps(),
-  serviceCost: 0,
-  subcontractCost: 0,
-  totalCost: 0,
-  totalMandays: 0,
-  totalQuote: 0,
-  grossMarginPercent: 0,
-  incompleteCostRows: 0,
-});
-
-/** Creates one independent cost input snapshot for a project version. */
-const createCostVersion = (
-  code: string,
-  state: CostVersionSnapshot['state'],
-  sourceVersion: string | null,
-  inputs: {
-    costRows: CostInputRow[];
-    rateSettings: RateSettings;
-    travelSettings: TravelSettings;
-    travelRows: TravelCostRow[];
-    travelUplift: number;
-    manualCosts: ManualCostInputs;
-  },
-): CostVersionSnapshot => ({
-  code,
-  state,
-  sourceVersion,
-  createdAt: new Date().toISOString(),
-  costRows: structuredClone(inputs.costRows),
-  rateSettings: structuredClone(inputs.rateSettings),
-  travelSettings: structuredClone(inputs.travelSettings),
-  travelRows: structuredClone(inputs.travelRows),
-  travelUplift: inputs.travelUplift,
-  manualCosts: structuredClone(inputs.manualCosts),
-});
-
-/** Builds a valid empty workspace when a starter-list project is first edited. */
-const createBlankWorkspace = (
-  project: Project,
-  projectStatus: ProjectStatus,
-): WorkbenchWorkspace => {
-  const processSteps = project.workflowSteps?.length
-    ? structuredClone(project.workflowSteps)
-    : createBlankWorkflowSteps();
-  const requestedCode =
-    project.currentWorkflowStepCode || defaultWorkflowCode(projectStatus);
-  const selectedStep = Math.max(
-    0,
-    processSteps.findIndex((step) => step.code === requestedCode),
-  );
-  const currentWorkflowStepCode =
-    processSteps[selectedStep]?.code || processSteps[0]?.code || '';
-  const version = createCostVersion('V1', 'Draft', null, {
-    costRows: [],
-    rateSettings: initialRateSettings,
-    travelSettings: initialTravelSettings,
-    travelRows: [],
-    travelUplift: 0,
-    manualCosts: initialManualCostInputs,
-  });
-  return {
-    schemaVersion: WORKSPACE_SCHEMA_VERSION,
-    project: {
-      id: project.id,
-      name: project.name,
-      client: project.client,
-      currency: 'SGD',
-    },
-    currentWorkflowStepCode,
-    selectedStep,
-    processSteps,
-    projectStatus,
-    projectStatusDefinitions: project.statusDefinitions?.length
-      ? structuredClone(project.statusDefinitions)
-      : createProjectStatusDefinitions(),
-    reviewGates: structuredClone(project.reviewGates || []),
-    activeVersion: 'V1',
-    costVersions: [version],
-    costRows: [],
-    rateSettings: structuredClone(initialRateSettings),
-    resourceTypes: structuredClone(initialResourceTypes),
-    subcontractItems: structuredClone(initialSubcontractItems),
-    supplementalCostItems: structuredClone(initialSupplementalCostItems),
-    maintenancePriceRecords: structuredClone(initialMaintenancePriceRecords),
-    travelSettings: structuredClone(initialTravelSettings),
-    travelRows: [],
-    travelUplift: 0,
-    manualCosts: structuredClone(initialManualCostInputs),
-    pricing: { ...initialPricingSettings },
-    quoteTemplates: structuredClone(initialQuoteTemplates),
-    selectedQuoteTemplateId: initialQuoteTemplates[0].id,
-    quoteAssumptions: structuredClone(initialQuoteAssumptions),
-    quoteHistory: [],
-  };
-};
-
 export function WorkbenchApp() {
+  // Maintenance selection belongs to the UI session, not the project document.
+  const [masterDataTab, setMasterDataTab] =
+    useState<MasterDataTab>('resources');
   const [projectList, setProjectList] = useState<Project[]>(() =>
     projects.map((project) => ({
       ...project,
@@ -264,6 +151,18 @@ export function WorkbenchApp() {
       workflowSteps: createBlankWorkflowSteps(),
     })),
   );
+  const switchingRef = useRef(false);
+  const quoteExportingRef = useRef(false);
+  const [quoteExporting, setQuoteExporting] = useState(false);
+  /** Protect the output/history pair when users navigate during Excel generation. */
+  useEffect(() => {
+    const warnPendingExport = (event: BeforeUnloadEvent) => {
+      if (quoteExportingRef.current) event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warnPendingExport);
+    return () => window.removeEventListener('beforeunload', warnPendingExport);
+  }, []);
+  const [isProjectSwitching, setProjectSwitching] = useState(false);
   const [activeProjectId, setActiveProjectId] = useState(projects[0].id);
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([
     projects[0].id,
@@ -294,11 +193,21 @@ export function WorkbenchApp() {
   const [reviewGates, setReviewGates] = useState<ReviewGate[]>([]);
   const [activeVersion, setActiveVersion] = useState('V3');
   const [costView, setCostView] = useState<CostViewKey>('input');
-  const [costRows, setCostRows] = useState<CostInputRow[]>(initialCostRows);
+  const [costRowInputs, setCostRows] =
+    useState<CostInputRow[]>(initialCostRows);
   const [rateSettings, setRateSettings] =
     useState<RateSettings>(initialRateSettings);
   const [resourceTypes, setResourceTypes] =
     useState<ResourceType[]>(initialResourceTypes);
+  // The catalogue is editable; only an explicit rate refresh changes this
+  // version's calculation basis. Other versions retain their own snapshots.
+  const [versionResourceTypes, setVersionResourceTypes] =
+    useState<ResourceType[]>(initialResourceTypes);
+  const costRows = useMemo(
+    () =>
+      recalculateCostRows(costRowInputs, versionResourceTypes, rateSettings),
+    [costRowInputs, versionResourceTypes, rateSettings],
+  );
   const [subcontractItems, setSubcontractItems] = useState<SubcontractItem[]>(
     initialSubcontractItems,
   );
@@ -332,6 +241,9 @@ export function WorkbenchApp() {
   const [pricing, setPricing] = useState<PricingSettings>(
     initialPricingSettings,
   );
+  const [assumptionLibrary, setAssumptionLibrary] = useState<
+    AssumptionDefinition[]
+  >(() => createAssumptionLibrary(initialQuoteAssumptions));
   const [quoteTemplates, setQuoteTemplates] = useState<QuoteTemplate[]>(
     initialQuoteTemplates,
   );
@@ -342,6 +254,10 @@ export function WorkbenchApp() {
     initialQuoteAssumptions,
   );
   const [quoteHistory, setQuoteHistory] = useState<QuoteHistoryRecord[]>([]);
+  const [maintenanceBoq, setMaintenanceBoq] =
+    useState<MaintenanceWorkspace>(emptyMaintenance);
+  const [ssr, setSsr] = useState<SsrWorkspace>(emptySsr);
+  const [cpq, setCpq] = useState<CpqWorkspace>(emptyCpq);
   const [panel, setPanel] = useState<PanelState>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notice, setNotice] = useState('');
@@ -358,6 +274,24 @@ export function WorkbenchApp() {
 
   /** Applies one database snapshot without coupling the API to child views. */
   const hydrateWorkspace = useCallback((workspace: WorkbenchWorkspace) => {
+    // Detail data is authoritative even if the parallel portfolio request is
+    // delayed or unavailable (e.g. a project renamed through the CLI).
+    setProjectList((current) => {
+      const existing = current.find((item) => item.id === workspace.project.id);
+      const project = {
+        ...(existing ||
+          projectRecord(
+            workspace.project.id,
+            workspace.project.name,
+            workspace.project.client,
+          )),
+        name: workspace.project.name,
+        client: workspace.project.client,
+      };
+      return existing
+        ? current.map((item) => (item.id === project.id ? project : item))
+        : [...current, project];
+    });
     setSelectedStep(workspace.selectedStep);
     setProcessSteps(workspace.processSteps);
     setCurrentWorkflowStepCode(
@@ -391,6 +325,13 @@ export function WorkbenchApp() {
     setCostRows(workspace.costRows);
     setRateSettings(workspace.rateSettings);
     setResourceTypes(workspace.resourceTypes);
+    setVersionResourceTypes(
+      structuredClone(
+        workspace.costVersions?.find(
+          (version) => version.code === workspace.activeVersion,
+        )?.resourceTypes || workspace.resourceTypes,
+      ),
+    );
     setSubcontractItems(workspace.subcontractItems);
     setSupplementalCostItems(workspace.supplementalCostItems);
     setMaintenancePriceRecords(workspace.maintenancePriceRecords);
@@ -399,6 +340,12 @@ export function WorkbenchApp() {
     setTravelUplift(workspace.travelUplift);
     setManualCosts(workspace.manualCosts);
     setPricing(workspace.pricing || initialPricingSettings);
+    setAssumptionLibrary(
+      workspace.assumptionLibrary ??
+        createAssumptionLibrary(
+          workspace.quoteAssumptions ?? initialQuoteAssumptions,
+        ),
+    );
     setQuoteTemplates(
       workspace.quoteTemplates?.length
         ? workspace.quoteTemplates
@@ -411,6 +358,9 @@ export function WorkbenchApp() {
       workspace.quoteAssumptions || structuredClone(initialQuoteAssumptions),
     );
     setQuoteHistory(workspace.quoteHistory || []);
+    setCpq(workspace.cpq || emptyCpq());
+    setSsr(workspace.ssr || emptySsr());
+    setMaintenanceBoq(workspace.maintenanceBoq || emptyMaintenance());
   }, []);
 
   /** Keeps the active version's persisted snapshot synchronized with editors. */
@@ -420,6 +370,7 @@ export function WorkbenchApp() {
         version.code === activeVersion
           ? {
               ...version,
+              resourceTypes: structuredClone(versionResourceTypes),
               costRows: structuredClone(costRows),
               rateSettings: structuredClone(rateSettings),
               travelSettings: structuredClone(travelSettings),
@@ -438,6 +389,7 @@ export function WorkbenchApp() {
       travelSettings,
       travelUplift,
       versionSnapshots,
+      versionResourceTypes,
     ],
   );
 
@@ -465,12 +417,28 @@ export function WorkbenchApp() {
       travelUplift,
       manualCosts,
       pricing,
+      assumptionLibrary,
       quoteTemplates,
       selectedQuoteTemplateId,
       quoteAssumptions,
       quoteHistory,
+      cpq,
+      maintenanceBoq,
+      ssr: {
+        ...ssr,
+        commercialBasis: commercialBasisKey({
+          project: exportProject,
+          pricing,
+          quoteAssumptions,
+          selectedQuoteTemplateId,
+          quoteTemplates,
+        }),
+      },
     }),
     [
+      cpq,
+      maintenanceBoq,
+      ssr,
       activeVersion,
       costRows,
       currentWorkflowStepCode,
@@ -484,6 +452,7 @@ export function WorkbenchApp() {
       quoteAssumptions,
       quoteHistory,
       quoteTemplates,
+      assumptionLibrary,
       rateSettings,
       reviewGates,
       resourceTypes,
@@ -497,7 +466,12 @@ export function WorkbenchApp() {
       synchronizedVersions,
     ],
   );
-  const { status: persistenceStatus, saveNow } = useLocalWorkspace({
+  const {
+    status: persistenceStatus,
+    saveNow,
+    isReady,
+    retryLoad,
+  } = useLocalWorkspace({
     projectId: exportProject.id,
     workspace,
     onHydrate: hydrateWorkspace,
@@ -530,12 +504,12 @@ export function WorkbenchApp() {
   const activeMetrics = useMemo(() => {
     const travelCost = getHQTravelSummary(
       costRows,
-      resourceTypes,
+      versionResourceTypes,
       travelSettings,
     ).totalCost;
     const statement = getCostStatementValues(
       costRows,
-      resourceTypes,
+      versionResourceTypes,
       travelCost,
       manualCosts,
     );
@@ -551,7 +525,7 @@ export function WorkbenchApp() {
       totalQuote: quote.quoteBeforeTax,
       grossMarginPercent: quote.grossMarginPercent,
     };
-  }, [costRows, manualCosts, pricing, resourceTypes, travelSettings]);
+  }, [costRows, manualCosts, pricing, versionResourceTypes, travelSettings]);
 
   const portfolioProjects = useMemo(
     () =>
@@ -570,19 +544,30 @@ export function WorkbenchApp() {
                   (version) => version.code === activeVersion,
                 )?.state || 'Draft',
               ...activeMetrics,
+              ssrAttention: ssrAttention(
+                workspace.ssr!,
+                synchronizedVersions.find((v) => v.code === activeVersion)!,
+                normalizeDigestDate(),
+              ),
               incompleteCostRows: costRows.filter(
                 (row) =>
                   !row.scope.trim() ||
                   !row.bu.trim() ||
                   !row.reTypeId.trim() ||
-                  row.mdPerSite <= 0 ||
-                  !row.years.some((year) => year.sites > 0 || year.cost > 0),
+                  (row.inputMode !== 'mandays' && row.mdPerSite <= 0) ||
+                  !row.years.some(
+                    (year) =>
+                      year.sites > 0 ||
+                      (year.mandays || 0) > 0 ||
+                      year.cost > 0,
+                  ),
               ).length,
             }
           : project,
       ),
     [
       activeMetrics,
+      workspace.ssr,
       activeProjectId,
       activeVersion,
       currentWorkflowStepCode,
@@ -630,6 +615,7 @@ export function WorkbenchApp() {
                     totalQuote: item.totalQuote,
                     grossMarginPercent: item.grossMarginPercent,
                     incompleteCostRows: item.incompleteCostRows,
+                    ssrAttention: item.ssrAttention,
                     versionState: item.versionState || existing.versionState,
                   }
                 : {
@@ -653,6 +639,7 @@ export function WorkbenchApp() {
                     totalQuote: item.totalQuote,
                     grossMarginPercent: item.grossMarginPercent,
                     incompleteCostRows: item.incompleteCostRows,
+                    ssrAttention: item.ssrAttention,
                     versionState: item.versionState || 'Draft',
                   },
             );
@@ -664,71 +651,51 @@ export function WorkbenchApp() {
   }, []);
 
   /** Reset session state before loading or creating another project. */
-  const selectProject = useCallback(
-    (project: Project) => {
-      if (project.id === activeProjectId) return;
-      // Start the current write before replacing editor state. The request body
-      // is serialized synchronously, so project switching cannot lose a draft.
-      void saveNow();
-      const blankVersion = createCostVersion('V1', 'Draft', null, {
-        costRows: [],
-        rateSettings: initialRateSettings,
-        travelSettings: initialTravelSettings,
-        travelRows: [],
-        travelUplift: 0,
-        manualCosts: initialManualCostInputs,
-      });
-      const nextProcessSteps = project.workflowSteps?.length
-        ? structuredClone(project.workflowSteps)
-        : createBlankWorkflowSteps();
-      const nextWorkflowCode =
-        project.currentWorkflowStepCode ||
-        defaultWorkflowCode(project.projectStatus);
-      const nextSelectedStep = Math.max(
-        0,
-        nextProcessSteps.findIndex((step) => step.code === nextWorkflowCode),
+  const selectProject = async (project: Project): Promise<boolean> => {
+    if (quoteExportingRef.current) {
+      setNotice(
+        'Wait for quotation export before switching projects. / 请等待报价导出完成后切换项目。',
       );
-      setSelectedStep(nextSelectedStep);
-      setCurrentWorkflowStepCode(
-        nextProcessSteps[nextSelectedStep]?.code ||
-          nextProcessSteps[0]?.code ||
-          '',
+      return false;
+    }
+    if (project.id === activeProjectId) return true;
+    if (switchingRef.current || !isReady) return false;
+    switchingRef.current = true;
+    setProjectSwitching(true);
+    try {
+      // Keep all editors intact until the newest queued revision is durable.
+      if (!(await saveNow())) {
+        setNotice(
+          'Project switch cancelled: save failed. Your edits remain here. / 保存失败，已保留当前修改。',
+        );
+        return false;
+      }
+      // Cache the outgoing projection so portfolio and digest do not revert
+      // to the values loaded at startup when another project becomes active.
+      const outgoing = portfolioProjects.find(
+        (item) => item.id === activeProjectId,
       );
-      setProcessSteps(nextProcessSteps);
-      setProjectStatus(project.projectStatus || 'input_preparation');
-      setProjectStatusDefinitions(
-        project.statusDefinitions?.length
-          ? structuredClone(project.statusDefinitions)
-          : createProjectStatusDefinitions(),
+      if (outgoing)
+        setProjectList((current) =>
+          current.map((item) => (item.id === outgoing.id ? outgoing : item)),
+        );
+      hydrateWorkspace(
+        createBlankWorkspace(
+          project,
+          project.projectStatus || 'input_preparation',
+        ),
       );
-      setReviewGates(structuredClone(project.reviewGates || []));
-      setActiveVersion('V1');
-      setVersionSnapshots([blankVersion]);
-      setCostRows([]);
-      setRateSettings(structuredClone(initialRateSettings));
-      setResourceTypes(structuredClone(initialResourceTypes));
-      setSubcontractItems(structuredClone(initialSubcontractItems));
-      setSupplementalCostItems(structuredClone(initialSupplementalCostItems));
-      setMaintenancePriceRecords(
-        structuredClone(initialMaintenancePriceRecords),
-      );
-      setTravelSettings(structuredClone(initialTravelSettings));
-      setTravelRows([]);
-      setTravelUplift(0);
-      setManualCosts(structuredClone(initialManualCostInputs));
-      setPricing({ ...initialPricingSettings });
-      setQuoteTemplates(structuredClone(initialQuoteTemplates));
-      setSelectedQuoteTemplateId(initialQuoteTemplates[0].id);
-      setQuoteAssumptions(structuredClone(initialQuoteAssumptions));
-      setQuoteHistory([]);
       setOpenProjectIds((current) =>
         current.includes(project.id) ? current : [...current, project.id],
       );
       setActiveProjectId(project.id);
       setNotice(`Active project: ${project.name} / 已切换项目`);
-    },
-    [activeProjectId, saveNow],
-  );
+      return true;
+    } finally {
+      switchingRef.current = false;
+      setProjectSwitching(false);
+    }
+  };
 
   /** Loads a version's complete snapshot into the cost editors. */
   const selectCostVersion = useCallback(
@@ -740,6 +707,9 @@ export function WorkbenchApp() {
       if (!target) return;
       setVersionSnapshots(synchronizedVersions);
       setActiveVersion(code);
+      setVersionResourceTypes(
+        structuredClone(target.resourceTypes || resourceTypes),
+      );
       setCostRows(structuredClone(target.costRows));
       setRateSettings(structuredClone(target.rateSettings));
       setTravelSettings(structuredClone(target.travelSettings));
@@ -749,7 +719,7 @@ export function WorkbenchApp() {
       setCostView('input');
       setNotice(`Loaded ${code} cost snapshot / 已载入 ${code} 成本快照`);
     },
-    [activeVersion, synchronizedVersions],
+    [activeVersion, synchronizedVersions, resourceTypes],
   );
 
   /**
@@ -769,6 +739,7 @@ export function WorkbenchApp() {
       (version) => version.code === activeVersion,
     );
     const nextVersion = createCostVersion(nextCode, 'Draft', activeVersion, {
+      resourceTypes: versionResourceTypes,
       costRows,
       rateSettings,
       travelSettings,
@@ -784,6 +755,7 @@ export function WorkbenchApp() {
     );
   }, [
     activeVersion,
+    versionResourceTypes,
     costRows,
     manualCosts,
     rateSettings,
@@ -1012,20 +984,24 @@ export function WorkbenchApp() {
   );
 
   /** Creates a persisted project by switching the autosave unit to a new ID. */
-  const createProject = useCallback(
-    (input: { name: string; client: string; owner: string }) => {
-      const id = `PRJ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-      const project = {
-        ...projectRecord(id, input.name, input.client),
-        reviewOwner: input.owner || 'Me',
-      };
-      setProjectList((current) => [project, ...current]);
-      selectProject(project);
-      setPanel(null);
-      setActiveView('project');
-    },
-    [selectProject],
-  );
+  const createProject = async (input: {
+    name: string;
+    client: string;
+    owner: string;
+  }) => {
+    const id = `PRJ-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8)}`;
+    const project = {
+      ...projectRecord(id, input.name, input.client),
+      reviewOwner: input.owner || 'Me',
+    };
+    if (!(await selectProject(project))) return;
+    setProjectList((current) => [
+      project,
+      ...current.filter((item) => item.id !== project.id),
+    ]);
+    setPanel(null);
+    setActiveView('project');
+  };
 
   const allReviewGates = useMemo(
     () => portfolioProjects.flatMap((project) => project.reviewGates || []),
@@ -1056,27 +1032,36 @@ export function WorkbenchApp() {
     setNotice('');
   };
 
+  /** Quote links land directly in the single maintenance surface, same project. */
+  const openQuoteMasterData = (tab: QuoteMasterDataTab) => {
+    setMasterDataTab(tab);
+    navigate('master-data');
+  };
+
   /** Opens a project in the tab strip and routes to its requested module. */
-  const openProjectModule = (project: Project, view: 'cost' | 'quote') => {
-    selectProject(project);
+  const openProjectModule = async (
+    project: Project,
+    view: 'cost' | 'quote',
+  ) => {
+    if (!(await selectProject(project))) return;
     setActiveView(view);
     setMobileNavOpen(false);
   };
 
   /** Closes only the visual tab; the SQLite workspace remains untouched. */
-  const closeProjectTab = (projectId: string) => {
+  const closeProjectTab = async (projectId: string) => {
     if (openProjectIds.length <= 1) {
       setNotice('Keep at least one project tab open / 至少保留一个项目标签');
       return;
     }
     const closingIndex = openProjectIds.indexOf(projectId);
     const remaining = openProjectIds.filter((id) => id !== projectId);
-    setOpenProjectIds(remaining);
     if (projectId === activeProjectId) {
       const nextId = remaining[Math.min(closingIndex, remaining.length - 1)];
       const nextProject = portfolioProjects.find((item) => item.id === nextId);
-      if (nextProject) selectProject(nextProject);
+      if (nextProject && !(await selectProject(nextProject))) return;
     }
+    setOpenProjectIds(remaining);
   };
 
   let content: ReactNode;
@@ -1109,6 +1094,7 @@ export function WorkbenchApp() {
   else if (activeView === 'cost')
     content = (
       <CostView
+        key={`${activeProject.id}:${activeVersion}`}
         activeVersion={activeVersion}
         versions={synchronizedVersions}
         onSelectVersion={selectCostVersion}
@@ -1119,7 +1105,13 @@ export function WorkbenchApp() {
         setRows={setCostRows}
         rateSettings={rateSettings}
         setRateSettings={setRateSettings}
-        resourceTypes={resourceTypes}
+        resourceTypes={versionResourceTypes}
+        onApplyMasterRates={() => {
+          setVersionResourceTypes(structuredClone(resourceTypes));
+          setNotice(
+            'Master rates applied to this version; costs recalculated. / 本版本已应用当前汇率并重算。',
+          );
+        }}
         travelSettings={travelSettings}
         setTravelSettings={setTravelSettings}
         travelRows={travelRows}
@@ -1132,9 +1124,50 @@ export function WorkbenchApp() {
         announce={setNotice}
       />
     );
+  else if (activeView === 'maintenance')
+    content = (
+      <MaintenanceView
+        key={activeProject.id}
+        value={maintenanceBoq}
+        onChange={setMaintenanceBoq}
+        records={maintenancePriceRecords}
+        client={exportProject.client}
+        announce={setNotice}
+      />
+    );
+  else if (activeView === 'ssr')
+    content = (
+      <SsrView
+        key={activeProject.id}
+        value={workspace.ssr!}
+        onChange={setSsr}
+        baseline={synchronizedVersions.find((v) => v.code === activeVersion)!}
+        announce={setNotice}
+      />
+    );
+  else if (activeView === 'cpq')
+    content = (
+      <CpqView
+        key={activeProject.id}
+        value={cpq}
+        onChange={setCpq}
+        baseline={synchronizedVersions.find(
+          (version) => version.code === activeVersion,
+        )!}
+        totalCost={activeMetrics.totalCost}
+        proposalNumber={ssr.proposalNumber}
+        announce={setNotice}
+      />
+    );
   else if (activeView === 'master-data')
     content = (
       <MasterDataView
+        key={activeProject.id}
+        activeTab={masterDataTab}
+        onTabChange={setMasterDataTab}
+        onOpenQuote={() => navigate('quote')}
+        reviewGates={reviewGates}
+        onSave={saveNow}
         project={activeProject}
         costRows={synchronizedVersions.flatMap((version) => version.costRows)}
         currentWorkflowStepCode={currentWorkflowStepCode}
@@ -1154,7 +1187,9 @@ export function WorkbenchApp() {
         setSupplementalCostItems={setSupplementalCostItems}
         maintenancePriceRecords={maintenancePriceRecords}
         setMaintenancePriceRecords={setMaintenancePriceRecords}
+        assumptionLibrary={assumptionLibrary}
         quoteTemplates={quoteTemplates}
+        setAssumptionLibrary={setAssumptionLibrary}
         setQuoteTemplates={setQuoteTemplates}
         selectedQuoteTemplateId={selectedQuoteTemplateId}
         setSelectedQuoteTemplateId={setSelectedQuoteTemplateId}
@@ -1164,6 +1199,13 @@ export function WorkbenchApp() {
   else if (activeView === 'quote')
     content = (
       <QuoteView
+        key={exportProject.id}
+        onOpenMasterData={openQuoteMasterData}
+        exportInProgress={quoteExporting}
+        onExportStateChange={(exporting) => {
+          quoteExportingRef.current = exporting;
+          setQuoteExporting(exporting);
+        }}
         project={exportProject}
         activeVersion={activeVersion}
         versionState={
@@ -1171,8 +1213,38 @@ export function WorkbenchApp() {
             ?.state || 'Draft'
         }
         totalCost={activeMetrics.totalCost}
+        decisionError={(() => {
+          try {
+            assertQuoteDecision(
+              workspace.ssr,
+              synchronizedVersions.find((v) => v.code === activeVersion)!,
+            );
+            return '';
+          } catch (e) {
+            return e instanceof Error ? e.message : String(e);
+          }
+        })()}
+        costErrors={validateCostExportSnapshot(
+          buildCostExportSnapshot({
+            activeVersion,
+            versionStatus:
+              synchronizedVersions.find(
+                (version) => version.code === activeVersion,
+              )?.state || 'Draft',
+            project: exportProject,
+            rateSettings,
+            travelSettings,
+            resourceTypes: versionResourceTypes,
+            rows: costRows,
+            manualCosts,
+          }),
+        )
+          .filter((issue) => issue.severity === 'error')
+          .map((issue) => issue.message)}
+        onSave={saveNow}
         pricing={pricing}
         setPricing={setPricing}
+        assumptionLibrary={assumptionLibrary}
         quoteTemplates={quoteTemplates}
         selectedQuoteTemplateId={selectedQuoteTemplateId}
         setSelectedQuoteTemplateId={setSelectedQuoteTemplateId}
@@ -1203,7 +1275,11 @@ export function WorkbenchApp() {
     );
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main
+      inert={isProjectSwitching}
+      aria-busy={isProjectSwitching}
+      className="min-h-screen bg-background text-foreground"
+    >
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[244px] flex-col border-r border-[#29495c] bg-[#132c3d] text-[#eaf0f2] lg:flex">
         <div className="flex h-[74px] items-center gap-3 border-b border-[#29495c] px-5">
           <span className="financial-numeral flex size-9 items-center justify-center rounded-md border border-[#65808f] bg-[#1b3d51] text-xs font-bold">
@@ -1308,26 +1384,8 @@ export function WorkbenchApp() {
                       : 'text-[#8197a3]')
                   }
                 >
-                  基础数据 · Reference & price history
+                  基础数据 · Rates, assumptions & templates
                 </span>
-              </span>
-              <span className="text-[8px]">Live</span>
-            </button>
-            <button
-              onClick={() => {
-                navigate('master-data');
-                setNotice(
-                  'Open Quote Templates in Master Data. / 请在基础数据中打开“报价模板”页签。',
-                );
-              }}
-              className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-[#91a3ad] hover:bg-[#1b3d51] hover:text-white"
-            >
-              <Settings2 className="size-4" />
-              <span className="flex-1">
-                <span className="block text-xs font-medium">
-                  Templates & Settings
-                </span>
-                <span className="text-[8px]">模板与设置</span>
               </span>
               <span className="text-[8px]">Live</span>
             </button>
@@ -1455,8 +1513,8 @@ export function WorkbenchApp() {
                   >
                     <button
                       className="min-w-0 flex-1 px-3 text-left"
-                      onClick={() => {
-                        selectProject(tabProject);
+                      onClick={async () => {
+                        if (!(await selectProject(tabProject))) return;
                         if (activeView === 'project') setActiveView('cost');
                       }}
                       title={`${tabProject.id} · ${tabProject.name}`}
@@ -1519,7 +1577,7 @@ export function WorkbenchApp() {
                 variant="ghost"
                 size="sm"
                 className="h-6 px-2 text-[9px]"
-                onClick={() => void saveNow()}
+                onClick={() => (isReady ? void saveNow() : retryLoad())}
                 disabled={persistenceStatus.phase === 'saving'}
               >
                 <Save className="size-3" /> Save{' '}
@@ -1530,6 +1588,7 @@ export function WorkbenchApp() {
                   size="sm"
                   className="h-6 px-2 text-[9px]"
                   onClick={createNewCostVersion}
+                  disabled={!isReady}
                 >
                   <Plus className="size-3" /> New Version{' '}
                   <span className="text-[8px] opacity-60">创建版本</span>
@@ -1540,7 +1599,20 @@ export function WorkbenchApp() {
               {displayDate}
             </span>
           </div>
-          {content}
+          <div inert={!isReady} aria-busy={!isReady}>
+            <ReminderInbox
+              onOpen={(projectId, view) => {
+                const project = portfolioProjects.find(
+                  (p) => p.id === projectId,
+                );
+                if (project)
+                  void selectProject(project).then((ok) => {
+                    if (ok) setActiveView(view);
+                  });
+              }}
+            />
+            {content}
+          </div>
         </div>
       </div>
       {notice ? (

@@ -19,6 +19,13 @@ export type DigestProject = {
   totalCost?: number;
   totalQuote?: number;
   incompleteCostRows?: number;
+  ssrAttention?: {
+    id: string;
+    title: string;
+    detail: string;
+    severity: 'red' | 'amber';
+    fingerprint: string;
+  }[];
 };
 
 export type DigestItem = {
@@ -31,7 +38,7 @@ export type DigestItem = {
   titleZh: string;
   detail: string;
   detailZh: string;
-  action: 'review' | 'cost' | 'project';
+  action: 'review' | 'cost' | 'project' | 'ssr';
 };
 
 export type DailyDigest = {
@@ -91,28 +98,46 @@ export const buildDailyDigest = (
   for (const review of reviews) {
     const project = projectById.get(review.projectId);
     const timing = getReviewTiming(review, now);
-    if (review.status === 'blocked' || timing.overdue || timing.stale) {
+    // Only the latest follow-up sets the next reminder; older promised dates
+    // must stop recurring after a newer follow-up supersedes them.
+    const latestFollowUp = [...review.followUps].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    )[0];
+    const followUpDue =
+      !['completed', 'cancelled'].includes(review.status) &&
+      Boolean(
+        latestFollowUp?.nextFollowUpAt &&
+        latestFollowUp.nextFollowUpAt <= normalizedDate,
+      );
+    if (
+      review.status === 'blocked' ||
+      timing.overdue ||
+      timing.stale ||
+      followUpDue
+    ) {
       items.push({
-        id: `review-follow-up:${review.id}`,
+        id: `review-follow-up:${review.projectId}:${review.id}`,
         category: 'immediate_follow_up',
         severity: 'red',
         projectId: review.projectId,
         reviewId: review.id,
         title: `${project?.name || review.projectId} · ${review.gate}`,
         titleZh: `${project?.name || review.projectId} · ${review.gateZh || review.gate}`,
-        detail:
-          review.status === 'blocked'
+        detail: followUpDue
+          ? `Follow-up due ${latestFollowUp.nextFollowUpAt}; owner: ${review.owner}.`
+          : review.status === 'blocked'
             ? `Blocked; owner confirmation required from ${review.owner}.`
             : `${timing.en}; status confirmation required from ${review.owner}.`,
-        detailZh:
-          review.status === 'blocked'
+        detailZh: followUpDue
+          ? `已到跟进日期 ${latestFollowUp.nextFollowUpAt}；负责人：${review.owner}。`
+          : review.status === 'blocked'
             ? `节点阻塞，需要 ${review.owner} 确认。`
             : `${timing.zh}，需要 ${review.owner} 确认状态。`,
         action: 'review',
       });
     } else if (timing.dueSoon || review.status === 'in_review') {
       items.push({
-        id: `review-decision:${review.id}`,
+        id: `review-decision:${review.projectId}:${review.id}`,
         category: 'decisions_due',
         severity: 'amber',
         projectId: review.projectId,
@@ -127,6 +152,22 @@ export const buildDailyDigest = (
   }
 
   for (const project of projects) {
+    for (const attention of project.ssrAttention || [])
+      items.push({
+        id: `ssr:${project.projectId}:${attention.id}`,
+        category:
+          attention.severity === 'red'
+            ? 'immediate_follow_up'
+            : 'decisions_due',
+        severity: attention.severity,
+        projectId: project.projectId,
+        reviewId: attention.id,
+        title: `${project.name} · ${attention.title}`,
+        titleZh: `${project.name} · ${attention.title}`,
+        detail: attention.detail,
+        detailZh: attention.detail,
+        action: 'ssr',
+      });
     if (
       project.versionState === 'Draft' &&
       Number(project.totalCost || 0) > 0
@@ -156,8 +197,9 @@ export const buildDailyDigest = (
         title: `${project.name} · ${incompleteRows} incomplete cost row${incompleteRows === 1 ? '' : 's'}`,
         titleZh: `${project.name} · ${incompleteRows} 条成本明细不完整`,
         detail:
-          'Complete Scope, BU, RE Type, MD/site, and annual allocation before export.',
-        detailZh: '导出前请补齐 Scope、BU、RE Type、MD/site 和年度分配。',
+          'Complete Scope, BU, RE Type, direct MD or MD/site, and annual allocation before export.',
+        detailZh:
+          '导出前请补齐 Scope、BU、RE Type、总人天或 MD/site 和年度分配。',
         action: 'cost',
       });
     }

@@ -82,6 +82,17 @@ test('all canonical schemas compile in Ajv strict mode', () => {
   });
 });
 
+test('doctor validates the current database schema using an isolated repository', () => {
+  const { status, response } = runCli(['system', 'doctor']);
+  assert.equal(status, 0);
+  assert.equal(response.data.healthy, true);
+  assert.ok(
+    response.data.checks.some(
+      (check) => check.name === 'local-sqlite-repository' && check.ok,
+    ),
+  );
+});
+
 test('capabilities discovers exact v2 buckets, contracts, and schema hashes', () => {
   const { status, response } = runCli(['system', 'capabilities']);
   assert.equal(status, 0);
@@ -89,7 +100,7 @@ test('capabilities discovers exact v2 buckets, contracts, and schema hashes', ()
   assert.equal(response.data.envelopeVersion, '2.0.0');
   assert.equal(response.data.calculationEngineVersion, '2.0.0');
   assert.deepEqual(response.data.yearBuckets, ['Y1', 'Y2', 'Y3', 'Y4', 'Y5']);
-  assert.equal(response.data.schemas.length, 5);
+  assert.equal(response.data.schemas.length, 6);
   assert.equal(response.data.storage, 'local-sqlite');
   response.data.schemas.forEach((schema) => {
     assert.match(schema.sha256, /^[a-f0-9]{64}$/);
@@ -153,6 +164,40 @@ test('workspace CLI persists with revision checks and can list/read records', ()
     ]);
     assert.equal(fetched.status, 0);
     assert.equal(fetched.response.data.workspace.project.id, data.project.id);
+
+    // Agents use the existing revision-checked workspace command for quote catalogs.
+    const catalogWorkspace = structuredClone(fetched.response.data.workspace);
+    catalogWorkspace.assumptionLibrary[0].text =
+      'CLI-managed reusable assumption';
+    catalogWorkspace.quoteTemplates[0].termsAndConditions =
+      'Client T&C from CLI';
+    catalogWorkspace.quoteTemplates[0].defaultAssumptionIds = [
+      catalogWorkspace.assumptionLibrary[0].id,
+    ];
+    const catalogSaved = runCli(
+      [
+        'workspace',
+        'save',
+        '--input',
+        '-',
+        '--expected-revision',
+        '1',
+        '--db',
+        databasePath,
+      ],
+      {
+        input: JSON.stringify({ ...workspaceRequest, data: catalogWorkspace }),
+      },
+    );
+    assert.equal(catalogSaved.status, 0);
+    assert.equal(
+      catalogSaved.response.data.workspace.quoteTemplates[0].termsAndConditions,
+      'Client T&C from CLI',
+    );
+    assert.equal(
+      catalogSaved.response.data.workspace.assumptionLibrary[0].text,
+      'CLI-managed reusable assumption',
+    );
 
     const listed = runCli(['workspace', 'list', '--db', databasePath]);
     assert.equal(listed.status, 0);
@@ -235,6 +280,69 @@ test('maintenance validate accepts only the maintenance request kind', () => {
   assert.equal(status, 0);
   assert.equal(response.data.recordCount, 1);
   assert.equal(response.meta.dataSchemaVersion, '1.0.0');
+});
+
+test('workspace relation failures return typed business validation instead of internal error', () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'workbench-cli-audit-'));
+  const data = makeCostRequest().data;
+  const request = {
+    apiVersion: 'cost-workbench/v2',
+    kind: 'WorkspaceSaveRequest',
+    requestId: 'audit-invalid-reference',
+    data: {
+      schemaVersion: '1.0.0',
+      project: data.project,
+      selectedStep: 0,
+      processSteps: [],
+      currentWorkflowStepCode: 'missing-node',
+      activeVersion: 'V1',
+      costRows: data.costRows,
+      rateSettings: data.rateSettings,
+      resourceTypes: data.resourceTypes,
+      subcontractItems: [],
+      supplementalCostItems: [],
+      maintenancePriceRecords: [],
+      travelSettings: data.travelSettings,
+      travelRows: [],
+      travelUplift: 0,
+      manualCosts: data.manualCosts,
+    },
+  };
+  try {
+    const result = runCli(
+      [
+        'workspace',
+        'save',
+        '--input',
+        '-',
+        '--expected-revision',
+        'none',
+        '--db',
+        path.join(directory, 'test.sqlite'),
+      ],
+      { input: JSON.stringify(request) },
+    );
+    assert.equal(result.status, 6);
+    assert.equal(result.response.error.code, 'BUSINESS_VALIDATION_FAILED');
+    assert.ok(result.response.error.violations.length > 0);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('maintenance CLI rejects impossible calendar dates through the business contract', () => {
+  const request = JSON.parse(
+    readFileSync(
+      path.join(FIXTURE_DIR, 'maintenance-request.valid.json'),
+      'utf8',
+    ),
+  );
+  request.data.records[0].quoteDate = '2026-02-31';
+  const result = runCli(['maintenance', 'validate', '--input', '-'], {
+    input: JSON.stringify(request),
+  });
+  assert.equal(result.status, 6);
+  assert.equal(result.response.error.code, 'BUSINESS_VALIDATION_FAILED');
 });
 
 test('digest rejects calendar-invalid as-of dates with a typed error', () => {

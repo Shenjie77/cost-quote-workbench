@@ -9,6 +9,28 @@ results can then be entered into the company system.
 
 ## Layers
 
+### Functional page boundaries
+
+- **Master Data** is the single maintenance entry point for RE Types/rates,
+  subcontract references, supplemental costs, maintenance history, reusable
+  assumptions, customer quotation templates, workflow nodes and status options.
+  These remain eight independent tabs, with record counts shown in navigation.
+- **Pricing & Quote** selects/applies templates and assumptions, edits this
+  project's current quotation copies, calculates pricing and creates output.
+  Its Manage buttons open the corresponding Master Data tab in the same project;
+  returning to Quote retains draft edits. Templates and T&C are edited only in
+  Master Data; generated quotation history keeps its original text snapshot.
+- The redundant **Templates & Settings** navigation alias was removed. There is
+  no separate platform-settings page until actual platform configuration is added.
+- Master Data explicitly shows the active project and client. Catalogs are still
+  project-owned, not global. Cross-project reuse is an explicit copy, not live
+  synchronization. This navigation cleanup does not migrate or merge catalogs.
+- `features/master-data/navigation.ts` owns supported tab IDs and labels. The
+  composition root owns the selected tab as session-only UI state; it is not a
+  new SQLite field or CLI command. Changing views never resets workspace data.
+
+### Technical layers
+
 1. **Presentation** — `app/page.tsx` and `components/ui`. This layer renders
    tables, accepts user actions, and creates immutable command/export snapshots.
 2. **Domain** — `features/cost/domain.ts`. Pure types and formulas for sites,
@@ -24,6 +46,17 @@ results can then be entered into the company system.
    the browser hydrate and autosave without exposing direct SQL.
 7. **Contracts** — `schemas/*.schema.json`. Strict Draft 2020-12 request and
    response formats. Unknown input fields are rejected.
+
+`server/workspace-document.mjs` owns document migration and reference
+validation; it has no SQL connection. `workspace-repository.mjs` owns SQL,
+transactions and durable writes. Derived monetary values are validated again
+after calculation so individually valid inputs cannot create an invalid record.
+
+The browser persistence boundary is split into `workspace-types.ts`,
+`workspace-client.ts`, `save-queue.ts`, and `local-persistence.ts`.
+`workspace-factories.ts` constructs detached project/version defaults. The
+queue serializes writes per loaded project; project switching awaits its latest
+write, and a failed write leaves the outgoing editor available.
 
 The Web UI, CLI, and Excel must not implement separate calculation formulas.
 New formulas belong in the domain layer and require regression checks through
@@ -82,7 +115,9 @@ separate event ledger.
   and `Confirmed` lifecycle states. `Confirmed` is a workflow state, not a
   cryptographic lock or electronic signature.
 - RE Type consolidates personnel family, level, MD rate, conversion factors,
-  and effective dates. Cost rows preserve the selected RE Type ID.
+  and effective dates. Every cost version captures an independent RE Type
+  catalogue. Cost rows reference that snapshot; the project master catalogue
+  is applied only through the explicit rate-refresh action.
 - Manual statement costs and HQ travel are project-level. Until allocation keys
   exist, they appear under `UNALLOCATED` in dimensional exports.
 - Open-project tabs are session UI state. Project data remains durable even

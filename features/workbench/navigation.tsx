@@ -52,6 +52,30 @@ export const navItems: Array<{
     icon: WalletCards,
   },
   {
+    key: 'cpq',
+    label: 'CPQ Configuration',
+    labelZh: 'CPQ 配置',
+    description: 'Match, confirm, calculate',
+    descriptionZh: '筛选、确认与配量',
+    icon: WalletCards,
+  },
+  {
+    key: 'maintenance',
+    label: 'Maintenance BOQ',
+    labelZh: '维保 BOQ',
+    description: 'Equipment and references',
+    descriptionZh: '设备、客户参考与报价草稿',
+    icon: Database,
+  },
+  {
+    key: 'ssr',
+    label: 'SSR Workflow',
+    labelZh: 'SSR 流程',
+    description: 'Submissions and results',
+    descriptionZh: '送审、结果与条件关闭',
+    icon: ClipboardCheck,
+  },
+  {
     key: 'reviews',
     label: 'Reviews',
     labelZh: '评审与跟进',
@@ -71,8 +95,8 @@ export const navItems: Array<{
     key: 'master-data',
     label: 'Master Data',
     labelZh: '基础数据',
-    description: 'Reusable reference data',
-    descriptionZh: '资源、分包、补充成本与维保历史',
+    description: 'Rates, assumptions & templates',
+    descriptionZh: '资源、参考价格、假设与客户模板',
     icon: Database,
   },
 ];
@@ -87,6 +111,28 @@ export const viewTitles: Record<
     subtitleZh: string;
   }
 > = {
+  maintenance: {
+    eyebrow: 'BOQ / MAINTENANCE',
+    title: 'Maintenance BOQ',
+    titleZh: '维保设备配置',
+    subtitle: 'Compare the same model per device and year.',
+    subtitleZh: '按同型号、每台每年对比客户参考，并记录配置依据。',
+  },
+  ssr: {
+    eyebrow: 'SSR / WORKFLOW',
+    title: 'SSR Workflow',
+    titleZh: 'SSR 送审与结果',
+    subtitle: 'Track evidence, conditions and follow-ups.',
+    subtitleZh: '登记公司评审记录、关闭条件并跟进责任人。',
+  },
+  cpq: {
+    eyebrow: 'CPQ / CONFIGURATION',
+    title: 'CPQ Configuration',
+    titleZh: 'CPQ 条目配置',
+    subtitle:
+      'Select catalog items, lock equipment quantities and allocate service costs.',
+    subtitleZh: '确认条目、锁定设备数量并匹配服务成本。',
+  },
   overview: {
     eyebrow: 'WORKSPACE / TODAY',
     title: 'Today Workspace',
@@ -132,11 +178,11 @@ export const viewTitles: Record<
     subtitleZh: '所有判断均来自平台记录，并保留可查看的依据。',
   },
   'master-data': {
-    eyebrow: 'DATA / MASTER RECORDS',
+    eyebrow: 'DATA / PROJECT LIBRARIES',
     title: 'Master Data',
     titleZh: '基础数据管理',
     subtitle:
-      'Maintain reusable resource, subcontract, supplemental-cost, and maintenance-price records.',
-    subtitleZh: '维护资源、分包、补充成本与维保历史价格数据。',
+      'Maintain this project’s reference data, assumptions and customer templates in one place.',
+    subtitleZh: '统一维护当前项目的基础数据、假设库与客户模板。',
   },
 };

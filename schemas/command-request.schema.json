@@ -7,12 +7,15 @@
   "additionalProperties": false,
   "required": ["apiVersion", "kind", "requestId", "data"],
   "properties": {
-    "apiVersion": { "const": "cost-workbench/v2" },
+    "apiVersion": {
+      "const": "cost-workbench/v2"
+    },
     "kind": {
       "enum": [
         "CostSnapshotRequest",
         "MaintenancePriceRequest",
-        "WorkspaceSaveRequest"
+        "WorkspaceSaveRequest",
+        "OperationRequest"
       ]
     },
     "requestId": {
@@ -26,7 +29,9 @@
       "additionalProperties": false,
       "required": ["type", "id"],
       "properties": {
-        "type": { "enum": ["user", "agent", "system"] },
+        "type": {
+          "enum": ["user", "agent", "system"]
+        },
         "id": {
           "type": "string",
           "minLength": 1,

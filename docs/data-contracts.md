@@ -84,6 +84,12 @@ local repository expands older compatible documents with these fields:
   governed customer-output configuration;
 - `quoteHistory[]`: generated or manually entered quotation snapshots.
 
+`assumptionLibrary[]` stores reusable project assumptions. Customer templates
+also contain `termsAndConditions` and `defaultAssumptionIds`. Quotation copies
+may retain a `sourceAssumptionId`, while generated history stores detached
+`templateSnapshot` and `assumptionSnapshots`. See [quote catalog contract](quote-catalog.md)
+for matching, migration, field limits and safe deletion/copy behavior.
+
 New and migrated projects start with `input_preparation`, `solution_review`,
 `delivery_review`, `costing`, `cost_review`, `pricing`, `quote_review`,
 `completed`, and `on_hold`. Users may rename, add, deactivate, or delete status
@@ -91,8 +97,10 @@ definitions. The selected value is not silently derived from workflow gates.
 
 Every `costVersions[]` item stores `code`, `state`, `createdAt`,
 `sourceVersion`, `costRows`, `rateSettings`, `travelSettings`, `travelRows`,
-`travelUplift`, and `manualCosts`. New Version clones all of these fields, then
-edits the new snapshot independently. RE Type and other master-data arrays
+`travelUplift`, `manualCosts`, and `resourceTypes` (independent rate snapshot).
+Legacy inputs may omit the last field; migration captures the available project
+catalogue and may add `calculationNote` when correcting stale labour values.
+New Version clones these fields, then edits its snapshot independently. Other master-data arrays
 remain project-level shared masters.
 
 `pricing` contains numeric `targetGrossMargin`, `discount`, and `gstPercent`.

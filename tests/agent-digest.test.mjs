@@ -24,6 +24,37 @@ const blockedReview = {
   followUps: [],
 };
 
+test('latest follow-up date triggers reminders until superseded or closed', () => {
+  const review = {
+    ...blockedReview,
+    status: 'not_started',
+    dueDate: '2026-10-01',
+    lastUpdatedAt: '2026-09-05T00:00:00Z',
+    followUps: [
+      {
+        id: 'f1',
+        createdAt: '2026-09-05T00:00:00Z',
+        summary: 'Check again',
+        statusAfter: 'not_started',
+        nextFollowUpAt: '2026-09-05',
+      },
+    ],
+  };
+  assert.equal(
+    buildDailyDigest([], [review], '2026-09-05').counts.immediate_follow_up,
+    1,
+  );
+  review.followUps.push({
+    ...review.followUps[0],
+    id: 'f2',
+    createdAt: '2026-09-05T01:00:00Z',
+    nextFollowUpAt: '2026-09-10',
+  });
+  assert.equal(buildDailyDigest([], [review], '2026-09-05').items.length, 0);
+  review.status = 'completed';
+  assert.equal(buildDailyDigest([], [review], '2026-09-11').items.length, 0);
+});
+
 test('review timing is derived from explicit dates and status', () => {
   const timing = getReviewTiming(
     blockedReview,

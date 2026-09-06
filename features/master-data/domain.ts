@@ -103,3 +103,31 @@ export const initialMaintenancePriceRecords: MaintenancePriceRecord[] = [
     source: 'Manual history',
   },
 ];
+
+/** Per-device annual reference; invalid denominators are unavailable, never a free price. */
+export const unitAnnualMaintenanceQuote = (
+  record: MaintenancePriceRecord,
+): number | null =>
+  [record.quotedAmount, record.quantity, record.coverageMonths].every(
+    Number.isFinite,
+  ) &&
+  record.quotedAmount >= 0 &&
+  record.quantity > 0 &&
+  record.coverageMonths > 0
+    ? roundMoney(
+        (record.quotedAmount * 12) / record.coverageMonths / record.quantity,
+      )
+    : null;
+export const unitAnnualMaintenanceCost = (
+  record: MaintenancePriceRecord,
+): number | null =>
+  [record.costAmount, record.quantity, record.coverageMonths].every(
+    Number.isFinite,
+  ) &&
+  record.costAmount >= 0 &&
+  record.quantity > 0 &&
+  record.coverageMonths > 0
+    ? roundMoney(
+        (record.costAmount * 12) / record.coverageMonths / record.quantity,
+      )
+    : null;

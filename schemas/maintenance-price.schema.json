@@ -33,16 +33,33 @@
         "source"
       ],
       "properties": {
-        "id": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+        },
         "client": { "type": "string", "minLength": 1, "maxLength": 200 },
         "service": { "type": "string", "minLength": 1, "maxLength": 300 },
         "productModel": { "type": "string", "minLength": 1, "maxLength": 200 },
         "serviceLevel": { "type": "string", "minLength": 1, "maxLength": 200 },
         "site": { "type": "string", "minLength": 1, "maxLength": 200 },
         "coverageMonths": { "type": "integer", "minimum": 1, "maximum": 240 },
-        "quantity": { "type": "number", "exclusiveMinimum": 0 },
-        "costAmount": { "type": "number", "minimum": 0 },
-        "quotedAmount": { "type": "number", "minimum": 0 },
+        "quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000000
+        },
+        "costAmount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000
+        },
+        "quotedAmount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000
+        },
         "currency": { "const": "SGD" },
         "quoteDate": {
           "type": "string",

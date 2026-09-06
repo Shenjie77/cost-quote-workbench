@@ -13,11 +13,12 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import Ajv2020 from 'ajv/dist/2020.js';
+import { LOCAL_DATABASE_SCHEMA_VERSION } from '../db/schema.ts';
 
 import {
   YEAR_BUCKETS,
@@ -50,6 +51,7 @@ const CLI_VERSION = String(PACKAGE_JSON.version);
 
 /** Canonical schemas exposed through `schema list/show` and system discovery. */
 const SCHEMA_FILES = Object.freeze({
+  operations: path.join(ROOT_DIR, 'schemas/operations.schema.json'),
   'cost-export': path.join(ROOT_DIR, 'schemas/cost-export.schema.json'),
   'maintenance-price': path.join(
     ROOT_DIR,
@@ -82,6 +84,20 @@ const ROUNDING_CONTRACT = Object.freeze({
 });
 
 const IMPLEMENTED_COMMANDS = Object.freeze([
+  'boq import --project-id ID --file FILE --input REQUEST [--apply --expected-revision REVISION] [--db FILE]',
+  'maintenance archive --project-id ID --expected-revision REVISION [--db FILE]',
+  'maintenance export --project-id ID --archive-id ID --output FILE.xlsx [--db FILE]',
+  'workbook inspect --file FILE.xlsx [--header-row N]',
+  'cost import --project-id ID --file FILE.xlsx --input REQUEST [--apply --expected-revision REVISION] [--db FILE]',
+  'ssr submit --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
+  'ssr result --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
+  'ssr close --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
+  'ssr followup --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
+  'workbook fill-template --project-id ID --file TEMPLATE.xlsx --input MAPPING --output FILE.xlsx [--db FILE]',
+  'reminders scan [--as-of YYYY-MM-DD] [--db FILE]',
+  'reminders list [--db FILE]',
+  'reminders ack --id ID --fingerprint FINGERPRINT [--db FILE]',
+  'history search --scope TEXT [--client CUSTOMER] [--db FILE]',
   'version',
   'help',
   'system capabilities',
@@ -96,13 +112,151 @@ const IMPLEMENTED_COMMANDS = Object.freeze([
   'workspace list [--db FILE]',
   'workspace get --project-id ID [--db FILE]',
   'workspace save --input FILE|- --expected-revision REVISION|none [--db FILE]',
+  'cpq match --project-id ID --scope TEXT [--db FILE]',
+  'cpq confirm --project-id ID --confirmed-by NAME --expected-revision REVISION [--db FILE]',
+  'cpq solve --project-id ID --expected-revision REVISION [--db FILE]',
+  'cpq archive --project-id ID --expected-revision REVISION [--db FILE]',
+  'cpq export --project-id ID --archive-id ID --output FILE.xlsx [--db FILE]',
+  'quote export --project-id ID --output FILE.xlsx [--db FILE]',
 ]);
+
+const readWorkbookFile = async (file) => {
+  try {
+    return new Uint8Array(await readFile(file));
+  } catch (error) {
+    throw new CliFault(
+      error.code === 'ENOENT' ? 'FILE_NOT_FOUND' : 'FILE_IO_ERROR',
+      `Unable to read workbook: ${error.message}`,
+      EXIT.FILE_IO,
+    );
+  }
+};
 
 /**
  * Per-command option specification. Value options consume the next token;
  * boolean options never do. Keeping this explicit prevents silent typos.
  */
 const COMMAND_SPECS = Object.freeze({
+  'maintenance.archive': {
+    values: ['project-id', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'expected-revision'],
+  },
+  'maintenance.export': {
+    values: ['project-id', 'archive-id', 'output', 'db', 'request-id'],
+    booleans: ['pretty', 'overwrite'],
+    required: ['project-id', 'archive-id', 'output'],
+  },
+  'boq.import': {
+    values: [
+      'project-id',
+      'input',
+      'file',
+      'expected-revision',
+      'db',
+      'request-id',
+    ],
+    booleans: ['pretty', 'apply'],
+    required: ['project-id', 'input', 'file'],
+  },
+  'workbook.inspect': {
+    values: ['file', 'header-row', 'request-id'],
+    booleans: ['pretty'],
+    required: ['file'],
+  },
+  'cost.import': {
+    values: [
+      'project-id',
+      'file',
+      'input',
+      'expected-revision',
+      'db',
+      'request-id',
+    ],
+    booleans: ['apply', 'pretty'],
+    required: ['project-id', 'file', 'input'],
+  },
+  'workbook.fill-template': {
+    values: ['project-id', 'file', 'input', 'output', 'db', 'request-id'],
+    booleans: ['overwrite', 'pretty'],
+    required: ['project-id', 'file', 'input', 'output'],
+  },
+  'reminders.scan': {
+    values: ['as-of', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: [],
+  },
+  'reminders.list': {
+    values: ['db', 'request-id'],
+    booleans: ['pretty'],
+    required: [],
+  },
+  'reminders.ack': {
+    values: ['id', 'fingerprint', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['id', 'fingerprint'],
+  },
+  'history.search': {
+    values: ['scope', 'client', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['scope'],
+  },
+  'ssr.submit': {
+    values: ['project-id', 'input', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'input', 'expected-revision'],
+  },
+  'ssr.result': {
+    values: ['project-id', 'input', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'input', 'expected-revision'],
+  },
+  'ssr.close': {
+    values: ['project-id', 'input', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'input', 'expected-revision'],
+  },
+  'ssr.followup': {
+    values: ['project-id', 'input', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'input', 'expected-revision'],
+  },
+  'cpq.match': {
+    values: ['project-id', 'scope', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'scope'],
+  },
+  'cpq.confirm': {
+    values: [
+      'project-id',
+      'confirmed-by',
+      'expected-revision',
+      'db',
+      'request-id',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id', 'confirmed-by', 'expected-revision'],
+  },
+  'cpq.solve': {
+    values: ['project-id', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'expected-revision'],
+  },
+  'cpq.archive': {
+    values: ['project-id', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'expected-revision'],
+  },
+  'cpq.export': {
+    values: ['project-id', 'archive-id', 'output', 'db', 'request-id'],
+    booleans: ['pretty', 'overwrite'],
+    required: ['project-id', 'archive-id', 'output'],
+  },
+  'quote.export': {
+    values: ['project-id', 'output', 'db', 'request-id'],
+    booleans: ['pretty', 'overwrite'],
+    required: ['project-id', 'output'],
+  },
   version: { values: ['request-id'], booleans: ['pretty'], required: [] },
   help: { values: ['request-id'], booleans: ['pretty'], required: [] },
   'system.capabilities': {
@@ -685,12 +839,26 @@ const parseExpectedRevision = (value) => {
 
 /** Runs a repository action and guarantees the SQLite handle is closed. */
 const withWorkspaceRepository = async (options, action) => {
-  const { RepositoryConflictError, openWorkspaceRepository } =
-    await import('../server/workspace-repository.mjs');
+  const {
+    RepositoryConflictError,
+    WorkspaceValidationError,
+    openWorkspaceRepository,
+  } = await import('../server/workspace-repository.mjs');
   const repository = openWorkspaceRepository(resolveDatabasePath(options));
   try {
     return await action(repository);
   } catch (error) {
+    if (error instanceof WorkspaceValidationError) {
+      throw new CliFault(
+        'BUSINESS_VALIDATION_FAILED',
+        error.message,
+        EXIT.BUSINESS_RULE,
+        {
+          violations: error.violations,
+          dataSchemaVersion: '1.0.0',
+        },
+      );
+    }
     if (error instanceof RepositoryConflictError) {
       throw new CliFault('REVISION_CONFLICT', error.message, EXIT.CONFLICT, {
         violations: [
@@ -771,7 +939,7 @@ const execute = async () => {
     }
     checks.push({ name: 'workbook-export-import', ok: true });
     await withWorkspaceRepository({ db: ':memory:' }, async (repository) => {
-      if (repository.schemaVersion !== 1) {
+      if (repository.schemaVersion !== LOCAL_DATABASE_SCHEMA_VERSION) {
         throw new Error('Unexpected local database schema version.');
       }
     });
@@ -824,6 +992,27 @@ const execute = async () => {
       'maintenance-price',
       '1.0.0',
     );
+    const { assertMaintenanceImport } =
+      await import('../features/master-data/maintenance-import.ts');
+    try {
+      assertMaintenanceImport(input);
+    } catch (error) {
+      throw new CliFault(
+        'BUSINESS_VALIDATION_FAILED',
+        error.message,
+        EXIT.BUSINESS_RULE,
+        {
+          violations: [
+            {
+              path: '/records',
+              rule: 'maintenanceIntegrity',
+              message: error.message,
+            },
+          ],
+          dataSchemaVersion: '1.0.0',
+        },
+      );
+    }
     return success(
       'MaintenanceValidationResult',
       { valid: true, recordCount: input.records.length },
@@ -846,7 +1035,7 @@ const execute = async () => {
       );
     }
     const digest = await withWorkspaceRepository(options, (repository) => {
-      const projects = repository.list();
+      const projects = repository.list(asOf);
       const reviews = projects.flatMap((project) => project.reviewGates || []);
       return buildDailyDigest(projects, reviews, asOf);
     });
@@ -892,6 +1081,500 @@ const execute = async () => {
       repository.save(workspace.project.id, workspace, expectedRevision),
     );
     return success('WorkspaceRecordResult', record, [], '1.0.0');
+  }
+  if (['maintenance.archive', 'maintenance.export'].includes(resolved.command))
+    return withWorkspaceRepository(options, async (repository) => {
+      const record = repository.get(String(options['project-id']));
+      if (!record)
+        throw new CliFault(
+          'WORKSPACE_NOT_FOUND',
+          'Workspace not found',
+          EXIT.NOT_FOUND,
+        );
+      const w = record.workspace;
+      const { archiveMaintenance, buildMaintenanceWorkbook, emptyMaintenance } =
+        await import('../features/maintenance/domain.ts');
+      const data = w.maintenanceBoq || emptyMaintenance();
+      try {
+        if (resolved.command === 'maintenance.archive')
+          return success(
+            'WorkspaceRecordResult',
+            repository.save(
+              w.project.id,
+              {
+                ...w,
+                maintenanceBoq: archiveMaintenance(
+                  data,
+                  w.maintenancePriceRecords,
+                  w.project.client,
+                ),
+              },
+              parseExpectedRevision(options['expected-revision']),
+            ),
+            [],
+            '1.0.0',
+          );
+        const archive = data.archives.find(
+          (a) => a.id === options['archive-id'],
+        );
+        if (!archive) throw new TypeError('Archive not found');
+        const bytes = await buildMaintenanceWorkbook(archive);
+        const { writeXlsxArtifact } = await import('../server/artifact-io.mjs');
+        return success(
+          'WorkbookExportResult',
+          {
+            artifact: await writeXlsxArtifact(
+              String(options.output),
+              bytes,
+              Boolean(options.overwrite),
+            ),
+            sheets: await readWorkbookSheetNames(bytes),
+          },
+          [],
+          '1.0.0',
+        );
+      } catch (error) {
+        if (error.name === 'RepositoryConflictError') throw error;
+        throw new CliFault(
+          'MAINTENANCE_FAILED',
+          error.message,
+          EXIT.BUSINESS_RULE,
+        );
+      }
+    });
+  if (resolved.command === 'workbook.inspect') {
+    const { inspectCostWorkbook } =
+      await import('../features/cost/import-workbook.ts');
+    return success(
+      'OperationResult',
+      await inspectCostWorkbook(
+        await readWorkbookFile(String(options.file)),
+        Number(options['header-row'] || 1),
+      ),
+      [],
+      '1.0.0',
+    );
+  }
+  if (resolved.command.startsWith('reminders.'))
+    return withWorkspaceRepository(options, (repository) => {
+      return import('../server/reminder-service.mjs').then(
+        ({ openReminderService }) => {
+          const service = openReminderService(
+            resolveDatabasePath(options),
+            repository,
+          );
+          try {
+            const data =
+              resolved.command === 'reminders.scan'
+                ? service.scan(options['as-of'])
+                : resolved.command === 'reminders.ack'
+                  ? {
+                      items: service.acknowledge(
+                        String(options.id),
+                        String(options.fingerprint),
+                      ),
+                    }
+                  : { items: service.list() };
+            return success('OperationResult', data, [], '1.0.0');
+          } finally {
+            service.close();
+          }
+        },
+      );
+    });
+  if (resolved.command === 'history.search')
+    return withWorkspaceRepository(options, async (repository) => {
+      const { searchScopeHistory } =
+        await import('../features/history/domain.ts');
+      const workspaces = repository
+        .list()
+        .map((p) => repository.get(p.projectId).workspace);
+      return success(
+        'OperationResult',
+        {
+          items: searchScopeHistory(
+            workspaces,
+            String(options.scope),
+            options.client ? String(options.client) : undefined,
+          ),
+        },
+        [],
+        '1.0.0',
+      );
+    });
+  if (
+    [
+      'boq.import',
+      'cost.import',
+      'ssr.submit',
+      'ssr.result',
+      'ssr.close',
+      'ssr.followup',
+      'workbook.fill-template',
+    ].includes(resolved.command)
+  ) {
+    const input = await readCommandRequest(
+      options,
+      'OperationRequest',
+      'operations',
+      '1.0.0',
+    );
+    if (input.operation !== resolved.command)
+      throw new CliFault(
+        'OPERATION_MISMATCH',
+        'Request operation must match command',
+        EXIT.VALIDATION,
+      );
+    return withWorkspaceRepository(options, async (repository) => {
+      const record = repository.get(String(options['project-id']));
+      if (!record)
+        throw new CliFault(
+          'WORKSPACE_NOT_FOUND',
+          'Workspace not found',
+          EXIT.NOT_FOUND,
+        );
+      const w = record.workspace,
+        baseline = w.costVersions.find((v) => v.code === w.activeVersion);
+      try {
+        if (resolved.command === 'boq.import') {
+          const { importBoq, appendBoq, emptyMaintenance } =
+            await import('../features/maintenance/domain.ts');
+          const rows = await importBoq(
+            await readWorkbookFile(String(options.file)),
+            path.basename(String(options.file)),
+            input.mapping,
+          );
+          if (!options.apply)
+            return success('OperationResult', { rows }, [], '1.0.0');
+          if (options['expected-revision'] === undefined)
+            throw new TypeError('--apply requires --expected-revision');
+          const current = w.maintenanceBoq || emptyMaintenance();
+          if (
+            rows.some((r) =>
+              current.boq.some(
+                (old) => old.id === r.id || old.source === r.source,
+              ),
+            )
+          )
+            throw new TypeError('BOQ rows already imported');
+          return success(
+            'WorkspaceRecordResult',
+            repository.save(
+              w.project.id,
+              {
+                ...w,
+                maintenanceBoq: {
+                  ...current,
+                  boq: appendBoq(current.boq, rows),
+                },
+              },
+              parseExpectedRevision(options['expected-revision']),
+            ),
+            [],
+            '1.0.0',
+          );
+        }
+        if (resolved.command === 'cost.import') {
+          const { previewCostImport, applyCostImport } =
+            await import('../features/cost/import-workbook.ts');
+          const resources = baseline.resourceTypes || w.resourceTypes;
+          const preview = await previewCostImport(
+            await readWorkbookFile(String(options.file)),
+            path.basename(String(options.file)),
+            input.mapping,
+            resources,
+            w.rateSettings,
+          );
+          if (!options.apply)
+            return success('OperationResult', preview, [], '1.0.0');
+          if (options['expected-revision'] === undefined)
+            throw new TypeError('--apply requires --expected-revision');
+          const rows = applyCostImport(w.costRows, preview, {
+            resources,
+            rates: w.rateSettings,
+          });
+          return success(
+            'WorkspaceRecordResult',
+            repository.save(
+              w.project.id,
+              { ...w, costRows: rows },
+              parseExpectedRevision(options['expected-revision']),
+            ),
+            [],
+            '1.0.0',
+          );
+        }
+        if (resolved.command === 'workbook.fill-template') {
+          const { fillTemplateWorkbook } =
+            await import('../features/excel/template-workbook.ts');
+          const { writeXlsxArtifact } =
+            await import('../server/artifact-io.mjs');
+          if (path.extname(String(options.file)).toLowerCase() !== '.xlsx')
+            throw new TypeError('Only .xlsx templates are supported');
+          if (
+            path.resolve(String(options.file)) ===
+            path.resolve(String(options.output))
+          )
+            throw new TypeError(
+              'Export to a different file to preserve the original template',
+            );
+          const inputStat = await stat(String(options.file));
+          const outputStat = await stat(String(options.output)).catch((e) => {
+            if (e.code === 'ENOENT') return null;
+            throw e;
+          });
+          if (
+            outputStat &&
+            inputStat.dev === outputStat.dev &&
+            inputStat.ino === outputStat.ino
+          )
+            throw new TypeError(
+              'Output refers to the original template; choose a different file',
+            );
+          const quoteNumber = `QT-${w.project.id}-${Date.now()}`;
+          const result = await fillTemplateWorkbook(
+            await readWorkbookFile(String(options.file)),
+            input,
+            w,
+            quoteNumber,
+          );
+          const artifact = await writeXlsxArtifact(
+            String(options.output),
+            result.bytes,
+            Boolean(options.overwrite),
+          );
+          if (input.purpose === 'quote') {
+            const { validatedQuoteInput } =
+              await import('../features/quote/validated-input.ts');
+            const q = validatedQuoteInput(w, quoteNumber);
+            // History construction is shared with the standard exporter below.
+            const { quoteHistoryRecord } =
+              await import('../features/quote/history-record.ts');
+            try {
+              repository.save(
+                w.project.id,
+                {
+                  ...w,
+                  quoteHistory: [
+                    ...w.quoteHistory,
+                    quoteHistoryRecord(
+                      q,
+                      artifact,
+                      `Template ${result.templateSha256}; mapping ${input.version};`,
+                    ),
+                  ],
+                },
+                record.revision,
+              );
+            } catch (error) {
+              throw new TypeError(
+                `Artifact exists at ${artifact.path}; quotation history save failed: ${error.message}`,
+              );
+            }
+          }
+          return success(
+            'WorkbookExportResult',
+            { artifact, sheets: await readWorkbookSheetNames(result.bytes) },
+            [],
+            '1.0.0',
+          );
+        }
+        const domain = await import('../features/ssr/domain.ts');
+        let next = w.ssr || domain.emptySsr();
+        if (resolved.command === 'ssr.submit')
+          next = domain.recordSubmission(next, baseline, {
+            kind: input.kind,
+            domain: input.domain,
+            owner: input.owner,
+            dueDate: input.dueDate,
+            applicationNumber: input.applicationNumber,
+            evidence: input.evidence,
+          });
+        if (resolved.command === 'ssr.result')
+          next = domain.recordReviewResult(next, input.submissionId, {
+            outcome: input.outcome,
+            evidence: input.evidence,
+            conditions: input.conditions,
+          });
+        if (resolved.command === 'ssr.close')
+          next = domain.closeCondition(
+            next,
+            input.submissionId,
+            input.condition,
+            input.evidence,
+          );
+        if (resolved.command === 'ssr.followup')
+          next = domain.followUpSubmission(
+            next,
+            input.submissionId,
+            input.note,
+            input.nextDate,
+          );
+        return success(
+          'WorkspaceRecordResult',
+          repository.save(
+            w.project.id,
+            { ...w, ssr: next },
+            parseExpectedRevision(options['expected-revision']),
+          ),
+          [],
+          '1.0.0',
+        );
+      } catch (error) {
+        if (error.name === 'RepositoryConflictError') throw error;
+        if (error instanceof CliFault) throw error;
+        throw new CliFault(
+          'OPERATION_FAILED',
+          error.message,
+          EXIT.BUSINESS_RULE,
+        );
+      }
+    });
+  }
+  if (
+    resolved.command.startsWith('cpq.') ||
+    resolved.command === 'quote.export'
+  ) {
+    return withWorkspaceRepository(options, async (repository) => {
+      const record = repository.get(String(options['project-id']));
+      if (!record)
+        throw new CliFault(
+          'WORKSPACE_NOT_FOUND',
+          'Workspace not found.',
+          EXIT.NOT_FOUND,
+        );
+      const workspace = record.workspace;
+      const { emptyCpq, matchCatalog, confirmMapping, solveCpq, archiveCpq } =
+        await import('../features/cpq/domain.ts');
+      const cpq = workspace.cpq || emptyCpq();
+      const baseline = workspace.costVersions.find(
+        (version) => version.code === workspace.activeVersion,
+      );
+      try {
+        if (resolved.command === 'cpq.match')
+          return success(
+            'CpqMatchResult',
+            {
+              brief: String(options.scope),
+              candidates: matchCatalog(cpq.catalog, String(options.scope)).map(
+                ({ item, score, reason }) => ({
+                  code: item.code,
+                  scope: item.scope,
+                  unit: item.unit,
+                  unitCost: item.unitCost,
+                  kind: item.kind,
+                  adjustable: item.adjustable,
+                  score,
+                  reason,
+                }),
+              ),
+            },
+            [],
+            '1.0.0',
+          );
+        if (
+          ['cpq.confirm', 'cpq.solve', 'cpq.archive'].includes(resolved.command)
+        ) {
+          const expected = parseExpectedRevision(options['expected-revision']);
+          let next;
+          if (resolved.command === 'cpq.confirm')
+            next = confirmMapping(cpq, String(options['confirmed-by']));
+          else if (resolved.command === 'cpq.solve')
+            next = {
+              ...cpq,
+              draft: { ...cpq.draft, result: solveCpq(cpq, baseline) },
+            };
+          else
+            next = archiveCpq(
+              cpq,
+              baseline,
+              workspace.ssr?.proposalNumber || '',
+            );
+          const saved = repository.save(
+            workspace.project.id,
+            { ...workspace, cpq: next },
+            expected,
+          );
+          return success('WorkspaceRecordResult', saved, [], '1.0.0');
+        }
+        let bytes, quoteInput;
+        if (resolved.command === 'cpq.export') {
+          const archived = cpq.archives.find(
+            (entry) => entry.id === options['archive-id'],
+          );
+          if (!archived)
+            throw new CliFault(
+              'ARCHIVE_NOT_FOUND',
+              'CPQ archive not found.',
+              EXIT.NOT_FOUND,
+            );
+          const { buildCpqWorkbook } =
+            await import('../features/cpq/export-workbook.ts');
+          bytes = await buildCpqWorkbook(archived);
+        } else {
+          const { validatedQuoteInput } =
+            await import('../features/quote/validated-input.ts');
+          const { buildQuoteWorkbookBuffer } =
+            await import('../features/quote/export-quote-workbook.ts');
+          quoteInput = validatedQuoteInput(
+            workspace,
+            `QT-${workspace.project.id}-${workspace.activeVersion}-${Date.now()}`,
+          );
+          bytes = await buildQuoteWorkbookBuffer(quoteInput);
+        }
+        const { writeXlsxArtifact } = await import('../server/artifact-io.mjs');
+        const artifact = await writeXlsxArtifact(
+          String(options.output),
+          bytes,
+          Boolean(options.overwrite),
+        );
+        if (quoteInput) {
+          const { quoteHistoryRecord } =
+            await import('../features/quote/history-record.ts');
+          const history = quoteHistoryRecord(quoteInput, artifact);
+          try {
+            repository.save(
+              workspace.project.id,
+              {
+                ...workspace,
+                quoteHistory: [history, ...workspace.quoteHistory],
+              },
+              record.revision,
+            );
+          } catch (error) {
+            throw new CliFault(
+              'QUOTE_HISTORY_SAVE_FAILED',
+              `Workbook exists at ${artifact.path}, but history was not saved: ${error.message}`,
+              EXIT.CONFLICT,
+            );
+          }
+        }
+        return success(
+          'WorkbookExportResult',
+          { artifact, sheets: await readWorkbookSheetNames(bytes) },
+          [],
+          '1.0.0',
+        );
+      } catch (error) {
+        if (
+          error instanceof CliFault ||
+          error?.name === 'RepositoryConflictError' ||
+          error?.name === 'WorkspaceValidationError'
+        )
+          throw error;
+        if (error?.code === 'EEXIST')
+          throw new CliFault(
+            'OUTPUT_ALREADY_EXISTS',
+            'Output already exists.',
+            EXIT.CONFLICT,
+          );
+        throw new CliFault(
+          'BUSINESS_VALIDATION_FAILED',
+          error.message,
+          EXIT.BUSINESS_RULE,
+        );
+      }
+    });
   }
   if (
     ['cost.validate', 'cost.calculate', 'cost.export'].includes(
@@ -1003,8 +1686,17 @@ const execute = async () => {
     }
     try {
       await mkdir(path.dirname(outputPath), { recursive: true });
-      await writeFile(outputPath, bytes);
+      await writeFile(outputPath, bytes, {
+        flag: options.overwrite ? 'w' : 'wx',
+      });
     } catch (error) {
+      if (error?.code === 'EEXIST') {
+        throw new CliFault(
+          'OUTPUT_ALREADY_EXISTS',
+          'Output exists; pass --overwrite to replace it.',
+          EXIT.CONFLICT,
+        );
+      }
       throw new CliFault(
         'FILE_IO_ERROR',
         `Unable to write workbook: ${error instanceof Error ? error.message : 'file error'}.`,

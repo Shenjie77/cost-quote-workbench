@@ -2,6 +2,10 @@
  * Compact master-data editor. Personnel level and pricing live in one RE Type
  * record so users cannot create an invalid RE Type + Grade combination.
  */
+import {
+  assertMaintenanceImport,
+  parseImportNumber,
+} from './maintenance-import';
 import { useRef, useState } from 'react';
 import { Plus, Save, Search, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,7 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BiInline, BiText } from '@/components/workbench/bilingual-text';
+import { BiInline } from '@/components/workbench/bilingual-text';
 import { SectionHeading } from '@/components/workbench/section-heading';
 import { StatusBadge } from '@/components/workbench/status-badge';
 import {
@@ -32,7 +36,7 @@ import {
   type ResourceType,
 } from '@/features/cost/domain';
 import {
-  annualizedMaintenanceQuote,
+  unitAnnualMaintenanceQuote,
   type MaintenancePriceRecord,
   type SupplementalCostItem,
 } from '@/features/master-data/domain';
@@ -46,9 +50,28 @@ import type {
   WorkflowStep,
 } from '@/features/projects/types';
 import { formatSgd } from '@/lib/formatters';
-import type { QuoteTemplate } from '@/features/quote/types';
+import type {
+  AssumptionDefinition,
+  QuoteTemplate,
+} from '@/features/quote/types';
+import {
+  AssumptionLibraryView,
+  QuoteTemplatesView,
+} from './quote-catalog-view';
+import { QuoteCatalogImport } from './quote-catalog-import';
+import type { ReviewGate } from '@/features/reviews/types';
+import {
+  masterDataTabs,
+  isMasterDataTab,
+  type MasterDataTab,
+} from './navigation';
 
 type Props = {
+  activeTab: MasterDataTab;
+  onTabChange: (tab: MasterDataTab) => void;
+  onOpenQuote: () => void;
+  reviewGates: ReviewGate[];
+  onSave: () => Promise<boolean>;
   resourceTypes: ResourceType[];
   setResourceTypes: React.Dispatch<React.SetStateAction<ResourceType[]>>;
   subcontractItems: SubcontractItem[];
@@ -61,11 +84,15 @@ type Props = {
   setMaintenancePriceRecords: React.Dispatch<
     React.SetStateAction<MaintenancePriceRecord[]>
   >;
+  assumptionLibrary: AssumptionDefinition[];
+  setAssumptionLibrary: React.Dispatch<
+    React.SetStateAction<AssumptionDefinition[]>
+  >;
   quoteTemplates: QuoteTemplate[];
   setQuoteTemplates: React.Dispatch<React.SetStateAction<QuoteTemplate[]>>;
   selectedQuoteTemplateId: string;
   setSelectedQuoteTemplateId: React.Dispatch<React.SetStateAction<string>>;
-  project: Pick<Project, 'id' | 'name'>;
+  project: Pick<Project, 'id' | 'name' | 'client'>;
   /** Includes every saved cost version so an in-use RE Type cannot be removed. */
   costRows: CostInputRow[];
   currentWorkflowStepCode: string;
@@ -150,6 +177,9 @@ function EditCell({
 
 export function MasterDataView(props: Props) {
   const {
+    activeTab,
+    onTabChange,
+    onOpenQuote,
     resourceTypes,
     setResourceTypes,
     subcontractItems,
@@ -158,6 +188,8 @@ export function MasterDataView(props: Props) {
     setSupplementalCostItems,
     maintenancePriceRecords,
     setMaintenancePriceRecords,
+    assumptionLibrary,
+    setAssumptionLibrary,
     quoteTemplates,
     setQuoteTemplates,
     selectedQuoteTemplateId,
@@ -174,8 +206,20 @@ export function MasterDataView(props: Props) {
     projectStatusDefinitions,
     setProjectStatusDefinitions,
     announce,
+    reviewGates,
+    onSave,
   } = props;
   const [query, setQuery] = useState('');
+  const tabCounts: Record<MasterDataTab, number> = {
+    resources: resourceTypes.length,
+    subcontract: subcontractItems.length,
+    supplemental: supplementalCostItems.length,
+    maintenance: maintenancePriceRecords.length,
+    assumptions: assumptionLibrary.length,
+    'quote-templates': quoteTemplates.length,
+    workflow: processSteps.length,
+    status: projectStatusDefinitions.length,
+  };
   const maintenanceImportRef = useRef<HTMLInputElement>(null);
   const q = query.trim().toLowerCase();
   const matches = (...values: unknown[]) =>
@@ -213,15 +257,6 @@ export function MasterDataView(props: Props) {
     setMaintenancePriceRecords((rows) =>
       rows.map((row) => (row.id === id ? { ...row, [key]: value } : row)),
     );
-  const updateQuoteTemplate = <K extends keyof QuoteTemplate>(
-    id: string,
-    key: K,
-    value: QuoteTemplate[K],
-  ) =>
-    setQuoteTemplates((rows) =>
-      rows.map((row) => (row.id === id ? { ...row, [key]: value } : row)),
-    );
-
   /** Updates one project-specific workflow node without changing its code. */
   const updateProcessStep = <K extends keyof WorkflowStep>(
     code: string,
@@ -253,15 +288,6 @@ export function MasterDataView(props: Props) {
   );
   const maintenance = maintenancePriceRecords.filter((row) =>
     matches(row.client, row.service, row.productModel, row.site, row.source),
-  );
-  const templates = quoteTemplates.filter((row) =>
-    matches(
-      row.name,
-      row.nameZh,
-      row.clientPattern,
-      row.documentTitle,
-      row.paymentTerms,
-    ),
   );
   const workflow = processSteps.filter((row) =>
     matches(row.no, row.code, row.name, row.nameZh, row.owner, row.state),
@@ -306,6 +332,15 @@ export function MasterDataView(props: Props) {
 
   /** Deletes a workflow node and moves the current pointer when necessary. */
   const deleteWorkflowStep = (step: WorkflowStep) => {
+    const linked = reviewGates.filter(
+      (review) => review.workflowStepCode === step.code,
+    );
+    if (linked.length) {
+      announce(
+        `This node is used by ${linked.length} review(s). Reassign their workflow first. / 请先调整关联评审的流程节点。`,
+      );
+      return;
+    }
     if (!confirmDelete(`${step.no} · ${step.name}`)) return;
     const remaining = processSteps.filter((item) => item.code !== step.code);
     const nextCurrentCode =
@@ -498,48 +533,6 @@ export function MasterDataView(props: Props) {
     announce('Maintenance history added. / 已新增维保历史。');
   };
 
-  /** Adds a complete client-template record that is immediately selectable. */
-  const addQuoteTemplate = () => {
-    setQuery('');
-    const id = newRecordId('quote-template');
-    setQuoteTemplates((rows) => [
-      ...rows,
-      {
-        id,
-        name: 'New Client Template',
-        nameZh: '新客户模板',
-        clientPattern: '*',
-        documentTitle: 'SERVICE QUOTATION',
-        documentTitleZh: '服务报价单',
-        validityDays: 30,
-        paymentTerms: '30 days from invoice date',
-        paymentTermsZh: '发票日起 30 天内付款',
-        active: true,
-      },
-    ]);
-    setSelectedQuoteTemplateId(id);
-    announce('Quotation template added. / 已新增报价模板。');
-  };
-
-  /** Keeps the selected template valid when a template is removed. */
-  const deleteQuoteTemplate = (template: QuoteTemplate) => {
-    if (quoteTemplates.length <= 1) {
-      announce(
-        'Delete blocked: at least one quotation template is required. / 删除已阻止：至少需要保留一个报价模板。',
-      );
-      return;
-    }
-    if (!confirmDelete(`${template.name} · ${template.nameZh}`)) return;
-    const remaining = quoteTemplates.filter((item) => item.id !== template.id);
-    setQuoteTemplates(remaining);
-    if (selectedQuoteTemplateId === template.id) {
-      setSelectedQuoteTemplateId(
-        remaining.find((item) => item.active)?.id || remaining[0].id,
-      );
-    }
-    announce(`Quotation template ${template.name} deleted. / 已删除报价模板。`);
-  };
-
   /**
    * Imports governed maintenance history from the public JSON contract or an
    * XLSX worksheet with matching English column names.
@@ -555,6 +548,7 @@ export function MasterDataView(props: Props) {
         if (value.schemaVersion !== '1.0.0' || !Array.isArray(value.records)) {
           throw new Error('JSON must follow maintenance-price/1.0.0.');
         }
+        assertMaintenanceImport(value);
         records = value.records;
       } else {
         const ExcelJS = (await import('exceljs')).default;
@@ -589,11 +583,7 @@ export function MasterDataView(props: Props) {
               ? quoteDateValue.toISOString().slice(0, 10)
               : String(quoteDateValue || '').slice(0, 10);
           const rawOutcome = String(cell(row, 'outcome') || 'Reference');
-          const outcome = ['Quoted', 'Won', 'Lost', 'Reference'].includes(
-            rawOutcome,
-          )
-            ? (rawOutcome as MaintenancePriceRecord['outcome'])
-            : 'Reference';
+          const outcome = rawOutcome as MaintenancePriceRecord['outcome'];
           records.push({
             id: newRecordId('mh'),
             client,
@@ -605,48 +595,41 @@ export function MasterDataView(props: Props) {
               cell(row, 'service level', 'servicelevel') || '',
             ).trim(),
             site: String(cell(row, 'site') || '').trim(),
-            coverageMonths: Math.max(
-              1,
-              Number(
-                cell(row, 'coverage months', 'coveragemonths', 'months'),
-              ) || 12,
+            coverageMonths: parseImportNumber(
+              cell(row, 'coverage months', 'coveragemonths', 'months'),
+              `Row ${rowNumber} coverageMonths`,
             ),
-            quantity: Math.max(
-              0.0001,
-              Number(cell(row, 'quantity', 'qty')) || 1,
+            quantity: parseImportNumber(
+              cell(row, 'quantity', 'qty'),
+              `Row ${rowNumber} quantity`,
             ),
             costAmount: roundMoney(
-              Number(cell(row, 'cost', 'cost amount')) || 0,
+              parseImportNumber(
+                cell(row, 'cost', 'cost amount'),
+                `Row ${rowNumber} cost`,
+              ),
             ),
             quotedAmount: roundMoney(
-              Number(cell(row, 'quoted', 'quoted amount', 'quote')) || 0,
+              parseImportNumber(
+                cell(row, 'quoted', 'quoted amount', 'quote'),
+                `Row ${rowNumber} quote`,
+              ),
             ),
-            currency: 'SGD',
-            quoteDate: /^\d{4}-\d{2}-\d{2}$/.test(quoteDate)
-              ? quoteDate
-              : new Date().toISOString().slice(0, 10),
+            currency: String(cell(row, 'currency') || 'SGD').trim() as 'SGD',
+            quoteDate,
             outcome,
             source:
               String(cell(row, 'source') || file.name).trim() || file.name,
           });
         });
       }
-      const valid = records.filter(
-        (record) =>
-          record.id &&
-          record.client &&
-          record.service &&
-          record.productModel &&
-          record.serviceLevel &&
-          record.site &&
-          record.coverageMonths > 0 &&
-          record.quantity > 0 &&
-          /^\d{4}-\d{2}-\d{2}$/.test(record.quoteDate) &&
-          record.source,
-      );
-      if (valid.length !== records.length || valid.length === 0) {
-        throw new Error('One or more required maintenance fields are missing.');
-      }
+      assertMaintenanceImport({ schemaVersion: '1.0.0', records });
+      if (!records.length) throw new Error('No maintenance records found.');
+      const valid = records.map((record) => ({
+        ...record,
+        costAmount: roundMoney(record.costAmount),
+        quotedAmount: roundMoney(record.quotedAmount),
+      }));
       setMaintenancePriceRecords((current) => {
         const byId = new Map(current.map((record) => [record.id, record]));
         valid.forEach((record) => byId.set(record.id, record));
@@ -702,74 +685,77 @@ export function MasterDataView(props: Props) {
           index="01"
           title="Master Data"
           titleZh="基础数据管理"
-          description="Govern workflow, status, rates, and reusable cost references."
-          descriptionZh="维护流程、状态、汇率与可复用成本参考。"
+          description="Maintain reference data and customer templates here; select and use them in Pricing & Quote."
+          descriptionZh="此处统一维护基础数据与客户模板；报价页负责选择、引用与输出。"
           action={
-            <StatusBadge tone="green">
-              <BiInline en="SQLite autosave" zh="SQLite 自动保存" />
-            </StatusBadge>
+            <Button size="sm" variant="outline" onClick={onOpenQuote}>
+              Open Quote{' '}
+              <span className="text-[10px] opacity-60">返回报价</span>
+            </Button>
           }
         />
-        <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-7">
-          {[
-            ['Workflow', '流程节点', processSteps.length],
-            ['Status', '状态节点', projectStatusDefinitions.length],
-            ['RE Types', '资源类型', resourceTypes.length],
-            ['Subcontract', '分包条目', subcontractItems.length],
-            ['Supplemental', '补充成本', supplementalCostItems.length],
-            ['Maintenance', '维保历史', maintenancePriceRecords.length],
-            ['Quote Templates', '报价模板', quoteTemplates.length],
-          ].map(([en, zh, value]) => (
-            <div key={String(en)} className="bg-[#f7f5f0] px-3 py-2">
-              <BiText
-                en={String(en)}
-                zh={String(zh)}
-                className="text-[10px] text-muted-foreground"
-              />
-              <p className="financial-numeral mt-1 text-lg font-semibold">
-                {value}
-              </p>
-            </div>
-          ))}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-muted/20 px-3 py-2 text-xs">
+          <span className="font-medium">
+            Current project / 当前项目：{project.name}
+          </span>
+          <span className="financial-numeral text-muted-foreground">
+            {project.id}
+          </span>
+          <span className="text-muted-foreground">
+            Client / 客户：{project.client}
+          </span>
+          <span className="text-muted-foreground">
+            Project-owned · 按项目保存，非全局共享
+          </span>
         </div>
       </section>
       <section className="min-w-0 overflow-hidden border border-border bg-card">
-        <Tabs defaultValue="resources">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
-            <TabsList variant="line" className="flex-wrap">
-              <TabsTrigger value="workflow">
-                Workflow <span className="text-[9px] opacity-60">流程节点</span>
-              </TabsTrigger>
-              <TabsTrigger value="status">
-                Status <span className="text-[9px] opacity-60">状态节点</span>
-              </TabsTrigger>
-              <TabsTrigger value="resources">
-                RE Types <span className="text-[9px] opacity-60">资源类型</span>
-              </TabsTrigger>
-              <TabsTrigger value="subcontract">
-                Subcontract <span className="text-[9px] opacity-60">分包</span>
-              </TabsTrigger>
-              <TabsTrigger value="supplemental">
-                Supplemental{' '}
-                <span className="text-[9px] opacity-60">补充成本</span>
-              </TabsTrigger>
-              <TabsTrigger value="maintenance">
-                Maintenance{' '}
-                <span className="text-[9px] opacity-60">维保历史</span>
-              </TabsTrigger>
-              <TabsTrigger value="quote-templates">
-                Quote Templates{' '}
-                <span className="text-[9px] opacity-60">报价模板</span>
-              </TabsTrigger>
-            </TabsList>
-            <div className="relative w-[260px] max-w-full">
-              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="h-8 rounded-sm bg-white pl-8 text-xs"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search / 搜索"
-              />
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => {
+            if (!isMasterDataTab(value)) return;
+            onTabChange(value);
+            setQuery('');
+          }}
+        >
+          <div className="border-b border-border px-3 py-2">
+            <div className="flex items-center justify-between gap-3 pb-2">
+              <p className="text-xs text-muted-foreground">
+                Reference Libraries / 基础数据与模板库
+              </p>
+              <div className="relative w-[260px] max-w-[60%]">
+                <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="h-8 rounded-sm bg-white pl-8 text-xs"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  aria-label="Search current master-data tab"
+                  placeholder="Search this tab / 搜索当前页签"
+                />
+              </div>
+            </div>
+            <div className="overflow-x-auto pb-1">
+              <TabsList
+                variant="line"
+                aria-label="Master Data libraries"
+                className="min-w-max justify-start"
+              >
+                {masterDataTabs.map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="h-8 px-2"
+                  >
+                    {tab.label}
+                    <span className="text-[10px] opacity-60">
+                      {tab.labelZh}
+                    </span>
+                    <span className="financial-numeral rounded-sm bg-muted px-1 text-[10px]">
+                      {tabCounts[tab.value]}
+                    </span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
             </div>
           </div>
           <TabsContent value="workflow" className="mt-0">
@@ -1063,9 +1049,11 @@ export function MasterDataView(props: Props) {
                 <Button
                   size="sm"
                   className="h-7 text-[10px]"
-                  onClick={() =>
+                  onClick={async () =>
                     announce(
-                      'RE Type rates saved by SQLite autosave. / RE Type 汇率已自动保存。',
+                      (await onSave())
+                        ? 'RE Type catalogue saved. Apply Master Rates in Cost to use changes. / 主数据已保存，可在成本页应用汇率。'
+                        : 'Save failed; edits retained / 保存失败，修改已保留',
                     )
                   }
                 >
@@ -1473,7 +1461,7 @@ export function MasterDataView(props: Props) {
                       'Qty',
                       'Cost',
                       'Quoted',
-                      'Annualized',
+                      'Unit / Year',
                       'Quote Date',
                       'Outcome',
                       'Source',
@@ -1586,7 +1574,9 @@ export function MasterDataView(props: Props) {
                         />
                       </TableCell>
                       <TableCell className="financial-numeral">
-                        {formatSgd(annualizedMaintenanceQuote(row))}
+                        {unitAnnualMaintenanceQuote(row) === null
+                          ? '不可比较'
+                          : formatSgd(unitAnnualMaintenanceQuote(row)!)}
                       </TableCell>
                       <TableCell>
                         <EditCell
@@ -1629,168 +1619,47 @@ export function MasterDataView(props: Props) {
               </Table>
             </div>
           </TabsContent>
+          <TabsContent value="assumptions" className="mt-0">
+            <QuoteCatalogImport
+              key={project.id}
+              projectId={project.id}
+              announce={announce}
+              onImport={(library, templates) => {
+                setAssumptionLibrary((rows) => [...rows, ...library]);
+                setQuoteTemplates((rows) => [...rows, ...templates]);
+              }}
+            />
+            <AssumptionLibraryView
+              library={assumptionLibrary}
+              setLibrary={setAssumptionLibrary}
+              templates={quoteTemplates}
+              setTemplates={setQuoteTemplates}
+              query={query}
+              client={project.client}
+              announce={announce}
+            />
+          </TabsContent>
           <TabsContent value="quote-templates" className="mt-0">
-            <TableToolbar count={templates.length} onAdd={addQuoteTemplate} />
-            <div className="overflow-x-auto">
-              <Table className="min-w-[1500px]">
-                <TableHeader>
-                  <TableRow className="bg-[#f2f0ea]">
-                    {[
-                      'Name / 模板名',
-                      '中文名称',
-                      'Client Match / 客户匹配',
-                      'Document Title / 文件标题',
-                      '中文标题',
-                      'Validity Days / 有效天数',
-                      'Payment Terms / 付款条款',
-                      '中文付款条款',
-                      'Status',
-                      'Action / 操作',
-                    ].map((label) => (
-                      <TableHead key={label}>{label}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {templates.map((template) => (
-                    <TableRow
-                      key={template.id}
-                      className={
-                        template.id === selectedQuoteTemplateId
-                          ? 'bg-[#edf4f3]'
-                          : ''
-                      }
-                    >
-                      <TableCell>
-                        <EditCell
-                          value={template.name}
-                          ariaLabel="Template name"
-                          onChange={(value) =>
-                            updateQuoteTemplate(template.id, 'name', value)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={template.nameZh}
-                          ariaLabel="Template Chinese name"
-                          onChange={(value) =>
-                            updateQuoteTemplate(template.id, 'nameZh', value)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={template.clientPattern}
-                          ariaLabel="Client pattern"
-                          onChange={(value) =>
-                            updateQuoteTemplate(
-                              template.id,
-                              'clientPattern',
-                              value,
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={template.documentTitle}
-                          ariaLabel="Document title"
-                          onChange={(value) =>
-                            updateQuoteTemplate(
-                              template.id,
-                              'documentTitle',
-                              value,
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={template.documentTitleZh}
-                          ariaLabel="Document Chinese title"
-                          onChange={(value) =>
-                            updateQuoteTemplate(
-                              template.id,
-                              'documentTitleZh',
-                              value,
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          type="number"
-                          value={template.validityDays}
-                          ariaLabel="Validity days"
-                          onChange={(value) =>
-                            updateQuoteTemplate(
-                              template.id,
-                              'validityDays',
-                              Math.max(1, Math.floor(Number(value) || 1)),
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={template.paymentTerms}
-                          ariaLabel="Payment terms"
-                          onChange={(value) =>
-                            updateQuoteTemplate(
-                              template.id,
-                              'paymentTerms',
-                              value,
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={template.paymentTermsZh}
-                          ariaLabel="Chinese payment terms"
-                          onChange={(value) =>
-                            updateQuoteTemplate(
-                              template.id,
-                              'paymentTermsZh',
-                              value,
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateQuoteTemplate(
-                              template.id,
-                              'active',
-                              !template.active,
-                            )
-                          }
-                        >
-                          <StatusBadge
-                            tone={template.active ? 'green' : 'gray'}
-                          >
-                            {template.active ? 'Active' : 'Inactive'}
-                          </StatusBadge>
-                        </button>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <DeleteRowButton
-                          label={template.name}
-                          onDelete={() => deleteQuoteTemplate(template)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-              Templates drive the live preview and generated XLSX quotation. /
-              模板用于报价预览与 XLSX 输出。
-            </p>
+            <QuoteCatalogImport
+              key={project.id}
+              projectId={project.id}
+              announce={announce}
+              onImport={(library, templates) => {
+                setAssumptionLibrary((rows) => [...rows, ...library]);
+                setQuoteTemplates((rows) => [...rows, ...templates]);
+              }}
+            />
+            <QuoteTemplatesView
+              key={project.id}
+              templates={quoteTemplates}
+              setTemplates={setQuoteTemplates}
+              library={assumptionLibrary}
+              query={query}
+              client={project.client}
+              selectedId={selectedQuoteTemplateId}
+              setSelectedId={setSelectedQuoteTemplateId}
+              announce={announce}
+            />
           </TabsContent>
         </Tabs>
       </section>

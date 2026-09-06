@@ -1,5 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { validatePricingSettings } from '../features/quote/domain.ts';
+
+test('quotation output rejects invalid margin, tax and excessive discounts', () => {
+  const valid = { targetGrossMargin: 25, gstPercent: 9, discount: 0 };
+  assert.deepEqual(validatePricingSettings(valid, 100), []);
+  for (const change of [
+    { targetGrossMargin: 96 },
+    { gstPercent: 101 },
+    { discount: 1000 },
+  ])
+    assert.ok(validatePricingSettings({ ...valid, ...change }, 100).length > 0);
+});
 
 import { calculatePricing } from '../features/quote/domain.ts';
 

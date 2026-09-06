@@ -14,6 +14,8 @@ import {
   getCostStatementValues,
   getHQTravelSummary,
   getY1Year,
+  calculatedYearCost,
+  roundMoney,
   totalRowCost,
   totalRowMandays,
   totalRowSites,
@@ -64,7 +66,11 @@ const isValidUtcTimestamp = (value: string) => {
     return false;
   }
   const parsed = new Date(value);
-  return Number.isFinite(parsed.getTime());
+  return (
+    Number.isFinite(parsed.getTime()) &&
+    isValidIsoDate(value.slice(0, 10)) &&
+    parsed.toISOString().slice(0, 19) === value.slice(0, 19)
+  );
 };
 
 /**
@@ -395,6 +401,25 @@ export const validateCostExportSnapshot = (
       );
     }
     row.years.forEach((year, yearIndex) => {
+      if (row.inputMode === 'mandays') {
+        if (
+          !finiteInRange(year.mandays, 0, COST_LIMITS.mdPerSite) ||
+          year.sites !== 0 ||
+          row.mdPerSite !== 0
+        )
+          add(
+            'error',
+            'INVALID_DIRECT_MANDAYS',
+            `${path}/years/${yearIndex}`,
+            'Direct mandays require non-negative MD values and zero Sites/MD per Site.',
+          );
+      } else if (Number(year.mandays || 0) !== 0)
+        add(
+          'error',
+          'AMBIGUOUS_MANDAYS',
+          `${path}/years/${yearIndex}`,
+          'Site-based rows cannot also contain direct mandays.',
+        );
       const expectedBucket = YEAR_BUCKETS[yearIndex];
       if (year.bucket !== expectedBucket) {
         add(
@@ -427,7 +452,10 @@ export const validateCostExportSnapshot = (
       }
     });
     const hasAnnualAllocation = row.years.some(
-      (year) => Number(year.sites || 0) > 0 || Number(year.cost || 0) > 0,
+      (year) =>
+        Number(year.sites || 0) > 0 ||
+        Number(year.mandays || 0) > 0 ||
+        Number(year.cost || 0) > 0,
     );
     if (!hasDeliveryYear && hasAnnualAllocation) {
       add(
@@ -448,6 +476,24 @@ export const validateCostExportSnapshot = (
     const resource = snapshot.resourceTypes.find(
       (item) => item.id === row.reTypeId,
     );
+    if (resource?.category === 'internal') {
+      row.years.forEach((year, index) => {
+        const expected = calculatedYearCost(
+          row,
+          index,
+          snapshot.resourceTypes,
+          rateSettings,
+        );
+        if (Number.isFinite(expected) && roundMoney(year.cost) !== expected) {
+          add(
+            'error',
+            'LABOUR_COST_MISMATCH',
+            `${path}/years/${index}/cost`,
+            `Labour cost must equal Sites × MD/Site × version MD rate × uplift (${expected}). Recalculate before export.`,
+          );
+        }
+      });
+    }
     if (!resource) {
       add(
         'error',

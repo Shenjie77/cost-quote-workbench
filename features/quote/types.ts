@@ -10,6 +10,21 @@ export type QuoteTemplate = {
   validityDays: number;
   paymentTerms: string;
   paymentTermsZh: string;
+  /** Free-form client T&C, preserved verbatim; no mandatory translation. */
+  termsAndConditions: string;
+  /** Suggested library rows copied when the user applies this template. */
+  defaultAssumptionIds: string[];
+  active: boolean;
+};
+
+/** Project-owned reusable library; may be explicitly copied between projects. */
+export type AssumptionDefinition = {
+  id: string;
+  name: string;
+  category: string;
+  clientPattern: string;
+  text: string;
+  textZh: string;
   active: boolean;
 };
 
@@ -18,6 +33,8 @@ export type QuoteAssumption = {
   text: string;
   textZh: string;
   included: boolean;
+  /** Provenance only: deleting a library row must not delete quoted text. */
+  sourceAssumptionId?: string;
 };
 
 export type QuoteHistoryStatus = 'Draft' | 'Final';
@@ -35,6 +52,9 @@ export type QuoteHistoryRecord = {
   quoteAfterTax: number;
   grossMarginPercent: number;
   note: string;
+  /** Exact output text, detached from subsequent master-data edits. */
+  templateSnapshot?: QuoteTemplate;
+  assumptionSnapshots?: QuoteAssumption[];
 };
 
 /** Default reusable output layout copied into a new or migrated project. */
@@ -49,9 +69,26 @@ export const initialQuoteTemplates: QuoteTemplate[] = [
     validityDays: 30,
     paymentTerms: '30 days from invoice date',
     paymentTermsZh: '发票日起 30 天内付款',
+    termsAndConditions: '',
+    defaultAssumptionIds: [],
     active: true,
   },
 ];
+
+/** Seed a reusable library from existing project assumptions without rewriting them. */
+export function createAssumptionLibrary(
+  rows: QuoteAssumption[],
+): AssumptionDefinition[] {
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.text.trim().slice(0, 80),
+    category: 'General',
+    clientPattern: '*',
+    text: row.text,
+    textZh: row.textZh,
+    active: true,
+  }));
+}
 
 /** Standard assumptions remain editable and can be excluded per project. */
 export const initialQuoteAssumptions: QuoteAssumption[] = [

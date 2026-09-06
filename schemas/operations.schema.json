@@ -1,0 +1,432 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.cost-workbench/schemas/operations/1.0.0",
+  "title": "Operation requests",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "operation", "mapping"],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "operation": {
+          "const": "cost.import"
+        },
+        "mapping": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sheet",
+            "headerRow",
+            "role",
+            "mode",
+            "year",
+            "columns",
+            "defaultBu",
+            "defaultResource"
+          ],
+          "properties": {
+            "sheet": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "headerRow": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20000
+            },
+            "endRow": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20000
+            },
+            "excludeRows": {
+              "type": "array",
+              "maxItems": 1000,
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000
+              }
+            },
+            "role": {
+              "enum": ["TD", "PM"]
+            },
+            "mode": {
+              "enum": ["sites", "mandays"]
+            },
+            "year": {
+              "enum": ["Y1", "Y2", "Y3", "Y4", "Y5"]
+            },
+            "columns": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "scope",
+                "bu",
+                "resource",
+                "mandays",
+                "sites",
+                "mdPerSite",
+                "cost"
+              ],
+              "properties": {
+                "scope": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 200
+                },
+                "bu": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 200
+                },
+                "resource": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 200
+                },
+                "mandays": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 200
+                },
+                "sites": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 200
+                },
+                "mdPerSite": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 200
+                },
+                "cost": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 200
+                }
+              }
+            },
+            "defaultBu": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "defaultResource": {
+              "type": "string",
+              "maxLength": 10000
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "operation",
+        "kind",
+        "domain",
+        "owner",
+        "dueDate",
+        "applicationNumber",
+        "evidence"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "operation": {
+          "const": "ssr.submit"
+        },
+        "kind": {
+          "enum": [
+            "DTRB",
+            "DRB",
+            "BUDGET",
+            "SPECIALIST",
+            "QUOTE_DECISION",
+            "BID_REVIEW"
+          ]
+        },
+        "domain": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "dueDate": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "applicationNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "operation",
+        "submissionId",
+        "outcome",
+        "evidence",
+        "conditions"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "operation": {
+          "const": "ssr.result"
+        },
+        "submissionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "outcome": {
+          "enum": ["approved", "rejected", "conditional", "withdrawn"]
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "conditions": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "operation",
+        "submissionId",
+        "condition",
+        "evidence"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "operation": {
+          "const": "ssr.close"
+        },
+        "submissionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "condition": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "operation",
+        "submissionId",
+        "note",
+        "nextDate"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "operation": {
+          "const": "ssr.followup"
+        },
+        "submissionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "nextDate": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "operation",
+        "version",
+        "purpose",
+        "cells",
+        "tables"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "operation": {
+          "const": "workbook.fill-template"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "purpose": {
+          "enum": ["cost", "quote"]
+        },
+        "cells": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sheet", "cell", "field"],
+            "properties": {
+              "sheet": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "cell": {
+                "type": "string",
+                "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+              },
+              "field": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            }
+          }
+        },
+        "tables": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sheet", "startRow", "capacity", "dataset", "columns"],
+            "properties": {
+              "sheet": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "startRow": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "capacity": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000
+              },
+              "dataset": {
+                "enum": ["costRows", "assumptions", "quoteLines"]
+              },
+              "columns": {
+                "type": "object",
+                "minProperties": 1,
+                "maxProperties": 30,
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 200
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "operation", "mapping"],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "operation": {
+          "const": "boq.import"
+        },
+        "mapping": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sheet", "headerRow", "modelColumn", "quantityColumn"],
+          "properties": {
+            "sheet": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "headerRow": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20000
+            },
+            "modelColumn": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "quantityColumn": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "excludeRows": {
+              "type": "array",
+              "maxItems": 1000,
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

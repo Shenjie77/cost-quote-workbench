@@ -42,29 +42,31 @@ export function VersionComparisonView({
   onSelectVersion: (version: string) => void;
   onUpdateVersionState: (version: string, state: CostVersionState) => void;
 }) {
-  const records = versions.map((version, index) => {
+  const records = versions.map((version) => {
     const travel = getHQTravelSummary(
       version.costRows,
-      resourceTypes,
+      version.resourceTypes || resourceTypes,
       version.travelSettings,
     ).totalCost;
     const total = getCostStatementValues(
       version.costRows,
-      resourceTypes,
+      version.resourceTypes || resourceTypes,
       travel,
       version.manualCosts,
     ).totalWithRisk;
-    const previous = versions[index - 1];
+    const previous = versions.find(
+      (item) => item.code === version.sourceVersion,
+    );
     let previousTotal = 0;
     if (previous) {
       const previousTravel = getHQTravelSummary(
         previous.costRows,
-        resourceTypes,
+        previous.resourceTypes || resourceTypes,
         previous.travelSettings,
       ).totalCost;
       previousTotal = getCostStatementValues(
         previous.costRows,
-        resourceTypes,
+        previous.resourceTypes || resourceTypes,
         previousTravel,
         previous.manualCosts,
       ).totalWithRisk;
@@ -108,7 +110,11 @@ export function VersionComparisonView({
               <BiText en="Total Cost" zh="总成本" className="items-end" />
             </TableHead>
             <TableHead className="pr-4 text-right">
-              <BiText en="Change" zh="版本变化" className="items-end" />
+              <BiText
+                en="Change vs Source"
+                zh="相对来源版本变化"
+                className="items-end"
+              />
             </TableHead>
             <TableHead className="w-28 pr-4 text-right">
               <BiText en="Action" zh="操作" className="items-end" />

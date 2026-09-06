@@ -13,6 +13,7 @@
     "dev:web": "vinext dev",
     "dev:api": "node --disable-warning=ExperimentalWarning server/local-api.mjs",
     "seed:local": "node --disable-warning=ExperimentalWarning scripts/seed-local-workspace.mjs",
+    "backup:local": "node --disable-warning=ExperimentalWarning scripts/backup-local.mjs",
     "build": "vinext build",
     "start": "node scripts/start-local.mjs",
     "start:web": "node scripts/start-built-web.mjs",

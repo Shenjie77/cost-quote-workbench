@@ -105,6 +105,7 @@ type ExportDetailRow = {
   rateUnit: string;
   hqTravel: boolean | null;
   mdPerSite: number;
+  inputMode?: 'sites' | 'mandays';
   years: Array<{
     bucket: YearBucket;
     sites: number;
@@ -498,6 +499,7 @@ const buildDetailRows = (snapshot: CostExportSnapshot): ExportDetailRow[] => {
       rateUnit: resource?.category === 'internal' ? 'MD' : '',
       hqTravel: resource?.hqTravel ?? null,
       mdPerSite: Number(row.mdPerSite || 0),
+      inputMode: row.inputMode,
       years,
       directCost: 0,
       totalSites: totalRowSites(row),
@@ -776,13 +778,21 @@ const addDetailSheet = (
         detailYearKey(year.bucket, 'sites'),
         year.sites,
       );
-      setFormulaByKey(
-        row,
-        columns,
-        detailYearKey(year.bucket, 'mandays'),
-        `ROUND(${localCellReference(sitesColumn, row.number)}*${localCellReference(requireColumn(columns, 'mdPerSite'), row.number)},4)`,
-        year.mandays,
-      );
+      if (detailRow.inputMode === 'mandays')
+        setCellByKey(
+          row,
+          columns,
+          detailYearKey(year.bucket, 'mandays'),
+          year.mandays,
+        );
+      else
+        setFormulaByKey(
+          row,
+          columns,
+          detailYearKey(year.bucket, 'mandays'),
+          `ROUND(${localCellReference(sitesColumn, row.number)}*${localCellReference(requireColumn(columns, 'mdPerSite'), row.number)},4)`,
+          year.mandays,
+        );
       setCellByKey(row, columns, detailYearKey(year.bucket, 'cost'), year.cost);
     });
 
@@ -2215,6 +2225,49 @@ export const buildCostWorkbook = async (snapshot: CostExportSnapshot) => {
     statement,
   );
   addAssumptionsSheet(workbook, snapshot);
+  const sourced = snapshot.costRows.filter((r) => r.source);
+  if (sourced.length) {
+    const sheet = workbook.addWorksheet('09_Source_Trace');
+    sheet.columns = [
+      { header: 'Scope', width: 32 },
+      { header: 'File', width: 28 },
+      { header: 'Sheet', width: 20 },
+      { header: 'Source row', width: 12 },
+      { header: 'Role', width: 10 },
+      { header: 'SHA256', width: 68 },
+      { header: 'Imported at', width: 28 },
+      { header: 'Imported values JSON', width: 70 },
+      { header: 'Current values JSON', width: 70 },
+      { header: 'Mapping JSON', width: 70 },
+    ];
+    for (const r of sourced) {
+      const source = r.source!;
+      sheet.addRow([
+        r.scope,
+        source.fileName,
+        source.sheet,
+        source.row,
+        source.role,
+        source.sha256,
+        source.importedAt,
+        source.importedValues || 'Not captured by earlier import',
+        JSON.stringify({
+          scope: r.scope,
+          bu: r.bu,
+          reTypeId: r.reTypeId,
+          inputMode: r.inputMode,
+          mdPerSite: r.mdPerSite,
+          years: r.years,
+        }),
+        source.mappingKey,
+      ]);
+    }
+    sheet.getRow(1).font = { bold: true };
+    sheet.eachRow((r) => {
+      r.alignment = { wrapText: true, vertical: 'top' };
+    });
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+  }
   return workbook;
 };
 

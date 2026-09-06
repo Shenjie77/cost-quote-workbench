@@ -42,6 +42,7 @@ export function CostView({
   rateSettings,
   setRateSettings,
   resourceTypes,
+  onApplyMasterRates,
   travelSettings,
   setTravelSettings,
   travelRows,
@@ -64,6 +65,7 @@ export function CostView({
   rateSettings: RateSettings;
   setRateSettings: React.Dispatch<React.SetStateAction<RateSettings>>;
   resourceTypes: ResourceType[];
+  onApplyMasterRates: () => void;
   travelSettings: TravelSettings;
   setTravelSettings: React.Dispatch<React.SetStateAction<TravelSettings>>;
   travelRows: TravelCostRow[];
@@ -102,7 +104,7 @@ export function CostView({
             Number(Boolean(row.scope.trim())) +
             Number(Boolean(row.bu.trim())) +
             Number(Boolean(row.reTypeId.trim())) +
-            Number(row.mdPerSite > 0) +
+            Number(row.inputMode === 'mandays' || row.mdPerSite > 0) +
             Number(row.years.some((year) => year.sites > 0 || year.cost > 0)),
           0,
         ) /
@@ -119,13 +121,13 @@ export function CostView({
     if (item.code === activeVersion) return liveVersionTotal;
     const travel = getHQTravelSummary(
       item.costRows,
-      resourceTypes,
+      item.resourceTypes || resourceTypes,
       item.travelSettings,
     ).totalCost;
     return formatSgd(
       getCostStatementValues(
         item.costRows,
-        resourceTypes,
+        item.resourceTypes || resourceTypes,
         travel,
         item.manualCosts,
       ).totalWithRisk,
@@ -155,6 +157,11 @@ export function CostView({
         latestCostVersion={latestVersion}
         versionStatus={version?.state || 'Draft'}
       />
+      {version?.calculationNote ? (
+        <output className="block border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+          {version.calculationNote}
+        </output>
+      ) : null}
       <section className="border border-border bg-card">
         <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-4 md:divide-y-0">
           <div className="px-3 py-2.5">
@@ -262,11 +269,21 @@ export function CostView({
       </div>
       {costView === 'input' ? (
         <div className="space-y-4">
+          <div className="flex items-center justify-end gap-3">
+            <span className="text-xs text-muted-foreground">
+              Version rates · 版本独立汇率
+            </span>
+            <Button size="sm" variant="outline" onClick={onApplyMasterRates}>
+              Apply Master Rates{' '}
+              <span className="text-xs opacity-60">应用当前主数据汇率</span>
+            </Button>
+          </div>
           <RateAssumptions
             settings={rateSettings}
             setSettings={setRateSettings}
           />
           <CostInputSheet
+            key={activeVersion}
             rows={rows}
             setRows={setRows}
             rateSettings={rateSettings}

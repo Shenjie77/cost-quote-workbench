@@ -2,7 +2,10 @@
   "apiVersion": "cost-workbench/v2",
   "kind": "CostSnapshotRequest",
   "requestId": "req_fixture_cost_v2",
-  "actor": { "type": "agent", "id": "cost-workbench-skill" },
+  "actor": {
+    "type": "agent",
+    "id": "cost-workbench-skill"
+  },
   "data": {
     "schemaVersion": "2.0.0",
     "exportedAt": "2026-09-04T08:00:00.000Z",
@@ -12,7 +15,10 @@
       "client": "Xinglan Retail",
       "currency": "SGD"
     },
-    "costVersion": { "code": "V3", "status": "Pending freeze" },
+    "costVersion": {
+      "code": "V3",
+      "status": "Pending freeze"
+    },
     "rateSettings": {
       "quoteAsOf": "2026-09-04",
       "tdStart": "2027-03-15",
@@ -246,11 +252,31 @@
         "reTypeId": "rt-hq-l3",
         "mdPerSite": 80,
         "years": [
-          { "bucket": "Y1", "sites": 1, "cost": 18848.282 },
-          { "bucket": "Y2", "sites": 0, "cost": 0 },
-          { "bucket": "Y3", "sites": 0, "cost": 0 },
-          { "bucket": "Y4", "sites": 0, "cost": 0 },
-          { "bucket": "Y5", "sites": 0, "cost": 0 }
+          {
+            "bucket": "Y1",
+            "sites": 1,
+            "cost": 218400
+          },
+          {
+            "bucket": "Y2",
+            "sites": 0,
+            "cost": 0
+          },
+          {
+            "bucket": "Y3",
+            "sites": 0,
+            "cost": 0
+          },
+          {
+            "bucket": "Y4",
+            "sites": 0,
+            "cost": 0
+          },
+          {
+            "bucket": "Y5",
+            "sites": 0,
+            "cost": 0
+          }
         ]
       }
     ],

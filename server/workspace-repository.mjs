@@ -4,12 +4,21 @@
  */
 
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { fileURLToPath } from 'node:url';
-
-import Ajv2020 from 'ajv/dist/2020.js';
+import {
+  commercialBasisKey,
+  emptySsr,
+  assertSsrTransition,
+  ssrAttention,
+} from '../features/ssr/domain.ts';
+import { normalizeDigestDate } from '../features/agent/digest-domain.ts';
+import {
+  assertCurrentCpqResult,
+  contentKey,
+  costBaselineKey,
+} from '../features/cpq/domain.ts';
 
 import {
   LOCAL_DATABASE_SCHEMA_VERSION,
@@ -19,38 +28,26 @@ import {
   getCostStatementValues,
   getHQTravelSummary,
   roundMoney,
+  recalculateCostRows,
   totalRowMandays,
 } from '../features/cost/domain.ts';
-import { initialResourceTypes } from '../features/master-data/demo-data.ts';
-import { initialProjectStatusDefinitions } from '../features/projects/types.ts';
-import {
-  initialQuoteAssumptions,
-  initialQuoteTemplates,
-} from '../features/quote/types.ts';
 import {
   calculatePricing,
   initialPricingSettings,
 } from '../features/quote/domain.ts';
-
-export const LOCAL_API_VERSION = 'cost-workbench/local-v1';
-export const WORKSPACE_SCHEMA_VERSION = '1.0.0';
-
-const ROOT_DIR = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-);
-const costSchema = JSON.parse(
-  readFileSync(path.join(ROOT_DIR, 'schemas/cost-export.schema.json'), 'utf8'),
-);
-const workspaceSchema = JSON.parse(
-  readFileSync(
-    path.join(ROOT_DIR, 'schemas/workspace-state.schema.json'),
-    'utf8',
-  ),
-);
-const schemaValidator = new Ajv2020({ allErrors: true, strict: true });
-schemaValidator.addSchema(costSchema);
-const validateWorkspaceSchema = schemaValidator.compile(workspaceSchema);
+import {
+  WORKSPACE_SCHEMA_VERSION,
+  WorkspaceValidationError,
+  migrateWorkspaceDocument,
+  assertWorkspaceDocument,
+} from './workspace-document.mjs';
+export {
+  LOCAL_API_VERSION,
+  WORKSPACE_SCHEMA_VERSION,
+  WorkspaceValidationError,
+  migrateWorkspaceDocument,
+  assertWorkspaceDocument,
+} from './workspace-document.mjs';
 
 export class RepositoryConflictError extends Error {
   constructor(message, currentRevision) {
@@ -64,205 +61,8 @@ const nowIso = () => new Date().toISOString();
 const checksum = (value) =>
   createHash('sha256').update(value, 'utf8').digest('hex');
 
-/**
- * Converts the former two-master RE Type + Grade model into the single
- * governed RE Type rate model. The migration is deterministic and idempotent,
- * so opening an older local database is safe and requires no user action.
- */
-export const migrateWorkspaceDocument = (workspace) => {
-  let document = workspace;
-  let changed = false;
-  const legacy =
-    Array.isArray(workspace?.resourceGrades) ||
-    workspace?.resourceTypes?.some(
-      (item) => 'gradePool' in item || 'rateUnit' in item,
-    ) ||
-    workspace?.costRows?.some((row) => 'gradeId' in row);
-  if (legacy) {
-    const gradeCodeById = new Map(
-      (workspace.resourceGrades || []).map((grade) => [grade.id, grade.code]),
-    );
-    const oldResources = new Map(
-      (workspace.resourceTypes || []).map((resource) => [
-        resource.id,
-        resource,
-      ]),
-    );
-    const resourceIdByCode = new Map(
-      initialResourceTypes.map((resource) => [resource.code, resource.id]),
-    );
-    const costRows = (workspace.costRows || []).map((row) => {
-      const oldResource = oldResources.get(row.reTypeId);
-      const gradeCode = gradeCodeById.get(row.gradeId);
-      const fallbackCode =
-        oldResource?.category === 'subcontract'
-          ? 'SUBCON'
-          : `${oldResource?.gradePool || 'LOCAL'}-L1`;
-      const { gradeId: _removedGradeId, ...nextRow } = row;
-      return {
-        ...nextRow,
-        reTypeId:
-          resourceIdByCode.get(gradeCode || fallbackCode) || 'rt-local-l1',
-      };
-    });
-    const { resourceGrades: _removedGrades, ...legacyFreeDocument } = workspace;
-    document = {
-      ...legacyFreeDocument,
-      costRows,
-      resourceTypes: initialResourceTypes.map((resource) => ({ ...resource })),
-    };
-    changed = true;
-  }
-
-  // Fields introduced after the first local-workspace release are backfilled
-  // without changing the public schema version, preserving CLI compatibility.
-  if (!document.projectStatus) {
-    const step = Number(document.selectedStep || 0);
-    document = {
-      ...document,
-      projectStatus:
-        step >= 8
-          ? 'quote_review'
-          : step >= 7
-            ? 'pricing'
-            : step >= 6
-              ? 'cost_review'
-              : step >= 4
-                ? 'costing'
-                : step >= 2
-                  ? 'delivery_review'
-                  : step >= 1
-                    ? 'solution_review'
-                    : 'input_preparation',
-    };
-    changed = true;
-  }
-  // Status labels moved from a hard-coded UI enum into editable project master
-  // data. Older snapshots receive the original labels without changing their
-  // selected projectStatus code.
-  if (!Object.hasOwn(document, 'projectStatusDefinitions')) {
-    const statusDefinitions = initialProjectStatusDefinitions.map((status) => ({
-      ...status,
-    }));
-    if (
-      document.projectStatus &&
-      !statusDefinitions.some(
-        (status) => status.code === document.projectStatus,
-      )
-    ) {
-      statusDefinitions.push({
-        code: document.projectStatus,
-        name: document.projectStatus,
-        nameZh: '',
-        active: true,
-      });
-    }
-    document = { ...document, projectStatusDefinitions: statusDefinitions };
-    changed = true;
-  }
-  if (!Object.hasOwn(document, 'reviewGates')) {
-    document = { ...document, reviewGates: [] };
-    changed = true;
-  }
-  // A stable code survives workflow reordering and row insertion. The former
-  // numeric selectedStep is retained only for v1 clients and migration.
-  if (!Object.hasOwn(document, 'currentWorkflowStepCode')) {
-    const steps = Array.isArray(document.processSteps)
-      ? document.processSteps
-      : [];
-    const legacyIndex = Math.max(0, Number(document.selectedStep || 0));
-    const current =
-      steps[legacyIndex] ||
-      steps.find((step) =>
-        ['blocked', 'awaiting_review', 'in_progress'].includes(step.state),
-      ) ||
-      steps[0];
-    document = {
-      ...document,
-      currentWorkflowStepCode: current?.code || '',
-    };
-    changed = true;
-  }
-  if (!document.pricing) {
-    document = { ...document, pricing: { ...initialPricingSettings } };
-    changed = true;
-  }
-  if (!Object.hasOwn(document, 'quoteTemplates')) {
-    document = {
-      ...document,
-      quoteTemplates: structuredClone(initialQuoteTemplates),
-    };
-    changed = true;
-  }
-  if (!document.selectedQuoteTemplateId) {
-    document = {
-      ...document,
-      selectedQuoteTemplateId:
-        document.quoteTemplates?.[0]?.id || initialQuoteTemplates[0].id,
-    };
-    changed = true;
-  }
-  if (!Object.hasOwn(document, 'quoteAssumptions')) {
-    document = {
-      ...document,
-      quoteAssumptions: structuredClone(initialQuoteAssumptions),
-    };
-    changed = true;
-  }
-  if (!Object.hasOwn(document, 'quoteHistory')) {
-    document = { ...document, quoteHistory: [] };
-    changed = true;
-  }
-  if (
-    !Array.isArray(document.costVersions) ||
-    document.costVersions.length === 0
-  ) {
-    document = {
-      ...document,
-      costVersions: [
-        {
-          code: document.activeVersion || 'V1',
-          state: 'Draft',
-          createdAt: nowIso(),
-          sourceVersion: null,
-          costRows: structuredClone(document.costRows || []),
-          rateSettings: structuredClone(document.rateSettings),
-          travelSettings: structuredClone(document.travelSettings),
-          travelRows: structuredClone(document.travelRows || []),
-          travelUplift: Number(document.travelUplift || 0),
-          manualCosts: structuredClone(document.manualCosts),
-        },
-      ],
-    };
-    changed = true;
-  }
-  // Normalize the prototype lifecycle into the three states exposed by the
-  // editable version selector. This also keeps existing SQLite snapshots
-  // valid after the schema enum is tightened.
-  const legacyVersionState = {
-    'Pending freeze': 'Draft',
-    Frozen: 'Confirmed',
-    Superseded: 'Suspended',
-  };
-  if (
-    document.costVersions?.some((version) =>
-      Object.hasOwn(legacyVersionState, version.state),
-    )
-  ) {
-    document = {
-      ...document,
-      costVersions: document.costVersions.map((version) => ({
-        ...version,
-        state: legacyVersionState[version.state] || version.state,
-      })),
-    };
-    changed = true;
-  }
-  return changed ? document : workspace;
-};
-
 /** Calculates the compact, non-formatted metrics returned by Project List. */
-const summarizeWorkspace = (workspace) => {
+const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
   if (!workspace) return {};
   const workflowSteps = (workspace.processSteps || []).map((step) => ({
     ...step,
@@ -270,9 +70,20 @@ const summarizeWorkspace = (workspace) => {
   const statusDefinitions = (workspace.projectStatusDefinitions || []).map(
     (status) => ({ ...status }),
   );
-  const travelCost = getHQTravelSummary(
+  const resources =
+    workspace.costVersions?.find(
+      (version) => version.code === workspace.activeVersion,
+    )?.resourceTypes ||
+    workspace.resourceTypes ||
+    [];
+  const rows = recalculateCostRows(
     workspace.costRows || [],
-    workspace.resourceTypes || [],
+    resources,
+    workspace.rateSettings,
+  );
+  const travelCost = getHQTravelSummary(
+    rows,
+    resources,
     workspace.travelSettings || {
       monthlyAllowance: 0,
       airfarePerTrip: 0,
@@ -280,8 +91,8 @@ const summarizeWorkspace = (workspace) => {
     },
   ).totalCost;
   const statement = getCostStatementValues(
-    workspace.costRows || [],
-    workspace.resourceTypes || [],
+    rows,
+    resources,
     travelCost,
     workspace.manualCosts || {},
   );
@@ -302,9 +113,12 @@ const summarizeWorkspace = (workspace) => {
       !String(row.scope || '').trim() ||
       !String(row.bu || '').trim() ||
       !String(row.reTypeId || '').trim() ||
-      Number(row.mdPerSite || 0) <= 0 ||
+      (row.inputMode !== 'mandays' && Number(row.mdPerSite || 0) <= 0) ||
       !(row.years || []).some(
-        (year) => Number(year.sites || 0) > 0 || Number(year.cost || 0) > 0,
+        (year) =>
+          Number(year.sites || 0) > 0 ||
+          Number(year.mandays || 0) > 0 ||
+          Number(year.cost || 0) > 0,
       ),
   ).length;
   return {
@@ -323,99 +137,16 @@ const summarizeWorkspace = (workspace) => {
     totalQuote: pricing.quoteBeforeTax,
     grossMarginPercent: pricing.grossMarginPercent,
     incompleteCostRows,
+    ssrAttention: workspace.ssr
+      ? ssrAttention(
+          workspace.ssr,
+          workspace.costVersions.find(
+            (v) => v.code === workspace.activeVersion,
+          ),
+          asOf,
+        )
+      : [],
   };
-};
-
-/** Rejects malformed payloads before they can become the local source of truth. */
-export const assertWorkspaceDocument = (workspace, projectId) => {
-  if (!workspace || typeof workspace !== 'object' || Array.isArray(workspace)) {
-    throw new TypeError('workspace must be a JSON object.');
-  }
-  if (workspace.schemaVersion !== WORKSPACE_SCHEMA_VERSION) {
-    throw new TypeError(
-      `workspace.schemaVersion must be ${WORKSPACE_SCHEMA_VERSION}.`,
-    );
-  }
-  if (!workspace.project || workspace.project.id !== projectId) {
-    throw new TypeError('workspace.project.id must match the URL project id.');
-  }
-  if (!String(workspace.project.name || '').trim()) {
-    throw new TypeError('workspace.project.name is required.');
-  }
-  if (!String(workspace.project.client || '').trim()) {
-    throw new TypeError('workspace.project.client is required.');
-  }
-  if (workspace.project.currency !== 'SGD') {
-    throw new TypeError('workspace.project.currency must be SGD.');
-  }
-  if (!validateWorkspaceSchema(workspace)) {
-    const first = validateWorkspaceSchema.errors?.[0];
-    const location = first?.instancePath || '/';
-    throw new TypeError(
-      `Workspace schema validation failed at ${location}: ${first?.message || 'invalid value'}.`,
-    );
-  }
-  if (
-    workspace.currentWorkflowStepCode &&
-    !workspace.processSteps.some(
-      (step) => step.code === workspace.currentWorkflowStepCode,
-    )
-  ) {
-    throw new TypeError(
-      'workspace.currentWorkflowStepCode must reference processSteps[].code.',
-    );
-  }
-  const statusCodes = workspace.projectStatusDefinitions.map(
-    (status) => status.code,
-  );
-  if (!statusCodes.includes(workspace.projectStatus)) {
-    throw new TypeError(
-      'workspace.projectStatus must reference projectStatusDefinitions[].code.',
-    );
-  }
-  if (new Set(statusCodes).size !== statusCodes.length) {
-    throw new TypeError(
-      'workspace.projectStatusDefinitions[].code values must be unique.',
-    );
-  }
-  const workflowCodes = new Set(
-    workspace.processSteps.map((step) => step.code),
-  );
-  for (const review of workspace.reviewGates) {
-    if (review.projectId !== projectId) {
-      throw new TypeError(
-        'workspace.reviewGates[].projectId must match the project id.',
-      );
-    }
-    if (
-      review.workflowStepCode &&
-      !workflowCodes.has(review.workflowStepCode)
-    ) {
-      throw new TypeError(
-        'workspace.reviewGates[].workflowStepCode must reference processSteps[].code.',
-      );
-    }
-  }
-  const uniqueFields = [
-    ['reviewGates', workspace.reviewGates.map((review) => review.id)],
-    ['quoteTemplates', workspace.quoteTemplates.map((template) => template.id)],
-    ['quoteAssumptions', workspace.quoteAssumptions.map((item) => item.id)],
-    ['quoteHistory', workspace.quoteHistory.map((record) => record.id)],
-  ];
-  for (const [name, values] of uniqueFields) {
-    if (new Set(values).size !== values.length) {
-      throw new TypeError(`workspace.${name}[].id values must be unique.`);
-    }
-  }
-  if (
-    !workspace.quoteTemplates.some(
-      (template) => template.id === workspace.selectedQuoteTemplateId,
-    )
-  ) {
-    throw new TypeError(
-      'workspace.selectedQuoteTemplateId must reference quoteTemplates[].id.',
-    );
-  }
 };
 
 /** Opens the database and applies idempotent schema initialization. */
@@ -437,28 +168,45 @@ export const openWorkspaceRepository = (databasePath) => {
   db.exec('PRAGMA optimize');
 
   // Upgrade existing JSON snapshots before any browser or CLI reads them.
-  const legacySnapshots = db
-    .prepare(
-      `SELECT project_id, revision, payload_json FROM workspace_snapshots`,
-    )
-    .all();
-  const updateMigratedSnapshot = db.prepare(
-    `UPDATE workspace_snapshots
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const legacySnapshots = db
+      .prepare(
+        `SELECT project_id, revision, payload_json FROM workspace_snapshots`,
+      )
+      .all();
+    const updateMigratedSnapshot = db.prepare(
+      `UPDATE workspace_snapshots
      SET revision = ?, payload_json = ?, payload_sha256 = ?, updated_at = ?
      WHERE project_id = ?`,
-  );
-  for (const row of legacySnapshots) {
-    const current = JSON.parse(row.payload_json);
-    const migrated = migrateWorkspaceDocument(current);
-    if (migrated === current) continue;
-    const payloadJson = JSON.stringify(migrated);
-    updateMigratedSnapshot.run(
-      row.revision + 1,
-      payloadJson,
-      checksum(payloadJson),
-      nowIso(),
-      row.project_id,
     );
+    for (const row of legacySnapshots) {
+      const current = JSON.parse(row.payload_json);
+      const migrated = migrateWorkspaceDocument(current);
+      if (migrated === current) continue;
+      assertWorkspaceDocument(migrated, row.project_id);
+      const payloadJson = JSON.stringify(migrated);
+      db.prepare(`INSERT OR IGNORE INTO workspace_migration_archive
+      (project_id, revision, payload_json, archived_at, reason) VALUES (?, ?, ?, ?, ?)`).run(
+        row.project_id,
+        row.revision,
+        row.payload_json,
+        nowIso(),
+        'Workspace contract and version-rate migration',
+      );
+      updateMigratedSnapshot.run(
+        row.revision + 1,
+        payloadJson,
+        checksum(payloadJson),
+        nowIso(),
+        row.project_id,
+      );
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    db.close();
+    throw error;
   }
 
   const selectWorkspace = db.prepare(
@@ -495,7 +243,7 @@ export const openWorkspaceRepository = (databasePath) => {
       return mapWorkspace(selectWorkspace.get(projectId));
     },
 
-    list() {
+    list(asOf) {
       return listProjects.all().map((row) => {
         const workspace = row.payload_json
           ? migrateWorkspaceDocument(JSON.parse(row.payload_json))
@@ -510,7 +258,7 @@ export const openWorkspaceRepository = (databasePath) => {
           sha256: row.payload_sha256 ?? null,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
-          ...summarizeWorkspace(workspace),
+          ...summarizeWorkspace(workspace, asOf),
         };
       });
     },
@@ -522,10 +270,42 @@ export const openWorkspaceRepository = (databasePath) => {
     save(projectId, workspace, expectedRevision) {
       // Accept a v1-compatible document from older CLI clients, then persist
       // the fully expanded project-status, pricing, and version-snapshot form.
-      const document = migrateWorkspaceDocument(workspace);
+      if (
+        !workspace ||
+        typeof workspace !== 'object' ||
+        Array.isArray(workspace)
+      )
+        throw new WorkspaceValidationError('workspace must be a JSON object.');
+      let document = migrateWorkspaceDocument(workspace);
       assertWorkspaceDocument(document, projectId);
-      const payloadJson = JSON.stringify(document);
-      const payloadSha256 = checksum(payloadJson);
+      // Top-level editors are authoritative for the active version. Derive
+      // labour amounts on every write, including CLI writes, before hashing.
+      const active = document.costVersions.find(
+        (version) => version.code === document.activeVersion,
+      );
+      const costRows = recalculateCostRows(
+        document.costRows,
+        active.resourceTypes,
+        document.rateSettings,
+      );
+      document = {
+        ...document,
+        costRows,
+        costVersions: document.costVersions.map((version) =>
+          version.code === document.activeVersion
+            ? {
+                ...version,
+                costRows,
+                rateSettings: document.rateSettings,
+                travelSettings: document.travelSettings,
+                travelRows: document.travelRows,
+                travelUplift: document.travelUplift,
+                manualCosts: document.manualCosts,
+              }
+            : version,
+        ),
+      };
+      assertWorkspaceDocument(document, projectId);
       const timestamp = nowIso();
 
       db.exec('BEGIN IMMEDIATE');
@@ -538,6 +318,132 @@ export const openWorkspaceRepository = (databasePath) => {
             currentRevision,
           );
         }
+        const previous = current ? JSON.parse(current.payload_json) : null;
+        // Older clients must not erase extension data they do not understand.
+        if (!Object.hasOwn(workspace, 'cpq') && previous?.cpq)
+          document = { ...document, cpq: previous.cpq };
+        if (
+          !Object.hasOwn(workspace, 'maintenanceBoq') &&
+          previous?.maintenanceBoq
+        )
+          document = { ...document, maintenanceBoq: previous.maintenanceBoq };
+        for (const old of previous?.maintenanceBoq?.archives || []) {
+          const kept = document.maintenanceBoq?.archives.find(
+            (a) => a.id === old.id,
+          );
+          if (contentKey(kept) !== contentKey(old))
+            throw new WorkspaceValidationError(
+              'Archived maintenance configurations cannot be changed',
+            );
+        }
+        for (const added of document.maintenanceBoq?.archives || []) {
+          if (previous?.maintenanceBoq?.archives.some((a) => a.id === added.id))
+            continue;
+          if (
+            contentKey(added.lines.map((l) => l.boq.id).sort()) !==
+            contentKey(document.maintenanceBoq.boq.map((r) => r.id).sort())
+          )
+            throw new WorkspaceValidationError(
+              'New maintenance archive must include all current BOQ rows',
+            );
+          if (added.client !== document.project.client)
+            throw new WorkspaceValidationError(
+              'Maintenance archive client must match project',
+            );
+          for (const line of added.lines) {
+            if (
+              contentKey(line.reference) !==
+              contentKey(
+                document.maintenancePriceRecords.find(
+                  (r) => r.id === line.reference.id,
+                ),
+              )
+            )
+              throw new WorkspaceValidationError(
+                'New maintenance archive must capture current references',
+              );
+            if (
+              contentKey(line.boq) !==
+              contentKey(
+                document.maintenanceBoq.boq.find((r) => r.id === line.boq.id),
+              )
+            )
+              throw new WorkspaceValidationError(
+                'New archive must capture current BOQ',
+              );
+          }
+          if (added.coverageMonths !== document.maintenanceBoq.coverageMonths)
+            throw new WorkspaceValidationError(
+              'Maintenance duration differs from current BOQ',
+            );
+        }
+        if (!Object.hasOwn(workspace, 'ssr') && previous?.ssr)
+          document = { ...document, ssr: previous.ssr };
+        if (document.ssr)
+          document = {
+            ...document,
+            ssr: {
+              ...document.ssr,
+              commercialBasis: commercialBasisKey(document),
+            },
+          };
+        if (document.ssr)
+          assertSsrTransition(
+            previous?.ssr || emptySsr(),
+            document.ssr,
+            document.costVersions.find(
+              (v) => v.code === document.activeVersion,
+            ),
+          );
+        for (const old of previous?.cpq?.archives || []) {
+          const retained = document.cpq?.archives.find(
+            (item) => item.id === old.id,
+          );
+          if (!retained || contentKey(retained) !== contentKey(old))
+            throw new WorkspaceValidationError(
+              'Archived CPQ configurations cannot be edited or deleted.',
+              '/cpq/archives',
+            );
+        }
+        for (const added of document.cpq?.archives || []) {
+          if (previous?.cpq?.archives.some((item) => item.id === added.id))
+            continue;
+          const baseline = document.costVersions.find(
+            (version) => version.code === added.costVersion,
+          );
+          if (!baseline || added.costKey !== costBaselineKey(baseline))
+            throw new WorkspaceValidationError(
+              'New CPQ archive must reference the current cost inputs.',
+              '/cpq/archives',
+            );
+          if (contentKey(added.costBaseline) !== contentKey(baseline))
+            throw new WorkspaceValidationError(
+              'New CPQ archive cost metadata must match the current version.',
+              '/cpq/archives',
+            );
+          for (const line of added.result.lines) {
+            const catalogItem = document.cpq.catalog.find(
+              (item) => item.code === line.item.code,
+            );
+            if (
+              !catalogItem ||
+              contentKey(catalogItem) !== contentKey(line.item)
+            )
+              throw new WorkspaceValidationError(
+                'New CPQ archive must use confirmed current catalog entries.',
+                '/cpq/archives',
+              );
+          }
+        }
+        if (document.cpq) {
+          const cpqBase = document.costVersions.find(
+            (v) => v.code === document.cpq.draft.costVersion,
+          );
+          if (cpqBase) assertCurrentCpqResult(document.cpq, cpqBase);
+        }
+        assertWorkspaceDocument(document, projectId);
+        const payloadJson = JSON.stringify(document);
+        const payloadSha256 = checksum(payloadJson);
         const nextRevision = (currentRevision ?? 0) + 1;
         db.prepare(
           `INSERT INTO projects (id, name, client, currency, created_at, updated_at)

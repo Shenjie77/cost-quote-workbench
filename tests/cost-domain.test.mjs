@@ -1,5 +1,34 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { recalculateCostRows } from '../features/cost/domain.ts';
+
+test('labour recalculates when annual uplift changes while subcontract input remains intact', () => {
+  const snapshot = makeCostSnapshot();
+  snapshot.rateSettings.annualUplifts[0] = 10;
+  const rows = recalculateCostRows(
+    snapshot.costRows,
+    snapshot.resourceTypes,
+    snapshot.rateSettings,
+  );
+  assert.equal(rows[0].years[0].cost, 228800);
+  assert.equal(rows.at(-1).years[0].cost, 165000);
+  assert.equal(snapshot.costRows[0].years[0].cost, 218400);
+});
+
+test('export validation rejects stale labour values and impossible timestamp dates', () => {
+  const snapshot = makeCostSnapshot();
+  snapshot.costRows[0].years[0].cost = 1;
+  snapshot.exportedAt = '2026-02-31T01:00:00.000Z';
+  const errors = validateCostExportSnapshot(snapshot);
+  assert.ok(
+    errors.some(
+      (issue) =>
+        issue.code === 'LABOUR_COST_MISMATCH' &&
+        issue.path === '/costRows/0/years/0/cost',
+    ),
+  );
+  assert.ok(errors.some((issue) => issue.code === 'INVALID_EXPORTED_AT'));
+});
 
 import {
   buildReconciledCostDimensionSummary,

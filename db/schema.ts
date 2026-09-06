@@ -7,7 +7,7 @@
  * normalize individual business records without changing the public payload.
  */
 
-export const LOCAL_DATABASE_SCHEMA_VERSION = 1;
+export const LOCAL_DATABASE_SCHEMA_VERSION = 2;
 
 /** Each entry is exactly one statement so initialization stays portable. */
 export const LOCAL_DATABASE_STATEMENTS = [
@@ -33,6 +33,15 @@ export const LOCAL_DATABASE_STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_projects_updated_at
    ON projects(updated_at DESC)`,
+  // Exact pre-migration documents are retained locally for inspection/recovery.
+  `CREATE TABLE IF NOT EXISTS workspace_migration_archive (
+    project_id TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+    archived_at TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    PRIMARY KEY (project_id, revision)
+  )`,
   `CREATE INDEX IF NOT EXISTS idx_workspace_snapshots_updated_at
    ON workspace_snapshots(updated_at DESC)`,
 ] as const;

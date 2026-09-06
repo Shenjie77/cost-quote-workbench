@@ -12,6 +12,9 @@ export type ViewKey =
   | 'project'
   | 'cost'
   | 'quote'
+  | 'cpq'
+  | 'ssr'
+  | 'maintenance'
   | 'reviews'
   | 'agent'
   | 'master-data';

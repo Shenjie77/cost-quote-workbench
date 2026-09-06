@@ -89,6 +89,7 @@ export function AgentView({
           totalCost: project.totalCost,
           totalQuote: project.totalQuote,
           incompleteCostRows: project.incompleteCostRows,
+          ssrAttention: project.ssrAttention,
         })),
         reviews,
         asOf,
@@ -100,14 +101,23 @@ export function AgentView({
   const openItem = (item: (typeof digest.items)[number]) => {
     const project = projects.find((entry) => entry.id === item.projectId);
     if (item.action === 'review') {
-      const review = reviews.find((entry) => entry.id === item.reviewId);
+      const review = reviews.find(
+        (entry) =>
+          entry.projectId === item.projectId && entry.id === item.reviewId,
+      );
       if (review)
         setPanel({ type: 'review', review, projectId: review.projectId });
       return;
     }
     if (!project) return;
     onSelectProject(project);
-    setView(item.action === 'cost' ? 'cost' : 'project');
+    setView(
+      item.action === 'ssr'
+        ? 'ssr'
+        : item.action === 'cost'
+          ? 'cost'
+          : 'project',
+    );
   };
 
   return (

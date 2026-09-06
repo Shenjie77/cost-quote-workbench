@@ -1,5 +1,7 @@
 /** Dense editable cost grid. Sites are inputs; mandays are always Sites × MD/Site. */
 
+import { useState } from 'react';
+import { CostImportPanel } from './cost-import-panel';
 import {
   AlertTriangle,
   Check,
@@ -62,6 +64,7 @@ export function CostInputSheet({
   includedTravelCost: number;
   announce: (message: string) => void;
 }) {
+  const [showImport, setShowImport] = useState(false);
   const updateText = (
     id: string,
     key: 'scope' | 'bu' | 'reTypeId',
@@ -128,7 +131,10 @@ export function CostInputSheet({
         const resourceType = resourceTypes.find(
           (item) => item.id === row.reTypeId,
         );
-        if (key !== 'sites' || resourceType?.category !== 'internal') {
+        if (
+          (key !== 'sites' && key !== 'mandays') ||
+          resourceType?.category !== 'internal'
+        ) {
           return changed;
         }
         return {
@@ -195,14 +201,21 @@ export function CostInputSheet({
         !Number.isInteger(Number(year.sites)) ||
         Number(year.sites) < 0 ||
         !Number.isFinite(Number(year.cost)) ||
-        Number(year.cost) < 0,
+        Number(year.cost) < 0 ||
+        (row.inputMode === 'mandays' &&
+          (!Number.isFinite(year.mandays) ||
+            Number(year.mandays) < 0 ||
+            Number(year.mandays) > 1e6)),
     );
   const rowMissingMdPerSite = (row: CostInputRow) =>
     totalRowSites(row) > 0 && Number(row.mdPerSite) <= 0;
   const rowUsesUnmappedYears = (row: CostInputRow) =>
     getY1Year(rateSettings) === null &&
     row.years.some(
-      (year) => Number(year.sites || 0) > 0 || Number(year.cost || 0) > 0,
+      (year) =>
+        Number(year.sites || 0) > 0 ||
+        Number(year.mandays || 0) > 0 ||
+        Number(year.cost || 0) > 0,
     );
   const allRowsValid = rows.every((row) => {
     const resourceType = resourceTypes.find((item) => item.id === row.reTypeId);
@@ -218,7 +231,7 @@ export function CostInputSheet({
   const inputClass =
     'h-9 w-full rounded-none border-0 bg-transparent px-2 py-0 text-[11px] shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-white focus-visible:ring-1';
 
-  const addRow = () =>
+  const addRow = (inputMode: 'sites' | 'mandays' = 'sites') =>
     setRows((current) => [
       ...current,
       {
@@ -229,10 +242,12 @@ export function CostInputSheet({
         bu: 'Select BU',
         reTypeId: resourceTypes.find((item) => item.active)?.id ?? '',
         mdPerSite: 0,
+        inputMode,
         years: Array.from({ length: YEAR_BUCKETS.length }, (_, index) => ({
           bucket: YEAR_BUCKETS[index],
           sites: 0,
           cost: 0,
+          ...(inputMode === 'mandays' ? { mandays: 0 } : {}),
         })),
       },
     ]);
@@ -252,6 +267,15 @@ export function CostInputSheet({
 
   return (
     <section className="overflow-hidden border border-border bg-card">
+      {showImport && (
+        <CostImportPanel
+          rows={rows}
+          setRows={setRows}
+          resources={resourceTypes}
+          rates={rateSettings}
+          onClose={() => setShowImport(false)}
+        />
+      )}
       <SectionHeading
         index="02"
         title="Cost Input Sheet"
@@ -348,18 +372,21 @@ export function CostInputSheet({
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-[10px]"
-            onClick={() =>
-              announce(
-                'Excel import mapping will be implemented in the functional phase. / Excel 导入映射将在功能阶段实现。',
-              )
-            }
+            onClick={() => setShowImport(!showImport)}
           >
             <Upload className="size-3" /> Import{' '}
             <span className="text-[8px] opacity-60">导入</span>
           </Button>
-          <Button size="sm" className="h-7 px-2 text-[10px]" onClick={addRow}>
+          <Button
+            size="sm"
+            className="h-7 px-2 text-[10px]"
+            onClick={() => addRow()}
+          >
             <Plus className="size-3" /> Add row{' '}
             <span className="text-[8px] opacity-60">新增</span>
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => addRow('mandays')}>
+            Add direct MD / 总人天行
           </Button>
           <Button
             variant="outline"
@@ -553,6 +580,12 @@ export function CostInputSheet({
                       step="0.25"
                       className={inputClass + ' text-right'}
                       value={row.mdPerSite}
+                      readOnly={row.inputMode === 'mandays'}
+                      title={
+                        row.inputMode === 'mandays'
+                          ? 'Direct MD input / 总人天模式'
+                          : 'MD per Site'
+                      }
                       onChange={(event) =>
                         updateBase(row.id, Number(event.target.value))
                       }
@@ -580,6 +613,7 @@ export function CostInputSheet({
                         aria-invalid={invalidValues || unmappedYears}
                         className={inputClass + ' text-right'}
                         value={year.sites}
+                        readOnly={row.inputMode === 'mandays'}
                         onChange={(event) =>
                           updateYear(
                             row.id,
@@ -595,9 +629,27 @@ export function CostInputSheet({
                       className="financial-numeral border-r border-border bg-[#f5f7f5] px-2 text-right font-semibold text-[#315764]"
                       title="Calculated as Sites × MD / Site"
                     >
-                      {yearRowMandays(row, yearIndex).toLocaleString('en-SG', {
-                        maximumFractionDigits: 2,
-                      })}
+                      {row.inputMode === 'mandays' ? (
+                        <Input
+                          aria-label={`${yearColumns[yearIndex]?.label} direct mandays for ${row.id}`}
+                          type="number"
+                          min="0"
+                          step="0.0001"
+                          value={year.mandays ?? 0}
+                          onChange={(event) =>
+                            updateYear(
+                              row.id,
+                              yearIndex,
+                              'mandays',
+                              Number(event.target.value),
+                            )
+                          }
+                        />
+                      ) : (
+                        yearRowMandays(row, yearIndex).toLocaleString('en-SG', {
+                          maximumFractionDigits: 2,
+                        })
+                      )}
                     </TableCell>,
                     <TableCell
                       key={'cost-' + row.id + '-' + yearIndex}

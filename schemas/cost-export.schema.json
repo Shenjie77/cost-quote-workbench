@@ -17,23 +17,41 @@
     "manualCosts"
   ],
   "properties": {
-    "schemaVersion": { "const": "2.0.0" },
-    "exportedAt": { "$ref": "#/$defs/utcTimestamp" },
-    "project": { "$ref": "#/$defs/project" },
-    "costVersion": { "$ref": "#/$defs/costVersion" },
-    "rateSettings": { "$ref": "#/$defs/rateSettings" },
-    "travelSettings": { "$ref": "#/$defs/travelSettings" },
+    "schemaVersion": {
+      "const": "2.0.0"
+    },
+    "exportedAt": {
+      "$ref": "#/$defs/utcTimestamp"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "costVersion": {
+      "$ref": "#/$defs/costVersion"
+    },
+    "rateSettings": {
+      "$ref": "#/$defs/rateSettings"
+    },
+    "travelSettings": {
+      "$ref": "#/$defs/travelSettings"
+    },
     "resourceTypes": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/resourceType" }
+      "items": {
+        "$ref": "#/$defs/resourceType"
+      }
     },
     "costRows": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/costRow" }
+      "items": {
+        "$ref": "#/$defs/costRow"
+      }
     },
-    "manualCosts": { "$ref": "#/$defs/manualCosts" }
+    "manualCosts": {
+      "$ref": "#/$defs/manualCosts"
+    }
   },
   "$defs": {
     "nonBlankText": {
@@ -66,23 +84,40 @@
       "properties": {
         "id": {
           "allOf": [
-            { "$ref": "#/$defs/nonBlankText" },
-            { "type": "string", "maxLength": 80 }
+            {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            {
+              "type": "string",
+              "maxLength": 80
+            }
           ]
         },
         "name": {
           "allOf": [
-            { "$ref": "#/$defs/nonBlankText" },
-            { "type": "string", "maxLength": 300 }
+            {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            {
+              "type": "string",
+              "maxLength": 300
+            }
           ]
         },
         "client": {
           "allOf": [
-            { "$ref": "#/$defs/nonBlankText" },
-            { "type": "string", "maxLength": 200 }
+            {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            {
+              "type": "string",
+              "maxLength": 200
+            }
           ]
         },
-        "currency": { "const": "SGD" }
+        "currency": {
+          "const": "SGD"
+        }
       }
     },
     "costVersion": {
@@ -90,11 +125,19 @@
       "additionalProperties": false,
       "required": ["code", "status"],
       "properties": {
-        "code": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
+        "code": {
+          "type": "string",
+          "pattern": "^V[1-9][0-9]*$"
+        },
         "status": {
           "allOf": [
-            { "$ref": "#/$defs/nonBlankText" },
-            { "type": "string", "maxLength": 80 }
+            {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            {
+              "type": "string",
+              "maxLength": 80
+            }
           ]
         }
       }
@@ -104,13 +147,22 @@
       "additionalProperties": false,
       "required": ["bucket", "sites", "cost"],
       "properties": {
-        "bucket": { "enum": ["Y1", "Y2", "Y3", "Y4", "Y5"] },
+        "bucket": {
+          "enum": ["Y1", "Y2", "Y3", "Y4", "Y5"]
+        },
         "sites": {
           "type": "integer",
           "minimum": 0,
           "maximum": 1000000
         },
-        "cost": { "$ref": "#/$defs/moneyInput" }
+        "cost": {
+          "$ref": "#/$defs/moneyInput"
+        },
+        "mandays": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        }
       }
     },
     "costRow": {
@@ -120,26 +172,46 @@
       "properties": {
         "id": {
           "allOf": [
-            { "$ref": "#/$defs/nonBlankText" },
-            { "type": "string", "maxLength": 100 }
+            {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            {
+              "type": "string",
+              "maxLength": 100
+            }
           ]
         },
         "scope": {
           "allOf": [
-            { "$ref": "#/$defs/nonBlankText" },
-            { "type": "string", "maxLength": 500 }
+            {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            {
+              "type": "string",
+              "maxLength": 500
+            }
           ]
         },
         "bu": {
           "allOf": [
-            { "$ref": "#/$defs/nonBlankText" },
-            { "type": "string", "maxLength": 200 }
+            {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            {
+              "type": "string",
+              "maxLength": 200
+            }
           ]
         },
         "reTypeId": {
           "allOf": [
-            { "$ref": "#/$defs/nonBlankText" },
-            { "type": "string", "maxLength": 100 }
+            {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            {
+              "type": "string",
+              "maxLength": 100
+            }
           ]
         },
         "mdPerSite": {
@@ -155,51 +227,130 @@
           "prefixItems": [
             {
               "allOf": [
-                { "$ref": "#/$defs/yearAllocation" },
+                {
+                  "$ref": "#/$defs/yearAllocation"
+                },
                 {
                   "type": "object",
-                  "properties": { "bucket": { "const": "Y1" } }
+                  "properties": {
+                    "bucket": {
+                      "const": "Y1"
+                    }
+                  }
                 }
               ]
             },
             {
               "allOf": [
-                { "$ref": "#/$defs/yearAllocation" },
+                {
+                  "$ref": "#/$defs/yearAllocation"
+                },
                 {
                   "type": "object",
-                  "properties": { "bucket": { "const": "Y2" } }
+                  "properties": {
+                    "bucket": {
+                      "const": "Y2"
+                    }
+                  }
                 }
               ]
             },
             {
               "allOf": [
-                { "$ref": "#/$defs/yearAllocation" },
+                {
+                  "$ref": "#/$defs/yearAllocation"
+                },
                 {
                   "type": "object",
-                  "properties": { "bucket": { "const": "Y3" } }
+                  "properties": {
+                    "bucket": {
+                      "const": "Y3"
+                    }
+                  }
                 }
               ]
             },
             {
               "allOf": [
-                { "$ref": "#/$defs/yearAllocation" },
+                {
+                  "$ref": "#/$defs/yearAllocation"
+                },
                 {
                   "type": "object",
-                  "properties": { "bucket": { "const": "Y4" } }
+                  "properties": {
+                    "bucket": {
+                      "const": "Y4"
+                    }
+                  }
                 }
               ]
             },
             {
               "allOf": [
-                { "$ref": "#/$defs/yearAllocation" },
+                {
+                  "$ref": "#/$defs/yearAllocation"
+                },
                 {
                   "type": "object",
-                  "properties": { "bucket": { "const": "Y5" } }
+                  "properties": {
+                    "bucket": {
+                      "const": "Y5"
+                    }
+                  }
                 }
               ]
             }
           ],
           "items": false
+        },
+        "inputMode": {
+          "enum": ["sites", "mandays"]
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fileName",
+            "sha256",
+            "sheet",
+            "row",
+            "mappingKey",
+            "role",
+            "importedAt"
+          ],
+          "properties": {
+            "fileName": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "sheet": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "row": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "mappingKey": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "role": {
+              "enum": ["TD", "PM"]
+            },
+            "importedAt": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "importedValues": {
+              "type": "string",
+              "maxLength": 10000
+            }
+          }
         }
       }
     },
@@ -224,34 +375,64 @@
       "properties": {
         "id": {
           "allOf": [
-            { "$ref": "#/$defs/nonBlankText" },
-            { "type": "string", "maxLength": 100 }
+            {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            {
+              "type": "string",
+              "maxLength": 100
+            }
           ]
         },
         "code": {
-          "description": "Canonical pool-level code. Multiple effective-dated records may share this code, but IDs remain unique.",
+          "description": "Canonical pool-level code, unique within this rate snapshot. Historical rates are retained by cost-version snapshots.",
           "allOf": [
-            { "$ref": "#/$defs/nonBlankText" },
-            { "type": "string", "maxLength": 80 }
+            {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            {
+              "type": "string",
+              "maxLength": 80
+            }
           ]
         },
         "name": {
           "allOf": [
-            { "$ref": "#/$defs/nonBlankText" },
-            { "type": "string", "maxLength": 200 }
+            {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            {
+              "type": "string",
+              "maxLength": 200
+            }
           ]
         },
-        "category": { "enum": ["internal", "subcontract"] },
+        "category": {
+          "enum": ["internal", "subcontract"]
+        },
         "pool": {
-          "oneOf": [{ "enum": ["LOCAL", "HQ", "ARP"] }, { "type": "null" }]
+          "oneOf": [
+            {
+              "enum": ["LOCAL", "HQ", "ARP"]
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "level": {
           "oneOf": [
-            { "enum": ["L0", "L1", "L2", "L3", "L4"] },
-            { "type": "null" }
+            {
+              "enum": ["L0", "L1", "L2", "L3", "L4"]
+            },
+            {
+              "type": "null"
+            }
           ]
         },
-        "mandayRate": { "$ref": "#/$defs/moneyInput" },
+        "mandayRate": {
+          "$ref": "#/$defs/moneyInput"
+        },
         "mandaysPerMonth": {
           "type": "number",
           "exclusiveMinimum": 0,
@@ -262,31 +443,53 @@
           "exclusiveMinimum": 0,
           "maximum": 24
         },
-        "hqTravel": { "type": "boolean" },
-        "effectiveFrom": { "$ref": "#/$defs/date" },
-        "effectiveTo": { "$ref": "#/$defs/optionalDate" },
-        "active": { "type": "boolean" }
+        "hqTravel": {
+          "type": "boolean"
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/date"
+        },
+        "effectiveTo": {
+          "$ref": "#/$defs/optionalDate"
+        },
+        "active": {
+          "type": "boolean"
+        }
       },
       "allOf": [
         {
           "if": {
             "type": "object",
-            "properties": { "category": { "const": "internal" } },
+            "properties": {
+              "category": {
+                "const": "internal"
+              }
+            },
             "required": ["category"]
           },
           "then": {
             "type": "object",
             "properties": {
-              "pool": { "enum": ["LOCAL", "HQ", "ARP"] },
-              "level": { "enum": ["L0", "L1", "L2", "L3", "L4"] }
+              "pool": {
+                "enum": ["LOCAL", "HQ", "ARP"]
+              },
+              "level": {
+                "enum": ["L0", "L1", "L2", "L3", "L4"]
+              }
             }
           },
           "else": {
             "type": "object",
             "properties": {
-              "pool": { "type": "null" },
-              "level": { "type": "null" },
-              "hqTravel": { "const": false }
+              "pool": {
+                "type": "null"
+              },
+              "level": {
+                "type": "null"
+              },
+              "hqTravel": {
+                "const": false
+              }
             }
           }
         }
@@ -304,16 +507,34 @@
         "annualUplifts"
       ],
       "properties": {
-        "quoteAsOf": { "$ref": "#/$defs/date" },
-        "tdStart": { "$ref": "#/$defs/optionalDate" },
-        "tdEnd": { "$ref": "#/$defs/optionalDate" },
-        "baseYear": { "type": "integer", "minimum": 2000, "maximum": 2200 },
-        "defaultUplift": { "type": "number", "minimum": -100, "maximum": 1000 },
+        "quoteAsOf": {
+          "$ref": "#/$defs/date"
+        },
+        "tdStart": {
+          "$ref": "#/$defs/optionalDate"
+        },
+        "tdEnd": {
+          "$ref": "#/$defs/optionalDate"
+        },
+        "baseYear": {
+          "type": "integer",
+          "minimum": 2000,
+          "maximum": 2200
+        },
+        "defaultUplift": {
+          "type": "number",
+          "minimum": -100,
+          "maximum": 1000
+        },
         "annualUplifts": {
           "type": "array",
           "minItems": 5,
           "maxItems": 5,
-          "items": { "type": "number", "minimum": -100, "maximum": 1000 }
+          "items": {
+            "type": "number",
+            "minimum": -100,
+            "maximum": 1000
+          }
         }
       }
     },
@@ -322,9 +543,17 @@
       "additionalProperties": false,
       "required": ["monthlyAllowance", "airfarePerTrip", "trips"],
       "properties": {
-        "monthlyAllowance": { "$ref": "#/$defs/moneyInput" },
-        "airfarePerTrip": { "$ref": "#/$defs/moneyInput" },
-        "trips": { "type": "integer", "minimum": 0, "maximum": 100000 }
+        "monthlyAllowance": {
+          "$ref": "#/$defs/moneyInput"
+        },
+        "airfarePerTrip": {
+          "$ref": "#/$defs/moneyInput"
+        },
+        "trips": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        }
       }
     },
     "manualCosts": {
@@ -341,14 +570,30 @@
         "riskContingency"
       ],
       "properties": {
-        "localPurchasedEquipment": { "$ref": "#/$defs/moneyInput" },
-        "inlandLogistics": { "$ref": "#/$defs/moneyInput" },
-        "countryWarehousing": { "$ref": "#/$defs/moneyInput" },
-        "nonInHouseLabour": { "$ref": "#/$defs/moneyInput" },
-        "settlement": { "$ref": "#/$defs/moneyInput" },
-        "carFee": { "$ref": "#/$defs/moneyInput" },
-        "otherService": { "$ref": "#/$defs/moneyInput" },
-        "riskContingency": { "$ref": "#/$defs/moneyInput" }
+        "localPurchasedEquipment": {
+          "$ref": "#/$defs/moneyInput"
+        },
+        "inlandLogistics": {
+          "$ref": "#/$defs/moneyInput"
+        },
+        "countryWarehousing": {
+          "$ref": "#/$defs/moneyInput"
+        },
+        "nonInHouseLabour": {
+          "$ref": "#/$defs/moneyInput"
+        },
+        "settlement": {
+          "$ref": "#/$defs/moneyInput"
+        },
+        "carFee": {
+          "$ref": "#/$defs/moneyInput"
+        },
+        "otherService": {
+          "$ref": "#/$defs/moneyInput"
+        },
+        "riskContingency": {
+          "$ref": "#/$defs/moneyInput"
+        }
       }
     }
   }

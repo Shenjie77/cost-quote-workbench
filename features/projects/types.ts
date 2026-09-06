@@ -97,6 +97,13 @@ export type Project = {
   totalQuote?: number;
   grossMarginPercent?: number;
   incompleteCostRows?: number;
+  ssrAttention?: {
+    id: string;
+    title: string;
+    detail: string;
+    severity: 'red' | 'amber';
+    fingerprint: string;
+  }[];
 };
 
 export type WorkflowStep = {

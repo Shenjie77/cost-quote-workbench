@@ -115,7 +115,7 @@ test('v2 workbook has nine stable sheets and reconciles after serialization', as
 
   const totalCostColumn = headerColumn(detail, 'Total Cost');
   assert.match(String(detail.getCell(5, totalCostColumn).value.formula), /SUM/);
-  assert.equal(formulaResult(detail.getCell(5, totalCostColumn)), 184000);
+  assert.equal(formulaResult(detail.getCell(5, totalCostColumn)), 218400);
   assert.match(detail.getColumn(totalCostColumn).numFmt, /S\$/);
 
   const statement = workbook.getWorksheet('06_Cost_Statement');
@@ -129,7 +129,7 @@ test('v2 workbook has nine stable sheets and reconciles after serialization', as
     statement.getCell(inHouseRow, statementAmount),
   );
   assert.ok(salesCost > inHouseCost);
-  assert.equal(inHouseCost, 1_474_000);
+  assert.equal(inHouseCost, 1_065_082.81);
 
   for (const sheetName of [
     '02_Summary_Scope',

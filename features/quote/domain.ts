@@ -19,6 +19,44 @@ export const initialPricingSettings: PricingSettings = {
 
 export type PricingResult = ReturnType<typeof calculatePricing>;
 
+/** Blocks customer output when entered commercial terms cannot be honoured. */
+export const validatePricingSettings = (
+  settings: PricingSettings,
+  totalCost: number,
+): string[] => {
+  const errors: string[] = [];
+  if (
+    !Number.isFinite(settings.targetGrossMargin) ||
+    settings.targetGrossMargin < 0 ||
+    settings.targetGrossMargin > 95
+  )
+    errors.push(
+      'Target gross margin must be between 0 and 95%. / 目标毛利须为 0–95%。',
+    );
+  if (
+    !Number.isFinite(settings.discount) ||
+    settings.discount < 0 ||
+    settings.discount > 1e12
+  )
+    errors.push('Discount is outside the allowed range. / 折扣金额无效。');
+  if (
+    !Number.isFinite(settings.gstPercent) ||
+    settings.gstPercent < 0 ||
+    settings.gstPercent > 100
+  )
+    errors.push('Tax rate must be between 0 and 100%. / 税率须为 0–100%。');
+  if (!errors.length) {
+    const result = calculatePricing(totalCost, settings);
+    if (result.discount > result.listPrice)
+      errors.push('Discount exceeds the list price. / 折扣不能超过报价。');
+    if (result.quoteAfterTax > 1e12 || result.grossMarginPercent < -100000)
+      errors.push(
+        'Calculated quote exceeds the supported range. / 报价计算结果超出范围。',
+      );
+  }
+  return errors;
+};
+
 /**
  * Converts a cost baseline into a quote. Values are normalized with the same
  * upward-to-cent money rule as the cost engine so every screen reconciles.

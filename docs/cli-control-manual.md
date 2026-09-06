@@ -1,10 +1,16 @@
 # cost-cli v2 Agent control manual
 
+The SSR/CPQ/import/template/BOQ/reminder extensions are documented in the [Skill operations reference](../skills/cost-workbench/references/operations.md); request schema `operations` is version `1.0.0`.
+
 This is the handoff contract for people, scripts, and Agent Skills that control
 the local Cost & Quote Workbench. The CLI is intentionally non-interactive.
 It validates supplied snapshots, calculates cost, creates an internal Excel
 workbook, and safely reads/writes the local SQLite workspace. It does not
 connect to the company quotation platform.
+
+Reusable assumptions and customer T&C use the same revision-checked workspace
+commands. See [Quote catalog control contract](quote-catalog.md) for fields,
+customer matching, copying, deletion constraints and historical snapshot rules.
 
 ## 1. Runtime and entry point
 
@@ -214,6 +220,20 @@ The workspace also carries the fields used by Project List and project tabs:
   assign the next `V<number>` code, set `sourceVersion`, append it, set
   `activeVersion`, mirror the new snapshot into the top-level live cost fields,
   and save with the exact revision.
+- Each version stores its own `resourceTypes` rate/conversion snapshot. Updating
+  the project-level catalogue does not reprice old versions. To apply new rates,
+  copy the catalogue into the selected version's `resourceTypes` explicitly.
+  Use the selected version's snapshot when building a `CostSnapshotRequest`.
+- Top-level cost editors are authoritative for the active version on
+  `workspace save`; the repository recalculates internal annual costs and mirrors
+  those fields into the active snapshot before validating and writing. Other
+  versions keep their captured inputs. A standalone cost export rejects stale
+  labour values with `LABOUR_COST_MISMATCH` instead of silently correcting them.
+- Version codes, row IDs, resource IDs/codes and workflow codes must be unique
+  in their collection. Nonblank RE Type IDs must exist in the relevant version.
+  `activeVersion` must exist; `sourceVersion` must name another stored version.
+  `selectedStep` must agree with `currentWorkflowStepCode` when workflow nodes
+  exist. Relation errors return exit 6 / `BUSINESS_VALIDATION_FAILED`.
 - `costVersions[].state` is a user-controlled enum: `Draft`, `Suspended`, or
   `Confirmed`. Creating or selecting a version must never change the state of
   any other version. An Agent may change a state only when the user explicitly
@@ -399,7 +419,9 @@ There is deliberately no automatic v1 migration command in CLI 0.3.0.
 ## 11. Current limitations and trust boundary
 
 - Storage is local SQLite. Cost validate/calculate/export remain read-only with
-  respect to the database; only `workspace save` mutates workspace state.
+  respect to the database. Repository-backed commands may run idempotent
+  compatibility migrations on first open; these archive the pre-migration JSON.
+  Normal business writes use `workspace save`.
 - Workspace writes are revision-checked and hashed. Review follow-ups, cost
   versions, and quote history are durable, but there is no separate row-level
   event ledger or electronic signature.
@@ -412,6 +434,10 @@ There is deliberately no automatic v1 migration command in CLI 0.3.0.
   recommended customer price without an explicit pricing rule.
 - A successful calculation is a cost result, not authorization to send a quote
   or enter company systems.
+
+The latest explicit `followUps[].nextFollowUpAt` date participates in the
+daily digest. Closed reviews are excluded. Generating a digest computes a report;
+it does not itself install a scheduler or send a message.
 
 ## 12. Contract files and tests
 

@@ -42,6 +42,20 @@ the last loaded revision. SQLite accepts the save only when that revision is
 still current, then increments it. A second stale tab receives
 `REVISION_CONFLICT` and must reload; it cannot silently overwrite newer data.
 
+Writes from one browser session are queued. Switching a project first flushes
+the latest edits; offline, rejected or conflicted saves cancel the switch.
+Download a JSON backup before reloading a conflicted editor. Closing/reloading
+with unsaved changes triggers the browser's unsaved-work warning. If initial
+loading fails, Save retries loading; editing becomes available after hydration.
+
+Database schema 2 adds `workspace_migration_archive`. Compatibility migrations
+run in one transaction, retain the exact original JSON with project ID/revision,
+and increment the live revision once. Legacy versions lacking resource-rate
+snapshots capture the available catalogue and correct stale labour amounts.
+The Cost page labels affected versions for review. Historical rate values that
+were never stored cannot be reconstructed. The archive is local recovery data,
+not a per-edit audit ledger; preserve it with the database backup.
+
 Agent writes use the same rule:
 
 ```bash
@@ -56,6 +70,11 @@ npm run --silent cost-cli -- workspace save \
 Use `--expected-revision none` only for a project known not to exist.
 
 ## Backup and recovery
+
+`npm run --silent backup:local` creates an integrity-checked SQLite backup in
+`data/backups/` using SQLite's backup API, including committed WAL contents.
+It prints one JSON result with the backup path and does not stop a running app.
+This script never runs compatibility migrations.
 
 In the UI, select the three-dot action beside the workspace identity to
 download the active project as a restore-ready `WorkspaceSaveRequest` JSON

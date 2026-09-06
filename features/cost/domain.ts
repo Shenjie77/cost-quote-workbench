@@ -39,9 +39,21 @@ export type YearAllocation = {
   bucket: YearBucket;
   sites: number;
   cost: number;
+  mandays?: number;
 };
 
 export type CostInputRow = {
+  inputMode?: 'sites' | 'mandays';
+  source?: {
+    importedValues?: string;
+    fileName: string;
+    sha256: string;
+    sheet: string;
+    row: number;
+    mappingKey: string;
+    role: 'TD' | 'PM';
+    importedAt: string;
+  };
   id: string;
   scope: string;
   bu: string;
@@ -96,10 +108,9 @@ export type ManualCostInputs = {
 };
 
 /**
- * A cost version is a complete editable input snapshot. Master data such as
- * RE Types remains shared by the project, while every value that can change a
- * project cost is copied into the version. This prevents V2 edits from
- * silently changing V1.
+ * The project owns an editable master catalogue. Each cost version captures
+ * its own resource definitions, MD rates and conversion factors; refreshing a
+ * catalogue does not change a version until Apply Master Rates is selected.
  */
 /**
  * User-controlled lifecycle for a cost snapshot. Creating another version
@@ -118,6 +129,10 @@ export type CostVersionSnapshot = {
   travelRows: import('@/features/cost/additional-travel-domain').TravelCostRow[];
   travelUplift: number;
   manualCosts: ManualCostInputs;
+  /** Cost-affecting rate/conversion snapshot. Optional only for legacy imports. */
+  resourceTypes?: ResourceType[];
+  /** One-time correction warning for legacy versions without captured rates. */
+  calculationNote?: string;
 };
 
 export type CostStatementValues = {
@@ -161,13 +176,17 @@ export type CostDimensionSummary = {
 /** Returns mandays for one annual bucket using the TD allocation rule. */
 export const yearRowMandays = (row: CostInputRow, yearIndex: number) =>
   roundQuantity(
-    Number(row.mdPerSite || 0) * Number(row.years[yearIndex]?.sites || 0),
+    row.inputMode === 'mandays'
+      ? Number(row.years[yearIndex]?.mandays || 0)
+      : Number(row.mdPerSite || 0) * Number(row.years[yearIndex]?.sites || 0),
   );
 
 /** Sums all Y1–Y5 site allocations for one cost row. */
 export const totalRowSites = (row: CostInputRow) =>
   roundQuantity(
-    row.years.reduce((sum, year) => sum + Number(year.sites || 0), 0),
+    row.inputMode === 'mandays'
+      ? 0
+      : row.years.reduce((sum, year) => sum + Number(year.sites || 0), 0),
   );
 
 /** Sums calculated Sites × MD/Site across Y1–Y5 for one cost row. */
@@ -255,6 +274,24 @@ export const calculatedYearCost = (
     yearRowMandays(row, yearIndex) * resourceType.mandayRate * factor,
   );
 };
+
+/**
+ * Rebuilds derived labour amounts whenever sites, rates or delivery assumptions
+ * change. Packaged subcontract amounts remain user inputs. All consumers use
+ * this function rather than relying on a grid's manual Recalculate action.
+ */
+export const recalculateCostRows = (
+  rows: CostInputRow[],
+  resourceTypes: ResourceType[],
+  rateSettings: RateSettings,
+): CostInputRow[] =>
+  rows.map((row) => ({
+    ...row,
+    years: row.years.map((year, index) => ({
+      ...year,
+      cost: calculatedYearCost(row, index, resourceTypes, rateSettings),
+    })),
+  }));
 
 /**
  * Calculates travel only for internal HQ resources. Monthly allowance uses
