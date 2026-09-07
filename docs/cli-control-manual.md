@@ -8,8 +8,8 @@ It validates supplied snapshots, calculates cost, creates an internal Excel
 workbook, and safely reads/writes the local SQLite workspace. It does not
 connect to the company quotation platform.
 
-Reusable assumptions and customer T&C use the same revision-checked workspace
-commands. See [Quote catalog control contract](quote-catalog.md) for fields,
+Reusable assumptions and customer T&C use revision-checked masterdata/quote
+resource commands. See [Quote catalog control contract](quote-catalog.md) for fields,
 customer matching, copying, deletion constraints and historical snapshot rules.
 
 ## 1. Runtime and entry point
@@ -41,6 +41,17 @@ workbook, year-bucket, and rounding versions. Schema descriptors contain the
 absolute file path and SHA-256 so an Agent can detect a changed contract.
 
 ## 3. Commands
+
+For normal edits, use the [narrow resource contract](../skills/cost-workbench/references/resources.md)
+(`project`, `cost`, `masterdata`, `cpq`, `quote`, `ssr`, `boq` get/update).
+Reads are filtered/paginated; updates merge named rows or fields with revision
+checks. Project delete/restore is recoverable. RE/cost updates are blocked after
+DRB completion or cost finalization. Existing mutators support `--compact`;
+legacy workspace get/save remains for backups and deliberate bulk work.
+
+Cost validate/calculate/export additionally accept `--project-id ID [--version V1] [--db FILE]`
+instead of `--input`. The following table retains the original file-input forms.
+
 
 | Command                | Required options                 | Optional options                               | Result kind                   | Writes files             |
 | ---------------------- | -------------------------------- | ---------------------------------------------- | ----------------------------- | ------------------------ |
@@ -237,7 +248,10 @@ The workspace also carries the fields used by Project List and project tabs:
 - `costVersions[].state` is a user-controlled enum: `Draft`, `Suspended`, or
   `Confirmed`. Creating or selecting a version must never change the state of
   any other version. An Agent may change a state only when the user explicitly
-  requests that lifecycle update.
+  requests that lifecycle update. `Confirmed` finalizes the project cost and RE rates.
+  DRB completion also locks cost inputs; a locked Draft/Suspended version may
+  still be marked Confirmed without changing its cost inputs. Other cost changes
+  and downgrades are rejected by the repository.
 - `processSteps[]` contains the project's workflow nodes. Keep `code` stable for
   machine operations; the user-editable fields are `name`, `nameZh`, `owner`,
   `state`, and `required`. Workflow state is one of `completed`, `in_progress`,
@@ -414,14 +428,14 @@ implicitly.
 8. Populate each RE Type's MD rate, MD/month, hours/MD, and effective dates.
 9. Validate, calculate, and compare reconciled totals before export.
 
-There is deliberately no automatic v1 migration command in CLI 0.3.0.
+There is deliberately no automatic v1 CLI-request migration command.
 
 ## 11. Current limitations and trust boundary
 
 - Storage is local SQLite. Cost validate/calculate/export remain read-only with
   respect to the database. Repository-backed commands may run idempotent
   compatibility migrations on first open; these archive the pre-migration JSON.
-  Normal business writes use `workspace save`.
+  Normal business writes use the narrow module `update` commands; `workspace save` remains available for deliberate bulk work.
 - Workspace writes are revision-checked and hashed. Review follow-ups, cost
   versions, and quote history are durable, but there is no separate row-level
   event ledger or electronic signature.

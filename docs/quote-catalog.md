@@ -107,15 +107,17 @@ live catalog references; old/manual records may omit them.
 
 ## Agent read-modify-save procedure
 
-1. Run `schema show --name workspace-state --schema-version 1.0.0`, then
-   `workspace get --project-id <id>`. Keep the returned revision and full workspace.
-2. Change only intended fields. Delete a library row and its template default
-   links atomically; preserve existing quote/history copies.
-3. Wrap the complete workspace in `data` of a `WorkspaceSaveRequest`, with
-   `apiVersion: "cost-workbench/v2"` and a unique `requestId`.
-4. Run `workspace save --input /absolute/path/request.json --expected-revision <revision>`.
-5. On conflict (exit 5), read again and reconcile; never force-overwrite browser
-   edits. Schema failures use exit 3; cross-record business failures exit 6.
+Prefer [narrow resource updates](../skills/cost-workbench/references/resources.md):
+read `masterdata get --project-id ID --tab assumptions|quote-templates` and
+`quote get --project-id ID --section settings|assumptions`, then send only changed
+rows with the corresponding `update` command and exact revision. Read only the
+next relevant section after a conflict. Before removing a referenced library
+record, update template defaults first, then remove the record using the new
+revision; quote/history copies remain independent.
+
+For an intentional atomic edit spanning multiple sections, the legacy
+`workspace get/save` request remains available. Preserve unrelated fields,
+archives and inactive versions, and never use it to bypass a project cost lock.
 
 Use existing CLI commands; no generated Skill or model invocation is needed.
 Customer quotation XLSX is currently generated in the browser; `cost export`

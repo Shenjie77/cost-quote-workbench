@@ -12,6 +12,12 @@
  * - every response is validated against the public response schema before emit.
  */
 
+import {
+  readResource,
+  updateResource,
+  applyMasterRates,
+  mutationReceipt,
+} from '../server/workspace-resources.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { access, mkdir, readFile, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -84,15 +90,34 @@ const ROUNDING_CONTRACT = Object.freeze({
 });
 
 const IMPLEMENTED_COMMANDS = Object.freeze([
-  'boq import --project-id ID --file FILE --input REQUEST [--apply --expected-revision REVISION] [--db FILE]',
-  'maintenance archive --project-id ID --expected-revision REVISION [--db FILE]',
+  'project get --project-id ID [--id ID --query TEXT --limit N --offset N] [--db FILE]',
+  'project update --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
+  'cost get --project-id ID [--section SECTION] [--version V1] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
+  'cost update --project-id ID [--section SECTION] [--version V1] --input REQUEST --expected-revision REVISION [--db FILE]',
+  'masterdata get --project-id ID --tab TAB [--id ID --query TEXT --limit N --offset N] [--db FILE]',
+  'masterdata update --project-id ID --tab TAB --input REQUEST --expected-revision REVISION [--db FILE]',
+  'cpq get --project-id ID [--section SECTION] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
+  'cpq update --project-id ID [--section SECTION] --input REQUEST --expected-revision REVISION [--db FILE]',
+  'quote get --project-id ID [--section SECTION] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
+  'quote update --project-id ID [--section SECTION] --input REQUEST --expected-revision REVISION [--db FILE]',
+  'ssr get --project-id ID [--section SECTION] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
+  'ssr update --project-id ID [--section SECTION] --input REQUEST --expected-revision REVISION [--db FILE]',
+  'boq get --project-id ID [--section SECTION] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
+  'boq update --project-id ID [--section SECTION] --input REQUEST --expected-revision REVISION [--db FILE]',
+  'project delete --project-id ID --expected-revision REVISION [--db FILE]',
+  'project restore --project-id ID --expected-revision REVISION [--db FILE]',
+  'cost apply-rates --project-id ID --expected-revision REVISION --version V1 [--db FILE]',
+  'project list [--deleted] [--db FILE]',
+
+  'boq import --project-id ID --file FILE --input REQUEST [--apply --expected-revision REVISION] [--compact] [--db FILE]',
+  'maintenance archive --project-id ID --expected-revision REVISION [--compact] [--db FILE]',
   'maintenance export --project-id ID --archive-id ID --output FILE.xlsx [--db FILE]',
   'workbook inspect --file FILE.xlsx [--header-row N]',
-  'cost import --project-id ID --file FILE.xlsx --input REQUEST [--apply --expected-revision REVISION] [--db FILE]',
-  'ssr submit --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
-  'ssr result --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
-  'ssr close --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
-  'ssr followup --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
+  'cost import --project-id ID --file FILE.xlsx --input REQUEST [--apply --expected-revision REVISION] [--compact] [--db FILE]',
+  'ssr submit --project-id ID --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
+  'ssr result --project-id ID --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
+  'ssr close --project-id ID --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
+  'ssr followup --project-id ID --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
   'workbook fill-template --project-id ID --file TEMPLATE.xlsx --input MAPPING --output FILE.xlsx [--db FILE]',
   'reminders scan [--as-of YYYY-MM-DD] [--db FILE]',
   'reminders list [--db FILE]',
@@ -104,18 +129,18 @@ const IMPLEMENTED_COMMANDS = Object.freeze([
   'system doctor',
   'schema list',
   'schema show --name NAME [--schema-version VERSION]',
-  'cost validate --input FILE|-',
-  'cost calculate --input FILE|-',
-  'cost export --input FILE|- --output FILE.xlsx [--overwrite]',
+  'cost validate (--input FILE|- | --project-id ID [--version V1]) [--db FILE]',
+  'cost calculate (--input FILE|- | --project-id ID [--version V1]) [--db FILE]',
+  'cost export (--input FILE|- | --project-id ID [--version V1]) --output FILE.xlsx [--db FILE] [--overwrite]',
   'maintenance validate --input FILE|-',
   'digest generate [--as-of YYYY-MM-DD] [--db FILE]',
   'workspace list [--db FILE]',
   'workspace get --project-id ID [--db FILE]',
   'workspace save --input FILE|- --expected-revision REVISION|none [--db FILE]',
   'cpq match --project-id ID --scope TEXT [--db FILE]',
-  'cpq confirm --project-id ID --confirmed-by NAME --expected-revision REVISION [--db FILE]',
-  'cpq solve --project-id ID --expected-revision REVISION [--db FILE]',
-  'cpq archive --project-id ID --expected-revision REVISION [--db FILE]',
+  'cpq confirm --project-id ID --confirmed-by NAME --expected-revision REVISION [--compact] [--db FILE]',
+  'cpq solve --project-id ID --expected-revision REVISION [--compact] [--db FILE]',
+  'cpq archive --project-id ID --expected-revision REVISION [--compact] [--db FILE]',
   'cpq export --project-id ID --archive-id ID --output FILE.xlsx [--db FILE]',
   'quote export --project-id ID --output FILE.xlsx [--db FILE]',
 ]);
@@ -137,9 +162,206 @@ const readWorkbookFile = async (file) => {
  * boolean options never do. Keeping this explicit prevents silent typos.
  */
 const COMMAND_SPECS = Object.freeze({
-  'maintenance.archive': {
+  'project.get': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'id',
+      'query',
+      'offset',
+      'limit',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id'],
+  },
+  'project.update': {
+    values: ['project-id', 'db', 'request-id', 'input', 'expected-revision'],
+    booleans: ['pretty'],
+    required: ['project-id', 'input', 'expected-revision'],
+  },
+  'cost.get': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'section',
+      'version',
+      'id',
+      'query',
+      'offset',
+      'limit',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id'],
+  },
+  'cost.update': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'section',
+      'version',
+      'input',
+      'expected-revision',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id', 'input', 'expected-revision'],
+  },
+  'masterdata.get': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'tab',
+      'id',
+      'query',
+      'offset',
+      'limit',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id', 'tab'],
+  },
+  'masterdata.update': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'tab',
+      'input',
+      'expected-revision',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id', 'tab', 'input', 'expected-revision'],
+  },
+  'cpq.get': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'section',
+      'id',
+      'query',
+      'offset',
+      'limit',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id'],
+  },
+  'cpq.update': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'section',
+      'input',
+      'expected-revision',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id', 'input', 'expected-revision'],
+  },
+  'quote.get': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'section',
+      'id',
+      'query',
+      'offset',
+      'limit',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id'],
+  },
+  'quote.update': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'section',
+      'input',
+      'expected-revision',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id', 'input', 'expected-revision'],
+  },
+  'ssr.get': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'section',
+      'id',
+      'query',
+      'offset',
+      'limit',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id'],
+  },
+  'ssr.update': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'section',
+      'input',
+      'expected-revision',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id', 'input', 'expected-revision'],
+  },
+  'boq.get': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'section',
+      'id',
+      'query',
+      'offset',
+      'limit',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id'],
+  },
+  'boq.update': {
+    values: [
+      'project-id',
+      'db',
+      'request-id',
+      'section',
+      'input',
+      'expected-revision',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id', 'input', 'expected-revision'],
+  },
+  'project.delete': {
     values: ['project-id', 'expected-revision', 'db', 'request-id'],
     booleans: ['pretty'],
+    required: ['project-id', 'expected-revision'],
+  },
+  'project.restore': {
+    values: ['project-id', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'expected-revision'],
+  },
+  'cost.apply-rates': {
+    values: ['project-id', 'expected-revision', 'version', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'expected-revision', 'version'],
+  },
+  'project.list': {
+    values: ['db', 'request-id'],
+    booleans: ['pretty', 'deleted'],
+    required: [],
+  },
+
+  'maintenance.archive': {
+    values: ['project-id', 'expected-revision', 'db', 'request-id'],
+    booleans: ['compact', 'pretty'],
     required: ['project-id', 'expected-revision'],
   },
   'maintenance.export': {
@@ -156,7 +378,7 @@ const COMMAND_SPECS = Object.freeze({
       'db',
       'request-id',
     ],
-    booleans: ['pretty', 'apply'],
+    booleans: ['compact', 'pretty', 'apply'],
     required: ['project-id', 'input', 'file'],
   },
   'workbook.inspect': {
@@ -173,7 +395,7 @@ const COMMAND_SPECS = Object.freeze({
       'db',
       'request-id',
     ],
-    booleans: ['apply', 'pretty'],
+    booleans: ['compact', 'apply', 'pretty'],
     required: ['project-id', 'file', 'input'],
   },
   'workbook.fill-template': {
@@ -203,22 +425,22 @@ const COMMAND_SPECS = Object.freeze({
   },
   'ssr.submit': {
     values: ['project-id', 'input', 'expected-revision', 'db', 'request-id'],
-    booleans: ['pretty'],
+    booleans: ['compact', 'pretty'],
     required: ['project-id', 'input', 'expected-revision'],
   },
   'ssr.result': {
     values: ['project-id', 'input', 'expected-revision', 'db', 'request-id'],
-    booleans: ['pretty'],
+    booleans: ['compact', 'pretty'],
     required: ['project-id', 'input', 'expected-revision'],
   },
   'ssr.close': {
     values: ['project-id', 'input', 'expected-revision', 'db', 'request-id'],
-    booleans: ['pretty'],
+    booleans: ['compact', 'pretty'],
     required: ['project-id', 'input', 'expected-revision'],
   },
   'ssr.followup': {
     values: ['project-id', 'input', 'expected-revision', 'db', 'request-id'],
-    booleans: ['pretty'],
+    booleans: ['compact', 'pretty'],
     required: ['project-id', 'input', 'expected-revision'],
   },
   'cpq.match': {
@@ -234,17 +456,17 @@ const COMMAND_SPECS = Object.freeze({
       'db',
       'request-id',
     ],
-    booleans: ['pretty'],
+    booleans: ['compact', 'pretty'],
     required: ['project-id', 'confirmed-by', 'expected-revision'],
   },
   'cpq.solve': {
     values: ['project-id', 'expected-revision', 'db', 'request-id'],
-    booleans: ['pretty'],
+    booleans: ['compact', 'pretty'],
     required: ['project-id', 'expected-revision'],
   },
   'cpq.archive': {
     values: ['project-id', 'expected-revision', 'db', 'request-id'],
-    booleans: ['pretty'],
+    booleans: ['compact', 'pretty'],
     required: ['project-id', 'expected-revision'],
   },
   'cpq.export': {
@@ -280,19 +502,19 @@ const COMMAND_SPECS = Object.freeze({
     required: ['name'],
   },
   'cost.validate': {
-    values: ['input', 'request-id'],
+    values: ['project-id', 'version', 'db', 'input', 'request-id'],
     booleans: ['pretty'],
-    required: ['input'],
+    required: [],
   },
   'cost.calculate': {
-    values: ['input', 'request-id'],
+    values: ['project-id', 'version', 'db', 'input', 'request-id'],
     booleans: ['pretty'],
-    required: ['input'],
+    required: [],
   },
   'cost.export': {
-    values: ['input', 'output', 'request-id'],
+    values: ['project-id', 'version', 'db', 'input', 'output', 'request-id'],
     booleans: ['overwrite', 'pretty'],
-    required: ['input', 'output'],
+    required: ['output'],
   },
   'maintenance.validate': {
     values: ['input', 'request-id'],
@@ -341,6 +563,8 @@ class CliFault extends Error {
 
 const argv = process.argv.slice(2);
 let responseCommand = 'help';
+let compactRequested = false;
+let compactSubjectId;
 let responseRequestId = `req_${randomUUID()}`;
 let responseDataSchemaVersion = null;
 const prettyRequested = argv.includes('--pretty');
@@ -725,20 +949,26 @@ const readCommandRequest = async (
 };
 
 /** Produces the exact public success envelope. */
-const success = (kind, data, warnings = [], dataSchemaVersion = null) => ({
-  apiVersion: API_VERSION,
-  kind,
-  requestId: responseRequestId,
-  command: responseCommand,
-  ok: true,
-  data,
-  meta: {
-    envelopeVersion: CLI_ENVELOPE_VERSION,
-    dataSchemaVersion,
-    generatedAt: new Date().toISOString(),
-    warnings,
-  },
-});
+const success = (kind, data, warnings = [], dataSchemaVersion = null) => {
+  if (compactRequested && kind === 'WorkspaceRecordResult') {
+    kind = 'MutationResult';
+    data = mutationReceipt(data, responseCommand, compactSubjectId);
+  }
+  return {
+    apiVersion: API_VERSION,
+    kind,
+    requestId: responseRequestId,
+    command: responseCommand,
+    ok: true,
+    data,
+    meta: {
+      envelopeVersion: CLI_ENVELOPE_VERSION,
+      dataSchemaVersion,
+      generatedAt: new Date().toISOString(),
+      warnings,
+    },
+  };
+};
 
 /** Produces the exact public error envelope and assigns the process exit code. */
 const failure = (fault) => {
@@ -768,12 +998,59 @@ const failure = (fault) => {
 
 /** Shared cost validation pipeline used by validate/calculate/export. */
 const readValidCostSnapshot = async (options) => {
-  const snapshot = await readCommandRequest(
-    options,
-    'CostSnapshotRequest',
-    'cost-export',
-    COST_EXPORT_SCHEMA_VERSION,
-  );
+  if (
+    Boolean(options.input) === Boolean(options['project-id']) ||
+    (options.version && !options['project-id'])
+  )
+    throw new CliFault(
+      'INVALID_INPUT_SOURCE',
+      'Use either --input REQUEST or --project-id ID [--version V1].',
+      EXIT.USAGE,
+    );
+  const snapshot = options.input
+    ? await readCommandRequest(
+        options,
+        'CostSnapshotRequest',
+        'cost-export',
+        COST_EXPORT_SCHEMA_VERSION,
+      )
+    : await withWorkspaceRepository(options, (repository) => {
+        const record = repository.get(String(options['project-id']));
+        if (!record)
+          throw new CliFault(
+            'WORKSPACE_NOT_FOUND',
+            'Project not found.',
+            EXIT.NOT_FOUND,
+          );
+        const w = record.workspace,
+          version = options.version || w.activeVersion;
+        const v = w.costVersions.find((v) => v.code === version);
+        if (!v)
+          throw new CliFault(
+            'VERSION_NOT_FOUND',
+            'Cost version not found.',
+            EXIT.NOT_FOUND,
+          );
+        return {
+          schemaVersion: COST_EXPORT_SCHEMA_VERSION,
+          exportedAt: new Date().toISOString(),
+          project: w.project,
+          costVersion: { code: v.code, status: v.state },
+          rateSettings: v.rateSettings,
+          travelSettings: v.travelSettings,
+          resourceTypes: v.resourceTypes,
+          costRows: v.costRows,
+          manualCosts: v.manualCosts,
+        };
+      });
+  const validated = await validateWithSchema('cost-export', snapshot);
+  if (!validated.valid)
+    throw new CliFault(
+      'SCHEMA_VALIDATION_FAILED',
+      'Invalid cost export snapshot.',
+      EXIT.VALIDATION,
+      { violations: validated.violations },
+    );
   const issues = validateCostExportSnapshot(snapshot);
   const errors = issues.filter((issue) => issue.severity === 'error');
   if (errors.length > 0) {
@@ -841,6 +1118,7 @@ const parseExpectedRevision = (value) => {
 const withWorkspaceRepository = async (options, action) => {
   const {
     RepositoryConflictError,
+    RepositoryNotFoundError,
     WorkspaceValidationError,
     openWorkspaceRepository,
   } = await import('../server/workspace-repository.mjs');
@@ -848,6 +1126,12 @@ const withWorkspaceRepository = async (options, action) => {
   try {
     return await action(repository);
   } catch (error) {
+    if (error instanceof RepositoryNotFoundError)
+      throw new CliFault(
+        error.deleted ? 'PROJECT_DELETED' : 'NOT_FOUND',
+        error.message,
+        EXIT.NOT_FOUND,
+      );
     if (error instanceof WorkspaceValidationError) {
       throw new CliFault(
         'BUSINESS_VALIDATION_FAILED',
@@ -882,6 +1166,101 @@ const execute = async () => {
   const resolved = resolveCommand(argv);
   responseCommand = resolved.command;
   const options = parseOptions(resolved.command, resolved.optionTokens);
+  compactRequested = Boolean(options.compact);
+
+  if (resolved.command === 'project.list')
+    return withWorkspaceRepository(options, (repository) =>
+      success(
+        'ProjectListResult',
+        { items: repository.headers(Boolean(options.deleted)) },
+        [],
+        '1.0.0',
+      ),
+    );
+  if (['project.delete', 'project.restore'].includes(resolved.command))
+    return withWorkspaceRepository(options, (repository) =>
+      success(
+        'MutationResult',
+        repository.setDeleted(
+          String(options['project-id']),
+          parseExpectedRevision(options['expected-revision']),
+          resolved.command === 'project.delete',
+        ),
+        [],
+        '1.0.0',
+      ),
+    );
+  if (resolved.command === 'cost.apply-rates')
+    return withWorkspaceRepository(options, (repository) =>
+      success(
+        'MutationResult',
+        applyMasterRates(
+          repository,
+          String(options['project-id']),
+          String(options.version),
+          parseExpectedRevision(options['expected-revision']),
+        ),
+        [],
+        '1.0.0',
+      ),
+    );
+  if (
+    [
+      'project.get',
+      'project.update',
+      'cost.get',
+      'cost.update',
+      'masterdata.get',
+      'masterdata.update',
+      'cpq.get',
+      'cpq.update',
+      'quote.get',
+      'quote.update',
+      'ssr.get',
+      'ssr.update',
+      'boq.get',
+      'boq.update',
+    ].includes(resolved.command)
+  ) {
+    const [module, action] = resolved.command.split('.');
+    const input =
+      action === 'update'
+        ? await readCommandRequest(
+            options,
+            'OperationRequest',
+            'operations',
+            '1.0.0',
+          )
+        : null;
+    if (input && input.operation !== resolved.command)
+      throw new CliFault(
+        'OPERATION_MISMATCH',
+        'Request operation must match command.',
+        EXIT.VALIDATION,
+      );
+    return withWorkspaceRepository(options, (repository) =>
+      success(
+        action === 'get' ? 'ResourceResult' : 'MutationResult',
+        action === 'get'
+          ? readResource(
+              repository,
+              String(options['project-id']),
+              module,
+              options,
+            )
+          : updateResource(
+              repository,
+              String(options['project-id']),
+              module,
+              options,
+              input.changes,
+              parseExpectedRevision(options['expected-revision']),
+            ),
+        [],
+        '1.0.0',
+      ),
+    );
+  }
 
   if (resolved.command === 'version') {
     return success('VersionResult', {
@@ -1225,6 +1604,7 @@ const execute = async () => {
         'Request operation must match command',
         EXIT.VALIDATION,
       );
+    compactSubjectId = input.submissionId;
     return withWorkspaceRepository(options, async (repository) => {
       const record = repository.get(String(options['project-id']));
       if (!record)
@@ -1448,13 +1828,16 @@ const execute = async () => {
         await import('../features/cpq/domain.ts');
       const cpq = workspace.cpq || emptyCpq();
       const baseline = workspace.costVersions.find(
-        (version) => version.code === workspace.activeVersion,
+        (version) =>
+          version.code === (cpq.draft.costVersion || workspace.activeVersion),
       );
       try {
         if (resolved.command === 'cpq.match')
           return success(
             'CpqMatchResult',
             {
+              projectId: record.projectId,
+              revision: record.revision,
               brief: String(options.scope),
               candidates: matchCatalog(cpq.catalog, String(options.scope)).map(
                 ({ item, score, reason }) => ({
@@ -1464,6 +1847,10 @@ const execute = async () => {
                   unitCost: item.unitCost,
                   kind: item.kind,
                   adjustable: item.adjustable,
+                  step: item.step,
+                  minQty: item.minQty,
+                  maxQty: item.maxQty,
+                  referenceQty: item.referenceQty,
                   score,
                   reason,
                 }),

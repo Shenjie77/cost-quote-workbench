@@ -1,5 +1,7 @@
 /** Dense project portfolio table with direct status and module navigation. */
 
+import { Pencil, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -30,6 +32,8 @@ export function ProjectTable({
   onQuote,
   onStatusChange,
   onWorkflowChange,
+  onDeleteProject,
+  onEditProject,
 }: {
   projects: Project[];
   onProject: (project: Project) => void;
@@ -37,7 +41,10 @@ export function ProjectTable({
   onQuote: (project: Project) => void;
   onStatusChange: (project: Project, status: ProjectStatus) => void;
   onWorkflowChange: (project: Project, workflowCode: string) => void;
+  onDeleteProject?: (project: Project) => void;
+  onEditProject?: (project: Project) => void;
 }) {
+  const hasActions = Boolean(onEditProject || onDeleteProject);
   return (
     <Table className="min-w-[1580px]">
       <TableHeader>
@@ -69,6 +76,11 @@ export function ProjectTable({
           <TableHead className="pr-3 text-right">
             <BiText en="Sales GM" zh="项目销毛" className="items-end" />
           </TableHead>
+          {hasActions && (
+            <TableHead className="w-[140px] pr-3 text-right">
+              <BiText en="Action" zh="操作" className="items-end" />
+            </TableHead>
+          )}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -202,6 +214,36 @@ export function ProjectTable({
               <TableCell className="financial-numeral py-1.5 pr-3 text-right text-[11px] font-semibold">
                 {Number(project.grossMarginPercent || 0).toFixed(2)}%
               </TableCell>
+              {hasActions && (
+                <TableCell className="py-1.5 pr-3">
+                  <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                    {onEditProject && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-xs"
+                        onClick={() => onEditProject(project)}
+                        aria-label={`编辑项目 ${project.name}`}
+                      >
+                        <Pencil className="size-3" />
+                        Edit
+                      </Button>
+                    )}
+                    {onDeleteProject && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-xs text-destructive"
+                        onClick={() => onDeleteProject(project)}
+                        aria-label={`删除项目 ${project.name}`}
+                      >
+                        <Trash2 className="size-3" />
+                        Del
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              )}
             </TableRow>
           );
         })}

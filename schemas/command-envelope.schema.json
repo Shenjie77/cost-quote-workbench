@@ -36,7 +36,10 @@
         "ErrorResult",
         "CpqMatchResult",
         "WorkbookExportResult",
-        "OperationResult"
+        "OperationResult",
+        "ResourceResult",
+        "MutationResult",
+        "ProjectListResult"
       ]
     },
     "requestId": {
@@ -117,7 +120,25 @@
               "history.search",
               "boq.import",
               "maintenance.archive",
-              "maintenance.export"
+              "maintenance.export",
+              "project.get",
+              "project.update",
+              "cost.get",
+              "cost.update",
+              "masterdata.get",
+              "masterdata.update",
+              "cpq.get",
+              "cpq.update",
+              "quote.get",
+              "quote.update",
+              "ssr.get",
+              "ssr.update",
+              "boq.get",
+              "boq.update",
+              "project.list",
+              "project.delete",
+              "project.restore",
+              "cost.apply-rates"
             ]
           }
         }
@@ -487,6 +508,291 @@
           },
           "data": {
             "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "ResourceResult"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "enum": [
+              "project.get",
+              "cost.get",
+              "masterdata.get",
+              "cpq.get",
+              "quote.get",
+              "ssr.get",
+              "boq.get"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "projectId",
+              "revision",
+              "updatedAt",
+              "resource",
+              "section"
+            ],
+            "properties": {
+              "projectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "updatedAt": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "resource": {
+                "enum": [
+                  "project",
+                  "cost",
+                  "masterdata",
+                  "cpq",
+                  "quote",
+                  "ssr",
+                  "boq"
+                ]
+              },
+              "section": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "value": {
+                "type": "object"
+              },
+              "items": {
+                "type": "array",
+                "maxItems": 200,
+                "items": {
+                  "type": "object"
+                }
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200
+              },
+              "nextOffset": {
+                "type": ["integer", "null"],
+                "minimum": 0
+              },
+              "costLockReason": {
+                "type": ["string", "null"]
+              }
+            },
+            "oneOf": [
+              {
+                "required": ["value"],
+                "not": {
+                  "required": ["items"],
+                  "properties": {
+                    "items": {}
+                  }
+                },
+                "properties": {
+                  "value": {}
+                }
+              },
+              {
+                "required": ["items", "total", "offset", "limit", "nextOffset"],
+                "not": {
+                  "required": ["value"],
+                  "properties": {
+                    "value": {}
+                  }
+                },
+                "properties": {
+                  "items": {},
+                  "total": {},
+                  "offset": {},
+                  "limit": {},
+                  "nextOffset": {}
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "MutationResult"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "enum": [
+              "project.update",
+              "cost.update",
+              "masterdata.update",
+              "cpq.update",
+              "quote.update",
+              "ssr.update",
+              "boq.update",
+              "cpq.confirm",
+              "cpq.solve",
+              "cpq.archive",
+              "cost.import",
+              "ssr.submit",
+              "ssr.result",
+              "ssr.close",
+              "ssr.followup",
+              "boq.import",
+              "maintenance.archive",
+              "project.delete",
+              "project.restore",
+              "cost.apply-rates"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["projectId", "revision", "updatedAt"],
+            "properties": {
+              "projectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "updatedAt": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "resource": {
+                "type": "string"
+              },
+              "section": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "archiveId": {
+                "type": "string"
+              },
+              "submissionId": {
+                "type": "string"
+              },
+              "deleted": {
+                "type": "boolean"
+              },
+              "result": {
+                "type": "object"
+              },
+              "confirmation": {
+                "type": "object"
+              },
+              "changedIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "removedIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "changedFields": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "costLockReason": {
+                "type": ["string", "null"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "ProjectListResult"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "enum": ["project.list"]
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "projectId",
+                    "revision",
+                    "updatedAt",
+                    "name",
+                    "client",
+                    "deletedAt"
+                  ],
+                  "properties": {
+                    "projectId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "updatedAt": {
+                      "$ref": "#/$defs/timestamp"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "client": {
+                      "type": "string"
+                    },
+                    "deletedAt": {
+                      "type": ["string", "null"]
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -1707,9 +2013,32 @@
               },
               "reason": {
                 "type": "string"
+              },
+              "step": {
+                "type": "number",
+                "minimum": 0
+              },
+              "minQty": {
+                "type": "number",
+                "minimum": 0
+              },
+              "maxQty": {
+                "type": "number",
+                "minimum": 0
+              },
+              "referenceQty": {
+                "type": "number",
+                "minimum": 0
               }
             }
           }
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     }

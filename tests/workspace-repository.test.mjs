@@ -42,6 +42,8 @@ test('legacy cost correction archives the exact original and runs only once', ()
     repository.close();
     const db = new DatabaseSync(dbPath);
     db.prepare('UPDATE workspace_snapshots SET payload_json = ?').run(original);
+    // Simulate a database from before the one-time schema-3 migration.
+    db.prepare('DELETE FROM schema_migrations WHERE version = 3').run();
     db.close();
     repository = openWorkspaceRepository(dbPath);
     const migrated = repository.get(old.project.id);
@@ -124,7 +126,7 @@ test('version rate snapshots preserve historical HQ travel after catalogue chang
     const first = repository.save('PRJ-TEST-001', makeWorkspace(), null);
     const document = structuredClone(first.workspace);
     const v1 = document.costVersions[0];
-    v1.state = 'Confirmed';
+    v1.state = 'Suspended';
     const before = getHQTravelSummary(
       v1.costRows,
       v1.resourceTypes,
@@ -147,7 +149,7 @@ test('version rate snapshots preserve historical HQ travel after catalogue chang
       first.revision,
     );
     const historical = saved.workspace.costVersions[0];
-    assert.equal(historical.state, 'Confirmed');
+    assert.equal(historical.state, 'Suspended');
     assert.equal(
       getHQTravelSummary(
         historical.costRows,

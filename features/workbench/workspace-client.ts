@@ -84,3 +84,37 @@ export async function saveLocalWorkspaceDocument(
   );
   return parseRecord(response);
 }
+
+/** Recoverable removal; the server retains complete snapshots and rejects stale saves. */
+export async function deleteLocalProject(
+  projectId: string,
+  expectedRevision: number,
+) {
+  const response = await fetch(
+    `${API_BASE}/workspaces/${encodeURIComponent(projectId)}`,
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiVersion: LOCAL_API_VERSION,
+        kind: 'ProjectDeleteRequest',
+        expectedRevision,
+      }),
+    },
+  );
+  const envelope = (await response.json()) as {
+    ok: boolean;
+    error?: { message?: string };
+    data?: { projectId: string; revision: number; deleted: boolean };
+  };
+  if (!response.ok || !envelope.ok)
+    throw new LocalApiError(
+      envelope.error?.message || 'Unable to delete project.',
+      response.status,
+    );
+  return envelope.data as {
+    projectId: string;
+    revision: number;
+    deleted: boolean;
+  };
+}

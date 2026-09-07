@@ -67,6 +67,7 @@ import {
 } from './navigation';
 
 type Props = {
+  resourceLockReason?: string | null;
   activeTab: MasterDataTab;
   onTabChange: (tab: MasterDataTab) => void;
   onOpenQuote: () => void;
@@ -177,6 +178,7 @@ function EditCell({
 
 export function MasterDataView(props: Props) {
   const {
+    resourceLockReason = null,
     activeTab,
     onTabChange,
     onOpenQuote,
@@ -1034,175 +1036,184 @@ export function MasterDataView(props: Props) {
             </p>
           </TabsContent>
           <TabsContent value="resources" className="mt-0">
-            <div className="flex items-center justify-between border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-              <span>HQ L1–L4 · Local L1–L4 · ARP L0–L4 · SGD/MD</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-[10px]"
-                  onClick={addResource}
-                >
-                  <Plus />
-                  Add row / 新增
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-7 text-[10px]"
-                  onClick={async () =>
-                    announce(
-                      (await onSave())
-                        ? 'RE Type catalogue saved. Apply Master Rates in Cost to use changes. / 主数据已保存，可在成本页应用汇率。'
-                        : 'Save failed; edits retained / 保存失败，修改已保留',
-                    )
-                  }
-                >
-                  <Save />
-                  Save rates
-                </Button>
+            {resourceLockReason && (
+              <output className="border-b bg-amber-50 p-3 text-sm text-amber-900">
+                {resourceLockReason}
+              </output>
+            )}
+            <fieldset disabled={!!resourceLockReason} className="min-w-0">
+              <div className="flex items-center justify-between border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                <span>HQ L1–L4 · Local L1–L4 · ARP L0–L4 · SGD/MD</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[10px]"
+                    onClick={addResource}
+                  >
+                    <Plus />
+                    Add row / 新增
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-[10px]"
+                    onClick={async () =>
+                      announce(
+                        (await onSave())
+                          ? 'RE Type catalogue saved. Apply Master Rates in Cost to use changes. / 主数据已保存，可在成本页应用汇率。'
+                          : 'Save failed; edits retained / 保存失败，修改已保留',
+                      )
+                    }
+                  >
+                    <Save />
+                    Save rates
+                  </Button>
+                </div>
               </div>
-            </div>
-            <div className="overflow-x-auto">
-              <Table className="min-w-[1320px] text-[11px]">
-                <TableHeader>
-                  <TableRow className="bg-[#f2f0ea]">
-                    {[
-                      'Code / 编码',
-                      'Name / 名称',
-                      'Pool',
-                      'Level',
-                      'MD Rate / 人天汇率',
-                      'MD / MM',
-                      'Hour / MD',
-                      'MM Rate / 人月',
-                      'Hour Rate / 人时',
-                      'Effective From',
-                      'Effective To',
-                      'Status',
-                      'Action / 操作',
-                    ].map((label) => (
-                      <TableHead
-                        key={label}
-                        className="h-9 whitespace-nowrap px-2 text-[10px]"
-                      >
-                        {label}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {resources.map((row) => {
-                    const rate = getResourceRateConversions(row);
-                    return (
-                      <TableRow key={row.id} className="h-9">
-                        <TableCell className="font-semibold">
-                          {row.code}
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            value={row.name}
-                            ariaLabel={`${row.code} name`}
-                            onChange={(v) => updateResource(row.id, 'name', v)}
-                          />
-                        </TableCell>
-                        <TableCell>{row.pool ?? '—'}</TableCell>
-                        <TableCell>{row.level ?? '—'}</TableCell>
-                        <TableCell>
-                          <EditCell
-                            type="number"
-                            value={row.mandayRate}
-                            ariaLabel={`${row.code} manday rate`}
-                            onChange={(v) =>
-                              updateResource(
-                                row.id,
-                                'mandayRate',
-                                Math.max(0, Number(v) || 0),
-                              )
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            type="number"
-                            value={row.mandaysPerMonth}
-                            ariaLabel={`${row.code} MD per month`}
-                            onChange={(v) =>
-                              updateResource(
-                                row.id,
-                                'mandaysPerMonth',
-                                Math.max(0.01, Number(v) || 0.01),
-                              )
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            type="number"
-                            value={row.hoursPerManday}
-                            ariaLabel={`${row.code} hours per MD`}
-                            onChange={(v) =>
-                              updateResource(
-                                row.id,
-                                'hoursPerManday',
-                                Math.max(0.01, Number(v) || 0.01),
-                              )
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="financial-numeral">
-                          {formatSgd(rate.perMonth)}
-                        </TableCell>
-                        <TableCell className="financial-numeral">
-                          {formatSgd(rate.perHour)}
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            type="date"
-                            value={row.effectiveFrom}
-                            ariaLabel={`${row.code} effective from`}
-                            onChange={(v) =>
-                              updateResource(row.id, 'effectiveFrom', v)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            type="date"
-                            value={row.effectiveTo}
-                            ariaLabel={`${row.code} effective to`}
-                            onChange={(v) =>
-                              updateResource(row.id, 'effectiveTo', v)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateResource(row.id, 'active', !row.active)
-                            }
-                          >
-                            <StatusBadge tone={row.active ? 'green' : 'gray'}>
-                              {row.active ? 'Active' : 'Inactive'}
-                            </StatusBadge>
-                          </button>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <DeleteRowButton
-                            label={`${row.code} · ${row.name}`}
-                            onDelete={() => deleteResource(row)}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-            <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-              MM rate = MD rate × MD/MM. Hour rate = MD rate ÷ Hour/MD. HQ rows
-              automatically enable travel. / 人月、人时汇率自动换算。
-            </p>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[1320px] text-[11px]">
+                  <TableHeader>
+                    <TableRow className="bg-[#f2f0ea]">
+                      {[
+                        'Code / 编码',
+                        'Name / 名称',
+                        'Pool',
+                        'Level',
+                        'MD Rate / 人天汇率',
+                        'MD / MM',
+                        'Hour / MD',
+                        'MM Rate / 人月',
+                        'Hour Rate / 人时',
+                        'Effective From',
+                        'Effective To',
+                        'Status',
+                        'Action / 操作',
+                      ].map((label) => (
+                        <TableHead
+                          key={label}
+                          className="h-9 whitespace-nowrap px-2 text-[10px]"
+                        >
+                          {label}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {resources.map((row) => {
+                      const rate = getResourceRateConversions(row);
+                      return (
+                        <TableRow key={row.id} className="h-9">
+                          <TableCell className="font-semibold">
+                            {row.code}
+                          </TableCell>
+                          <TableCell>
+                            <EditCell
+                              value={row.name}
+                              ariaLabel={`${row.code} name`}
+                              onChange={(v) =>
+                                updateResource(row.id, 'name', v)
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>{row.pool ?? '—'}</TableCell>
+                          <TableCell>{row.level ?? '—'}</TableCell>
+                          <TableCell>
+                            <EditCell
+                              type="number"
+                              value={row.mandayRate}
+                              ariaLabel={`${row.code} manday rate`}
+                              onChange={(v) =>
+                                updateResource(
+                                  row.id,
+                                  'mandayRate',
+                                  Math.max(0, Number(v) || 0),
+                                )
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <EditCell
+                              type="number"
+                              value={row.mandaysPerMonth}
+                              ariaLabel={`${row.code} MD per month`}
+                              onChange={(v) =>
+                                updateResource(
+                                  row.id,
+                                  'mandaysPerMonth',
+                                  Math.max(0.01, Number(v) || 0.01),
+                                )
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <EditCell
+                              type="number"
+                              value={row.hoursPerManday}
+                              ariaLabel={`${row.code} hours per MD`}
+                              onChange={(v) =>
+                                updateResource(
+                                  row.id,
+                                  'hoursPerManday',
+                                  Math.max(0.01, Number(v) || 0.01),
+                                )
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="financial-numeral">
+                            {formatSgd(rate.perMonth)}
+                          </TableCell>
+                          <TableCell className="financial-numeral">
+                            {formatSgd(rate.perHour)}
+                          </TableCell>
+                          <TableCell>
+                            <EditCell
+                              type="date"
+                              value={row.effectiveFrom}
+                              ariaLabel={`${row.code} effective from`}
+                              onChange={(v) =>
+                                updateResource(row.id, 'effectiveFrom', v)
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <EditCell
+                              type="date"
+                              value={row.effectiveTo}
+                              ariaLabel={`${row.code} effective to`}
+                              onChange={(v) =>
+                                updateResource(row.id, 'effectiveTo', v)
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateResource(row.id, 'active', !row.active)
+                              }
+                            >
+                              <StatusBadge tone={row.active ? 'green' : 'gray'}>
+                                {row.active ? 'Active' : 'Inactive'}
+                              </StatusBadge>
+                            </button>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <DeleteRowButton
+                              label={`${row.code} · ${row.name}`}
+                              onDelete={() => deleteResource(row)}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                MM rate = MD rate × MD/MM. Hour rate = MD rate ÷ Hour/MD. HQ
+                rows automatically enable travel. / 人月、人时汇率自动换算。
+              </p>
+            </fieldset>
           </TabsContent>
           <TabsContent value="subcontract" className="mt-0">
             <TableToolbar count={subcontract.length} onAdd={addSubcontract} />

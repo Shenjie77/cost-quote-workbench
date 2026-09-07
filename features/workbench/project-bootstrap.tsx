@@ -1,0 +1,142 @@
+'use client';
+
+import { useEffect, useState, type ReactNode } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  listLocalWorkspaces,
+  saveLocalWorkspaceDocument,
+} from './workspace-client';
+import { createBlankWorkspace, projectRecord } from './workspace-factories';
+import type { Project } from '../projects/types';
+import type { LocalWorkspaceIndexItem } from './workspace-types';
+
+export const projectFromIndex = (item: LocalWorkspaceIndexItem): Project => ({
+  ...projectRecord(item.projectId, item.name, item.client),
+  projectStatus: item.projectStatus,
+  ...(item.statusDefinitions?.length
+    ? { statusDefinitions: item.statusDefinitions }
+    : {}),
+  reviewGates: item.reviewGates || [],
+  ...(item.currentWorkflowStepCode
+    ? { currentWorkflowStepCode: item.currentWorkflowStepCode }
+    : {}),
+  ...(item.workflowSteps?.length ? { workflowSteps: item.workflowSteps } : {}),
+  version: item.activeVersion || 'V1',
+  versionState: item.versionState || 'Draft',
+  serviceCost: item.serviceCost,
+  subcontractCost: item.subcontractCost,
+  totalCost: item.totalCost,
+  totalMandays: item.totalMandays,
+  totalQuote: item.totalQuote,
+  grossMarginPercent: item.grossMarginPercent,
+  incompleteCostRows: item.incompleteCostRows,
+  ssrAttention: item.ssrAttention,
+});
+
+/** Persisted index is authoritative. Empty/deleted databases never seed demo projects. */
+export function ProjectBootstrap({
+  renderSession,
+}: {
+  renderSession: (projects: Project[], onEmpty: () => void) => ReactNode;
+}) {
+  const [projects, setProjects] = useState<Project[] | null>(null);
+  const [error, setError] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [name, setName] = useState('');
+  const [client, setClient] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    void listLocalWorkspaces()
+      .then((items) => {
+        if (!cancelled) {
+          setProjects(items.map(projectFromIndex));
+          setError('');
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh]);
+  const reload = () => {
+    setProjects(null);
+    setError('');
+    setRefresh((n) => n + 1);
+  };
+  if (projects?.length) return renderSession(projects, reload);
+  const create = async () => {
+    if (!name.trim() || !client.trim() || busy) return;
+    setBusy(true);
+    try {
+      const project = projectRecord(
+        `PRJ-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8)}`,
+        name.trim(),
+        client.trim(),
+      );
+      await saveLocalWorkspaceDocument(
+        createBlankWorkspace(project, 'input_preparation'),
+        null,
+      );
+      setProjects([project]);
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Create failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <main className="min-h-screen bg-background p-8">
+      <section className="mx-auto max-w-lg space-y-4 rounded-xl border bg-card p-6">
+        <h1 className="text-xl font-semibold">Cost & Quote Workbench</h1>
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        {projects === null ? (
+          <>
+            <p>Loading local projects / 正在加载本地项目</p>
+            {error && <Button onClick={reload}>Retry / 重试</Button>}
+          </>
+        ) : (
+          <>
+            <h2 className="font-semibold">Project List / 项目列表 · 0</h2>
+            <p className="text-sm text-muted-foreground">
+              暂无项目。新建项目后开始维护成本和报价。
+            </p>
+            <label className="block text-sm">
+              项目名称
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={busy}
+              />
+            </label>
+            <label className="block text-sm">
+              客户
+              <Input
+                value={client}
+                onChange={(e) => setClient(e.target.value)}
+                disabled={busy}
+              />
+            </label>
+            <Button
+              onClick={() => void create()}
+              disabled={busy || !name.trim() || !client.trim()}
+            >
+              New Project / 新建项目
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              已删除项目的成本和评审记录保留在本地，可通过 CLI 恢复。
+            </p>
+          </>
+        )}
+      </section>
+    </main>
+  );
+}

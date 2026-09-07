@@ -2,7 +2,9 @@
 
 Run from the repository root with `npm run --silent cost-cli -- ...`; this document abbreviates that prefix as `cost-cli`. Paths below are examples, not existing user files. The CLI prints exactly one v2 JSON envelope and never prompts interactively.
 
-## Discovery and workspace changes
+## Discovery and legacy workspace backups
+
+Use [narrow resources](resources.md) for routine updates. Complete workspace reads/saves below are for backups, initial creation from a supplied complete record, and deliberate bulk migration. They are not prerequisites for imports or CPQ.
 
 ```
 cost-cli system capabilities
@@ -32,7 +34,7 @@ Replace `data` with the complete workspace returned by `workspace get`, with int
 ```
 cost-cli workbook inspect --file TD.xlsx --header-row 1
 cost-cli cost import --project-id ID --file TD.xlsx --input mapping.json
-cost-cli cost import --project-id ID --file TD.xlsx --input mapping.json --apply --expected-revision REVISION
+cost-cli cost import --project-id ID --file TD.xlsx --input mapping.json --apply --expected-revision REVISION --compact
 ```
 
 Example `mapping.json`:
@@ -75,9 +77,9 @@ BOQ uses the same operation envelope, with `operation="boq.import"` and `mapping
 ## Cost and quotation files
 
 ```
-cost-cli cost validate --input snapshot.json
-cost-cli cost calculate --input snapshot.json
-cost-cli cost export --input snapshot.json --output outputs/Cost.xlsx
+cost-cli cost validate --project-id ID --version V1
+cost-cli cost calculate --project-id ID --version V1
+cost-cli cost export --project-id ID --version V1 --output outputs/Cost.xlsx
 cost-cli quote export --project-id ID --output outputs/Quote.xlsx
 cost-cli workbook fill-template --project-id ID --file Company.xlsx --input layout.json --output outputs/Filled.xlsx
 ```
@@ -94,13 +96,13 @@ Do not add `--overwrite` merely to suppress a conflict; choose a new output name
 
 ## CPQ
 
-Maintain `workspace.cpq.catalog` and draft via revision-checked `workspace save` (see workspace schema). Codes must come from company catalog input; do not invent company codes. Draft includes `brief`, `costVersion`, `targetCost`, `targetBasis`, `tolerance`, `rounding`, `allocationBasis`, and selections `{code,quantity,locked,weight,reason}`. Equipment is never adjustable. For unlocked services, quantity is a reference, not the final result. Positive weights express budget proportions.
+Use `cpq get/update --section catalog|draft|selections`; see [narrow resources](resources.md). Codes must come from company catalog input; do not invent company codes. Draft includes `brief`, `costVersion`, `targetCost`, `targetBasis`, `tolerance`, `rounding`, `allocationBasis`, and selections `{code,quantity,locked,weight,reason}`. Equipment is never adjustable. For unlocked services, quantity is a reference, not the final result. Positive weights express budget proportions.
 
 ```
 cost-cli cpq match --project-id ID --scope "brief scope"
-cost-cli cpq confirm --project-id ID --confirmed-by USER --expected-revision REVISION
-cost-cli cpq solve --project-id ID --expected-revision NEW_REVISION
-cost-cli cpq archive --project-id ID --expected-revision NEW_REVISION
+cost-cli cpq confirm --project-id ID --confirmed-by USER --expected-revision REVISION --compact
+cost-cli cpq solve --project-id ID --expected-revision NEW_REVISION --compact
+cost-cli cpq archive --project-id ID --expected-revision NEW_REVISION --compact
 cost-cli cpq export --project-id ID --archive-id ARCHIVE_ID --output outputs/CPQ.xlsx
 ```
 
@@ -110,7 +112,7 @@ Confirm requires existing user selection. Equipment/fixed service quantities mus
 
 Set `ssr.enabled=true`, proposal number, brief, technical basis and requiredDomains. Leave `commercialBasis` to the platform to derive from project, pricing, assumptions and selected template. Do not construct submission snapshots manually; use commands.
 
-Each command takes `--project-id ID --input operation.json --expected-revision REVISION`. All use `OperationRequest`, data schema `1.0.0`, and an `operation` matching the command:
+Each command takes `--project-id ID --input operation.json --expected-revision REVISION --compact`. All use `OperationRequest`, data schema `1.0.0`, and an `operation` matching the command:
 
 | Command / operation             | Additional data fields                                                                                                                                 |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -135,12 +137,12 @@ Dates use Asia/Singapore. Scan writes only the reminder inbox, not workspace rev
 
 ## Maintenance
 
-`maintenance validate --input history.json` only validates a `MaintenancePriceRequest`. Persist accepted records in `maintenancePriceRecords` via `workspace save`. Compare exact normalized equipment model; inspect each customer's SLA, term, date, outcome and source. Formula: record amount × 12 / coverageMonths / quantity. Invalid denominator = unavailable.
+`maintenance validate --input history.json` only validates a `MaintenancePriceRequest`. Persist accepted records with `masterdata update --tab maintenance`. Compare exact normalized equipment model; inspect each customer's SLA, term, date, outcome and source. Formula: record amount × 12 / coverageMonths / quantity. Invalid denominator = unavailable.
 
-Maintain `maintenanceBoq` from BOQ import or workspace edits: coverageMonths and rows with actual model/quantity, selected referenceId, SLA/site, unitAnnualQuote (cents), basis and source. Imported rows retain original model/quantity when later edited.
+Use `boq get/update --section rows|settings` or BOQ import for coverageMonths and rows with actual model/quantity, selected referenceId, SLA/site, unitAnnualQuote (cents), basis and source. Imported rows retain original model/quantity when later edited.
 
 ```
-cost-cli maintenance archive --project-id ID --expected-revision REVISION
+cost-cli maintenance archive --project-id ID --expected-revision REVISION --compact
 cost-cli maintenance export --project-id ID --archive-id ID --output outputs/Maintenance_Draft.xlsx
 ```
 

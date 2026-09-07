@@ -19,6 +19,8 @@ export function ProjectView({
   onStatusChange,
   onWorkflowChange,
   onCreateProject,
+  onDeleteProject,
+  onEditProject,
 }: {
   projects: Project[];
   onOpenProject: (project: Project) => void;
@@ -27,6 +29,8 @@ export function ProjectView({
   onStatusChange: (project: Project, status: ProjectStatus) => void;
   onWorkflowChange: (project: Project, workflowCode: string) => void;
   onCreateProject: () => void;
+  onDeleteProject: (project: Project) => void;
+  onEditProject: (project: Project) => void;
 }) {
   const totals = projects.reduce(
     (summary, project) => ({
@@ -97,6 +101,8 @@ export function ProjectView({
       <ProjectTable
         projects={projects}
         onProject={onOpenProject}
+        onDeleteProject={onDeleteProject}
+        onEditProject={onEditProject}
         onCost={onOpenCost}
         onQuote={onOpenQuote}
         onStatusChange={onStatusChange}

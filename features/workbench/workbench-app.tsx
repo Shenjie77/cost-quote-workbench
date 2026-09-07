@@ -30,6 +30,17 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+} from '@/components/ui/alert-dialog';
+import { costLockReason, type CostLock } from '../cost/cost-lock';
+import { ProjectBootstrap } from './project-bootstrap';
+import { deleteLocalProject } from './workspace-client';
 import { AgentView } from '@/features/agent/agent-view';
 import { MaintenanceView } from '@/features/maintenance/maintenance-view';
 import {
@@ -94,7 +105,7 @@ import type {
   QuoteMasterDataTab,
 } from '@/features/master-data/navigation';
 import { OverviewView } from '@/features/overview/overview-view';
-import { initialProcessSteps, projects } from '@/features/projects/demo-data';
+import { initialProcessSteps } from '@/features/projects/demo-data';
 import type {
   Project,
   ProjectStatus,
@@ -102,14 +113,13 @@ import type {
   WorkflowStep,
 } from '@/features/projects/types';
 import {
-  createBlankWorkflowSteps,
   createProjectStatusDefinitions,
-  defaultWorkflowCode,
   projectRecord,
   createCostVersion,
   createBlankWorkspace,
 } from './workspace-factories';
 import { ProjectView } from '@/features/projects/project-view';
+import { ProjectEditDialog } from '@/features/projects/project-edit-dialog';
 import { QuoteView } from '@/features/quote/quote-view';
 import {
   calculatePricing,
@@ -132,7 +142,6 @@ import { navItems, viewTitles } from '@/features/workbench/navigation';
 import {
   WORKSPACE_SCHEMA_VERSION,
   getLocalWorkspace,
-  listLocalWorkspaces,
   saveLocalWorkspaceDocument,
   useLocalWorkspace,
   type WorkbenchWorkspace,
@@ -140,17 +149,33 @@ import {
 import type { PanelState, ViewKey } from '@/features/workbench/types';
 
 export function WorkbenchApp() {
+  return (
+    <ProjectBootstrap
+      renderSession={(initialProjects, onEmpty) => (
+        <ProjectSessionApp
+          initialProjects={initialProjects}
+          onEmpty={onEmpty}
+        />
+      )}
+    />
+  );
+}
+
+function ProjectSessionApp({
+  initialProjects,
+  onEmpty,
+}: {
+  initialProjects: Project[];
+  onEmpty: () => void;
+}) {
   // Maintenance selection belongs to the UI session, not the project document.
   const [masterDataTab, setMasterDataTab] =
     useState<MasterDataTab>('resources');
-  const [projectList, setProjectList] = useState<Project[]>(() =>
-    projects.map((project) => ({
-      ...project,
-      statusDefinitions: createProjectStatusDefinitions(),
-      currentWorkflowStepCode: defaultWorkflowCode(project.projectStatus),
-      workflowSteps: createBlankWorkflowSteps(),
-    })),
-  );
+  const [projectList, setProjectList] = useState<Project[]>(initialProjects);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [editTarget, setEditTarget] = useState<Project | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+  const [costLock, setCostLock] = useState<CostLock | undefined>();
   const switchingRef = useRef(false);
   const quoteExportingRef = useRef(false);
   const [quoteExporting, setQuoteExporting] = useState(false);
@@ -163,12 +188,13 @@ export function WorkbenchApp() {
     return () => window.removeEventListener('beforeunload', warnPendingExport);
   }, []);
   const [isProjectSwitching, setProjectSwitching] = useState(false);
-  const [activeProjectId, setActiveProjectId] = useState(projects[0].id);
+  const [activeProjectId, setActiveProjectId] = useState(initialProjects[0].id);
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([
-    projects[0].id,
+    initialProjects[0].id,
   ]);
   const activeProject =
-    projectList.find((item) => item.id === activeProjectId) ?? projects[0];
+    projectList.find((item) => item.id === activeProjectId) ??
+    initialProjects[0];
   const exportProject = useMemo<CostExportSnapshot['project']>(
     () => ({
       id: activeProject.id,
@@ -274,6 +300,11 @@ export function WorkbenchApp() {
 
   /** Applies one database snapshot without coupling the API to child views. */
   const hydrateWorkspace = useCallback((workspace: WorkbenchWorkspace) => {
+    const reason = costLockReason(workspace);
+    setCostLock(
+      workspace.costLock ||
+        (reason ? { reason, lockedAt: new Date().toISOString() } : undefined),
+    );
     // Detail data is authoritative even if the parallel portfolio request is
     // delayed or unavailable (e.g. a project renamed through the CLI).
     setProjectList((current) => {
@@ -397,6 +428,7 @@ export function WorkbenchApp() {
   const workspace = useMemo<WorkbenchWorkspace>(
     () => ({
       schemaVersion: WORKSPACE_SCHEMA_VERSION,
+      ...(costLock ? { costLock } : {}),
       project: exportProject,
       currentWorkflowStepCode,
       selectedStep,
@@ -436,6 +468,7 @@ export function WorkbenchApp() {
       },
     }),
     [
+      costLock,
       cpq,
       maintenanceBoq,
       ssr,
@@ -466,15 +499,20 @@ export function WorkbenchApp() {
       synchronizedVersions,
     ],
   );
+  const lockedReason = costLockReason(workspace);
   const {
     status: persistenceStatus,
     saveNow,
+    saveProjectDetails,
+    pauseSaving,
+    resumeSaving,
     isReady,
     retryLoad,
   } = useLocalWorkspace({
     projectId: exportProject.id,
     workspace,
     onHydrate: hydrateWorkspace,
+    onMissing: onEmpty,
   });
 
   /** Downloads a restore-ready v2 request without sending local data away. */
@@ -580,75 +618,6 @@ export function WorkbenchApp() {
       costRows,
     ],
   );
-
-  /** Merge persisted projects into the built-in portfolio on startup. */
-  useEffect(() => {
-    void listLocalWorkspaces()
-      .then((items) => {
-        setProjectList((current) => {
-          const byId = new Map(current.map((item) => [item.id, item]));
-          items.forEach((item) => {
-            const existing = byId.get(item.projectId);
-            byId.set(
-              item.projectId,
-              existing
-                ? {
-                    ...existing,
-                    name: item.name,
-                    client: item.client,
-                    projectStatus: item.projectStatus,
-                    statusDefinitions: item.statusDefinitions?.length
-                      ? item.statusDefinitions
-                      : existing.statusDefinitions,
-                    reviewGates: item.reviewGates || existing.reviewGates,
-                    currentWorkflowStepCode:
-                      item.currentWorkflowStepCode ||
-                      existing.currentWorkflowStepCode,
-                    workflowSteps: item.workflowSteps?.length
-                      ? item.workflowSteps
-                      : existing.workflowSteps,
-                    version: item.activeVersion || existing.version,
-                    serviceCost: item.serviceCost,
-                    subcontractCost: item.subcontractCost,
-                    totalCost: item.totalCost,
-                    totalMandays: item.totalMandays,
-                    totalQuote: item.totalQuote,
-                    grossMarginPercent: item.grossMarginPercent,
-                    incompleteCostRows: item.incompleteCostRows,
-                    ssrAttention: item.ssrAttention,
-                    versionState: item.versionState || existing.versionState,
-                  }
-                : {
-                    ...projectRecord(item.projectId, item.name, item.client),
-                    projectStatus: item.projectStatus,
-                    statusDefinitions: item.statusDefinitions?.length
-                      ? item.statusDefinitions
-                      : createProjectStatusDefinitions(),
-                    reviewGates: item.reviewGates || [],
-                    currentWorkflowStepCode:
-                      item.currentWorkflowStepCode ||
-                      defaultWorkflowCode(item.projectStatus),
-                    workflowSteps: item.workflowSteps?.length
-                      ? item.workflowSteps
-                      : createBlankWorkflowSteps(),
-                    version: item.activeVersion || 'V1',
-                    serviceCost: item.serviceCost,
-                    subcontractCost: item.subcontractCost,
-                    totalCost: item.totalCost,
-                    totalMandays: item.totalMandays,
-                    totalQuote: item.totalQuote,
-                    grossMarginPercent: item.grossMarginPercent,
-                    incompleteCostRows: item.incompleteCostRows,
-                    ssrAttention: item.ssrAttention,
-                    versionState: item.versionState || 'Draft',
-                  },
-            );
-          });
-          return [...byId.values()];
-        });
-      })
-      .catch(() => undefined);
-  }, []);
 
   /** Reset session state before loading or creating another project. */
   const selectProject = async (project: Project): Promise<boolean> => {
@@ -792,9 +761,9 @@ export function WorkbenchApp() {
       }
       try {
         const record = await getLocalWorkspace(project.id);
-        const document = record
-          ? { ...record.workspace, projectStatus: status }
-          : createBlankWorkspace(project, status);
+        if (!record)
+          throw new Error('Project no longer exists. Refresh Project List.');
+        const document = { ...record.workspace, projectStatus: status };
         await saveLocalWorkspaceDocument(document, record?.revision ?? null);
         setNotice(`Project status updated / 项目状态已更新：${project.name}`);
       } catch (error) {
@@ -854,12 +823,9 @@ export function WorkbenchApp() {
       }
       try {
         const record = await getLocalWorkspace(project.id);
-        const document = record
-          ? record.workspace
-          : createBlankWorkspace(
-              project,
-              project.projectStatus || 'input_preparation',
-            );
+        if (!record)
+          throw new Error('Project no longer exists. Refresh Project List.');
+        const document = record.workspace;
         const nextIndex = document.processSteps.findIndex(
           (step) => step.code === workflowCode,
         );
@@ -916,12 +882,9 @@ export function WorkbenchApp() {
       }
       try {
         const record = await getLocalWorkspace(review.projectId);
-        const document = record
-          ? record.workspace
-          : createBlankWorkspace(
-              project,
-              project.projectStatus || 'input_preparation',
-            );
+        if (!record)
+          throw new Error('Project no longer exists. Refresh Project List.');
+        const document = record.workspace;
         const nextReviewGates = upsert(document.reviewGates || []);
         await saveLocalWorkspaceDocument(
           { ...document, reviewGates: nextReviewGates },
@@ -994,13 +957,109 @@ export function WorkbenchApp() {
       ...projectRecord(id, input.name, input.client),
       reviewOwner: input.owner || 'Me',
     };
-    if (!(await selectProject(project))) return;
+    if (quoteExportingRef.current || switchingRef.current || !isReady) return;
+    switchingRef.current = true;
+    setProjectSwitching(true);
+    try {
+      if (!(await saveNow()))
+        throw new Error('Save current project before creating another.');
+      const blank = createBlankWorkspace(project, 'input_preparation');
+      await saveLocalWorkspaceDocument(blank, null);
+      const outgoing = portfolioProjects.find(
+        (item) => item.id === activeProjectId,
+      );
+      if (outgoing)
+        setProjectList((current) =>
+          current.map((item) => (item.id === outgoing.id ? outgoing : item)),
+        );
+      hydrateWorkspace(blank);
+      setActiveProjectId(project.id);
+      setOpenProjectIds((current) => [...current, project.id]);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'Create failed');
+      return;
+    } finally {
+      switchingRef.current = false;
+      setProjectSwitching(false);
+    }
     setProjectList((current) => [
       project,
       ...current.filter((item) => item.id !== project.id),
     ]);
     setPanel(null);
     setActiveView('project');
+  };
+
+  const deleteProject = async () => {
+    const target = deleteTarget;
+    if (
+      !target ||
+      switchingRef.current ||
+      quoteExportingRef.current ||
+      !isReady
+    )
+      return;
+    switchingRef.current = true;
+    setProjectSwitching(true);
+    setDeleteError('');
+    const active = target.id === activeProjectId;
+    const finishDeletion = () => {
+      const remaining = portfolioProjects.filter(
+        (item) => item.id !== target.id,
+      );
+      setPanel(null);
+      setDeleteTarget(null);
+      setProjectList(remaining);
+      setOpenProjectIds((ids) => ids.filter((id) => id !== target.id));
+      if (!remaining.length) {
+        onEmpty();
+        return;
+      }
+      if (active) {
+        const next = remaining[0];
+        hydrateWorkspace(
+          createBlankWorkspace(next, next.projectStatus || 'input_preparation'),
+        );
+        setActiveProjectId(next.id);
+        setOpenProjectIds((ids) =>
+          ids.includes(next.id) ? ids : [...ids, next.id],
+        );
+      }
+      setNotice(
+        `项目已删除：${target.name}。成本及评审记录保留在本地，可通过 CLI 恢复。`,
+      );
+    };
+    try {
+      const revision = active
+        ? await pauseSaving()
+        : (await getLocalWorkspace(target.id))?.revision;
+      if (!revision)
+        throw new Error('无法保存或读取项目，请先处理保存错误再删除。');
+      await deleteLocalProject(target.id, revision);
+      finishDeletion();
+    } catch (e) {
+      if (active) resumeSaving();
+      try {
+        const current = await getLocalWorkspace(target.id);
+        if (!current) {
+          finishDeletion();
+          return;
+        }
+      } catch (check) {
+        if (
+          check instanceof Error &&
+          'status' in check &&
+          check.status === 410
+        ) {
+          finishDeletion();
+          return;
+        }
+      }
+      setDeleteError(e instanceof Error ? e.message : '删除失败');
+    } finally {
+      switchingRef.current = false;
+      setProjectSwitching(false);
+    }
   };
 
   const allReviewGates = useMemo(
@@ -1089,11 +1148,23 @@ export function WorkbenchApp() {
         onStatusChange={updateProjectStatus}
         onWorkflowChange={updateProjectWorkflow}
         onCreateProject={() => setPanel({ type: 'new-project' })}
+        onEditProject={(project) => {
+          if (quoteExportingRef.current || switchingRef.current || !isReady) {
+            setNotice('请等待当前保存或导出完成后编辑项目。');
+            return;
+          }
+          setEditTarget(project);
+        }}
+        onDeleteProject={(project) => {
+          setDeleteTarget(project);
+          setDeleteError('');
+        }}
       />
     );
   else if (activeView === 'cost')
     content = (
       <CostView
+        lockedReason={lockedReason}
         key={`${activeProject.id}:${activeVersion}`}
         activeVersion={activeVersion}
         versions={synchronizedVersions}
@@ -1180,7 +1251,11 @@ export function WorkbenchApp() {
         projectStatusDefinitions={projectStatusDefinitions}
         setProjectStatusDefinitions={setProjectStatusDefinitions}
         resourceTypes={resourceTypes}
-        setResourceTypes={setResourceTypes}
+        setResourceTypes={(update) => {
+          if (lockedReason) setNotice(lockedReason);
+          else setResourceTypes(update);
+        }}
+        resourceLockReason={lockedReason}
         subcontractItems={subcontractItems}
         setSubcontractItems={setSubcontractItems}
         supplementalCostItems={supplementalCostItems}
@@ -1583,12 +1658,26 @@ export function WorkbenchApp() {
                 <Save className="size-3" /> Save{' '}
                 <span className="text-[8px]">保存</span>
               </Button>
+              {['conflict', 'error', 'offline'].includes(
+                persistenceStatus.phase,
+              ) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    downloadWorkspaceBackup();
+                    onEmpty();
+                  }}
+                >
+                  备份并重载项目列表
+                </Button>
+              )}
               {activeView === 'cost' ? (
                 <Button
                   size="sm"
                   className="h-6 px-2 text-[9px]"
                   onClick={createNewCostVersion}
-                  disabled={!isReady}
+                  disabled={!isReady || !!lockedReason}
                 >
                   <Plus className="size-3" /> New Version{' '}
                   <span className="text-[8px] opacity-60">创建版本</span>
@@ -1631,6 +1720,90 @@ export function WorkbenchApp() {
           </button>
         </output>
       ) : null}
+      {editTarget && (
+        <ProjectEditDialog
+          key={editTarget.id}
+          project={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={async (details, revision) => {
+            const targetId = editTarget.id;
+            if (targetId === activeProjectId) {
+              if (!(await saveProjectDetails(details)))
+                throw new Error(
+                  '保存失败，请先处理工作区保存错误；输入内容已保留。',
+                );
+            } else {
+              const current = await getLocalWorkspace(targetId);
+              if (!current) throw new Error('项目已删除，请刷新列表。');
+              if (current.revision !== revision)
+                throw new Error('项目已被更新，请关闭并重新打开 Edit 后修改。');
+              await saveLocalWorkspaceDocument(
+                {
+                  ...current.workspace,
+                  project: { ...current.workspace.project, ...details },
+                },
+                revision,
+              );
+            }
+            setProjectList((items) =>
+              items.map((item) =>
+                item.id === targetId ? { ...item, ...details } : item,
+              ),
+            );
+            setNotice('Project updated / 项目名称与客户已保存');
+          }}
+        />
+      )}
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open && !isProjectSwitching) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除项目</AlertDialogTitle>
+            <AlertDialogDescription>
+              将「{deleteTarget?.name}
+              」从项目列表移除，并停止其流程提醒。成本、报价和评审归档保留在本地，可通过
+              CLI 恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && (
+            <div className="space-y-2">
+              <p role="alert" className="text-sm text-destructive">
+                {deleteError}
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  downloadWorkspaceBackup();
+                  setDeleteTarget(null);
+                  onEmpty();
+                }}
+              >
+                备份当前修改并重新加载项目列表
+              </Button>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={isProjectSwitching}
+            >
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void deleteProject()}
+              disabled={isProjectSwitching || quoteExporting || !isReady}
+            >
+              确认删除
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <DetailSheet
         key={
           panel

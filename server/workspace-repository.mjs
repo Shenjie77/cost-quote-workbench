@@ -14,6 +14,7 @@ import {
   ssrAttention,
 } from '../features/ssr/domain.ts';
 import { normalizeDigestDate } from '../features/agent/digest-domain.ts';
+import { costLockReason } from '../features/cost/cost-lock.ts';
 import {
   assertCurrentCpqResult,
   contentKey,
@@ -54,6 +55,14 @@ export class RepositoryConflictError extends Error {
     super(message);
     this.name = 'RepositoryConflictError';
     this.currentRevision = currentRevision;
+  }
+}
+
+export class RepositoryNotFoundError extends Error {
+  constructor(message, deleted = false) {
+    super(message);
+    this.name = 'RepositoryNotFoundError';
+    this.deleted = deleted;
   }
 }
 
@@ -161,52 +170,57 @@ export const openWorkspaceRepository = (databasePath) => {
   for (const statement of LOCAL_DATABASE_STATEMENTS) {
     db.prepare(statement).run();
   }
-  db.prepare(
-    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
-     VALUES (?, ?)`,
-  ).run(LOCAL_DATABASE_SCHEMA_VERSION, nowIso());
   db.exec('PRAGMA optimize');
 
-  // Upgrade existing JSON snapshots before any browser or CLI reads them.
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const legacySnapshots = db
-      .prepare(
-        `SELECT project_id, revision, payload_json FROM workspace_snapshots`,
-      )
-      .all();
-    const updateMigratedSnapshot = db.prepare(
-      `UPDATE workspace_snapshots
+  // Upgrade once per database release, not once per CLI invocation. All new
+  // writes still migrate/validate through save(), including legacy clients.
+  const needsMigration = !db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = ?')
+    .get(LOCAL_DATABASE_SCHEMA_VERSION);
+  if (needsMigration) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const legacySnapshots = db
+        .prepare(
+          `SELECT project_id, revision, payload_json FROM workspace_snapshots`,
+        )
+        .all();
+      const updateMigratedSnapshot = db.prepare(
+        `UPDATE workspace_snapshots
      SET revision = ?, payload_json = ?, payload_sha256 = ?, updated_at = ?
      WHERE project_id = ?`,
-    );
-    for (const row of legacySnapshots) {
-      const current = JSON.parse(row.payload_json);
-      const migrated = migrateWorkspaceDocument(current);
-      if (migrated === current) continue;
-      assertWorkspaceDocument(migrated, row.project_id);
-      const payloadJson = JSON.stringify(migrated);
-      db.prepare(`INSERT OR IGNORE INTO workspace_migration_archive
+      );
+      for (const row of legacySnapshots) {
+        const current = JSON.parse(row.payload_json);
+        const migrated = migrateWorkspaceDocument(current);
+        if (migrated === current) continue;
+        assertWorkspaceDocument(migrated, row.project_id);
+        const payloadJson = JSON.stringify(migrated);
+        db.prepare(`INSERT OR IGNORE INTO workspace_migration_archive
       (project_id, revision, payload_json, archived_at, reason) VALUES (?, ?, ?, ?, ?)`).run(
-        row.project_id,
-        row.revision,
-        row.payload_json,
-        nowIso(),
-        'Workspace contract and version-rate migration',
-      );
-      updateMigratedSnapshot.run(
-        row.revision + 1,
-        payloadJson,
-        checksum(payloadJson),
-        nowIso(),
-        row.project_id,
-      );
+          row.project_id,
+          row.revision,
+          row.payload_json,
+          nowIso(),
+          'Workspace contract and version-rate migration',
+        );
+        updateMigratedSnapshot.run(
+          row.revision + 1,
+          payloadJson,
+          checksum(payloadJson),
+          nowIso(),
+          row.project_id,
+        );
+      }
+      db.prepare(
+        'INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
+      ).run(LOCAL_DATABASE_SCHEMA_VERSION, nowIso());
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      db.close();
+      throw error;
     }
-    db.exec('COMMIT');
-  } catch (error) {
-    db.exec('ROLLBACK');
-    db.close();
-    throw error;
   }
 
   const selectWorkspace = db.prepare(
@@ -220,6 +234,7 @@ export const openWorkspaceRepository = (databasePath) => {
             w.revision, w.schema_version, w.payload_sha256, w.payload_json
      FROM projects p
      LEFT JOIN workspace_snapshots w ON w.project_id = p.id
+     WHERE NOT EXISTS (SELECT 1 FROM deleted_projects d WHERE d.project_id = p.id)
      ORDER BY p.updated_at DESC, p.id ASC`,
   );
 
@@ -240,7 +255,72 @@ export const openWorkspaceRepository = (databasePath) => {
     schemaVersion: LOCAL_DATABASE_SCHEMA_VERSION,
 
     get(projectId) {
+      if (this.isDeleted(projectId)) return null;
       return mapWorkspace(selectWorkspace.get(projectId));
+    },
+
+    isDeleted(projectId) {
+      return !!db
+        .prepare('SELECT 1 FROM deleted_projects WHERE project_id = ?')
+        .get(projectId);
+    },
+
+    /** Metadata-only discovery, without parsing any workspace payloads. */
+    headers(deleted = false) {
+      return db
+        .prepare(`SELECT p.id AS projectId, p.name, p.client, w.revision,
+        w.updated_at AS updatedAt, d.deleted_at AS deletedAt
+        FROM projects p JOIN workspace_snapshots w ON w.project_id = p.id
+        LEFT JOIN deleted_projects d ON d.project_id = p.id
+        WHERE d.project_id IS ${deleted ? 'NOT ' : ''}NULL
+        ORDER BY p.updated_at DESC, p.id`)
+        .all();
+    },
+
+    /** A deletion changes revision but preserves all cost/review archives. */
+    setDeleted(projectId, expectedRevision, deleted = true) {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const row = selectWorkspace.get(projectId);
+        if (!row) throw new RepositoryNotFoundError('Project not found.');
+        if (row.revision !== expectedRevision)
+          throw new RepositoryConflictError(
+            'Project changed. Read its revision again.',
+            row.revision,
+          );
+        if (this.isDeleted(projectId) === deleted)
+          throw new RepositoryNotFoundError(
+            deleted ? 'Project is already deleted.' : 'Project is not deleted.',
+            deleted,
+          );
+        const timestamp = nowIso();
+        if (deleted)
+          db.prepare('INSERT INTO deleted_projects VALUES (?, ?)').run(
+            projectId,
+            timestamp,
+          );
+        else
+          db.prepare('DELETE FROM deleted_projects WHERE project_id = ?').run(
+            projectId,
+          );
+        db.prepare(
+          'UPDATE workspace_snapshots SET revision = revision + 1, updated_at = ? WHERE project_id = ?',
+        ).run(timestamp, projectId);
+        db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(
+          timestamp,
+          projectId,
+        );
+        db.exec('COMMIT');
+        return {
+          projectId,
+          revision: row.revision + 1,
+          updatedAt: timestamp,
+          deleted,
+        };
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
     },
 
     list(asOf) {
@@ -312,6 +392,11 @@ export const openWorkspaceRepository = (databasePath) => {
       try {
         const current = selectWorkspace.get(projectId);
         const currentRevision = current?.revision ?? null;
+        if (this.isDeleted(projectId))
+          throw new RepositoryNotFoundError(
+            'Project was deleted. Restore it explicitly before editing.',
+            true,
+          );
         if (currentRevision !== expectedRevision) {
           throw new RepositoryConflictError(
             `Expected revision ${String(expectedRevision)}, current revision is ${String(currentRevision)}.`,
@@ -319,6 +404,42 @@ export const openWorkspaceRepository = (databasePath) => {
           );
         }
         const previous = current ? JSON.parse(current.payload_json) : null;
+        const lockedReason = previous ? costLockReason(previous) : null;
+        if (lockedReason) {
+          const versionsChanged =
+            previous.costVersions.length !== document.costVersions.length ||
+            previous.costVersions.some((old) => {
+              const next = document.costVersions.find(
+                (v) => v.code === old.code,
+              );
+              // Completing the lifecycle after DRB must remain possible so the
+              // unchanged cost baseline can be used for formal quotation.
+              return (
+                !next ||
+                (old.state !== next.state && next.state !== 'Confirmed') ||
+                contentKey({ ...old, state: '' }) !==
+                  contentKey({ ...next, state: '' })
+              );
+            });
+          if (
+            versionsChanged ||
+            contentKey(previous.resourceTypes) !==
+              contentKey(document.resourceTypes)
+          )
+            throw new WorkspaceValidationError(lockedReason, '/costLock');
+        }
+        // The persisted lock survives older clients and later workflow changes.
+        if (previous?.costLock)
+          document = { ...document, costLock: previous.costLock };
+        else {
+          delete document.costLock;
+          const reason = lockedReason || costLockReason(document);
+          if (reason)
+            document = {
+              ...document,
+              costLock: { reason, lockedAt: timestamp },
+            };
+        }
         // Older clients must not erase extension data they do not understand.
         if (!Object.hasOwn(workspace, 'cpq') && previous?.cpq)
           document = { ...document, cpq: previous.cpq };

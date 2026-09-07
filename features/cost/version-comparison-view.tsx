@@ -30,12 +30,14 @@ import {
 import { formatSgd } from '@/lib/formatters';
 
 export function VersionComparisonView({
+  readOnly = false,
   versions,
   activeVersion,
   resourceTypes,
   onSelectVersion,
   onUpdateVersionState,
 }: {
+  readOnly?: boolean;
   versions: CostVersionSnapshot[];
   activeVersion: string;
   resourceTypes: ResourceType[];
@@ -134,6 +136,7 @@ export function VersionComparisonView({
               </TableCell>
               <TableCell>
                 <Select
+                  disabled={readOnly && record.state === 'Confirmed'}
                   value={record.state}
                   onValueChange={(value) => {
                     if (value) {
@@ -154,12 +157,16 @@ export function VersionComparisonView({
                   <SelectContent>
                     {(['Draft', 'Suspended', 'Confirmed'] as const).map(
                       (state) => (
-                        <SelectItem key={state} value={state}>
+                        <SelectItem
+                          key={state}
+                          value={state}
+                          disabled={readOnly && state !== 'Confirmed'}
+                        >
                           <BiInline
                             en={state}
                             zh={
                               state === 'Confirmed'
-                                ? '已确认'
+                                ? '已定稿'
                                 : state === 'Suspended'
                                   ? '暂停'
                                   : '草稿'

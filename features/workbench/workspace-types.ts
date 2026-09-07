@@ -35,6 +35,7 @@ export const LOCAL_API_VERSION = 'cost-workbench/local-v1' as const;
 export const WORKSPACE_SCHEMA_VERSION = '1.0.0' as const;
 
 export type WorkbenchWorkspace = {
+  costLock?: import('../cost/cost-lock').CostLock;
   cpq?: CpqWorkspace;
   ssr?: SsrWorkspace;
   maintenanceBoq?: MaintenanceWorkspace;

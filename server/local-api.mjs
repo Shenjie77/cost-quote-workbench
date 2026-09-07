@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import {
   LOCAL_API_VERSION,
   RepositoryConflictError,
+  RepositoryNotFoundError,
   openWorkspaceRepository,
 } from './workspace-repository.mjs';
 
@@ -41,7 +42,7 @@ const ALLOWED_ORIGINS = new Set([
 
 const commonHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, If-Match',
-  'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
   'Cache-Control': 'no-store',
   'Content-Type': 'application/json; charset=utf-8',
 };
@@ -135,14 +136,38 @@ const route = async (request, response) => {
     return;
   }
   const projectId = decodeURIComponent(match[1]);
+  if (request.method === 'DELETE') {
+    const body = await readJson(request);
+    if (
+      body?.apiVersion !== LOCAL_API_VERSION ||
+      body?.kind !== 'ProjectDeleteRequest' ||
+      !Number.isSafeInteger(body.expectedRevision) ||
+      body.expectedRevision < 1
+    )
+      throw new TypeError('Invalid ProjectDeleteRequest envelope.');
+    const deleted = repository.setDeleted(projectId, body.expectedRevision);
+    scanReminders();
+    respond(200, {
+      apiVersion: LOCAL_API_VERSION,
+      kind: 'ProjectDeleted',
+      ok: true,
+      data: deleted,
+    });
+    return;
+  }
   if (request.method === 'GET') {
     const record = repository.get(projectId);
     if (!record) {
-      respond(404, {
+      respond(repository.isDeleted(projectId) ? 410 : 404, {
         apiVersion: LOCAL_API_VERSION,
         kind: 'LocalError',
         ok: false,
-        error: { code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found.' },
+        error: {
+          code: 'WORKSPACE_NOT_FOUND',
+          message: repository.isDeleted(projectId)
+            ? 'Project was deleted. Restore it explicitly to reopen.'
+            : 'Workspace not found.',
+        },
       });
       return;
     }
@@ -194,7 +219,15 @@ const server = createServer((request, response) => {
     const origin = request.headers.origin;
     send(
       response,
-      conflict ? 409 : error instanceof RangeError ? 413 : 400,
+      conflict
+        ? 409
+        : error instanceof RepositoryNotFoundError
+          ? error.deleted
+            ? 410
+            : 404
+          : error instanceof RangeError
+            ? 413
+            : 400,
       {
         apiVersion: LOCAL_API_VERSION,
         kind: 'LocalError',

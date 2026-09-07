@@ -86,3 +86,51 @@ test('separate project sessions never share revisions and duplicate saves coales
   await a.save({ project: 'A' });
   assert.deepEqual(revisions, [12, null]);
 });
+
+test('deletion pause waits for the final accepted revision and refuses late saves', async () => {
+  let release;
+  const wait = new Promise((resolve) => {
+    release = resolve;
+  });
+  let writes = 0;
+  const queue = create({
+    persist: async (_document, revision) => {
+      writes++;
+      if (writes === 1) await wait;
+      return { revision: revision + 1, updatedAt: 'now' };
+    },
+  });
+  const first = queue.save({ cost: 1 });
+  const final = queue.save({ cost: 2 });
+  const paused = queue.pause();
+  assert.equal(await queue.save({ cost: 3 }), false);
+  release();
+  assert.equal(await paused, 6);
+  assert.deepEqual(await Promise.all([first, final]), [true, true]);
+  queue.resume();
+  assert.equal(await queue.save({ cost: 4 }), true);
+  assert.equal(writes, 3);
+});
+
+test('disposing an unmounted project cancels queued writes that have not started', async () => {
+  let release;
+  const wait = new Promise((resolve) => {
+    release = resolve;
+  });
+  let writes = 0;
+  const queue = create({
+    persist: async (_document, revision) => {
+      writes++;
+      await wait;
+      return { revision: revision + 1, updatedAt: 'now' };
+    },
+  });
+  const first = queue.save({ cost: 1 });
+  await Promise.resolve();
+  const pending = queue.save({ cost: 2 });
+  queue.dispose();
+  release();
+  assert.equal(await first, true);
+  assert.equal(await pending, false);
+  assert.equal(writes, 1);
+});

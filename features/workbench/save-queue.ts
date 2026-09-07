@@ -26,18 +26,33 @@ export function createSaveQueue<T>(options: {
     ? JSON.stringify(options.savedDocument)
     : '';
   let conflicted = false;
+  let paused = false;
+  let disposed = false;
   let pending: Promise<boolean> = Promise.resolve(true);
 
   return {
+    /** Stop new writes, then wait for all accepted writes before deletion. */
+    async pause() {
+      paused = true;
+      const ok = await pending;
+      return ok ? revision : null;
+    },
+    resume() {
+      paused = false;
+    },
+    dispose() {
+      disposed = true;
+    },
     /** Returns whether a document already has a successful durable write. */
     isSaved(document: T) {
       return JSON.stringify(document) === savedJson;
     },
     /** Captures a detached document and appends a revision-checked write. */
     save(document: T): Promise<boolean> {
+      if (paused || disposed) return Promise.resolve(false);
       const snapshot = structuredClone(document);
       pending = pending.then(async () => {
-        if (conflicted) return false;
+        if (conflicted || disposed) return false;
         const json = JSON.stringify(snapshot);
         if (json === savedJson) return true;
         options.onSaving();

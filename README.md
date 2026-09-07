@@ -13,6 +13,19 @@ SSR scope imports, review evidence, reminders, CPQ and maintenance BOQ are descr
 [Skill operations reference](skills/cost-workbench/references/operations.md) includes
 column mappings, templates and all new CLI commands.
 
+Project List includes recoverable deletion. Deleted projects stay out of the UI,
+including after restart; snapshots can be recovered with `project restore`.
+DRB-completed or cost-finalized projects lock their cost versions and RE rates.
+Viewing, quotations and Excel exports remain available.
+
+For routine Skill work, use [narrow resource commands](skills/cost-workbench/references/resources.md):
+project metadata, individual cost versions/rows, all eight Masterdata tabs, CPQ
+catalog/draft/selections, SSR, quotations and BOQ. Paginated reads and compact
+mutation receipts avoid sending a full workspace through the agent context.
+SQLite still saves a validated, atomic project document internally. Database
+migration runs once per schema release instead of scanning every project on
+each CLI call.
+
 ## Run locally
 
 ```bash
@@ -56,7 +69,9 @@ npm run build
 ```bash
 npm run --silent cost-cli -- system capabilities --pretty
 npm run --silent cost-cli -- schema list --pretty
-npm run --silent cost-cli -- workspace list --pretty
+npm run --silent cost-cli -- project list --pretty
+npm run --silent cost-cli -- cost get --project-id ID --version V1 --section summary
+npm run --silent cost-cli -- masterdata get --project-id ID --tab resources --limit 20
 npm run --silent cost-cli -- digest generate --pretty
 npm run --silent cost-cli -- cost validate --input tests/fixtures/cost-request.valid.json --pretty
 npm run --silent cost-cli -- cost calculate --input tests/fixtures/cost-request.valid.json --pretty

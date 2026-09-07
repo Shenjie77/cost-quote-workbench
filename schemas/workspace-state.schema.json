@@ -191,6 +191,21 @@
     },
     "maintenanceBoq": {
       "$ref": "#/$defs/maintenanceWorkspace"
+    },
+    "costLock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "lockedAt"],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lockedAt": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     }
   },
   "$defs": {

@@ -427,6 +427,59 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "operation", "changes"],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "operation": {
+          "enum": [
+            "project.update",
+            "cost.update",
+            "masterdata.update",
+            "cpq.update",
+            "quote.update",
+            "ssr.update",
+            "boq.update"
+          ]
+        },
+        "changes": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "set": {
+              "type": "object",
+              "minProperties": 1,
+              "maxProperties": 20
+            },
+            "upsert": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1000,
+              "items": {
+                "type": "object",
+                "minProperties": 1
+              }
+            },
+            "remove": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1000,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

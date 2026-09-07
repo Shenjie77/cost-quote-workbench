@@ -24,10 +24,12 @@ export function useLocalWorkspace({
   projectId,
   workspace,
   onHydrate,
+  onMissing,
 }: {
   projectId: string;
   workspace: WorkbenchWorkspace;
   onHydrate: (workspace: WorkbenchWorkspace) => void;
+  onMissing: () => void;
 }) {
   const [status, setStatus] = useState<PersistenceStatus>({
     phase: 'connecting',
@@ -40,6 +42,10 @@ export function useLocalWorkspace({
   const [reloadKey, setReloadKey] = useState(0);
   const latest = useRef(workspace);
   const hydrate = useRef(onHydrate);
+  const missing = useRef(onMissing);
+  useEffect(() => {
+    missing.current = onMissing;
+  }, [onMissing]);
   const session = useRef<{
     projectId: string;
     queue: ReturnType<typeof createSaveQueue<WorkbenchWorkspace>>;
@@ -67,6 +73,11 @@ export function useLocalWorkspace({
       try {
         const record = await getLocalWorkspace(projectId);
         if (cancelled) return;
+        if (!record)
+          throw new LocalApiError(
+            'Project no longer exists. Return to Project List.',
+            404,
+          );
         const queue = createSaveQueue<WorkbenchWorkspace>({
           revision: record?.revision ?? null,
           savedDocument: record?.workspace,
@@ -117,11 +128,17 @@ export function useLocalWorkspace({
             savedAt: record.updatedAt,
             message: `Loaded local data · R${record.revision} / 已载入`,
           });
-        } else if (latest.current.project.id === projectId) {
-          await queue.save(latest.current);
         }
         if (!cancelled) setReadyProjectId(projectId);
       } catch (error) {
+        if (
+          !cancelled &&
+          error instanceof LocalApiError &&
+          [404, 410].includes(error.status)
+        ) {
+          missing.current();
+          return;
+        }
         if (!cancelled)
           setStatus({
             phase: 'offline',
@@ -133,6 +150,7 @@ export function useLocalWorkspace({
     })();
     return () => {
       cancelled = true;
+      session.current?.queue.dispose();
       session.current = null;
     };
   }, [projectId, reloadKey]);
@@ -182,6 +200,23 @@ export function useLocalWorkspace({
     status,
     isReady,
     saveNow,
+    saveProjectDetails: (details: { name: string; client: string }) => {
+      const current = session.current;
+      if (!current || current.projectId !== projectId || !isReady)
+        return Promise.resolve(false);
+      return current.queue.save({
+        ...latest.current,
+        project: { ...latest.current.project, ...details },
+      });
+    },
+    pauseSaving: async () => {
+      const current = session.current;
+      if (!current || current.projectId !== projectId || !isReady) return null;
+      const saved = current.queue.save(latest.current);
+      const revision = await current.queue.pause();
+      return (await saved) ? revision : null;
+    },
+    resumeSaving: () => session.current?.queue.resume(),
     retryLoad: () => setReloadKey((key) => key + 1),
   };
 }

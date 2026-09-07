@@ -31,6 +31,7 @@ import { ContextBand } from '@/features/projects/project-context-band';
 import { formatSgd } from '@/lib/formatters';
 
 export function CostView({
+  lockedReason = null,
   activeVersion,
   versions,
   onSelectVersion,
@@ -54,6 +55,7 @@ export function CostView({
   project,
   announce,
 }: {
+  lockedReason?: string | null;
   activeVersion: string;
   versions: CostVersionSnapshot[];
   onSelectVersion: (version: string) => void;
@@ -151,6 +153,11 @@ export function CostView({
 
   return (
     <div className="space-y-4">
+      {lockedReason && (
+        <output className="border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          {lockedReason} 可查看和导出。
+        </output>
+      )}
       <ContextBand
         project={project}
         costVersion={activeVersion}
@@ -268,7 +275,7 @@ export function CostView({
         </div>
       </div>
       {costView === 'input' ? (
-        <div className="space-y-4">
+        <fieldset disabled={!!lockedReason} className="min-w-0 space-y-4">
           <div className="flex items-center justify-end gap-3">
             <span className="text-xs text-muted-foreground">
               Version rates · 版本独立汇率
@@ -306,19 +313,22 @@ export function CostView({
               setTravelUplift={setTravelUplift}
             />
           ) : null}
-        </div>
+        </fieldset>
       ) : null}
       {costView === 'summary' ? (
-        <CostSummaryView
-          rows={rows}
-          resourceTypes={resourceTypes}
-          travelCost={hqTravelCost}
-          manualCosts={manualCosts}
-          setManualCosts={setManualCosts}
-        />
+        <fieldset disabled={!!lockedReason} className="min-w-0">
+          <CostSummaryView
+            rows={rows}
+            resourceTypes={resourceTypes}
+            travelCost={hqTravelCost}
+            manualCosts={manualCosts}
+            setManualCosts={setManualCosts}
+          />
+        </fieldset>
       ) : null}
       {costView === 'compare' ? (
         <VersionComparisonView
+          readOnly={!!lockedReason}
           versions={versions}
           activeVersion={activeVersion}
           resourceTypes={resourceTypes}

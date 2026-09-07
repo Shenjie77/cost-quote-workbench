@@ -37,9 +37,9 @@ const repository = openWorkspaceRepository(databasePath);
 
 try {
   const existing = repository.get(project.id);
-  if (existing) {
+  if (existing || repository.isDeleted(project.id)) {
     process.stdout.write(
-      `${JSON.stringify({ created: false, projectId: project.id, revision: existing.revision, databasePath })}\n`,
+      `${JSON.stringify({ created: false, projectId: project.id, revision: existing?.revision ?? null, deleted: repository.isDeleted(project.id), databasePath })}\n`,
     );
   } else {
     const saved = repository.save(

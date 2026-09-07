@@ -7,7 +7,7 @@
  * normalize individual business records without changing the public payload.
  */
 
-export const LOCAL_DATABASE_SCHEMA_VERSION = 2;
+export const LOCAL_DATABASE_SCHEMA_VERSION = 3;
 
 /** Each entry is exactly one statement so initialization stays portable. */
 export const LOCAL_DATABASE_STATEMENTS = [
@@ -33,6 +33,11 @@ export const LOCAL_DATABASE_STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_projects_updated_at
    ON projects(updated_at DESC)`,
+  // Retain complete snapshots for recovery; deleted IDs cannot be auto-created.
+  `CREATE TABLE IF NOT EXISTS deleted_projects (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id),
+    deleted_at TEXT NOT NULL
+  )`,
   // Exact pre-migration documents are retained locally for inspection/recovery.
   `CREATE TABLE IF NOT EXISTS workspace_migration_archive (
     project_id TEXT NOT NULL,
