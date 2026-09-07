@@ -294,6 +294,7 @@ export function CostView({
             rows={rows}
             setRows={setRows}
             rateSettings={rateSettings}
+            setRateSettings={setRateSettings}
             resourceTypes={resourceTypes}
             includedTravelCost={includedTravelCost}
             announce={announce}

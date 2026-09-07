@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 报价模板更新"
+  short_description: "新建或更新客户模板的有效期、付款条款、法务 T&C 和默认假设引用。"
+  default_prompt: "使用 $ssr-quote-template 更新指定项目客户模板的有效期、付款条款及 T&C。"

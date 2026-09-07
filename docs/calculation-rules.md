@@ -24,6 +24,15 @@ MD/site or delivery/uplift assumptions recalculates it immediately. The same
 normalization runs on workspace saves. Packaged subcontract costs remain
 manually entered monetary inputs.
 
+The optional **Local + ARP allowance 3%** checkbox is in Cost Input and defaults
+to off. When enabled, each internal LOCAL/ARP annual Cost uses
+`Mandays × version MD rate × cumulative uplift × 1.03`, rounded once to cents.
+Recalculation starts from effort and rates, so it never compounds a previously
+calculated Cost. HQ, subcontract, travel and manual costs are unchanged.
+Summary, history, quotation and Excel totals sum these final annual costs;
+there is no separate allowance line or second addition. The option is captured
+per version and cannot change after the project cost is locked.
+
 Each version captures RE Type rates, MD/month, hours/MD and HQ designation.
 Editing the master catalogue leaves existing version snapshots unchanged.
 **Apply Master Rates** refreshes only the selected version. Cost exports reject

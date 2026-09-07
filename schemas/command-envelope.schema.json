@@ -138,7 +138,9 @@
               "project.list",
               "project.delete",
               "project.restore",
-              "cost.apply-rates"
+              "cost.apply-rates",
+              "project.create",
+              "cost.create"
             ]
           }
         }
@@ -668,7 +670,9 @@
               "maintenance.archive",
               "project.delete",
               "project.restore",
-              "cost.apply-rates"
+              "cost.apply-rates",
+              "project.create",
+              "cost.create"
             ]
           },
           "data": {

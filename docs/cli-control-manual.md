@@ -45,8 +45,10 @@ absolute file path and SHA-256 so an Agent can detect a changed contract.
 For normal edits, use the [narrow resource contract](../skills/cost-workbench/references/resources.md)
 (`project`, `cost`, `masterdata`, `cpq`, `quote`, `ssr`, `boq` get/update).
 Reads are filtered/paginated; updates merge named rows or fields with revision
-checks. Project delete/restore is recoverable. RE/cost updates are blocked after
-DRB completion or cost finalization. Existing mutators support `--compact`;
+checks. Project delete/restore is recoverable. After DRB completion or cost
+finalization, cost edits and `cost apply-rates` are blocked. `masterdata update
+--tab resources` remains available to refresh the catalogue; captured rates and
+cost amounts stay unchanged. Existing mutators support `--compact`;
 legacy workspace get/save remains for backups and deliberate bulk work.
 
 Cost validate/calculate/export additionally accept `--project-id ID [--version V1] [--db FILE]`
@@ -466,3 +468,12 @@ it does not itself install a scheduler or send a message.
 
 Run `npm test` before handoff. `npm run test:cli` runs only the CLI contract
 suite.
+
+
+## 业务 Skill 与成本新建
+
+可直接使用 [业务 Skill 清单](business-skills.md) 中的独立入口，无需先读取完整 workspace。
+
+- `project create --input REQUEST`：OperationRequest 的 data 为 `{schemaVersion:"1.0.0",operation:"project.create",project:{id,name,client}}`，仅创建新项目和空白 V1，已有或已删除同号项目均拒绝。
+- `cost create --project-id ID --mode blank|clone [--source-version V1] --expected-revision R`：新增 Draft 并返回版本号，保持 activeVersion；clone 必须指定源版本，blank 禁止 source-version。锁定项目不能新建版本。
+- `cost import --project-id ID --version Vn ...`：预览和应用均可指定版本；未指定仍为 activeVersion。预览返回 revision/version；`--apply --compact` 返回窄收据，未加 compact 保留旧完整记录响应。

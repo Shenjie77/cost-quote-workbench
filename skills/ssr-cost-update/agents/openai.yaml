@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 成本更新"
+  short_description: "SSR · 成本更新：独立处理指定项目的业务记录，通过细分 CLI 读写并核对结果。"
+  default_prompt: "使用 $ssr-cost-update 更新指定项目和版本的成本，只修改我提供的人天、费用或计算设置。"

@@ -18,6 +18,8 @@ import {
   projectRecord,
 } from '../features/workbench/workspace-factories.ts';
 import { initialCostRows } from '../features/cost/demo-data.ts';
+import { costLockReason } from '../features/cost/cost-lock.ts';
+import { validatedQuoteInput } from '../features/quote/validated-input.ts';
 import { openReminderService } from '../server/reminder-service.mjs';
 
 const fixture = () => {
@@ -525,7 +527,7 @@ test('already migrated databases do not deserialize unrelated project snapshots 
   }
 });
 
-test('finalized costs reject RE master changes, apply-rates and cost edits across CLI and full-workspace writes', () => {
+test('finalized costs allow master rate maintenance but preserve captured costs and quotation amounts', () => {
   const repo = setup();
   try {
     const receipt = updateResource(
@@ -538,19 +540,38 @@ test('finalized costs reject RE master changes, apply-rates and cost edits acros
     );
     assert.match(receipt.costLockReason, /定稿/);
     const locked = repo.get('P-TEST');
-    const resource = locked.workspace.resourceTypes[0];
-    assert.throws(
-      () =>
-        updateResource(
-          repo,
-          'P-TEST',
-          'masterdata',
-          { tab: 'resources' },
-          { upsert: [{ id: resource.id, mandayRate: 1 }] },
-          2,
-        ),
-      /锁定/,
+    const quote = validatedQuoteInput(locked.workspace, 'Q-LOCK');
+    const resource = locked.workspace.resourceTypes.find(
+      (r) => r.id === locked.workspace.costRows[0].reTypeId,
     );
+    const updated = updateResource(
+      repo,
+      'P-TEST',
+      'masterdata',
+      { tab: 'resources' },
+      {
+        upsert: [
+          {
+            id: resource.id,
+            mandayRate: resource.mandayRate * 2,
+            mandaysPerMonth: resource.mandaysPerMonth + 5,
+            hoursPerManday: resource.hoursPerManday + 2,
+          },
+        ],
+      },
+      2,
+    );
+    assert.equal(updated.revision, 3);
+    assert.match(updated.costLockReason, /定稿/);
+    const refreshed = repo.get('P-TEST').workspace;
+    assert.deepEqual(refreshed.costVersions, locked.workspace.costVersions);
+    assert.deepEqual(refreshed.costRows, locked.workspace.costRows);
+    assert.deepEqual(validatedQuoteInput(refreshed, 'Q-LOCK'), quote);
+    assert.equal(
+      refreshed.resourceTypes.find((r) => r.id === resource.id).mandayRate,
+      resource.mandayRate * 2,
+    );
+    assert.throws(() => applyMasterRates(repo, 'P-TEST', 'V1', 3), /锁定/);
     assert.throws(
       () =>
         updateResource(
@@ -559,17 +580,30 @@ test('finalized costs reject RE master changes, apply-rates and cost edits acros
           'cost',
           { section: 'settings' },
           { set: { manualCosts: { riskContingency: 999 } } },
-          2,
+          3,
         ),
       /锁定/,
     );
-    const w = structuredClone(locked.workspace);
+    // The full-workspace UI save can also refresh the catalogue independently.
+    const w = structuredClone(refreshed);
+    w.resourceTypes[0].mandayRate += 1;
+    repo.save('P-TEST', w, 3);
+    assert.deepEqual(
+      repo.get('P-TEST').workspace.costVersions,
+      locked.workspace.costVersions,
+    );
     w.costVersions[0].state = 'Draft';
     delete w.costLock;
-    assert.throws(() => repo.save('P-TEST', w, 2), /锁定/);
+    assert.throws(() => repo.save('P-TEST', w, 4), /锁定/);
     w.costVersions[0].state = 'Confirmed';
-    w.resourceTypes[0].mandayRate = 1;
-    assert.throws(() => repo.save('P-TEST', w, 2), /锁定/);
+    w.costVersions[0].resourceTypes[0].mandayRate = 1;
+    assert.throws(() => repo.save('P-TEST', w, 4), /锁定/);
+    // Older clients cannot omit the captured rates to reimport the new catalogue.
+    delete w.costVersions[0].resourceTypes;
+    assert.throws(() => repo.save('P-TEST', w, 4), /锁定/);
+    const costAssumptions = repo.get('P-TEST').workspace;
+    costAssumptions.rateSettings.annualUplifts[0] += 10;
+    assert.throws(() => repo.save('P-TEST', costAssumptions, 4), /锁定/);
     // Quote/T&C work can continue against the frozen cost base.
     updateResource(
       repo,
@@ -577,7 +611,7 @@ test('finalized costs reject RE master changes, apply-rates and cost edits acros
       'quote',
       { section: 'settings' },
       { set: { pricing: { targetGrossMargin: 30 } } },
-      2,
+      4,
     );
     assert.deepEqual(
       repo.get('P-TEST').workspace.costVersions,
@@ -621,10 +655,166 @@ test('completed DRB locks costs persistently even if its workflow label is later
     );
     const changed = repo.get('P-TEST').workspace;
     changed.resourceTypes[0].mandayRate += 1;
-    assert.throws(() => repo.save('P-TEST', changed, 3), /锁定/);
+    repo.save('P-TEST', changed, 3);
+    assert.deepEqual(
+      repo.get('P-TEST').workspace.costVersions,
+      locked.workspace.costVersions,
+    );
+    assert.equal(
+      repo.get('P-TEST').workspace.costLock.lockedAt,
+      locked.workspace.costLock.lockedAt,
+    );
+    assert.throws(() => applyMasterRates(repo, 'P-TEST', 'V1', 4), /锁定/);
   } finally {
     repo.close();
   }
+});
+
+for (const trigger of ['DRB', 'Confirmed']) {
+  test(`CLI refreshes Resources after ${trigger} without changing calculated cost or unlocking cost writes`, () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'locked-master-rates-'));
+    const db = path.join(dir, 'db.sqlite');
+    const repo = openWorkspaceRepository(db);
+    let before;
+    try {
+      const w = fixture();
+      if (trigger === 'Confirmed') w.costVersions[0].state = 'Confirmed';
+      else
+        w.processSteps.push({
+          ...w.processSteps[0],
+          code: 'DRB',
+          name: 'DRB Review',
+          no: '99',
+          state: 'completed',
+        });
+      before = repo.save('P-TEST', w, null).workspace;
+    } finally {
+      repo.close();
+    }
+    try {
+      const calculation = cli(db, [
+        'cost',
+        'calculate',
+        '--project-id',
+        'P-TEST',
+      ]).data;
+      const resource = before.resourceTypes.find(
+        (r) => r.id === before.costRows[0].reTypeId,
+      );
+      const updated = cli(
+        db,
+        [
+          'masterdata',
+          'update',
+          '--project-id',
+          'P-TEST',
+          '--tab',
+          'resources',
+          '--input',
+          '-',
+          '--expected-revision',
+          '1',
+        ],
+        { upsert: [{ id: resource.id, mandayRate: resource.mandayRate * 3 }] },
+      );
+      assert.equal(updated.data.revision, 2);
+      assert.match(updated.data.costLockReason, /锁定/);
+      const catalog = cli(db, [
+        'masterdata',
+        'get',
+        '--project-id',
+        'P-TEST',
+        '--tab',
+        'resources',
+        '--id',
+        resource.id,
+      ]);
+      assert.equal(catalog.data.items[0].mandayRate, resource.mandayRate * 3);
+      const captured = cli(db, [
+        'cost',
+        'get',
+        '--project-id',
+        'P-TEST',
+        '--section',
+        'resources',
+        '--id',
+        resource.id,
+      ]);
+      assert.equal(captured.data.items[0].mandayRate, resource.mandayRate);
+      assert.deepEqual(
+        cli(db, ['cost', 'calculate', '--project-id', 'P-TEST']).data,
+        calculation,
+      );
+      cli(
+        db,
+        [
+          'cost',
+          'apply-rates',
+          '--project-id',
+          'P-TEST',
+          '--version',
+          'V1',
+          '--expected-revision',
+          '2',
+        ],
+        undefined,
+        6,
+      );
+      cli(
+        db,
+        [
+          'cost',
+          'update',
+          '--project-id',
+          'P-TEST',
+          '--input',
+          '-',
+          '--expected-revision',
+          '2',
+        ],
+        { upsert: [{ id: before.costRows[0].id, mdPerSite: 999 }] },
+        6,
+      );
+      cli(
+        db,
+        [
+          'cost',
+          'update',
+          '--project-id',
+          'P-TEST',
+          '--section',
+          'settings',
+          '--input',
+          '-',
+          '--expected-revision',
+          '2',
+        ],
+        { set: { rateSettings: { annualUplifts: [99, 99, 99, 99, 99] } } },
+        6,
+      );
+      const reopened = openWorkspaceRepository(db);
+      try {
+        const after = reopened.get('P-TEST');
+        assert.equal(after.revision, 2);
+        assert.deepEqual(after.workspace.costVersions, before.costVersions);
+        assert.deepEqual(after.workspace.costLock, before.costLock);
+      } finally {
+        reopened.close();
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}
+
+test('legacy lock wording no longer presents the master catalogue as locked', () => {
+  const w = fixture();
+  w.costLock = {
+    reason: '成本已定稿（V1），项目成本及 RE 费率已锁定。',
+    lockedAt: '2026-09-07T00:00:00.000Z',
+  };
+  assert.equal(costLockReason(w), '成本已定稿（V1），项目成本已锁定。');
+  assert.equal(w.costLock.lockedAt, '2026-09-07T00:00:00.000Z');
 });
 
 test('DRB conditions must close before locking; finalizing the unchanged cost remains possible', async () => {
@@ -678,10 +868,25 @@ test('DRB conditions must close before locking; finalizing the unchanged cost re
     updateResource(
       repo,
       'P-TEST',
+      'masterdata',
+      { tab: 'resources' },
+      {
+        upsert: [
+          {
+            id: w.resourceTypes[0].id,
+            mandayRate: w.resourceTypes[0].mandayRate * 2,
+          },
+        ],
+      },
+      3,
+    );
+    updateResource(
+      repo,
+      'P-TEST',
       'cost',
       { section: 'settings' },
       { set: { state: 'Confirmed' } },
-      3,
+      4,
     );
     const after = repo.get('P-TEST').workspace;
     assert.equal(after.costVersions[0].state, 'Confirmed');

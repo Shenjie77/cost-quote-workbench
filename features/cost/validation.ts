@@ -124,6 +124,17 @@ export const validateCostExportSnapshot = (
   });
 
   const { rateSettings } = snapshot;
+  if (
+    rateSettings.localArpAllowanceEnabled !== undefined &&
+    typeof rateSettings.localArpAllowanceEnabled !== 'boolean'
+  ) {
+    add(
+      'error',
+      'INVALID_ALLOWANCE_SETTING',
+      '/rateSettings/localArpAllowanceEnabled',
+      'Local/ARP allowance must be enabled or disabled.',
+    );
+  }
   (
     [
       ['quoteAsOf', false],

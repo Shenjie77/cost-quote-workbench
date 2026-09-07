@@ -63,6 +63,8 @@ export type CostInputRow = {
 };
 
 export type RateSettings = {
+  /** Include a fixed 3% Local/ARP allowance in each annual Cost; absent is off. */
+  localArpAllowanceEnabled?: boolean;
   quoteAsOf: string;
   tdStart: string;
   tdEnd: string;
@@ -258,7 +260,7 @@ export const getResourceRateConversions = (resourceType: ResourceType) => ({
   ),
 });
 
-/** Calculates an internal annual cost from Sites × MD/Site × annual MD rate. */
+/** Rebuild annual internal cost from effort/rate, including an optional Local/ARP 3%. */
 export const calculatedYearCost = (
   row: CostInputRow,
   yearIndex: number,
@@ -270,8 +272,16 @@ export const calculatedYearCost = (
     return roundMoney(Number(row.years[yearIndex]?.cost || 0));
   }
   const factor = getLabourRateFactors(rateSettings)[yearIndex] ?? 1;
+  const allowanceFactor =
+    rateSettings.localArpAllowanceEnabled === true &&
+    (resourceType.pool === 'LOCAL' || resourceType.pool === 'ARP')
+      ? 1.03
+      : 1;
   return roundMoney(
-    yearRowMandays(row, yearIndex) * resourceType.mandayRate * factor,
+    yearRowMandays(row, yearIndex) *
+      resourceType.mandayRate *
+      factor *
+      allowanceFactor,
   );
 };
 

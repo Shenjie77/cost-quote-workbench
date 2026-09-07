@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -53,6 +54,7 @@ export function CostInputSheet({
   rows,
   setRows,
   rateSettings,
+  setRateSettings,
   resourceTypes,
   includedTravelCost,
   announce,
@@ -60,6 +62,7 @@ export function CostInputSheet({
   rows: CostInputRow[];
   setRows: React.Dispatch<React.SetStateAction<CostInputRow[]>>;
   rateSettings: RateSettings;
+  setRateSettings: React.Dispatch<React.SetStateAction<RateSettings>>;
   resourceTypes: ResourceType[];
   includedTravelCost: number;
   announce: (message: string) => void;
@@ -288,6 +291,24 @@ export function CostInputSheet({
           </StatusBadge>
         }
       />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-3 py-3">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <Checkbox
+            aria-label="Include Local and ARP 3% allowance in annual cost"
+            checked={rateSettings.localArpAllowanceEnabled === true}
+            onCheckedChange={(checked) =>
+              setRateSettings((current) => ({
+                ...current,
+                localArpAllowanceEnabled: checked,
+              }))
+            }
+          />
+          Local + ARP allowance 3%
+        </label>
+        <span className="text-sm text-muted-foreground">
+          开启后 Y1–Y5 Cost 直接包含 3%；HQ 和分包不变。
+        </span>
+      </div>
       <div className="grid gap-px border-b border-border bg-border sm:grid-cols-2 xl:grid-cols-4">
         <div className="bg-[#f7f5f0] px-3 py-2.5">
           <BiText

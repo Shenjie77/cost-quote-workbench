@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 维保配置与报价"
+  short_description: "SSR · 维保配置与报价：独立处理指定项目的业务记录，通过细分 CLI 读写并核对结果。"
+  default_prompt: "使用 $ssr-maintenance-quote 根据指定项目的 BOQ 和维保参考数据生成维保报价草稿。"

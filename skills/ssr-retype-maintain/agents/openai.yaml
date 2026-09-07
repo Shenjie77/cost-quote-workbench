@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · RE Type 维护"
+  short_description: "SSR · RE Type 维护：独立处理指定项目的业务记录，通过细分 CLI 读写并核对结果。"
+  default_prompt: "使用 $ssr-retype-maintain 更新指定项目的 RE Type 人天费率，仅修改主数据目录。"

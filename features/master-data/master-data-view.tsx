@@ -67,7 +67,7 @@ import {
 } from './navigation';
 
 type Props = {
-  resourceLockReason?: string | null;
+  costLockReason?: string | null;
   activeTab: MasterDataTab;
   onTabChange: (tab: MasterDataTab) => void;
   onOpenQuote: () => void;
@@ -178,7 +178,7 @@ function EditCell({
 
 export function MasterDataView(props: Props) {
   const {
-    resourceLockReason = null,
+    costLockReason = null,
     activeTab,
     onTabChange,
     onOpenQuote,
@@ -1036,12 +1036,13 @@ export function MasterDataView(props: Props) {
             </p>
           </TabsContent>
           <TabsContent value="resources" className="mt-0">
-            {resourceLockReason && (
-              <output className="border-b bg-amber-50 p-3 text-sm text-amber-900">
-                {resourceLockReason}
+            {costLockReason && (
+              <output className="block border-b bg-amber-50 p-3 text-sm text-amber-900">
+                {costLockReason}{' '}
+                主数据汇率仍可更新；已锁定的成本保留原汇率，不会随主数据变更。
               </output>
             )}
-            <fieldset disabled={!!resourceLockReason} className="min-w-0">
+            <div className="min-w-0">
               <div className="flex items-center justify-between border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
                 <span>HQ L1–L4 · Local L1–L4 · ARP L0–L4 · SGD/MD</span>
                 <div className="flex items-center gap-2">
@@ -1060,7 +1061,9 @@ export function MasterDataView(props: Props) {
                     onClick={async () =>
                       announce(
                         (await onSave())
-                          ? 'RE Type catalogue saved. Apply Master Rates in Cost to use changes. / 主数据已保存，可在成本页应用汇率。'
+                          ? costLockReason
+                            ? 'Master rates saved; locked costs are unchanged. / 主数据汇率已保存，已锁定成本保持不变。'
+                            : 'RE Type catalogue saved. Apply Master Rates in Cost to use changes. / 主数据已保存，可在成本页应用汇率。'
                           : 'Save failed; edits retained / 保存失败，修改已保留',
                       )
                     }
@@ -1213,7 +1216,7 @@ export function MasterDataView(props: Props) {
                 MM rate = MD rate × MD/MM. Hour rate = MD rate ÷ Hour/MD. HQ
                 rows automatically enable travel. / 人月、人时汇率自动换算。
               </p>
-            </fieldset>
+            </div>
           </TabsContent>
           <TabsContent value="subcontract" className="mt-0">
             <TableToolbar count={subcontract.length} onAdd={addSubcontract} />

@@ -421,16 +421,17 @@ export const openWorkspaceRepository = (databasePath) => {
                   contentKey({ ...next, state: '' })
               );
             });
-          if (
-            versionsChanged ||
-            contentKey(previous.resourceTypes) !==
-              contentKey(document.resourceTypes)
-          )
+          // Freeze captured cost inputs, not the independently editable master
+          // catalogue. Updating its rates must never rewrite a saved version.
+          if (versionsChanged)
             throw new WorkspaceValidationError(lockedReason, '/costLock');
         }
         // The persisted lock survives older clients and later workflow changes.
         if (previous?.costLock)
-          document = { ...document, costLock: previous.costLock };
+          document = {
+            ...document,
+            costLock: { ...previous.costLock, reason: lockedReason },
+          };
         else {
           delete document.costLock;
           const reason = lockedReason || costLockReason(document);

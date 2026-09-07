@@ -1251,11 +1251,8 @@ function ProjectSessionApp({
         projectStatusDefinitions={projectStatusDefinitions}
         setProjectStatusDefinitions={setProjectStatusDefinitions}
         resourceTypes={resourceTypes}
-        setResourceTypes={(update) => {
-          if (lockedReason) setNotice(lockedReason);
-          else setResourceTypes(update);
-        }}
-        resourceLockReason={lockedReason}
+        setResourceTypes={setResourceTypes}
+        costLockReason={lockedReason}
         subcontractItems={subcontractItems}
         setSubcontractItems={setSubcontractItems}
         supplementalCostItems={supplementalCostItems}

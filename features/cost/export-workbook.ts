@@ -2005,7 +2005,7 @@ const addAssumptionsSheet = (
   addSheetTitle(
     sheet,
     'Delivery and Cost Assumptions',
-    'Snapshot used by this export; annual cost values remain user-entered.',
+    'Snapshot used by this export; annual costs include selected Cost Input assumptions.',
   );
   sheet.getRow(HEADER_ROW).values = ['Section', 'Item', 'Value', 'Unit / Note'];
   styleHeaderRow(sheet.getRow(HEADER_ROW));
@@ -2021,6 +2021,16 @@ const addAssumptionsSheet = (
     values: [string, string, string | number, string];
     money?: boolean;
   }> = [
+    {
+      values: [
+        'Cost Input',
+        'Local + ARP allowance 3%',
+        snapshot.rateSettings.localArpAllowanceEnabled === true
+          ? 'Enabled'
+          : 'Disabled',
+        'Included in each annual Cost: MD × version rate × annual uplift factor × 1.03; HQ/subcontract excluded. Summaries do not add it again.',
+      ],
+    },
     {
       values: [
         'Project',

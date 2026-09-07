@@ -507,6 +507,10 @@
         "annualUplifts"
       ],
       "properties": {
+        "localArpAllowanceEnabled": {
+          "type": "boolean",
+          "description": "Include a fixed 3% allowance in each Y1-Y5 Cost for internal LOCAL/ARP labour. Omitted means disabled. Summaries only sum the calculated costs."
+        },
         "quoteAsOf": {
           "$ref": "#/$defs/date"
         },

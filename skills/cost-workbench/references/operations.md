@@ -33,8 +33,8 @@ Replace `data` with the complete workspace returned by `workspace get`, with int
 
 ```
 cost-cli workbook inspect --file TD.xlsx --header-row 1
-cost-cli cost import --project-id ID --file TD.xlsx --input mapping.json
-cost-cli cost import --project-id ID --file TD.xlsx --input mapping.json --apply --expected-revision REVISION --compact
+cost-cli cost import --project-id ID --version Vn --file TD.xlsx --input mapping.json
+cost-cli cost import --project-id ID --version Vn --file TD.xlsx --input mapping.json --apply --expected-revision REVISION --compact
 ```
 
 Example `mapping.json`:
@@ -70,7 +70,7 @@ Example `mapping.json`:
 }
 ```
 
-Select real sheet, columns, BU and active RE Type. `0` means unmapped. `endRow` limits data; `excludeRows` removes known total/footer rows. For PM subcontract, choose its RE Type and cost column; direct mandays may be unmapped. `tdStart` must identify a real Y1. Import appends rows. For a revised TD/PM file, use a new working cost version or explicitly replace the intended previous rows; a changed file hash does not mean the old cost disappeared. Same source row can be imported for different years, but overlapping source years are rejected. Never count the same packaged service in two separate costs.
+Specify the same target cost version for preview and apply; omission uses activeVersion. Preview returns its revision and version. Select real sheet, columns, BU and a RE Type captured in that version. `0` means unmapped. `endRow` limits data; `excludeRows` removes known total/footer rows. For PM subcontract, choose its RE Type and cost column; direct mandays may be unmapped. `tdStart` must identify a real Y1. Import appends rows. For a revised TD/PM file, use a new working cost version or explicitly replace the intended previous rows; a changed file hash does not mean the old cost disappeared. Same source row can be imported for different years, but overlapping source years are rejected. Never count the same packaged service in two separate costs.
 
 BOQ uses the same operation envelope, with `operation="boq.import"` and `mapping={sheet,headerRow,modelColumn,quantityColumn,excludeRows?}`. Run `boq import --project-id ID --file BOQ.xlsx --input mapping.json`; inspect rows, then repeat with `--apply --expected-revision`.
 

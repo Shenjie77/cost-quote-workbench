@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 成本新建"
+  short_description: "SSR · 成本新建：独立处理指定项目的业务记录，通过细分 CLI 读写并核对结果。"
+  default_prompt: "使用 $ssr-cost-create 为指定项目新建空白成本草稿，或从我指定的版本复制。"

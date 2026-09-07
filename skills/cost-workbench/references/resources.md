@@ -7,6 +7,8 @@ Use `npm run --silent cost-cli -- ...` from the project root. Every read returns
 | Command | Sections / selectors |
 | --- | --- |
 | `project list` | Compact persisted metadata, no workspace payload. `--deleted` lists recoverable removals. |
+| `project create --input REQUEST` | Create-only project with empty V1; never overwrites existing/deleted IDs. |
+| `cost create --project-id ID --mode blank\|clone [--source-version V1] --expected-revision R` | Adds a Draft, returns version, preserves activeVersion. |
 | `project get --project-id ID` | Identity, status, workflow, active version and `costLockReason`. |
 | `cost get --project-id ID --version V1` | Default `rows`; `--section settings`, `resources`, `travel`, `summary`, `versions`. |
 | `masterdata get --project-id ID --tab TAB` | The eight tabs below. |
@@ -69,9 +71,21 @@ Object input fields:
 | SSR settings | `enabled`, `proposalNumber`, `companyUrl`, `scopeBrief`, `technicalBasis`, `mode`, `requiredDomains` |
 | BOQ settings | `coverageMonths` |
 
-Cost updates recalculate the selected version. Inactive versions stay separate from the active editor. RE master edits do not update captured rates until `cost apply-rates --project-id ID --version V1 --expected-revision R`. Both are blocked on DRB-completed or cost-finalized projects. `costLockReason` describes the reason; there is no routine unlock command. Do not bypass the lock with full workspace saves.
+Cost updates recalculate the selected version. Inactive versions stay separate from the active editor. `masterdata update --tab resources` updates only the RE catalogue (including `mandayRate`, shown as 人天汇率 in the UI) and remains available after DRB completion or cost finalization. It never changes the resource definitions, rates or amounts captured in any cost version.
+
+Applying catalogue rates to a cost version requires `cost apply-rates --project-id ID --version V1 --expected-revision R`. That command, cost edits and cost imports are blocked on DRB-completed or cost-finalized projects. Cost settings `rateSettings` are the version's costing assumptions, not the editable Resources catalogue, and remain locked. `costLockReason` describes a cost lock, not a ban on Masterdata maintenance; there is no routine unlock command. Do not bypass it with full workspace saves.
+
+For a rate refresh, read `masterdata get --project-id ID --tab resources --id RESOURCE-ID`, then submit an `OperationRequest` with `operation: "masterdata.update"` and `changes: {"upsert":[{"id":"RESOURCE-ID","mandayRate":1800}]}` using `masterdata update --project-id ID --tab resources --input rates.json --expected-revision R`. Use the actual requested rate, not the example value. Verify the catalogue row; do not follow with `cost apply-rates` when the project cost is locked.
 
 `cost resources/versions`, quote history, SSR submissions and all archive sections are read-only. Use dedicated submit/result/close/followup/archive commands to append evidence. New narrow updates return only revision, changed IDs/fields and lock reason. Verify the changed section if needed, never the complete workspace.
+
+## Optional Local / ARP personnel allowance
+
+Use `cost update --section settings --version V1` with `changes: {"set":{"rateSettings":{"localArpAllowanceEnabled":true}}}` to enable the fixed 3% allowance; set it to `false` to disable. It belongs to the named cost version and defaults to off when absent in older data. It is a cost input and cannot change after DRB completion or cost finalization.
+
+The checkbox is in Cost Input. When enabled, each internal LOCAL/ARP Y1–Y5 Cost is calculated as actual mandays × captured MD rate × annual uplift factor × 1.03, then rounded upward to cents. HQ, subcontract, travel and manual costs are unaffected. Recalculation starts from effort and rates, never from a previously calculated Cost, so repeated saves/imports do not compound the allowance. Turning it off recalculates the normal annual Cost.
+
+Summary, `history search`, quotations, template scalars and Excel sum the final annual Cost values directly. They neither expose a separate allowance cost layer nor add 3% again. The standard workbook retains only the original cost detail and statement hierarchy, and records the checkbox in its assumptions sheet. If a TD import maps a cost column, that value must match the calculated Cost including the enabled 3%; for a source showing only base labour, leave cost unmapped and import the actual effort instead.
 
 ## CPQ sequence without a workspace round trip
 

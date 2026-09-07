@@ -16,6 +16,9 @@ import {
   readResource,
   updateResource,
   applyMasterRates,
+  createProject,
+  createCostDraft,
+  syncVersion,
   mutationReceipt,
 } from '../server/workspace-resources.mjs';
 import { createHash, randomUUID } from 'node:crypto';
@@ -39,6 +42,7 @@ import {
   COST_EXPORT_SCHEMA_VERSION,
   COST_WORKBOOK_CONTRACT_VERSION,
 } from '../features/cost/contracts.ts';
+import { costLockReason } from '../features/cost/cost-lock.ts';
 import { validateCostExportSnapshot } from '../features/cost/validation.ts';
 import {
   buildDailyDigest,
@@ -90,6 +94,8 @@ const ROUNDING_CONTRACT = Object.freeze({
 });
 
 const IMPLEMENTED_COMMANDS = Object.freeze([
+  'project create --input REQUEST [--db FILE]',
+  'cost create --project-id ID --mode blank|clone [--source-version V1] --expected-revision REVISION [--db FILE]',
   'project get --project-id ID [--id ID --query TEXT --limit N --offset N] [--db FILE]',
   'project update --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
   'cost get --project-id ID [--section SECTION] [--version V1] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
@@ -113,7 +119,7 @@ const IMPLEMENTED_COMMANDS = Object.freeze([
   'maintenance archive --project-id ID --expected-revision REVISION [--compact] [--db FILE]',
   'maintenance export --project-id ID --archive-id ID --output FILE.xlsx [--db FILE]',
   'workbook inspect --file FILE.xlsx [--header-row N]',
-  'cost import --project-id ID --file FILE.xlsx --input REQUEST [--apply --expected-revision REVISION] [--compact] [--db FILE]',
+  'cost import --project-id ID [--version V1] --file FILE.xlsx --input REQUEST [--apply --expected-revision REVISION] [--compact] [--db FILE]',
   'ssr submit --project-id ID --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
   'ssr result --project-id ID --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
   'ssr close --project-id ID --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
@@ -162,6 +168,23 @@ const readWorkbookFile = async (file) => {
  * boolean options never do. Keeping this explicit prevents silent typos.
  */
 const COMMAND_SPECS = Object.freeze({
+  'project.create': {
+    values: ['input', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['input'],
+  },
+  'cost.create': {
+    values: [
+      'project-id',
+      'mode',
+      'source-version',
+      'expected-revision',
+      'db',
+      'request-id',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id', 'mode', 'expected-revision'],
+  },
   'project.get': {
     values: [
       'project-id',
@@ -389,6 +412,7 @@ const COMMAND_SPECS = Object.freeze({
   'cost.import': {
     values: [
       'project-id',
+      'version',
       'file',
       'input',
       'expected-revision',
@@ -1168,6 +1192,43 @@ const execute = async () => {
   const options = parseOptions(resolved.command, resolved.optionTokens);
   compactRequested = Boolean(options.compact);
 
+  if (resolved.command === 'project.create') {
+    const input = await readCommandRequest(
+      options,
+      'OperationRequest',
+      'operations',
+      '1.0.0',
+    );
+    if (input.operation !== 'project.create')
+      throw new CliFault(
+        'OPERATION_MISMATCH',
+        'Request operation must match command.',
+        EXIT.VALIDATION,
+      );
+    return withWorkspaceRepository(options, (repository) =>
+      success(
+        'MutationResult',
+        createProject(repository, input.project),
+        [],
+        '1.0.0',
+      ),
+    );
+  }
+  if (resolved.command === 'cost.create')
+    return withWorkspaceRepository(options, (repository) =>
+      success(
+        'MutationResult',
+        createCostDraft(
+          repository,
+          String(options['project-id']),
+          { mode: options.mode, sourceVersion: options['source-version'] },
+          parseExpectedRevision(options['expected-revision']),
+        ),
+        [],
+        '1.0.0',
+      ),
+    );
+
   if (resolved.command === 'project.list')
     return withWorkspaceRepository(options, (repository) =>
       success(
@@ -1657,29 +1718,59 @@ const execute = async () => {
         if (resolved.command === 'cost.import') {
           const { previewCostImport, applyCostImport } =
             await import('../features/cost/import-workbook.ts');
-          const resources = baseline.resourceTypes || w.resourceTypes;
+          const version = options.version || w.activeVersion;
+          const target = w.costVersions.find((v) => v.code === version);
+          if (!target)
+            throw new CliFault(
+              'NOT_FOUND',
+              'Cost version not found.',
+              EXIT.NOT_FOUND,
+            );
+          if (options.apply && costLockReason(w))
+            throw new TypeError(costLockReason(w));
+          const resources = target.resourceTypes || w.resourceTypes;
           const preview = await previewCostImport(
             await readWorkbookFile(String(options.file)),
             path.basename(String(options.file)),
             input.mapping,
             resources,
-            w.rateSettings,
+            target.rateSettings,
           );
           if (!options.apply)
-            return success('OperationResult', preview, [], '1.0.0');
+            return success(
+              'OperationResult',
+              {
+                ...preview,
+                projectId: record.projectId,
+                revision: record.revision,
+                version,
+              },
+              [],
+              '1.0.0',
+            );
           if (options['expected-revision'] === undefined)
             throw new TypeError('--apply requires --expected-revision');
-          const rows = applyCostImport(w.costRows, preview, {
+          target.costRows = applyCostImport(target.costRows, preview, {
             resources,
-            rates: w.rateSettings,
+            rates: target.rateSettings,
           });
+          syncVersion(w, version);
+          const saved = repository.save(
+            w.project.id,
+            w,
+            parseExpectedRevision(options['expected-revision']),
+          );
+          if (!options.compact)
+            return success('WorkspaceRecordResult', saved, [], '1.0.0');
           return success(
-            'WorkspaceRecordResult',
-            repository.save(
-              w.project.id,
-              { ...w, costRows: rows },
-              parseExpectedRevision(options['expected-revision']),
-            ),
+            'MutationResult',
+            {
+              ...mutationReceipt(saved, ''),
+              resource: 'cost',
+              section: 'rows',
+              version,
+              changedIds: preview.rows.map((row) => row.id),
+            },
             [],
             '1.0.0',
           );
@@ -2031,7 +2122,9 @@ const execute = async () => {
         'XLSX_OUTPUT_REQUIRED',
         '--output must end with .xlsx.',
         EXIT.USAGE,
-        { dataSchemaVersion: COST_EXPORT_SCHEMA_VERSION },
+        {
+          dataSchemaVersion: COST_EXPORT_SCHEMA_VERSION,
+        },
       );
     }
     if (!options.overwrite) {

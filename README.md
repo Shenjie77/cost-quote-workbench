@@ -15,8 +15,17 @@ column mappings, templates and all new CLI commands.
 
 Project List includes recoverable deletion. Deleted projects stay out of the UI,
 including after restart; snapshots can be recovered with `project restore`.
-DRB-completed or cost-finalized projects lock their cost versions and RE rates.
-Viewing, quotations and Excel exports remain available.
+DRB-completed or cost-finalized projects lock their cost versions, including
+the rates captured in those versions. Masterdata Resources remains editable;
+catalogue rate updates never recalculate locked costs. Viewing, quotations and
+Excel exports remain available.
+
+Cost Input has an optional 3% allowance for Local and ARP internal labour,
+off by default per cost version. When enabled, each Y1–Y5 Cost is calculated
+with the 3% included. Summaries, history, quotations and Excel use those final
+costs directly, without another allowance layer. Master rates and mandays stay unchanged.
+
+Use the [18 business Skills](docs/business-skills.md) directly for project setup, master data, costing, CPQ, maintenance, quotation and workflow updates. `cost-workbench` is the lightweight cross-business router.
 
 For routine Skill work, use [narrow resource commands](skills/cost-workbench/references/resources.md):
 project metadata, individual cost versions/rows, all eight Masterdata tabs, CPQ
@@ -104,8 +113,9 @@ server/                      Same-device API, pure document migration/validation
 cli/cost-cli.mjs             Machine-first local CLI
 schemas/                     Versioned JSON request/response contracts
 docs/                        Architecture, calculation, CLI, and export guides
-skills/cost-workbench/       SSR/CPQ/Excel/quotation operating Skill
-.agents/skills/              Project entry pointing to the same Skill
+skills/ssr-*/                Independent SSR business Skills and focused references
+skills/cost-workbench/       Lightweight cross-business router and legacy manuals
+.agents/skills/              Project discovery links to the canonical Skills
 ```
 
 Business rules and public functions use module comments/JSDoc. Comments explain

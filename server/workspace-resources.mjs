@@ -8,6 +8,11 @@ import { emptySsr } from '../features/ssr/domain.ts';
 import { emptyMaintenance } from '../features/maintenance/domain.ts';
 import { costLockReason } from '../features/cost/cost-lock.ts';
 import {
+  createBlankWorkspace,
+  createCostVersion,
+  projectRecord,
+} from '../features/workbench/workspace-factories.ts';
+import {
   recalculateCostRows,
   getHQTravelSummary,
   getCostStatementValues,
@@ -391,12 +396,7 @@ export function updateResource(
     Object.keys(changes).length === 1 &&
     Object.keys(changes.set || {}).length === 1 &&
     changes.set.state === 'Confirmed';
-  if (
-    locked &&
-    ((module === 'cost' && !finalizingOnly) ||
-      (module === 'masterdata' && options.tab === 'resources'))
-  )
-    fail(locked);
+  if (locked && module === 'cost' && !finalizingOnly) fail(locked);
   const target = locate(w, module, options);
   if (target.readonly)
     fail('This section is read-only; use the explicit workflow command.');
@@ -492,7 +492,7 @@ export function updateResource(
   };
 }
 
-function syncVersion(w, code) {
+export function syncVersion(w, code) {
   const v = w.costVersions.find((v) => v.code === code);
   v.costRows = recalculateCostRows(v.costRows, v.resourceTypes, v.rateSettings);
   if (code === w.activeVersion)
@@ -520,5 +520,90 @@ export function applyMasterRates(repository, id, version, revision) {
   return {
     ...mutationReceipt(repository.save(id, record.workspace, revision), ''),
     version,
+  };
+}
+
+/** Cost assumptions start empty until the user supplies actual delivery inputs. */
+const blankCostInputs = (resourceTypes) => {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    resourceTypes,
+    costRows: [],
+    rateSettings: {
+      quoteAsOf: today,
+      tdStart: '',
+      tdEnd: '',
+      baseYear: Number(today.slice(0, 4)),
+      defaultUplift: 0,
+      annualUplifts: [0, 0, 0, 0, 0],
+      localArpAllowanceEnabled: false,
+    },
+    travelSettings: { monthlyAllowance: 0, airfarePerTrip: 0, trips: 0 },
+    travelRows: [],
+    travelUplift: 0,
+    manualCosts: {
+      localPurchasedEquipment: 0,
+      inlandLogistics: 0,
+      countryWarehousing: 0,
+      nonInHouseLabour: 0,
+      settlement: 0,
+      carFee: 0,
+      otherService: 0,
+      riskContingency: 0,
+    },
+  };
+};
+
+/** Create-only, including for deleted IDs: recovery is always explicit. */
+export function createProject(repository, project) {
+  const w = createBlankWorkspace(
+    projectRecord(project.id, project.name, project.client),
+    'input_preparation',
+  );
+  Object.assign(w, blankCostInputs(w.resourceTypes));
+  w.costVersions = [createCostVersion('V1', 'Draft', null, w)];
+  w.subcontractItems = [];
+  w.supplementalCostItems = [];
+  w.maintenancePriceRecords = [];
+  const saved = repository.save(project.id, w, null);
+  return { ...mutationReceipt(saved, ''), resource: 'project', version: 'V1' };
+}
+
+/** Adds a Draft without changing the active editor, CPQ basis or old versions. */
+export function createCostDraft(repository, id, options, revision) {
+  if (!['blank', 'clone'].includes(options.mode))
+    fail('--mode must be blank or clone.');
+  if ((options.mode === 'clone') !== Boolean(options.sourceVersion))
+    fail('clone requires --source-version; blank does not accept it.');
+  const record = requireRecord(repository, id);
+  if (record.revision !== revision)
+    throw new RepositoryConflictError(
+      'Project changed. Read this resource again.',
+      record.revision,
+    );
+  const w = record.workspace;
+  const locked = costLockReason(w);
+  if (locked) fail(locked);
+  const source =
+    options.mode === 'clone'
+      ? w.costVersions.find((v) => v.code === options.sourceVersion)
+      : null;
+  if (options.mode === 'clone' && !source)
+    throw new RepositoryNotFoundError('Source cost version not found.');
+  const next =
+    Math.max(...w.costVersions.map((v) => Number(v.code.slice(1)))) + 1;
+  if (!Number.isSafeInteger(next)) fail('Cost version number is too large.');
+  const version = createCostVersion(
+    `V${next}`,
+    'Draft',
+    source?.code || null,
+    source || blankCostInputs(w.resourceTypes),
+  );
+  w.costVersions.push(version);
+  return {
+    ...mutationReceipt(repository.save(id, w, revision), ''),
+    resource: 'cost',
+    section: 'versions',
+    version: version.code,
   };
 }

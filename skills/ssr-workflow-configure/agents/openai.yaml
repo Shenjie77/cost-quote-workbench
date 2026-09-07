@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 流程配置维护"
+  short_description: "SSR · 流程配置维护：独立处理指定项目的业务记录，通过细分 CLI 读写并核对结果。"
+  default_prompt: "使用 $ssr-workflow-configure 维护指定项目的流程节点配置和状态字典，保留实际进度。"
