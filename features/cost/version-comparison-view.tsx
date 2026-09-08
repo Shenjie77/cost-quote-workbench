@@ -59,6 +59,7 @@ export function VersionComparisonView({
       version.resourceTypes || resourceTypes,
       travel,
       version.manualCosts,
+      version.subcontractCost,
     ).totalWithRisk;
     const previous = versions.find(
       (item) => item.code === version.sourceVersion,
@@ -75,6 +76,7 @@ export function VersionComparisonView({
         previous.resourceTypes || resourceTypes,
         previousTravel,
         previous.manualCosts,
+        previous.subcontractCost,
       ).totalWithRisk;
     }
     return {
@@ -211,27 +213,37 @@ export function VersionComparisonView({
               </TableCell>
               <TableCell className="pr-4 text-right">
                 <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant={record.code === activeVersion ? 'ghost' : 'outline'}
-                  size="sm"
-                  disabled={record.code === activeVersion}
-                  onClick={() => onSelectVersion(record.code)}
-                >
-                  {record.code === activeVersion ? 'Current' : 'Open'}
-                  <span className="text-[8px] opacity-60">
-                    {record.code === activeVersion ? '当前' : '查看'}
-                  </span>
-                  {record.code === activeVersion ? null : <ArrowRight />}
-                </Button>
-                {record.state === 'Suspended' && onDeleteVersion ? (
-                  <Button type="button" variant="outline" size="sm" className="text-red-700"
-                    disabled={!!deletionReasons[record.code]}
-                    title={deletionReasons[record.code] || '删除暂停版本，保留历史记录'}
-                    onClick={() => onDeleteVersion(record.code)}>
-                    Delete <span className="text-[8px] opacity-60">删除</span>
+                  <Button
+                    type="button"
+                    variant={
+                      record.code === activeVersion ? 'ghost' : 'outline'
+                    }
+                    size="sm"
+                    disabled={record.code === activeVersion}
+                    onClick={() => onSelectVersion(record.code)}
+                  >
+                    {record.code === activeVersion ? 'Current' : 'Open'}
+                    <span className="text-[8px] opacity-60">
+                      {record.code === activeVersion ? '当前' : '查看'}
+                    </span>
+                    {record.code === activeVersion ? null : <ArrowRight />}
                   </Button>
-                ) : null}
+                  {record.state === 'Suspended' && onDeleteVersion ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-red-700"
+                      disabled={!!deletionReasons[record.code]}
+                      title={
+                        deletionReasons[record.code] ||
+                        '删除暂停版本，保留历史记录'
+                      }
+                      onClick={() => onDeleteVersion(record.code)}
+                    >
+                      Delete <span className="text-[8px] opacity-60">删除</span>
+                    </Button>
+                  ) : null}
                 </div>
               </TableCell>
             </TableRow>

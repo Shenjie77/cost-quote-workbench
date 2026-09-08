@@ -27,13 +27,18 @@ export function openReminderService(databasePath, repository) {
         updatedAt: r.updated_at,
       }));
   return {
-    scan(asOf) {
-      const date = normalizeDigestDate(asOf),
+    scan(asOf, at) {
+      const scanNow = at || (asOf ? undefined : new Date().toISOString());
+      const date = normalizeDigestDate(
+          asOf,
+          scanNow ? new Date(scanNow) : new Date(),
+        ),
         projects = repository.list(date);
       const digest = buildDailyDigest(
         projects,
         projects.flatMap((p) => p.reviewGates || []),
         date,
+        scanNow,
       );
       const now = new Date().toISOString(),
         activeIds = new Set(digest.items.map((i) => i.id));
@@ -41,9 +46,45 @@ export function openReminderService(databasePath, repository) {
       try {
         for (const item of digest.items) {
           // Timing prose may include elapsed days. Stable SSR fingerprint comes from source state.
-          const source = projects
-            .find((p) => p.projectId === item.projectId)
-            ?.ssrAttention?.find((i) => i.id === item.reviewId);
+          const project = projects.find((p) => p.projectId === item.projectId);
+          const task = item.workflowNodeId
+            ? project?.workflowSteps?.find(
+                (step) => step.code === item.workflowNodeId,
+              )
+            : undefined;
+          const workflowSource =
+            project?.workflowEngineVersion === 1 && task
+              ? {
+                  version: item.workflowVersion,
+                  node: task.code,
+                  state: task.state,
+                  startedAt: task.startedAt,
+                  dueAt: task.dueAt,
+                  pausedAt: task.pausedAt,
+                  followUpDate: task.followUpDate,
+                  owner: task.owner,
+                  note: task.note,
+                  fields: task.fieldValues,
+                  name: task.name,
+                  nameZh: task.nameZh,
+                  reminderEnabled: task.reminderEnabled,
+                  urgency: item.urgency,
+                }
+              : project?.workflowMode === 'project'
+                ? {
+                    workflowMode: project.workflowMode,
+                    version: project.workflowVersion || project.activeVersion,
+                    stage: project.currentWorkflowStepCode,
+                    step: project.workflowSteps?.find(
+                      (step) => step.code === project.currentWorkflowStepCode,
+                    ),
+                    category: item.category,
+                    severity: item.severity,
+                  }
+                : undefined;
+          const source = project?.ssrAttention?.find(
+            (i) => i.id === item.reviewId,
+          );
           const review = projects
             .flatMap((p) => p.reviewGates || [])
             .find(
@@ -51,18 +92,20 @@ export function openReminderService(databasePath, repository) {
             );
           const fingerprint = createHash('sha256')
             .update(
-              source
-                ? source.fingerprint
-                : JSON.stringify(
-                    review
-                      ? {
-                          review,
-                          category: item.category,
-                          severity: item.severity,
-                          title: item.title,
-                        }
-                      : item,
-                  ),
+              workflowSource
+                ? JSON.stringify(workflowSource)
+                : source
+                  ? source.fingerprint
+                  : JSON.stringify(
+                      review
+                        ? {
+                            review,
+                            category: item.category,
+                            severity: item.severity,
+                            title: item.title,
+                          }
+                        : item,
+                    ),
             )
             .digest('hex');
           const old = db

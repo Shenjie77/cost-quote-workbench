@@ -1,6 +1,8 @@
 /** Version-owned workflow cycles. Cost browsing never switches the review round. */
 import type { WorkflowStep } from '../projects/types.ts';
 import type { CostVersionSnapshot } from './domain.ts';
+import { requiresConfirmedWorkflowStage } from '../projects/workflow-domain.ts';
+import { resetWorkflowRoundSteps } from '../projects/workflow-engine.ts';
 import {
   isApproved,
   isStale,
@@ -21,6 +23,8 @@ type Gate = {
   costVersion?: string;
 };
 export type WorkflowWorkspace = VersionWorkflowSnapshot & {
+  workflowEngineVersion?: 1;
+  workflowMode?: 'project';
   activeVersion: string;
   costVersions: CostVersionSnapshot[];
   deletedCostVersions?: import('./version-deletion.ts').DeletedCostVersions;
@@ -32,16 +36,25 @@ export type WorkflowWorkspace = VersionWorkflowSnapshot & {
   projectStatusDefinitions?: { code: string; active?: boolean }[];
   ssr?: SsrWorkspace;
 };
-type StepIdentity = { code: string; name?: string };
+type StepIdentity = {
+  code: string;
+  name?: string;
+  roundStart?: boolean;
+  requiresConfirmedCost?: boolean;
+};
 const explicit = (step: StepIdentity, token: 'DTRB' | 'DRB') =>
   new RegExp(`(^|[^A-Z])${token}([^A-Z]|$)`, 'i').test(
     `${step.code} ${step.name || ''}`,
   );
 export const isDtrbStep = (step: StepIdentity) =>
-  step.code === 'TD_EFFORT_REVIEW' || explicit(step, 'DTRB');
+  step.roundStart !== undefined
+    ? step.roundStart
+    : step.code === 'TD_EFFORT_REVIEW' || explicit(step, 'DTRB');
 export const isDrbStep = (step: StepIdentity) =>
-  ['DELIVERY_REVIEW', 'COST_BASELINE_APPROVAL'].includes(step.code) ||
-  explicit(step, 'DRB');
+  step.requiresConfirmedCost !== undefined
+    ? step.requiresConfirmedCost
+    : ['DELIVERY_REVIEW', 'COST_BASELINE_APPROVAL'].includes(step.code) ||
+      explicit(step, 'DRB');
 const clone = <T>(value: T): T => structuredClone(value);
 const snapshot = (w: VersionWorkflowSnapshot): VersionWorkflowSnapshot => ({
   currentWorkflowStepCode: w.currentWorkflowStepCode,
@@ -105,6 +118,15 @@ const draftStatus = (w: WorkflowWorkspace) => {
   );
 };
 const freshCycle = (w: WorkflowWorkspace): VersionWorkflowSnapshot => {
+  if (w.workflowEngineVersion === 1) {
+    const steps = resetWorkflowRoundSteps(w.processSteps);
+    return {
+      currentWorkflowStepCode:
+        steps.find((s) => s.roundStart)?.code || steps[0].code,
+      processSteps: steps,
+      projectStatus: draftStatus(w),
+    };
+  }
   const steps = clone(w.processSteps);
   const start = ensureStep(steps, 'DTRB');
   for (let i = start; i < steps.length; i++) {
@@ -118,6 +140,9 @@ const freshCycle = (w: WorkflowWorkspace): VersionWorkflowSnapshot => {
       inputZh: '',
       detail: '',
       detailZh: '',
+      followUpDate: '',
+      note: '',
+      updatedAt: '',
     };
   }
   return {
@@ -300,7 +325,7 @@ export function reconcileVersionWorkflows<T extends WorkflowWorkspace>(
         w.reviewGates.push(clone(gate));
     }
   }
-  applySsrEvents(old, w);
+  if (w.workflowMode !== 'project') applySsrEvents(old, w);
   applyProjection(w, w.versionWorkflows[w.workflowVersion!]);
   return w;
 }
@@ -336,6 +361,11 @@ export function assertVersionWorkflowTransition(
       requireConfirmed(prior?.costVersion || gate.costVersion || round);
   }
   if (next.currentWorkflowStepCode !== old.currentWorkflowStepCode) {
+    if (next.workflowMode === 'project') {
+      if (requiresConfirmedWorkflowStage(next, next.currentWorkflowStepCode))
+        requireConfirmed(round);
+      return;
+    }
     const dtrb = next.processSteps.findIndex(isDtrbStep);
     const target = next.processSteps.findIndex(
       (s) => s.code === next.currentWorkflowStepCode,
@@ -344,7 +374,9 @@ export function assertVersionWorkflowTransition(
       isDrbStep(
         next.processSteps[target] || { code: next.currentWorkflowStepCode },
       ) ||
-      (dtrb >= 0 && target > dtrb)
+      (dtrb >= 0 &&
+        target > dtrb &&
+        next.processSteps[target]?.code !== 'COST_BUILD')
     )
       requireConfirmed(round);
   }

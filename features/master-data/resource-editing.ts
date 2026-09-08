@@ -1,6 +1,6 @@
 import type { ResourceType } from '@/features/cost/domain';
 
-export const resourcePools = ['LOCAL', 'ARP', 'HQ'] as const;
+export const resourcePools = ['LOCAL', 'ARP', 'HQ', 'OTHER'] as const;
 export const resourceLevels = ['L0', 'L1', 'L2', 'L3', 'L4'] as const;
 const isPool = (value: unknown): value is NonNullable<ResourceType['pool']> =>
   resourcePools.some((pool) => pool === value);

@@ -4,16 +4,23 @@ Local-first personal workbench for project delivery review, cost construction,
 pricing, quote output, review follow-up, reusable master data, and maintenance
 price history.
 
-Current release: [v0.7.0 · Global Master Data and cost version tools](docs/releases/v0.7.0.md).
+Current release: [v0.8.0 · Configurable workflow, structured Subcon and personnel costing](docs/releases/v0.8.0.md).
 
 The product UI is English-first with compact Chinese helper labels. It runs on
 the company computer and is designed to give both the user and an internal
 Agent a stable, auditable data source.
 
-SSR scope imports, review evidence, reminders, CPQ and maintenance BOQ are described in the
-[SSR implementation guide](docs/ssr-implementation-2026-09-07.md). The
-[Skill operations reference](skills/cost-workbench/references/operations.md) includes
-column mappings, templates and all new CLI commands.
+Project progress and reminders use [one configurable Project Workflow](docs/project-workflow.md).
+Nodes support parallel work, required confirmation and information, SLA, pause/resume,
+and per-node reminders. Today groups open tasks by project and highest urgency;
+completing the configured finish node stops reminders. Earlier SSR reviews remain
+read-only history; no independent Project Status needs maintenance. Global workflow
+changes are previewed and published to eligible open projects with revision checks,
+while active deadlines and completed history are preserved by default.
+The dedicated Project Workflow page shares the cost page's project selection and
+keeps Proposal Number, iSales and CPQ links in a compact project header.
+The [Skill operations reference](skills/cost-workbench/references/operations.md)
+includes column mappings, templates and CLI commands.
 
 Project List includes recoverable deletion. Deleted projects stay out of the UI,
 including after restart; snapshots can be recovered with `project restore`.
@@ -23,29 +30,42 @@ is cost finalization, not DRB approval. Draft costs remain editable and cannot
 be locked merely by marking DRB complete. Locked versions remain available for
 summary, comparison and export. Create a new blank Draft or clone a locked
 version to revise effort, captured rates or the optional 3% allowance; creation
-selects the new version and starts its own DTRB round. Masterdata Resources
+selects the new version and starts its configured round-start node (DTRB by default). Masterdata Resources
 remains editable, and rates apply only to an explicitly selected unlocked version.
 
-Each version has an independent DTRB → DRB review sequence. The platform tracks
+Each new cost estimate starts an independent workflow round. The platform tracks
 the current round with `workflowVersion`; selecting an older `activeVersion`
-only views history and does not redirect the round. Existing submissions and
-approvals remain bound to their original versions. A new estimate needs its own
-applicable review evidence before quotation export.
+only views history. Existing submissions and approvals remain bound to their
+original versions. Company approvals are recorded as actual progress in the
+project workflow; quote export checks confirmed cost and valid quotation inputs
+without requiring a duplicate local SSR approval chain.
 
-Cost Input has an optional 3% allowance for Local and ARP internal labour,
-off by default per cost version. When enabled, each Y1–Y5 Cost is calculated
-with the 3% included. Summaries, history, quotations and Excel use those final
-costs directly, without another allowance layer. Master rates and mandays stay unchanged.
+Personnel Input is a compact editable grid with All/Y1–Y5 views and a toolbar
+Mode selector for Sites or Direct MD; it has no separate search bar. An optional
+3% allowance applies to all internal personnel in selected **LOCAL, ARP, HQ or
+OTHER Pools**. HQ Travel has its own opt-in. Both default off in new blank cost
+versions; copied and historical versions retain their original settings. Each
+annual personnel Cost includes the selected 3% once, and summaries, history,
+quotations and Excel use that result directly. Master rates and mandays stay unchanged.
+
+Cost Workspace's **Subcon** tab calculates structured subcontract costs into
+Cost Statement **2.3.2**. Small projects enter annual item quantities; larger
+projects define site-type BOQs and Y1–Y5 deployment counts, with shared project
+items kept separate. Select catalogue items in batches or save a manual item,
+then adjust the version's captured price and quantities. Catalogue price updates
+do not reprice existing BOQs. See the [subcontract cost guide](docs/subcontract-cost-design.md).
 
 Use the [18 business Skills](docs/business-skills.md) directly for project setup, master data, costing, CPQ, maintenance, quotation and workflow updates. `cost-workbench` is the lightweight cross-business router.
 
 For routine Skill work, use [narrow resource commands](skills/cost-workbench/references/resources.md):
 project metadata, individual cost versions/rows, nine global Master Data tabs,
-project CPQ drafts/selections, SSR, quotations and BOQ. Global maintenance needs
-no project ID or workspace read and has an independent revision per tab. Paginated reads and compact
+project CPQ drafts/selections, workflow plan/actions/history, quotations and BOQ. General catalogue maintenance needs
+no project ID or workspace read and has an independent revision per tab. Workflow
+publication is the exception: it previews affected projects and checks their revisions. Paginated reads and compact
 mutation receipts avoid sending a full workspace through the agent context.
 Project operations save a validated, atomic project document internally; global
-maintenance saves only its own tab and never rewrites existing projects. Database
+catalogue maintenance saves only its own tab. Workflow publication synchronizes
+definitions without altering captured cost rates or amounts. Each new cost Draft adopts the latest global workflow template, whether the prior round is open or completed, and preserves prior costs and workflow snapshots. Database
 migration runs once per schema release instead of scanning every project on
 each CLI call.
 
@@ -115,7 +135,7 @@ components/ui/               shadcn interface primitives
 components/workbench/        Shared compact workbench presentation components
 features/workbench/          Composition, workspace factories/types, HTTP client,
                              project-scoped save queue and React lifecycle
-features/projects/           Project List, status control, and project navigation
+features/projects/           Project List, unified workflow tracking, and project navigation
 features/cost/               Cost input, calculation, summary, and XLSX export
 features/master-data/        RE Type/rate, subcontract, supplemental cost,
                              and maintenance-history maintenance pages
@@ -168,15 +188,16 @@ the cost page’s Calculation Basis tile to explicitly capture current global ra
 for a selected unlocked Draft. New projects and blank versions capture current defaults; cloned
 versions keep their source rates. See [global data and project snapshots](docs/global-master-data.md).
 
-
 RE Types expose editable Category, Pool and Level independently of their code.
 The cost page has a Version Status tile, and unlocked Suspended versions can be
 removed from the working list while retaining immutable history and at least one
 remaining version. Deleted version numbers are never reused.
 
-For a page-shaped five-sheet cost report, use **Simple Export** or
+For a page-shaped cost report, use **Simple Export** or
 `cost export --project-id ID --version Vn --format simple --output Cost.xlsx`.
-The existing full nine-sheet export remains available. New blank costs default
+The five-sheet simple and nine-sheet full layouts remain available; versions
+with structured BOQs also include Subcon Detail and, when applicable, Subcon
+Site Types. New blank costs default
 account 2.3.4.2 to 1% of account 2.3.1 Labour Cost; enter a manual amount to override
 it, or use the 1% button to restore automatic calculation. Historical saved values
 and cloned calculation modes remain intact.

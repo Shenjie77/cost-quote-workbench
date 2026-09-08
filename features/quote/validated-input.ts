@@ -17,12 +17,13 @@ export function validatedQuoteInput(
     throw new TypeError(
       'Confirm the cost version before quotation export / 请先确认成本版本',
     );
-  assertQuoteDecision(
-    workspace.ssr
-      ? { ...workspace.ssr, commercialBasis: commercialBasisKey(workspace) }
-      : undefined,
-    version,
-  );
+  if (workspace.workflowMode !== 'project')
+    assertQuoteDecision(
+      workspace.ssr
+        ? { ...workspace.ssr, commercialBasis: commercialBasisKey(workspace) }
+        : undefined,
+      version,
+    );
   const resources = version.resourceTypes || workspace.resourceTypes;
   const snapshot = {
     schemaVersion: '2.0.0' as const,
@@ -34,6 +35,7 @@ export function validatedQuoteInput(
     resourceTypes: resources,
     costRows: version.costRows,
     manualCosts: version.manualCosts,
+    subcontractCost: version.subcontractCost,
   };
   const validation = validateCostExportSnapshot(snapshot);
   const costErrors = validation.filter((issue) => issue.severity === 'error');
@@ -45,6 +47,7 @@ export function validatedQuoteInput(
     getHQTravelSummary(version.costRows, resources, version.travelSettings)
       .totalCost,
     version.manualCosts,
+    version.subcontractCost,
   ).totalWithRisk;
   const errors = validatePricingSettings(workspace.pricing, total);
   const template = workspace.quoteTemplates.find(

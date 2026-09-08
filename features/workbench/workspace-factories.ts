@@ -13,6 +13,10 @@ import type {
 } from '../cost/domain.ts';
 import { recalculateCostRows } from '../cost/domain.ts';
 import {
+  emptySubcontractCost,
+  type SubcontractCost,
+} from '../cost/subcontract-domain.ts';
+import {
   initialManualCostInputs,
   initialRateSettings,
   initialTravelSettings,
@@ -116,6 +120,7 @@ export const createCostVersion = (
   sourceVersion: string | null,
   inputs: {
     costRows: CostInputRow[];
+    subcontractCost?: SubcontractCost;
     rateSettings: RateSettings;
     travelSettings: TravelSettings;
     travelRows: TravelCostRow[];
@@ -143,6 +148,9 @@ export const createCostVersion = (
   travelRows: structuredClone(inputs.travelRows),
   travelUplift: inputs.travelUplift,
   manualCosts: structuredClone(inputs.manualCosts),
+  ...(inputs.subcontractCost
+    ? { subcontractCost: structuredClone(inputs.subcontractCost) }
+    : {}),
 });
 
 /** Builds a valid empty workspace when a starter-list project is first edited. */
@@ -163,8 +171,13 @@ export const createBlankWorkspace = (
     processSteps[selectedStep]?.code || processSteps[0]?.code || '';
   const version = createCostVersion('V1', 'Draft', null, {
     costRows: [],
-    rateSettings: initialRateSettings,
-    travelSettings: initialTravelSettings,
+    subcontractCost: emptySubcontractCost(),
+    rateSettings: {
+      ...initialRateSettings,
+      allowancePools: [],
+      allowanceResourceTypeIds: [],
+    },
+    travelSettings: { ...initialTravelSettings, enabled: false },
     travelRows: [],
     travelUplift: 0,
     manualCosts: initialManualCostInputs,
@@ -188,12 +201,13 @@ export const createBlankWorkspace = (
     activeVersion: 'V1',
     costVersions: [version],
     costRows: [],
-    rateSettings: structuredClone(initialRateSettings),
+    subcontractCost: structuredClone(version.subcontractCost),
+    rateSettings: structuredClone(version.rateSettings),
     resourceTypes: structuredClone(initialResourceTypes),
     subcontractItems: structuredClone(initialSubcontractItems),
     supplementalCostItems: structuredClone(initialSupplementalCostItems),
     maintenancePriceRecords: structuredClone(initialMaintenancePriceRecords),
-    travelSettings: structuredClone(initialTravelSettings),
+    travelSettings: structuredClone(version.travelSettings),
     travelRows: [],
     travelUplift: 0,
     manualCosts: structuredClone(initialManualCostInputs),

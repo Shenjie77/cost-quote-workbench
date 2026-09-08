@@ -11,6 +11,11 @@ import {
   captureResourceRates,
 } from '../features/master-data/capture.ts';
 import { emptySsr } from '../features/ssr/domain.ts';
+import {
+  updateProjectWorkflow,
+  isProjectWorkflowComplete,
+  projectWorkflowSteps,
+} from '../features/projects/workflow-domain.ts';
 import { emptyMaintenance } from '../features/maintenance/domain.ts';
 import {
   deleteSuspendedCostVersion,
@@ -57,6 +62,7 @@ const ssrSettings = [
   'enabled',
   'proposalNumber',
   'companyUrl',
+  'cpqUrl',
   'scopeBrief',
   'technicalBasis',
   'mode',
@@ -154,6 +160,56 @@ export const mutationReceipt = (record, command, subjectId, version) => {
 
 function locate(w, module, options) {
   const section = options.section;
+  if (module === 'project' && section === 'metadata') {
+    const value = w.ssr || emptySsr();
+    return {
+      object: pick(value, [
+        'proposalNumber',
+        'companyUrl',
+        'cpqUrl',
+        'scopeBrief',
+        'technicalBasis',
+        'mode',
+      ]),
+      fields: [
+        'proposalNumber',
+        'companyUrl',
+        'cpqUrl',
+        'scopeBrief',
+        'technicalBasis',
+        'mode',
+      ],
+    };
+  }
+  if (module === 'project' && section === 'workflow-tracking') {
+    const step = w.processSteps.find(
+      (s) => s.code === w.currentWorkflowStepCode,
+    );
+    return {
+      object: {
+        workflowMode: w.workflowMode,
+        currentWorkflowStepCode: w.currentWorkflowStepCode,
+        name: step?.name || '',
+        nameZh: step?.nameZh || '',
+        owner: step?.owner || '',
+        followUpDate: step?.followUpDate || '',
+        note: step?.note || '',
+        updatedAt: step?.updatedAt || '',
+        workflowVersion: w.workflowVersion || w.activeVersion,
+        completed: isProjectWorkflowComplete(w),
+        stages: projectWorkflowSteps(w).map((s) =>
+          pick(s, ['code', 'name', 'nameZh', 'owner']),
+        ),
+      },
+      fields: ['currentWorkflowStepCode', 'owner', 'followUpDate', 'note'],
+    };
+  }
+  if (module === 'project' && section === 'workflow-history')
+    return {
+      items: [...(w.workflowUpdates || [])].reverse(),
+      key: 'id',
+      readonly: true,
+    };
   if (module === 'project' && section && section !== 'settings') {
     const fields = {
       workflow: ['processSteps', 'code'],
@@ -165,13 +221,15 @@ function locate(w, module, options) {
     const target = fields[section];
     if (!target)
       fail(
-        'Project sections: settings, workflow, status, reviews, subcontract, supplemental',
+        'Project sections: settings, workflow-tracking, workflow-history, workflow, status, reviews, subcontract, supplemental',
       );
     return {
       parent: w,
       field: target[0],
       key: target[1],
-      readonly: ['subcontract', 'supplemental'].includes(section),
+      readonly:
+        ['subcontract', 'supplemental'].includes(section) ||
+        w.workflowMode === 'project',
     };
   }
   if (module === 'project')
@@ -183,7 +241,10 @@ function locate(w, module, options) {
         activeVersion: w.activeVersion,
         workflowVersion: w.workflowVersion || w.activeVersion,
       },
-      fields: ['name', 'client', 'projectStatus', 'currentWorkflowStepCode'],
+      fields:
+        w.workflowMode === 'project'
+          ? ['name', 'client']
+          : ['name', 'client', 'projectStatus', 'currentWorkflowStepCode'],
     };
   if (module === 'masterdata')
     fail(
@@ -237,6 +298,14 @@ function locate(w, module, options) {
       };
     if (!section || section === 'rows')
       return { parent: v, field: 'costRows', key: 'id', version };
+    if (section === 'subcontract')
+      return {
+        object: structuredClone(
+          v.subcontractCost || { mode: 'project', lines: [], siteTypes: [] },
+        ),
+        fields: ['mode', 'lines', 'siteTypes'],
+        version,
+      };
     if (section === 'settings')
       return { object: pick(v, costSettings), fields: costSettings, version };
     if (section === 'resources')
@@ -266,12 +335,15 @@ function locate(w, module, options) {
           v.resourceTypes,
           travel,
           v.manualCosts,
+          v.subcontractCost,
         ),
         version,
         readonly: true,
       };
     }
-    fail('Cost sections: rows, settings, resources, travel, summary, versions');
+    fail(
+      'Cost sections: rows, subcontract, settings, resources, travel, summary, versions',
+    );
   }
   if (module === 'cpq') {
     w.cpq ||= emptyCpq();
@@ -368,6 +440,13 @@ function locate(w, module, options) {
 
 export function readResource(repository, id, module, options = {}) {
   const record = requireRecord(repository, id);
+  if (module === 'project' && options.section === 'workflow-plan')
+    return {
+      ...mutationReceipt(record, ''),
+      resource: module,
+      section: options.section,
+      value: repository.workflowPlan(id),
+    };
   const target = locate(record.workspace, module, options);
   const data = {
     ...mutationReceipt(record, '', undefined, target.version),
@@ -479,6 +558,64 @@ export function updateResource(
       record.revision,
     );
   const w = record.workspace;
+  if (module === 'project' && options.section === 'workflow-tracking') {
+    allowed(changes, ['set']);
+    if (!changes.set) fail('Workflow tracking updates require set.');
+    if (w.workflowEngineVersion === 1) {
+      allowed(changes.set, [
+        'currentWorkflowStepCode',
+        'owner',
+        'followUpDate',
+        'note',
+      ]);
+      const { currentWorkflowStepCode = w.currentWorkflowStepCode, ...fields } =
+        changes.set;
+      const saved = repository.applyWorkflowAction(
+        id,
+        {
+          nodeCode: currentWorkflowStepCode,
+          action:
+            currentWorkflowStepCode === w.currentWorkflowStepCode
+              ? 'update'
+              : 'start',
+          ...fields,
+        },
+        expectedRevision,
+      );
+      return {
+        ...mutationReceipt(saved, ''),
+        resource: module,
+        section: options.section,
+        changedFields: Object.keys(changes.set),
+        changedIds: [],
+        removedIds: [],
+      };
+    }
+    let updated;
+    try {
+      updated = updateProjectWorkflow(w, changes.set);
+    } catch (error) {
+      fail(error.message);
+    }
+    const saved = repository.save(id, updated, expectedRevision);
+    return {
+      ...mutationReceipt(saved, ''),
+      resource: module,
+      section: options.section,
+      changedFields: Object.keys(changes.set),
+      changedIds: [],
+      removedIds: [],
+    };
+  }
+  if (
+    module === 'ssr' &&
+    w.workflowMode === 'project' &&
+    options.section &&
+    options.section !== 'settings'
+  )
+    fail(
+      'Historical SSR reviews are read-only. Update project --section workflow-tracking.',
+    );
   const oldMapping =
     module === 'cpq' ? safeMapping(w.cpq || emptyCpq()).key : null;
   const locked = costLockReason(w, options.version || w.activeVersion);
@@ -532,6 +669,37 @@ export function updateResource(
           : value;
       if (
         module === 'cost' &&
+        key === 'rateSettings' &&
+        value &&
+        typeof value === 'object' &&
+        !Array.isArray(value) &&
+        !Object.hasOwn(value, 'allowancePools')
+      ) {
+        if (Object.hasOwn(value, 'allowanceResourceTypeIds')) {
+          // An explicit legacy client selection must not be masked by saved Pool settings.
+          delete target.object.rateSettings.allowancePools;
+        } else if (Object.hasOwn(value, 'localArpAllowanceEnabled')) {
+          if (typeof value.localArpAllowanceEnabled !== 'boolean')
+            fail(
+              'localArpAllowanceEnabled must be boolean. Use allowancePools to select personnel categories.',
+            );
+          target.object.rateSettings.allowancePools =
+            value.localArpAllowanceEnabled ? ['LOCAL', 'ARP'] : [];
+          const version = w.costVersions.find((v) => v.code === target.version);
+          target.object.rateSettings.allowanceResourceTypeIds =
+            value.localArpAllowanceEnabled
+              ? version.resourceTypes
+                  .filter(
+                    (resource) =>
+                      resource.category === 'internal' &&
+                      ['LOCAL', 'ARP'].includes(resource.pool),
+                  )
+                  .map((resource) => resource.id)
+              : [];
+        }
+      }
+      if (
+        module === 'cost' &&
         key === 'manualCosts' &&
         value &&
         typeof value === 'object' &&
@@ -540,13 +708,18 @@ export function updateResource(
       )
         delete target.object.manualCosts.otherServiceRate;
     }
-    if (module === 'project') {
+    if (module === 'project' && options.section === 'metadata') {
+      w.ssr = { ...(w.ssr || emptySsr()), ...target.object };
+    } else if (module === 'project') {
       Object.assign(w.project, pick(target.object, ['name', 'client']));
       Object.assign(
         w,
         pick(target.object, ['projectStatus', 'currentWorkflowStepCode']),
       );
-    } else if (module === 'cost')
+    } else if (module === 'cost' && options.section === 'subcontract')
+      w.costVersions.find((v) => v.code === target.version).subcontractCost =
+        target.object;
+    else if (module === 'cost')
       Object.assign(
         w.costVersions.find((v) => v.code === target.version),
         target.object,
@@ -606,8 +779,11 @@ export function syncVersion(w, code) {
         'travelRows',
         'travelUplift',
         'manualCosts',
+        'subcontractCost',
       ]),
     );
+  if (code === w.activeVersion && !Object.hasOwn(v, 'subcontractCost'))
+    delete w.subcontractCost;
 }
 
 export function applyMasterRates(repository, id, version, revision) {
@@ -650,8 +826,15 @@ const blankCostInputs = (resourceTypes) => {
       defaultUplift: 0,
       annualUplifts: [0, 0, 0, 0, 0],
       localArpAllowanceEnabled: false,
+      allowancePools: [],
+      allowanceResourceTypeIds: [],
     },
-    travelSettings: { monthlyAllowance: 0, airfarePerTrip: 0, trips: 0 },
+    travelSettings: {
+      enabled: false,
+      monthlyAllowance: 0,
+      airfarePerTrip: 0,
+      trips: 0,
+    },
     travelRows: [],
     travelUplift: 0,
     manualCosts: {
@@ -688,6 +871,7 @@ export function createProject(repository, project) {
       owner: project.reviewOwner,
     }));
   Object.assign(w, blankCostInputs(w.resourceTypes));
+  w.workflowTemplateRevision = w.masterDataRevisions.workflow;
   w.costVersions = [createCostVersion('V1', 'Draft', null, w)];
   w.costVersions[0].masterDataRevision = w.masterDataRevisions.resources;
   const saved = repository.save(project.id, w, null);

@@ -108,20 +108,13 @@ cost-cli cpq export --project-id ID --archive-id ARCHIVE_ID --output outputs/CPQ
 
 Confirm requires existing user selection. Equipment/fixed service quantities must be real positive quantities on the catalog grid. Money uses cents, quantity up to 4 decimal places; unitCost × maxQty must be ≤ 1e12. Service search is bounded, so explain `searchComplete`, actual difference and acceptable tolerance separately.
 
-## SSR records
+## Project Workflow
 
-Set `ssr.enabled=true`, proposal number, brief, technical basis and requiredDomains. Leave `commercialBasis` to the platform to derive from project, pricing, assumptions and selected template. The platform also manages workflowVersion and versionWorkflows: cost creation starts a new DTRB round, while viewing an old activeVersion does not change the working round. Do not write these metadata or construct submission snapshots manually; use commands.
+Read `project get --section workflow-plan` for the actual nodes, parallel phases and blockers. Apply a named node action with `project workflow-action --project-id ID --input request.json --expected-revision R`; the OperationRequest uses `operation:"project.workflow-action"` and `action:{nodeCode,action,...}`. Use returned internal IDs, never derive identity or behavior from names. See the [workflow skill](../../ssr-workflow-update/SKILL.md) for supported actions and confirmation rules.
 
-Each command takes `--project-id ID --input operation.json --expected-revision REVISION --compact`. For `ssr submit`, also pass `--version Vn` to name the target cost version; omission uses workflowVersion, falling back to activeVersion only for older data without it. Result, close and followup commands still target the supplied submissionId, not the currently viewed version. All use `OperationRequest`, data schema `1.0.0`, and an `operation` matching the command:
+Critical nodes require configured fields and explicit confirmation. Nodes with requiresConfirmedCost also need the current workflow version's user-confirmed cost. Earlier optional nodes can become Skipped after downstream completion; they are not silently approved. The configured finishesWorkflow node stops all project reminders when completed. A new Draft adopts the latest global workflow template, whether the prior round is open or finished, and starts its roundStart node (DTRB by default), preserving prior cost and round snapshots. The start node and its entire parallel group cannot require confirmed cost. Viewing older costs leaves the working round unchanged.
 
-| Command / operation             | Additional data fields                                                                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ssr submit` / `ssr.submit`     | `kind` (DTRB/DRB/BUDGET/SPECIALIST/QUOTE_DECISION/BID_REVIEW), `domain` (empty except specialist), `owner`, `dueDate`, `applicationNumber`, `evidence` |
-| `ssr result` / `ssr.result`     | `submissionId`, `outcome` (approved/rejected/conditional/withdrawn), `evidence`, `conditions` (nonempty only when conditional)                         |
-| `ssr close` / `ssr.close`       | `submissionId`, `condition`, `evidence`                                                                                                                |
-| `ssr followup` / `ssr.followup` | `submissionId`, `note`, `nextDate`                                                                                                                     |
-
-Use actual company evidence, not an inferred approval. Each version has its own DTRB → DRB prerequisites. Before entering, submitting or completing DRB, read the target version's cost settings/summary, validate it and obtain explicit user confirmation to finalize that version. Do not ask again if that exact finalization is already authorized. Save cost state Confirmed before DRB can proceed; Confirmed is not DRB approval, and Draft cannot be locked merely by DRB progress or a result. Required professional domains must be configured before quote decision. Tender rows under `ssr.bidResponses` cover each required domain; edits invalidate the earlier bid review. Closing a condition binds to the specific result, even when later results repeat its wording.
+Global workflow definitions use `workflow preview/publish` with a complete steps array. Publication checks both the global revision and previewed project revisions, then updates eligible open projects atomically. Active deadlines are retained unless explicitly requested in migrateActiveProjectIds; completed history and every cost/rate snapshot stay unchanged. Ordinary master-data maintenance still reads no projects. See [configuration skill](../../ssr-workflow-configure/SKILL.md).
 
 ## Reminders and historical references
 
@@ -133,7 +126,7 @@ cost-cli reminders ack --id ID --fingerprint RETURNED_FINGERPRINT
 cost-cli history search --scope "deployment testing" [--client "Customer"]
 ```
 
-Dates use Asia/Singapore. Scan writes only the reminder inbox, not workspace revisions; unchanged reminders remain read, changes can reopen them, source closure resolves them. `history search` returns local lexical matches with project/version/source, matched/unmatched terms, original scope, cost and MD. Explain actual scope/SLA/scale/date differences; lexical overlap is not scope equivalence or automatic justification for a price.
+New-engine reminders use each enabled active node's SLA. Default business time is Singapore Monday–Friday 09:00–18:00, 9 working hours per SLA day, excluding configured holidays; calendar days are 24 hours. Within SLA is normal, the final local day immediate, and after exact dueAt urgent. If no active or paused work remains in an unfinished round, enabled pending nodes in the first pending phase get normal ready-to-start/register reminders without starting SLA or becoming overdue. Future pending phases stay quiet; muting the first phase does not expose later phases, and cost-confirmation blockers do not hide ready tasks. Completed/skipped/disabled nodes stay quiet; paused nodes wait for a resume follow-up date. A completed finish node suppresses the entire round. Today groups parallel tasks by project and highest urgency. Scans update only the reminder inbox, not workspace revisions; unchanged sources stay read across scans/restarts. `history search` returns local lexical matches with project/version/source, matched/unmatched terms, original scope, cost and MD. Explain actual scope/SLA/scale/date differences; lexical overlap is not scope equivalence or automatic justification for a price.
 
 ## Maintenance
 
@@ -146,7 +139,7 @@ cost-cli maintenance archive --project-id ID --expected-revision REVISION --comp
 cost-cli maintenance export --project-id ID --archive-id ID --output outputs/Maintenance_Draft.xlsx
 ```
 
-Archive stores exact references and all current BOQ rows. Draft output excludes internal reference costs and does not include tax or final T&C. Use the formal cost/pricing/SSR quote workflow before customer issue.
+Archive stores exact references and all current BOQ rows. Draft output excludes internal reference costs and does not include tax or final T&C. Use the confirmed-cost/quotation flow and actual company approvals before customer issue; track progress once in Project Workflow.
 
 ## Failures
 

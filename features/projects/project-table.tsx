@@ -1,4 +1,4 @@
-/** Dense project portfolio table with direct status and module navigation. */
+/** Project portfolio with one workflow record and direct cost/quote navigation. */
 
 import { Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,19 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { BiText } from '@/components/workbench/bilingual-text';
-import {
-  initialProjectStatusDefinitions,
-  type Project,
-  type ProjectStatus,
-} from '@/features/projects/types';
+import type { Project, ProjectStatus } from '@/features/projects/types';
 import { formatSgd } from '@/lib/formatters';
 
 export function ProjectTable({
@@ -30,8 +19,7 @@ export function ProjectTable({
   onProject,
   onCost,
   onQuote,
-  onStatusChange,
-  onWorkflowChange,
+  onTrackWorkflow,
   onDeleteProject,
   onEditProject,
 }: {
@@ -39,24 +27,23 @@ export function ProjectTable({
   onProject: (project: Project) => void;
   onCost: (project: Project) => void;
   onQuote: (project: Project) => void;
-  onStatusChange: (project: Project, status: ProjectStatus) => void;
-  onWorkflowChange: (project: Project, workflowCode: string) => void;
+  /** Compatibility only; workflow is the sole editable progress record. */
+  onStatusChange?: (project: Project, status: ProjectStatus) => void;
+  onWorkflowChange?: (project: Project, workflowCode: string) => void;
+  onTrackWorkflow?: (project: Project) => void;
   onDeleteProject?: (project: Project) => void;
   onEditProject?: (project: Project) => void;
 }) {
   const hasActions = Boolean(onEditProject || onDeleteProject);
   return (
-    <Table className="min-w-[1580px]">
+    <Table className="min-w-[1400px]">
       <TableHeader>
         <TableRow className="bg-[#f2f0ea] hover:bg-[#f2f0ea]">
           <TableHead className="w-[285px] px-3">
             <BiText en="Project" zh="项目名称" />
           </TableHead>
-          <TableHead className="w-[178px]">
-            <BiText en="Current Status" zh="当前状态" />
-          </TableHead>
-          <TableHead className="w-[220px]">
-            <BiText en="Current Workflow" zh="当前流程节点" />
+          <TableHead className="w-[295px]">
+            <BiText en="Project Workflow" zh="项目流程" />
           </TableHead>
           <TableHead className="text-right">
             <BiText en="Service Cost" zh="服务成本" className="items-end" />
@@ -85,24 +72,11 @@ export function ProjectTable({
       </TableHeader>
       <TableBody>
         {projects.map((project) => {
-          const statusDefinitions = project.statusDefinitions?.length
-            ? project.statusDefinitions
-            : initialProjectStatusDefinitions;
-          const visibleStatuses = statusDefinitions.filter(
-            (definition) =>
-              definition.active || definition.code === project.projectStatus,
-          );
-          const status = statusDefinitions.some(
-            (definition) => definition.code === project.projectStatus,
-          )
-            ? project.projectStatus
-            : visibleStatuses[0]?.code;
-          const workflowSteps = project.workflowSteps || [];
-          const workflowCode = workflowSteps.some(
+          const currentStep = project.workflowSteps?.find(
             (step) => step.code === project.currentWorkflowStepCode,
-          )
-            ? project.currentWorkflowStepCode
-            : workflowSteps[0]?.code;
+          );
+          const completed =
+            project.currentWorkflowStepCode === 'QUOTE_COMPLETED';
           return (
             <TableRow
               key={project.id}
@@ -122,62 +96,40 @@ export function ProjectTable({
                   </span>
                 </button>
               </TableCell>
-              <TableCell className="py-1.5">
-                {status ? (
-                  <Select
-                    value={status}
-                    onValueChange={(value) =>
-                      onStatusChange(project, value as ProjectStatus)
-                    }
-                  >
-                    <SelectTrigger size="sm" className="w-[165px] bg-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="start">
-                      {visibleStatuses.map((definition) => (
-                        <SelectItem
-                          key={definition.code}
-                          value={definition.code}
-                        >
-                          {definition.name} · {definition.nameZh}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground">
-                    No status / 请先新增状态
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className="py-1.5">
-                {workflowCode ? (
-                  <Select
-                    value={workflowCode}
-                    onValueChange={(value) => {
-                      if (value) onWorkflowChange(project, value);
-                    }}
-                  >
-                    <SelectTrigger
+              <TableCell className="py-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold text-[#173a52]">
+                      {currentStep
+                        ? `${currentStep.name} · ${currentStep.nameZh}`
+                        : project.stage || '待登记流程'}
+                    </p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      {completed
+                        ? '报价完成 · 停止提醒'
+                        : `${currentStep?.owner || '待填写负责人'} · ${currentStep?.followUpDate || '待填写跟进日期'}`}
+                    </p>
+                    {currentStep?.note && (
+                      <p
+                        className="mt-1 max-w-[220px] truncate text-[10px] text-muted-foreground"
+                        title={currentStep.note}
+                      >
+                        {currentStep.note}
+                      </p>
+                    )}
+                  </div>
+                  {onTrackWorkflow && (
+                    <Button
                       size="sm"
-                      className="w-[205px] bg-white"
-                      aria-label={`${project.name} current workflow`}
+                      variant="outline"
+                      className="h-7 shrink-0 px-2 text-[10px]"
+                      onClick={() => onTrackWorkflow(project)}
+                      aria-label={`更新项目流程 ${project.name}`}
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="start">
-                      {workflowSteps.map((step) => (
-                        <SelectItem key={step.code} value={step.code}>
-                          {step.no} · {step.name} · {step.nameZh}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground">
-                    No nodes / 请先新增节点
-                  </span>
-                )}
+                      更新流程
+                    </Button>
+                  )}
+                </div>
               </TableCell>
               <TableCell className="financial-numeral py-1.5 text-right text-[11px]">
                 {formatSgd(Number(project.serviceCost || 0))}

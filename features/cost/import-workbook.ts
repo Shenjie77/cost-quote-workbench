@@ -4,6 +4,7 @@ import { validDate } from '../ssr/domain.ts';
 import {
   YEAR_BUCKETS,
   recalculateCostRows,
+  isPersonnelAllowanceApplied,
   type CostInputRow,
   type RateSettings,
   type ResourceType,
@@ -210,6 +211,10 @@ export async function previewCostImport(
         throw new TypeError(
           'Scope, BU and an active RE Type code/ID are required',
         );
+      if (resource.category === 'subcontract')
+        throw new TypeError(
+          'Subcontract costs belong in the Subcon BOQ, not RE Type imports. Use cost update --section subcontract / 分包费用请录入 Subcon 结构化页签，汇总到 2.3.2。',
+        );
       const internal = resource.category === 'internal';
       const sites =
         mapping.mode === 'sites' ? number(raw('sites'), 'Sites') : 0;
@@ -273,7 +278,7 @@ export async function previewCostImport(
           calculated = computed.years.reduce((sum, year) => sum + year.cost, 0);
         if (Math.abs(supplied - calculated) > 0.01)
           throw new TypeError(
-            `Source cost ${supplied} differs from governed cost ${calculated}; correct mapping/rate or leave cost unmapped for TD / 原表成本与费率计算不一致${rates.localArpAllowanceEnabled && (resource.pool === 'LOCAL' || resource.pool === 'ARP') ? '；当前年度成本包含 Local/ARP 3%，原表若仅为基础成本，请只映射人天、不映射成本列' : ''}`,
+            `Source cost ${supplied} differs from governed cost ${calculated}; correct mapping/rate or leave cost unmapped for TD / 原表成本与费率计算不一致${isPersonnelAllowanceApplied(resource, rates) ? `；当前年度成本包含 ${rates.allowancePools !== undefined ? resource.pool : rates.allowanceResourceTypeIds === undefined ? 'Local/ARP' : resource.code} 3%，原表若仅为基础成本，请只映射人天、不映射成本列` : ''}`,
           );
       }
       computed.source!.importedValues = JSON.stringify({
@@ -314,6 +319,18 @@ export function applyCostImport(
       'Rates or resources changed; preview again / 费率或资源已变化，请重新预览',
     );
   if (preview.issues.length) throw new TypeError(preview.issues.join('\n'));
+  if (
+    context &&
+    preview.rows.some((row) =>
+      context.resources.some(
+        (resource) =>
+          resource.id === row.reTypeId && resource.category === 'subcontract',
+      ),
+    )
+  )
+    throw new TypeError(
+      'Subcontract costs belong in the Subcon BOQ. Use cost update --section subcontract.',
+    );
   const ids = new Set(current.map((row) => row.id));
   if (
     preview.rows.some(

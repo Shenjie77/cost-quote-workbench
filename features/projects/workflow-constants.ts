@@ -7,6 +7,8 @@ export const workflowStateLabels: Record<
   WorkflowState,
   { en: string; zh: string; tone: StatusTone }
 > = {
+  skipped: { en: 'Skipped', zh: '已跳过', tone: 'gray' },
+  paused: { en: 'Paused', zh: '已暂停', tone: 'gray' },
   completed: { en: 'Completed', zh: '已完成', tone: 'green' },
   in_progress: { en: 'In progress', zh: '进行中', tone: 'blue' },
   awaiting_review: { en: 'Awaiting review', zh: '待评审', tone: 'amber' },

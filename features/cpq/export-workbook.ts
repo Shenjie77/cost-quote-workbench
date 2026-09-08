@@ -1,6 +1,7 @@
 /** CPQ output is an internal configuration record, never a customer quotation. */
 import type { CpqArchive } from './domain.ts';
 import { getCostStatementValues, getHQTravelSummary } from '../cost/domain.ts';
+import { subcontractCostDetails } from '../cost/subcontract-domain.ts';
 export async function buildCpqWorkbook(archive: CpqArchive) {
   const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
@@ -94,8 +95,41 @@ export async function buildCpqWorkbook(archive: CpqArchive) {
     rates,
     travel.totalCost,
     archive.costBaseline.manualCosts,
+    archive.costBaseline.subcontractCost,
   );
   baseline.addRow(['HQ travel', travel.totalCost]);
+  if (subcontractCostDetails(archive.costBaseline.subcontractCost).length) {
+    const subcontract = workbook.addWorksheet('Subcon Baseline');
+    subcontract.addRow([
+      'Item',
+      'BU',
+      'Site Type',
+      'Unit',
+      'Unit Price SGD',
+      'Y1 Cost',
+      'Y2 Cost',
+      'Y3 Cost',
+      'Y4 Cost',
+      'Y5 Cost',
+      'Total SGD',
+    ]);
+    for (const line of subcontractCostDetails(
+      archive.costBaseline.subcontractCost,
+    ))
+      subcontract.addRow([
+        line.description,
+        line.bu,
+        line.siteType,
+        line.unit,
+        line.unitPrice,
+        ...line.years,
+        line.total,
+      ]);
+    subcontract.columns.forEach((column, index) => {
+      column.width = index === 0 ? 45 : 18;
+    });
+    subcontract.views = [{ state: 'frozen', ySplit: 1 }];
+  }
   baseline.addRow(['Cost including risk', totals.totalWithRisk]);
   const parameters = workbook.addWorksheet('Rates and Assumptions');
   parameters.addRow([

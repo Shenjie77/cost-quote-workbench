@@ -8,6 +8,7 @@ import {
 } from '../cost/domain.ts';
 import { validateCostExportSnapshot } from '../cost/validation.ts';
 import { validatedQuoteInput } from '../quote/validated-input.ts';
+import { subcontractCostDetails } from '../cost/subcontract-domain.ts';
 import { workbookHash } from '../cost/import-workbook.ts';
 import type { WorkbenchWorkspace } from '../workbench/workspace-types.ts';
 export type TemplateMapping = {
@@ -42,6 +43,7 @@ export function templateData(
     resourceTypes: resources,
     costRows: version.costRows,
     manualCosts: version.manualCosts,
+    subcontractCost: version.subcontractCost,
   };
   const issues = validateCostExportSnapshot(snapshot).filter(
     (i) => i.severity === 'error',
@@ -54,6 +56,7 @@ export function templateData(
     getHQTravelSummary(version.costRows, resources, version.travelSettings)
       .totalCost,
     version.manualCosts,
+    version.subcontractCost,
   );
   const quote =
     purpose === 'quote'
@@ -114,6 +117,28 @@ export function templateData(
     workspace.quoteAssumptions
       .filter((a) => a.included)
       .map((a) => ({ id: a.id, text: a.text, textZh: a.textZh }));
+  costRows.push(
+    ...subcontractCostDetails(version.subcontractCost).map((line) => ({
+      scope: line.description,
+      bu: line.bu,
+      resource: 'Subcontract',
+      inputMode: 'quantity',
+      unit: line.unit,
+      unitPrice: line.unitPrice ?? 0,
+      siteType: line.siteType,
+      mandays: 0,
+      cost: line.total,
+      source: 'Subcon',
+      ...Object.fromEntries(
+        line.years.flatMap((amount, index) => [
+          [`Y${index + 1}.quantity`, line.quantities[index]],
+          [`Y${index + 1}.sites`, line.sites[index]],
+          [`Y${index + 1}.mandays`, 0],
+          [`Y${index + 1}.cost`, amount],
+        ]),
+      ),
+    })),
+  );
   const quoteLines: Record<string, string | number>[] = quote
     ? [
         {

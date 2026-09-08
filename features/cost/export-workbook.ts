@@ -1,3 +1,5 @@
+import { subcontractCostDetails } from './subcontract-domain.ts';
+import { addSubcontractWorkbookSheets } from './export-subcontract-workbook.ts';
 /**
  * Excel export boundary for the cost workspace.
  *
@@ -15,6 +17,10 @@ import {
   buildCostStatementRows,
   getActualYears,
   getHQTravelSummary,
+  getAllowanceResourceTypeIds,
+  getAllowancePools,
+  isHQTravelEnabled,
+  isHQTravelResource,
   getLabourRateFactors,
   roundMoney,
   roundQuantity,
@@ -90,7 +96,11 @@ type StatementSheetHandle = TableLayout<string> & {
 
 type ExportDetailRow = {
   id: string;
-  sourceKind: 'COST_INPUT' | 'HQ_TRAVEL' | 'STATEMENT_MANUAL';
+  sourceKind:
+    | 'COST_INPUT'
+    | 'SUBCONTRACT_BOQ'
+    | 'HQ_TRAVEL'
+    | 'STATEMENT_MANUAL';
   costLayer: 'SALES' | 'RISK';
   statementCode: string;
   scope: string;
@@ -497,7 +507,10 @@ const buildDetailRows = (snapshot: CostExportSnapshot): ExportDetailRow[] => {
         resource?.name ||
         (resource?.category === 'internal' ? 'RE Type required' : ''),
       rateUnit: resource?.category === 'internal' ? 'MD' : '',
-      hqTravel: resource?.hqTravel ?? null,
+      hqTravel: resource
+        ? isHQTravelEnabled(snapshot.travelSettings) &&
+          isHQTravelResource(resource, snapshot.travelSettings)
+        : null,
       mdPerSite: Number(row.mdPerSite || 0),
       inputMode: row.inputMode,
       years,
@@ -511,6 +524,42 @@ const buildDetailRows = (snapshot: CostExportSnapshot): ExportDetailRow[] => {
       allocationStatus: 'ALLOCATED',
       sourceNote: 'Cost Input',
     };
+  });
+
+  subcontractCostDetails(snapshot.subcontractCost).forEach((line) => {
+    rows.push({
+      id: `SUBCONTRACT:${line.id}`,
+      sourceKind: 'SUBCONTRACT_BOQ',
+      costLayer: 'SALES',
+      statementCode: '2.3.2',
+      scope: line.scope || 'UNSPECIFIED',
+      bu: line.bu || 'UNSPECIFIED',
+      resourceTypeId: '__SUBCONTRACT__',
+      resourceCode: 'SUBCONTRACT',
+      resourceName: 'Subcontract',
+      resourceCategory: 'subcontract',
+      gradeId: '',
+      gradeCode: '',
+      gradeName: '',
+      rateUnit: '',
+      hqTravel: false,
+      mdPerSite: 0,
+      years: YEAR_BUCKETS.map((bucket, index) => ({
+        bucket,
+        sites: 0,
+        mandays: 0,
+        cost: line.years[index],
+      })),
+      directCost: 0,
+      totalSites: 0,
+      totalMandays: 0,
+      totalCost: line.total,
+      currency: 'SGD',
+      allocationStatus: 'ALLOCATED',
+      sourceNote: line.siteType
+        ? `Subcon BOQ · ${line.siteType}`
+        : 'Subcon BOQ · Project total',
+    });
   });
 
   const emptyYears = () =>
@@ -560,6 +609,7 @@ const buildDetailRows = (snapshot: CostExportSnapshot): ExportDetailRow[] => {
     snapshot.resourceTypes,
     travelCost,
     snapshot.manualCosts,
+    snapshot.subcontractCost,
   ).filter(
     (row) =>
       row.mode === 'manual' &&
@@ -654,7 +704,9 @@ const addReadmeSheet = (
       field: 'Cost Input Total',
       value: sumDetailCost(
         detailRows,
-        (row) => row.sourceKind === 'COST_INPUT',
+        (row) =>
+          row.sourceKind === 'COST_INPUT' ||
+          row.sourceKind === 'SUBCONTRACT_BOQ',
       ),
       money: true,
     },
@@ -2017,6 +2069,20 @@ const addAssumptionsSheet = (
     snapshot.travelSettings,
   );
   const moneyRows = new Set<number>();
+  const allowanceIds = getAllowanceResourceTypeIds(
+    snapshot.rateSettings,
+    snapshot.resourceTypes,
+  );
+  const explicitAllowance =
+    snapshot.rateSettings.allowanceResourceTypeIds !== undefined;
+  const poolAllowance = snapshot.rateSettings.allowancePools !== undefined;
+  const allowancePools = getAllowancePools(
+    snapshot.rateSettings,
+    snapshot.resourceTypes,
+  );
+  const allowanceCodes = snapshot.resourceTypes
+    .filter((resource) => allowanceIds.includes(resource.id))
+    .map((resource) => resource.code);
   const assumptionRows: Array<{
     values: [string, string, string | number, string];
     money?: boolean;
@@ -2024,11 +2090,25 @@ const addAssumptionsSheet = (
     {
       values: [
         'Cost Input',
-        'Local + ARP allowance 3%',
-        snapshot.rateSettings.localArpAllowanceEnabled === true
+        poolAllowance
+          ? 'Personnel pool allowance 3%'
+          : explicitAllowance
+            ? 'Personnel allowance 3%'
+            : 'Local + ARP allowance 3%',
+        (
+          poolAllowance
+            ? allowancePools.length > 0
+            : explicitAllowance
+              ? allowanceIds.length > 0
+              : snapshot.rateSettings.localArpAllowanceEnabled === true
+        )
           ? 'Enabled'
           : 'Disabled',
-        'Included in each annual Cost: MD × version rate × annual uplift factor × 1.03; HQ/subcontract excluded. Summaries do not add it again.',
+        poolAllowance
+          ? `Selected pools: ${allowancePools.join(', ') || 'None'}. All internal personnel in these pools include 3% once in each annual Cost: MD × version rate × annual uplift factor × 1.03. Subcontract and travel excluded.`
+          : explicitAllowance
+            ? `Selected RE Types: ${allowanceCodes.join(', ') || 'None'}. Included once in each annual Cost: MD × version rate × annual uplift factor × 1.03. Subcontract and travel excluded.`
+            : 'Included in each annual Cost: MD × version rate × annual uplift factor × 1.03; HQ/subcontract excluded. Summaries do not add it again.',
       ],
     },
     {
@@ -2066,6 +2146,16 @@ const addAssumptionsSheet = (
         `Uplift ${snapshot.rateSettings.annualUplifts[index] ?? snapshot.rateSettings.defaultUplift}% · Factor ${factors[index].toFixed(4)}x`,
       ] as [string, string, string | number, string],
     })),
+    {
+      values: [
+        'HQ Travel',
+        'HQ travel enabled',
+        isHQTravelEnabled(snapshot.travelSettings) ? 'Enabled' : 'Disabled',
+        snapshot.travelSettings.enabled === undefined
+          ? 'Legacy calculation retains this version’s saved HQ-travel resource flags.'
+          : 'Explicit cost-version selection. Only internal HQ-pool effort qualifies; airfare is entered separately.',
+      ],
+    },
     {
       values: [
         'HQ Travel',
@@ -2140,7 +2230,10 @@ const addAssumptionsSheet = (
       resource.mandayRate,
       resource.mandaysPerMonth,
       resource.hoursPerManday,
-      resource.hqTravel ? 'Yes' : 'No',
+      isHQTravelEnabled(snapshot.travelSettings) &&
+      isHQTravelResource(resource, snapshot.travelSettings)
+        ? 'Yes'
+        : 'No',
       resource.active ? 'Yes' : 'No',
     ]),
   );
@@ -2165,7 +2258,8 @@ const addAssumptionsSheet = (
 };
 
 /** Builds the complete nine-sheet internal-team workbook. */
-export const buildCostWorkbook = async (snapshot: CostExportSnapshot) => {
+export const buildCostWorkbook = async (input: CostExportSnapshot) => {
+  const snapshot = structuredClone(input);
   const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Cost & Quote Workbench';
@@ -2186,6 +2280,7 @@ export const buildCostWorkbook = async (snapshot: CostExportSnapshot) => {
     snapshot.resourceTypes,
     roundMoney(travel.totalCost),
     snapshot.manualCosts,
+    snapshot.subcontractCost,
   );
   const statementAmounts = buildStatementAmounts(statementRows, detailRows);
 
@@ -2235,6 +2330,7 @@ export const buildCostWorkbook = async (snapshot: CostExportSnapshot) => {
     statement,
   );
   addAssumptionsSheet(workbook, snapshot);
+  addSubcontractWorkbookSheets(workbook, snapshot);
   const sourced = snapshot.costRows.filter((r) => r.source);
   if (sourced.length) {
     const sheet = workbook.addWorksheet('09_Source_Trace');

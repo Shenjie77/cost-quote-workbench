@@ -54,6 +54,8 @@ const newId = (prefix: string) => `${prefix}-${globalThis.crypto.randomUUID()}`;
 
 export function QuoteView({
   project,
+  proposalNumber,
+  onProposalNumberChange,
   activeVersion,
   versionState,
   totalCost,
@@ -76,6 +78,8 @@ export function QuoteView({
   announce,
 }: {
   project: CostExportSnapshot['project'];
+  proposalNumber?: string;
+  onProposalNumberChange?: (value: string) => void;
   activeVersion: string;
   versionState: CostVersionState;
   totalCost: number;
@@ -228,6 +232,8 @@ export function QuoteView({
   return (
     <div className="space-y-4">
       <ContextBand
+        proposalNumber={proposalNumber}
+        onProposalNumberChange={onProposalNumberChange}
         project={project}
         costVersion={activeVersion}
         versionStatus={versionState}

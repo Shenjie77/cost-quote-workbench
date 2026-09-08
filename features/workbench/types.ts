@@ -10,6 +10,7 @@ export type { StatusTone } from '@/features/workbench/status-tone';
 export type ViewKey =
   | 'overview'
   | 'project'
+  | 'workflow'
   | 'cost'
   | 'quote'
   | 'cpq'

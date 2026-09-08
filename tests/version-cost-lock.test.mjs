@@ -122,11 +122,62 @@ const completeDrb = (w) => {
   w.currentWorkflowStepCode = 'DRB';
   w.selectedStep = 0;
 };
-const confirmAndCompleteDrb = (w) => {
-  w.costVersions.find(
-    (v) => v.code === (w.workflowVersion || w.activeVersion),
-  ).state = 'Confirmed';
-  completeDrb(w);
+const confirmAndCompleteDrbInRepository = (repo) => {
+  let record = repo.get(ID);
+  const version =
+    record.workspace.workflowVersion || record.workspace.activeVersion;
+  if (
+    record.workspace.costVersions.find((v) => v.code === version).state !==
+    'Confirmed'
+  ) {
+    updateResource(
+      repo,
+      ID,
+      'cost',
+      { version, section: 'settings' },
+      { set: { state: 'Confirmed' } },
+      record.revision,
+    );
+    record = repo.get(ID);
+  }
+  const target = record.workspace.processSteps.findIndex(
+    (step) => step.code === 'DELIVERY_REVIEW',
+  );
+  assert.ok(target >= 0);
+  for (const original of record.workspace.processSteps.slice(0, target + 1)) {
+    let current = repo.get(ID);
+    let step = current.workspace.processSteps.find(
+      (value) => value.code === original.code,
+    );
+    if (['completed', 'skipped'].includes(step.state)) continue;
+    if (step.state === 'not_started') {
+      repo.applyWorkflowAction(
+        ID,
+        { nodeCode: step.code, action: 'start' },
+        current.revision,
+      );
+      current = repo.get(ID);
+      step = current.workspace.processSteps.find(
+        (value) => value.code === original.code,
+      );
+    }
+    repo.applyWorkflowAction(
+      ID,
+      {
+        nodeCode: step.code,
+        action: 'complete',
+        confirmed: true,
+        fields: Object.fromEntries(
+          (step.requiredFields || []).map((key) => [
+            key,
+            'Verified company fixture information',
+          ]),
+        ),
+      },
+      current.revision,
+    );
+  }
+  return repo.get(ID);
 };
 const assertOnlyLocked = (w, codes) => {
   assert.deepEqual(
@@ -181,7 +232,7 @@ test('unbound legacy completion falls back once to the persisted active version;
 
 test('workflow DRB completion locks its current version and existing completion does not relock a new active draft', (t) => {
   const repo = setup(t);
-  const locked = saveChange(repo, confirmAndCompleteDrb).workspace;
+  const locked = confirmAndCompleteDrbInRepository(repo).workspace;
   assertOnlyLocked(locked, ['V1']);
   const original = structuredClone(locked.costVersions[0]);
   const switched = saveChange(repo, (w) => activate(w, 'V2')).workspace;
@@ -215,48 +266,62 @@ test('workflow DRB completion locks its current version and existing completion 
     /锁定/,
   );
   // Viewing V2 does not retarget the V1 workflow; its completion cannot lock V2.
-  saveChange(repo, (w) => {
-    w.processSteps[0].state = 'in_progress';
-  });
-  saveChange(repo, confirmAndCompleteDrb);
+  repo.applyWorkflowAction(
+    ID,
+    {
+      nodeCode: 'DELIVERY_REVIEW',
+      action: 'reopen',
+      reason: 'Verify unchanged company DRB again',
+    },
+    repo.get(ID).revision,
+  );
+  repo.applyWorkflowAction(
+    ID,
+    { nodeCode: 'DELIVERY_REVIEW', action: 'complete', confirmed: true },
+    repo.get(ID).revision,
+  );
   assertOnlyLocked(repo.get(ID).workspace, ['V1']);
 });
 
-test('a review-gate completion binds once while later version selection leaves the new version editable', (t) => {
+test('historical review gates remain read-only and never extend a lock to another selected version', (t) => {
   const w = fixture();
   w.costVersions[0].state = 'Confirmed';
+  w.reviewGates.push({
+    id: 'GATE-DRB',
+    projectId: ID,
+    gate: 'DRB review',
+    gateZh: 'DRB评审',
+    owner: 'PM',
+    dueDate: '2026-09-10',
+    status: 'completed',
+    note: '',
+    noteZh: '',
+    workflowStepCode: w.processSteps[0].code,
+    lastUpdatedAt: LOCKED_AT,
+    followUps: [],
+  });
   const repo = setup(t, w);
-  saveChange(repo, (w) => {
-    w.reviewGates.push({
-      id: 'GATE-DRB',
-      projectId: ID,
-      gate: 'DRB review',
-      gateZh: 'DRB评审',
-      owner: 'PM',
-      dueDate: '2026-09-10',
-      status: 'in_review',
-      note: '',
-      noteZh: '',
-      workflowStepCode: w.processSteps[0].code,
-      lastUpdatedAt: LOCKED_AT,
-      followUps: [],
-    });
-  });
-  saveChange(repo, (w) => {
-    w.reviewGates[0].status = 'completed';
-  });
-  assertOnlyLocked(repo.get(ID).workspace, ['V1']);
-  saveChange(repo, (w) => activate(w, 'V2'));
-  saveChange(repo, (w) => {
-    w.project.name = 'Gate remains completed';
+  const initial = repo.get(ID);
+  assert.throws(
+    () =>
+      saveChange(repo, (next) => {
+        next.reviewGates[0].status = 'in_review';
+      }),
+    /read-only/,
+  );
+  assert.deepEqual(repo.get(ID), initial);
+  assertOnlyLocked(initial.workspace, ['V1']);
+  saveChange(repo, (next) => activate(next, 'V2'));
+  saveChange(repo, (next) => {
+    next.project.name = 'Historical gate remains completed';
   });
   assertOnlyLocked(repo.get(ID).workspace, ['V1']);
 });
 
-test('closing DRB conditions after switching versions locks the submission baseline and not the active editor', (t) => {
-  const repo = setup(t);
+test('historical DRB conditions cannot be rewritten after switching versions and only their baseline stays locked', (t) => {
+  const w = fixture();
   let drbId;
-  saveChange(repo, (w) => {
+  {
     const baseline = w.costVersions[0];
     baseline.state = 'Confirmed';
     let ssr = {
@@ -289,17 +354,24 @@ test('closing DRB conditions after switching versions locks the submission basel
       evidence: 'DRB conditional',
       conditions: ['Scope evidence'],
     });
-  });
+  }
+  const repo = setup(t, w);
   assertOnlyLocked(repo.get(ID).workspace, ['V1']);
   saveChange(repo, (w) => activate(w, 'V2'));
-  saveChange(repo, (w) => {
-    w.ssr = closeCondition(
-      w.ssr,
-      drbId,
-      'Scope evidence',
-      'Signed scope fixture',
-    );
-  });
+  const beforeClosure = repo.get(ID);
+  assert.throws(
+    () =>
+      saveChange(repo, (w) => {
+        w.ssr = closeCondition(
+          w.ssr,
+          drbId,
+          'Scope evidence',
+          'Signed scope fixture',
+        );
+      }),
+    /read-only/,
+  );
+  assert.deepEqual(repo.get(ID), beforeClosure);
   const after = repo.get(ID).workspace;
   assert.equal(after.activeVersion, 'V2');
   assertOnlyLocked(after, ['V1']);
@@ -399,14 +471,21 @@ test('target-version reads, updates and master-rate application remain available
 
 test('saved locks survive omitted metadata, workflow reset and attempted cost mutation or removal through full saves', (t) => {
   const repo = setup(t);
-  const locked = saveChange(repo, confirmAndCompleteDrb).workspace;
+  const locked = confirmAndCompleteDrbInRepository(repo).workspace;
   const expectedLock = structuredClone(locked.costVersionLocks.V1);
   saveChange(repo, (w) => {
     activate(w, 'V2');
-    w.processSteps[0].state = 'not_started';
-    w.processSteps[0].name = 'Renamed checkpoint';
     delete w.costVersionLocks;
   });
+  repo.applyWorkflowAction(
+    ID,
+    {
+      nodeCode: 'DELIVERY_REVIEW',
+      action: 'reopen',
+      reason: 'Recheck company workflow without changing costs',
+    },
+    repo.get(ID).revision,
+  );
   const after = repo.get(ID);
   assert.deepEqual(after.workspace.costVersionLocks.V1, expectedLock);
   assertOnlyLocked(after.workspace, ['V1']);
@@ -483,7 +562,7 @@ test('persisted version locks survive repository reopen and project deletion/res
   let repo = openWorkspaceRepository(file);
   t.after(() => repo?.close());
   repo.save(ID, fixture(), null);
-  saveChange(repo, confirmAndCompleteDrb);
+  confirmAndCompleteDrbInRepository(repo);
   const lock = structuredClone(repo.get(ID).workspace.costVersionLocks.V1);
   createCostDraft(
     repo,
@@ -598,9 +677,9 @@ test('CLI imports into an unlocked inactive version while rejecting the locked a
 
 for (const changedBasis of ['cost', 'scope']) {
   test(`a pending DRB preserves confirmed cost and tracks scope applicability (${changedBasis} changed)`, (t) => {
-    const repo = setup(t);
+    const w = fixture();
     let drbId;
-    saveChange(repo, (w) => {
+    {
       const baseline = w.costVersions[0];
       baseline.state = 'Confirmed';
       let ssr = {
@@ -629,7 +708,8 @@ for (const changedBasis of ['cost', 'scope']) {
       submit('DRB');
       drbId = ssr.submissions.at(-1).id;
       w.ssr = ssr;
-    });
+    }
+    const repo = setup(t, w);
     assertOnlyLocked(repo.get(ID).workspace, ['V1']);
     const submitted = structuredClone(
       repo.get(ID).workspace.ssr.submissions.at(-1).costBaseline,
@@ -661,13 +741,19 @@ for (const changedBasis of ['cost', 'scope']) {
         repo.get(ID).revision,
       );
     }
-    saveChange(repo, (w) => {
-      w.ssr = recordReviewResult(w.ssr, drbId, {
-        outcome: 'approved',
-        evidence: 'Actual company DRB result for submitted fixture',
-        conditions: [],
-      });
-    });
+    const beforeResult = repo.get(ID);
+    assert.throws(
+      () =>
+        saveChange(repo, (w) => {
+          w.ssr = recordReviewResult(w.ssr, drbId, {
+            outcome: 'approved',
+            evidence: 'Actual company DRB result for submitted fixture',
+            conditions: [],
+          });
+        }),
+      /read-only/,
+    );
+    assert.deepEqual(repo.get(ID), beforeResult);
     const after = repo.get(ID).workspace;
     const submission = after.ssr.submissions.find((s) => s.id === drbId);
     assert.deepEqual(submission.costBaseline, submitted);
@@ -697,37 +783,57 @@ for (const changedBasis of ['cost', 'scope']) {
   });
 }
 
-test('renaming an already completed non-cost node to DRB does not create a completion event for another version', (t) => {
+test('a completed custom node cannot be rewritten as DRB or extend its version lock to the active editor', (t) => {
   const w = fixture();
   w.costVersions[0].state = 'Confirmed';
+  w.processSteps.unshift({
+    ...w.processSteps[0],
+    code: 'CUSTOM_CHECK',
+    name: 'Logistics checklist',
+    state: 'completed',
+    required: false,
+    autoSkip: true,
+    roundStart: false,
+    finishesWorkflow: false,
+    requiresConfirmedCost: false,
+  });
+  w.processSteps.forEach((step, index) => {
+    step.no = String(index + 1).padStart(2, '0');
+  });
+  w.selectedStep = w.processSteps.findIndex(
+    (step) => step.code === w.currentWorkflowStepCode,
+  );
   const repo = setup(t, w);
-  saveChange(repo, (next) => {
-    activate(next, 'V2');
-    next.processSteps[0] = {
-      ...next.processSteps[0],
-      code: 'CUSTOM_CHECK',
-      name: 'Logistics checklist',
-      state: 'completed',
-    };
-    next.currentWorkflowStepCode = 'CUSTOM_CHECK';
-    next.selectedStep = 0;
-  });
-  assertOnlyLocked(repo.get(ID).workspace, ['V1']);
-  saveChange(repo, (next) => {
-    next.processSteps[0].name = 'DRB review';
-  });
+  saveChange(repo, (next) => activate(next, 'V2'));
+  const before = repo.get(ID);
+  assert.throws(
+    () =>
+      saveChange(repo, (next) => {
+        next.processSteps[0].name = 'DRB review';
+      }),
+    /server-owned|workflow-action|publish/,
+  );
+  assert.deepEqual(repo.get(ID), before);
   assertOnlyLocked(repo.get(ID).workspace, ['V1']);
   assert.equal(
     readResource(repo, ID, 'cost', { version: 'V2', section: 'settings' })
       .costLockReason,
     null,
   );
-  saveChange(repo, (next) => {
-    next.processSteps[0].state = 'in_progress';
-  });
-  saveChange(repo, (next) => {
-    next.processSteps[0].state = 'completed';
-  });
+  repo.applyWorkflowAction(
+    ID,
+    {
+      nodeCode: 'CUSTOM_CHECK',
+      action: 'reopen',
+      reason: 'Recheck the logistics fixture',
+    },
+    repo.get(ID).revision,
+  );
+  repo.applyWorkflowAction(
+    ID,
+    { nodeCode: 'CUSTOM_CHECK', action: 'complete' },
+    repo.get(ID).revision,
+  );
   assertOnlyLocked(repo.get(ID).workspace, ['V1']);
 });
 

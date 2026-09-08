@@ -18,6 +18,7 @@ export function ProjectView({
   onOpenQuote,
   onStatusChange,
   onWorkflowChange,
+  onTrackWorkflow,
   onCreateProject,
   onDeleteProject,
   onEditProject,
@@ -26,8 +27,9 @@ export function ProjectView({
   onOpenProject: (project: Project) => void;
   onOpenCost: (project: Project) => void;
   onOpenQuote: (project: Project) => void;
-  onStatusChange: (project: Project, status: ProjectStatus) => void;
-  onWorkflowChange: (project: Project, workflowCode: string) => void;
+  onStatusChange?: (project: Project, status: ProjectStatus) => void;
+  onWorkflowChange?: (project: Project, workflowCode: string) => void;
+  onTrackWorkflow?: (project: Project) => void;
   onCreateProject: () => void;
   onDeleteProject: (project: Project) => void;
   onEditProject: (project: Project) => void;
@@ -47,8 +49,8 @@ export function ProjectView({
         index="01"
         title="Project List"
         titleZh="项目列表"
-        description="Set project status and current workflow; open cost or quote in project tabs."
-        descriptionZh="直接设置项目状态与当前流程，点击成本或报价进入项目标签。"
+        description="Record one project workflow, owner and follow-up date; open cost or quote in project tabs."
+        descriptionZh="统一登记项目流程、负责人和跟进日期；报价完成后停止提醒。"
         action={
           <Button size="sm" onClick={onCreateProject}>
             <FolderPlus />
@@ -107,6 +109,7 @@ export function ProjectView({
         onQuote={onOpenQuote}
         onStatusChange={onStatusChange}
         onWorkflowChange={onWorkflowChange}
+        onTrackWorkflow={onTrackWorkflow}
       />
       <div className="border-t border-border bg-[#f7f5f0] px-4 py-2 text-[10px] text-muted-foreground">
         {projects.length} local projects · {projects.length} 个本地项目

@@ -144,7 +144,10 @@
               "project.create",
               "cost.create",
               "project.apply-masterdata",
-              "cost.delete"
+              "cost.delete",
+              "project.workflow-action",
+              "workflow.preview",
+              "workflow.publish"
             ]
           }
         }
@@ -509,7 +512,10 @@
               "reminders.list",
               "reminders.ack",
               "history.search",
-              "boq.import"
+              "boq.import",
+              "project.workflow-action",
+              "workflow.preview",
+              "workflow.publish"
             ]
           },
           "data": {
@@ -681,7 +687,10 @@
               "project.create",
               "cost.create",
               "project.apply-masterdata",
-              "cost.delete"
+              "cost.delete",
+              "project.workflow-action",
+              "workflow.preview",
+              "workflow.publish"
             ]
           },
           "data": {
@@ -1522,6 +1531,9 @@
         "totalCost"
       ],
       "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
         "triggeredCostLineIds": {
           "type": "array",
           "items": {
@@ -1783,7 +1795,9 @@
             "in_progress",
             "awaiting_review",
             "blocked",
-            "not_started"
+            "not_started",
+            "skipped",
+            "paused"
           ]
         },
         "tone": {
@@ -1809,6 +1823,89 @@
         },
         "required": {
           "type": "boolean"
+        },
+        "followUpDate": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "parallelGroup": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "slaDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "slaCalendar": {
+          "enum": ["business", "calendar"]
+        },
+        "slaHolidays": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          },
+          "uniqueItems": true,
+          "maxItems": 366
+        },
+        "reminderEnabled": {
+          "type": "boolean"
+        },
+        "requiredFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "uniqueItems": true,
+          "maxItems": 30
+        },
+        "roundStart": {
+          "type": "boolean"
+        },
+        "requiresConfirmedCost": {
+          "type": "boolean"
+        },
+        "finishesWorkflow": {
+          "type": "boolean"
+        },
+        "autoSkip": {
+          "type": "boolean"
+        },
+        "startedAt": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "dueAt": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "completedAt": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "pausedAt": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "fieldValues": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "maxProperties": 100
+        },
+        "skippedBy": {
+          "type": "string",
+          "maxLength": 160
         }
       }
     },
@@ -1923,6 +2020,15 @@
               },
               "action": {
                 "enum": ["review", "cost", "project", "ssr"]
+              },
+              "workflowNodeId": {
+                "type": "string"
+              },
+              "workflowVersion": {
+                "type": "string"
+              },
+              "urgency": {
+                "enum": ["normal", "immediate", "urgent"]
               }
             }
           }
@@ -2202,6 +2308,28 @@
               }
             }
           }
+        },
+        "workflowMode": {
+          "const": "project"
+        },
+        "workflowOwner": {
+          "type": "string"
+        },
+        "workflowFollowUpDate": {
+          "type": "string"
+        },
+        "workflowNote": {
+          "type": "string"
+        },
+        "workflowUpdatedAt": {
+          "type": "string"
+        },
+        "workflowEngineVersion": {
+          "const": 1
+        },
+        "workflowTemplateRevision": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },

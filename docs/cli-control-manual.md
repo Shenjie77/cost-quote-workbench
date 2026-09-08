@@ -1,6 +1,6 @@
 # cost-cli v2 Agent control manual
 
-The SSR/CPQ/import/template/BOQ/reminder extensions are documented in the [Skill operations reference](../skills/cost-workbench/references/operations.md); request schema `operations` is version `1.0.0`.
+Unified project workflow is documented in [Project Workflow](project-workflow.md). The CPQ/import/template/BOQ/reminder operations are documented in the [Skill operations reference](../skills/cost-workbench/references/operations.md); request schema `operations` is version `1.0.0`.
 
 This is the handoff contract for people, scripts, and Agent Skills that control
 the local Cost & Quote Workbench. The CLI is intentionally non-interactive.
@@ -48,8 +48,16 @@ Reads are filtered/paginated; updates merge named rows or fields with revision
 checks. Global `masterdata get/update --tab TAB` needs no project ID and returns
 a separate revision per tab. Use the global result kinds `GlobalMasterDataResult`
 and `GlobalMasterDataMutationResult`; never supply a project revision for them.
-Nine global tabs include CPQ catalog. Actual project workflow/status/reviews use
-`project get/update --section workflow|status|reviews`, not global masterdata.
+Nine global tabs include CPQ catalog; legacy status remains compatibility data.
+Actual progress uses `project get --section workflow-plan` plus `project workflow-action`.
+The plan exposes parallel nodes and blockers; global changes use `workflow preview/publish`
+with global and previewed project revisions. See [the complete workflow contract](project-workflow.md).
+Use `project get --section workflow-history` for append-only history, and
+`project get/update --section metadata` for project references: `proposalNumber`,
+`scopeBrief`, `technicalBasis`, `companyUrl` (iSales/company link), and optional
+`cpqUrl` (company CPQ configuration link). Set a link to `""` to clear it.
+Reference-only updates do not change workflow progress or recalculate costs.
+Legacy project workflow/status/reviews and SSR submissions are read-only.
 See [the global data contract](global-master-data.md). Project delete/restore is recoverable. Explicit user cost confirmation
 locks only that version. DRB entry, submission and completion require that cost
 version to be Confirmed first; Confirmed is not DRB approval. Cost edits and imports check the named
@@ -69,7 +77,6 @@ legacy workspace get/save remains for backups and deliberate bulk work.
 
 Cost validate/calculate/export additionally accept `--project-id ID [--version V1] [--db FILE]`
 instead of `--input`. The following table retains the original file-input forms.
-
 
 | Command                | Required options                 | Optional options                               | Result kind                   | Writes files             |
 | ---------------------- | -------------------------------- | ---------------------------------------------- | ----------------------------- | ------------------------ |
@@ -229,17 +236,11 @@ those fields because the cost snapshot contract remains strict.
 
 The workspace also carries the fields used by Project List and project tabs:
 
-- `projectStatus` is a manual status code and must reference one
-  `projectStatusDefinitions[].code`; an Agent may change it only when the user
-  requested that project-state update.
-- `projectStatusDefinitions[]` is the project-specific status dictionary used
-  by the Project List selector. Keep `code` stable for automation; `name` and
-  `nameZh` are editable display labels, and `active: false` hides an option from
-  new selections while preserving historical/current references.
-- `currentWorkflowStepCode` is the Project List workflow selection. It must be
-  empty only when `processSteps[]` is empty; otherwise it references one stable
-  `processSteps[].code`. Agents must update this code instead of relying on an
-  array position.
+- `workflowMode: "project"` selects the single Project Workflow register.
+- `workflowEngineVersion:1` selects configurable execution; workflowTemplateRevision records the adopted definition revision.
+- `projectStatus` is derived from the current workflow for compatibility.
+  `projectStatusDefinitions[]` is retained, not an independent progress editor.
+- `currentWorkflowStepCode` is a compatibility projection, not the only active task. Read workflow-plan steps/phases/blockers and use the returned nodeCode for actions; do not infer IDs or gates from display names.
 - `selectedStep` is retained for v1 compatibility. Keep it equal to the array
   index of `currentWorkflowStepCode`; the browser and repository migration
   synchronize it automatically.
@@ -250,8 +251,8 @@ The workspace also carries the fields used by Project List and project tabs:
   inputs. Older documents without workflowVersion use activeVersion as fallback.
 - `costVersions[]` contains complete independent cost inputs. Create a version
   with `cost create --mode blank|clone` and the exact revision. The platform
-  selects the new Draft as activeVersion/workflowVersion and starts its DTRB
-  round, retaining old version costs, progress and submissions. Do not manually
+  selects the new Draft as activeVersion/workflowVersion and adopts the latest global workflow template, whether the previous round is open or completed. It starts the template roundStart
+  (DTRB by default), retaining old version costs, progress and submissions. Do not manually
   append snapshots or write workflow metadata through workspace saves.
 - Each version stores its own `resourceTypes` rate/conversion snapshot. Updating
   the global catalogue does not reprice any existing version, including Draft.
@@ -277,17 +278,15 @@ The workspace also carries the fields used by Project List and project tabs:
   locks its cost inputs and captured rates; it must precede DRB entry, submission
   or completion and does not mean DRB approved. Draft cannot be locked by changing
   a DRB node or recording a result. New blank/cloned Drafts remain editable and
-  independently satisfy their own DTRB → DRB review prerequisites; old approvals
-  and completion states do not transfer to them.
-- `processSteps[]` contains the project's workflow nodes. Keep `code` stable for
-  machine operations; the user-editable fields are `name`, `nameZh`, `owner`,
-  `state`, and `required`. Workflow state is one of `completed`, `in_progress`,
-  `awaiting_review`, `blocked`, or `not_started`; `tone` must match the canonical
-  presentation mapping used by the UI.
+  start the configured round-start node; old approvals and completion states do not transfer.
+  Project-mode export no longer requires a duplicate local SSR approval chain.
+- `processSteps[]` stores definitions (parallelGroup, required/requiredFields, autoSkip, SLA, reminderEnabled, roundStart, requiresConfirmedCost, finishesWorkflow) and node execution (state, startedAt/dueAt/completedAt/pausedAt, fieldValues, skippedBy, owner/note/followUpDate). Actions start/complete/skip/update/pause/resume/reopen enforce the configured gates; do not write states directly. Template publication synchronizes eligible open projects, retains active deadlines by default and never reprices costs or rewrites completed evidence.
+- `workflowUpdates[]` stores append-only version/stage/owner/date/note/timestamp
+  records. Read with project --section workflow-history; do not patch the array.
 - `pricing` contains `targetGrossMargin`, `discount`, and `gstPercent`.
-- `reviewGates[]` contains user-created review checkpoints. Each record belongs
-  to the same `project.id`, has an explicit owner, due date, status, evidence,
-  optional workflow-code reference, and append-only `followUps[]` entries.
+- `reviewGates[]` and SSR submissions retain old review evidence read-only.
+  Do not update them or issue new SSR submit/result/close/followup commands
+  to advance the project. Record company progress once using project workflow-action.
 - `quoteTemplates[]` contains client-output labels and commercial terms;
   `selectedQuoteTemplateId` must reference one of them.
 - `quoteAssumptions[]` contains includable bilingual output assumptions.
@@ -301,7 +300,7 @@ versions, and do not automatically demote the source version to `Draft` or
 
 `workspace list` returns calculated Project List fields when a snapshot exists:
 `projectStatus`, `statusDefinitions`, `currentWorkflowStepCode`,
-`reviewGates`, `workflowSteps`, `activeVersion`, `versionState`,
+`workflowEngineVersion`, `workflowTemplateRevision`, `reviewGates`, `workflowSteps`, `activeVersion`, `workflowVersion`, `versionState`,
 `serviceCost`, `subcontractCost`, `totalCost`, `totalMandays`, `totalQuote`,
 `grossMarginPercent`, and `incompleteCostRows`. Cost and quotation values are
 numeric, read-only projections. Update their source workspace fields instead
@@ -311,6 +310,53 @@ There is no Y0 in v2. The array position never substitutes for a missing or
 incorrect `bucket` value.
 
 ### Resource Type and rate
+
+Personnel allowance and HQ travel are optional **cost-version settings**, not
+global Master Data fields. Read `cost get --project-id ID --version Vn --section
+settings`, then update only that version using Pool categories:
+
+```json
+{
+  "apiVersion": "cost-workbench/v2",
+  "kind": "OperationRequest",
+  "requestId": "personnel-options-001",
+  "data": {
+    "schemaVersion": "1.0.0",
+    "operation": "cost.update",
+    "changes": {
+      "set": {
+        "rateSettings": { "allowancePools": ["LOCAL", "ARP"] },
+        "travelSettings": { "enabled": true }
+      }
+    }
+  }
+}
+```
+
+Use `cost update --project-id ID --version Vn --section settings --input REQUEST
+--expected-revision REVISION`. `allowancePools` accepts any combination of
+`LOCAL`, `ARP`, `HQ`, and `OTHER`; all internal personnel in selected Pools
+receive 3% in their calculated Y1–Y5 costs. An explicit `[]` switches allowance
+off; unknown or repeated Pool values are rejected atomically. Travel `enabled:false`
+switches HQ travel off while preserving stored monthly/airfare/trip inputs;
+`true` calculates travel only for internal HQ personnel. `cost calculate` returns
+the effective switch in `hqTravel.enabled`. Both options are off in new blank
+projects/versions; cloning preserves the source's settings and calculations.
+Locked versions reject option changes.
+
+The precedence is `allowancePools` → legacy `allowanceResourceTypeIds` →
+legacy `localArpAllowanceEnabled`. Absent Pool selection preserves historical
+per-ID selection exactly, even when it only covers some levels within a Pool.
+Reading or cloning never expands those old selections. Legacy travel without
+`enabled` retains its captured `hqTravel` eligibility.
+
+For compatible narrow writes, an explicit legacy ID list without
+`allowancePools` removes the saved Pool override and applies that exact list;
+unknown, duplicate and subcontract IDs remain invalid in this mode. An old
+flag-only patch selects `LOCAL` and `ARP` Pools (`false` selects `[]`), while
+retaining translated IDs for old clients. Explicit Pools in the same patch
+always take precedence. Other reads, full snapshots and catalogue maintenance
+do not translate or reprice historical settings.
 
 Global `masterdata --tab resources` is the personnel/rate source; each cost
 version's `resourceTypes` is its detached snapshot. `mandayRate` is SGD/MD, not
@@ -337,8 +383,8 @@ Project catalog arrays remain captured reference data. Read them through narrow
 project/quote/BOQ/CPQ sections; adopt newer global reference data only with an
 explicit `project apply-masterdata` for a supported tab. An existing cost version
 retains its own resource IDs/rates even if the global source changes. Project
-workflow/status/review edits remain project-owned and revision checked; all
-cost-confirmation and version-review guards still apply.
+workflow actions remain project-owned and revision checked; nodes configured with
+requiresConfirmedCost require Confirmed cost. Legacy status/review evidence remains read-only.
 
 ## 7. Calculation and money rules
 
@@ -480,9 +526,7 @@ There is deliberately no automatic v1 CLI-request migration command.
 - A successful calculation is a cost result, not authorization to send a quote
   or enter company systems.
 
-The latest explicit `followUps[].nextFollowUpAt` date participates in the
-daily digest. Closed reviews are excluded. Generating a digest computes a report;
-it does not itself install a scheduler or send a message.
+Configured reminders evaluate each enabled active node. Default business SLA is Singapore Monday–Friday 09:00–18:00, 9 hours per day, excluding configured holidays; calendar mode uses continuous 24-hour days. Normal SLA time means normal follow-up, the final local day means immediate handling, and after exact dueAt means urgent. Manual followUpDate can request earlier follow-up. When no node is active or paused, enabled pending nodes in the first pending phase receive normal ready-to-start/register reminders without SLA timing or overdue labels. Later pending phases remain quiet, including when the first phase is muted; cost-confirmation blockers do not hide ready work. Completed/skipped/disabled nodes stay quiet; paused nodes wait for a resume check. Completing the configured finish node stops all round reminders. Today groups tasks by project and highest urgency. Generating a digest does not install a scheduler or send messages.
 
 ## 12. Contract files and tests
 
@@ -498,12 +542,12 @@ it does not itself install a scheduler or send a message.
 Run `npm test` before handoff. `npm run test:cli` runs only the CLI contract
 suite.
 
-
 ## 业务 Skill 与成本新建
 
 可直接使用 [业务 Skill 清单](business-skills.md) 中的独立入口，无需先读取完整 workspace。
 
 - `project create --input REQUEST`：OperationRequest 的 data 为 `{schemaVersion:"1.0.0",operation:"project.create",project:{id,name,client}}`，仅创建新项目和空白 V1，已有或已删除同号项目均拒绝。
-- `cost create --project-id ID --mode blank|clone [--source-version V1] --expected-revision R`：新增 Draft 并返回版本号，自动选为 activeVersion/workflowVersion 并启动本版 DTRB；clone 必须指定源版本，blank 禁止 source-version。允许从锁定源版本复制新版；原锁版输入及历史流程保留，新版不继承旧锁或旧审批。
+- `cost create --project-id ID --mode blank|clone [--source-version V1] --expected-revision R`：新增 Draft 并返回版本号，自动选为 activeVersion/workflowVersion 并采用最新全局流程模板，从其 roundStart（默认 DTRB）启动本版轮次，无论旧轮次是否已完成；clone 必须指定源版本，blank 禁止 source-version。允许从锁定源版本复制新版；原锁版输入及历史流程保留，新版不继承旧锁或旧审批。
 - `cost import --project-id ID --version Vn ...`：预览和应用均可指定版本；未指定仍为 activeVersion。预览返回 revision/version；`--apply --compact` 返回窄收据，未加 compact 保留旧完整记录响应。
-- `ssr submit --project-id ID --version Vn --input REQUEST --expected-revision R --compact`：明确提交成本版本；省略 version 时使用 workflowVersion，旧数据缺失时才回退 activeVersion。DRB 要求本版已由用户确认成本为 Confirmed，并满足本版 DTRB 前置。`ssr result/close/followup` 继续按 submissionId 处理原记录，不跟随历史查看切换。
+- `project get --project-id ID --section workflow-plan` 读取配置节点和并行阶段；`project workflow-action --project-id ID --input request.json --expected-revision R` 应用实际 nodeCode 的动作。OperationRequest 使用 operation=project.workflow-action、action={nodeCode,action,...}。关键节点确认/字段和requiresConfirmedCost门禁均由平台检查；历史用workflow-history。
+- `workflow preview/publish --input request.json --expected-revision GLOBAL_R`：OperationRequest data.operation=workflow.preview或workflow.publish，steps为完整定义数组，migrateActiveProjectIds显式要求重算活跃SLA；publish额外传预览得到的projectRevisions。预览/发布响应及示例见[流程契约](project-workflow.md)。

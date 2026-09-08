@@ -18,9 +18,9 @@ atomic JSON workspace per project with:
 
 - schema version and monotonically increasing revision;
 - SHA-256 of the exact JSON payload;
-- project-specific workflow nodes (editable names, owners, states, and required
-  flags) plus the selected node;
-- manual project status and pricing parameters;
+- project workflow definitions, the current node, owner, follow-up date and note;
+- append-only workflow registration history;
+- derived compatibility project status and pricing parameters;
 - active cost version plus independent version snapshots with manual `Draft`,
   `Suspended`, or `Confirmed` states;
 - platform-managed workflowVersion and versionWorkflows for current and historical
@@ -28,7 +28,7 @@ atomic JSON workspace per project with:
 - cost rows, rate/travel assumptions, and manual costs;
 - captured RE Type/rate, subcontract, supplemental-cost, and maintenance
   reference data;
-- review gates with follow-up history;
+- read-only legacy SSR review evidence and review gates with follow-up history;
 - captured quote templates/library, selected assumptions, pricing, and quote history;
 - update timestamp.
 
@@ -82,6 +82,8 @@ references once without rewriting project payloads or revisions. Same-key
 conflicts retain their variants and source project/revision; unresolved data
 must be explicitly resolved before it can be adopted into a new project/version.
 Normal master-data operations do not scan old workspaces.
+
+Database schema 7 introduces the single Project Workflow register. Migration retains existing costs and old SSR/review evidence, adds missing standard workflow stages, derives the compatibility projectStatus, and maps legacy completed projects to QUOTE_COMPLETED. The original document remains in the migration archive. New progress writes append workflowUpdates; historical SSR submissions and review gates are read-only. Follow-up reminders read the current workflow date and stop entirely after quotation completion. See [project workflow](project-workflow.md).
 
 Agent project writes use the same project revision rule. Global tab writes use
 that tab's revision instead, with `masterdata get/update --tab TAB` and no project

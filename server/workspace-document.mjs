@@ -3,12 +3,18 @@
  * validation live here; this module never opens or writes a database.
  */
 import { migrateVersionWorkflows } from '../features/cost/version-workflow.ts';
+import { normalizeProjectWorkflow } from '../features/projects/workflow-domain.ts';
+import { migrateWorkflowEngine } from '../features/projects/workflow-engine.ts';
 import { getCostVersionLocks } from '../features/cost/cost-lock.ts';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
-import { recalculateCostRows } from '../features/cost/domain.ts';
+import {
+  recalculateCostRows,
+  validatePersonnelAllowanceSelection,
+} from '../features/cost/domain.ts';
+import { validateSubcontractCost } from '../features/cost/subcontract-domain.ts';
 import { initialResourceTypes } from '../features/master-data/demo-data.ts';
 import { assertMaintenanceImport } from '../features/master-data/maintenance-import.ts';
 import { initialProjectStatusDefinitions } from '../features/projects/types.ts';
@@ -253,6 +259,9 @@ export const migrateWorkspaceDocument = (
           travelRows: structuredClone(document.travelRows || []),
           travelUplift: Number(document.travelUplift || 0),
           manualCosts: structuredClone(document.manualCosts),
+          ...(document.subcontractCost
+            ? { subcontractCost: structuredClone(document.subcontractCost) }
+            : {}),
         },
       ],
     };
@@ -331,6 +340,16 @@ export const migrateWorkspaceDocument = (
       document.reviewGates.some((g) => !g.costVersion))
   ) {
     document = migrateVersionWorkflows(document);
+    changed = true;
+  }
+  if (workflow && document.workflowMode !== 'project') {
+    if (workspace.projectStatus === 'completed')
+      document = { ...document, projectStatus: 'completed' };
+    document = normalizeProjectWorkflow(document);
+    changed = true;
+  }
+  if (workflow && document.workflowEngineVersion !== 1) {
+    document = migrateWorkflowEngine(document);
     changed = true;
   }
   return changed ? document : workspace;
@@ -536,10 +555,36 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
   const active = workspace.costVersions.find(
     (version) => version.code === workspace.activeVersion,
   );
+  const assertAllowanceSelection = (settings, resources, location) => {
+    const issue = validatePersonnelAllowanceSelection(settings, resources)[0];
+    if (issue)
+      throw new WorkspaceValidationError(
+        issue.message,
+        `${location}${issue.path}`,
+      );
+  };
+  assertAllowanceSelection(
+    workspace.rateSettings,
+    active.resourceTypes || workspace.resourceTypes,
+    '',
+  );
   validateRows(
     workspace.costRows,
     active.resourceTypes || workspace.resourceTypes,
     '/costRows',
+  );
+  const assertSubcontract = (value, confirmed, location) => {
+    const issue = validateSubcontractCost(value, confirmed)[0];
+    if (issue)
+      throw new WorkspaceValidationError(
+        issue.message,
+        `${location}${issue.path}`,
+      );
+  };
+  assertSubcontract(
+    workspace.subcontractCost,
+    active.state === 'Confirmed',
+    '',
   );
   [
     ...workspace.costVersions,
@@ -548,10 +593,20 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
     const resources = version.resourceTypes || workspace.resourceTypes;
     requireUnique(resources, 'id', `/costVersions/${index}/resourceTypes`);
     requireUnique(resources, 'code', `/costVersions/${index}/resourceTypes`);
+    assertAllowanceSelection(
+      version.rateSettings,
+      resources,
+      `/costVersions/${index}`,
+    );
     validateRows(
       version.costRows,
       resources,
       `/costVersions/${index}/costRows`,
+    );
+    assertSubcontract(
+      version.subcontractCost,
+      version.state === 'Confirmed',
+      `/costVersions/${index}`,
     );
     if (
       version.sourceVersion &&

@@ -12,12 +12,14 @@ description: 核验指定 SSR 成本版本并导出内部成本 Excel 或填入�
 写入使用最新返回的 `--expected-revision R`，冲突后重读目标资源再重施原意。局部修改仅发送变更字段；新增记录必须字段完整；不把缺失记录视为删除。核对返回 revision 和变更条目，不把预览或校验当成已保存。
 
 指定项目和成本版本，读取 `cost get --project-id ID --version V1 --section summary`，再运行：
+
 ```sh
 cost-cli cost validate --project-id ID --version V1
 cost-cli cost calculate --project-id ID --version V1
 cost-cli cost export --project-id ID --version V1 --output outputs/Cost-new.xlsx
 ```
-以领域计算结果为准，不在提示词重做金额计算。已锁定版本的汇总仍可查看、校验和导出，显式指定版本即可；同项目其他新版本可继续编制，不改变该锁版。Local/ARP 3% 若开启，年度 Cost 已包含，不再增加层级、字段或额外金额行。
+
+以领域计算结果为准，不在提示词重做金额计算。已锁定版本的汇总仍可查看、校验和导出，显式指定版本即可；同项目其他新版本可继续编制，不改变该锁版。所选人员 Pool 的 3% 若开启，年度 Cost 已包含，不再增加层级、字段或额外金额行。
 
 公司原始模板：先 `workbook inspect --file Company.xlsx`，需要映射时才读取 [成本模板](references/template.md)。没有实际模板不能声称符合公司版式。不要为了导出成功修改成本或批准状态。
 

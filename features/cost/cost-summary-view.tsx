@@ -1,3 +1,7 @@
+import {
+  subcontractCostDetails,
+  type SubcontractCost,
+} from '@/features/cost/subcontract-domain';
 /** Reconciled summary across Scope, BU, consolidated RE Type, and accounts. */
 
 import { BarChart3, Clock3, Database, Gauge } from 'lucide-react';
@@ -22,6 +26,7 @@ export function CostSummaryView({
   resourceTypes,
   travelCost,
   manualCosts,
+  subcontractCost,
   setManualCosts,
 }: {
   readOnly?: boolean;
@@ -29,6 +34,7 @@ export function CostSummaryView({
   resourceTypes: ResourceType[];
   travelCost: number;
   manualCosts: ManualCostInputs;
+  subcontractCost?: SubcontractCost;
   setManualCosts: React.Dispatch<React.SetStateAction<ManualCostInputs>>;
 }) {
   const statementValues = getCostStatementValues(
@@ -36,13 +42,23 @@ export function CostSummaryView({
     resourceTypes,
     travelCost,
     manualCosts,
+    subcontractCost,
   );
   const totalMandays = rows.reduce((sum, row) => sum + totalRowMandays(row), 0);
   const scopeCount = new Set(
-    rows.map((row) => row.scope.trim()).filter(Boolean),
+    [
+      ...rows.map((row) => row.scope.trim()),
+      ...subcontractCostDetails(subcontractCost).map((line) =>
+        line.scope.trim(),
+      ),
+    ].filter(Boolean),
   ).size;
-  const buCount = new Set(rows.map((row) => row.bu.trim()).filter(Boolean))
-    .size;
+  const buCount = new Set(
+    [
+      ...rows.map((row) => row.bu.trim()),
+      ...subcontractCostDetails(subcontractCost).map((line) => line.bu.trim()),
+    ].filter(Boolean),
+  ).size;
   const averageCost =
     totalMandays > 0 ? statementValues.sales / totalMandays : 0;
   const palette = ['#173a52', '#2e6f77', '#a86432', '#81918b', '#657e98'];
@@ -55,6 +71,7 @@ export function CostSummaryView({
       resourceTypes,
       travelCost,
       manualCosts,
+      subcontractCost,
     );
     return grouped
       .map((item, index) => ({
@@ -162,6 +179,7 @@ export function CostSummaryView({
               resourceTypes={resourceTypes}
               travelCost={travelCost}
               manualCosts={manualCosts}
+              subcontractCost={subcontractCost}
               setManualCosts={setManualCosts}
             />
           </TabsContent>

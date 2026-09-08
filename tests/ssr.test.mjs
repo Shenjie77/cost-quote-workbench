@@ -129,7 +129,7 @@ test('tender review requires every configured domain and submission order is app
   s.submissions.reverse();
   assert.throws(() => assertSsrTransition(prior, s, b), /order/);
 });
-test('SSR records persist immutably and reminder state survives restart without workspace revision writes', () => {
+test('historical SSR records stay read-only while project reminders survive restart and stop on quote completion', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'ssr-reminders-')),
     db = path.join(dir, 'db.sqlite');
   let repo, reminders;
@@ -141,7 +141,7 @@ test('SSR records persist immutably and reminder state survives restart without 
     reminders = openReminderService(db, repo);
     const first = reminders
       .scan('2026-09-07')
-      .items.find((r) => r.item.action === 'ssr');
+      .items.find((r) => r.item.action === 'project');
     assert.ok(first);
     reminders.acknowledge(first.id, first.fingerprint);
     assert.equal(
@@ -160,22 +160,63 @@ test('SSR records persist immutably and reminder state survives restart without 
     bad.ssr.submissions[0].owner = 'Other';
     assert.throws(
       () => repo.save(w.project.id, bad, record.revision),
-      /cannot be edited/,
+      /read-only/,
     );
     const next = structuredClone(record.workspace);
     next.ssr = approve(next.ssr);
-    record = repo.save(w.project.id, next, record.revision);
+    assert.throws(
+      () => repo.save(w.project.id, next, record.revision),
+      /read-only/,
+    );
+    assert.deepEqual(
+      repo.get(w.project.id).workspace.ssr,
+      record.workspace.ssr,
+    );
+    for (const original of record.workspace.processSteps) {
+      let current = repo.get(w.project.id);
+      let step = current.workspace.processSteps.find(
+        (value) => value.code === original.code,
+      );
+      if (['completed', 'skipped'].includes(step.state)) continue;
+      if (step.state === 'not_started') {
+        repo.applyWorkflowAction(
+          w.project.id,
+          { nodeCode: step.code, action: 'start' },
+          current.revision,
+        );
+        current = repo.get(w.project.id);
+        step = current.workspace.processSteps.find(
+          (value) => value.code === original.code,
+        );
+      }
+      repo.applyWorkflowAction(
+        w.project.id,
+        {
+          nodeCode: step.code,
+          action: 'complete',
+          confirmed: true,
+          fields: Object.fromEntries(
+            (step.requiredFields || []).map((key) => [
+              key,
+              'Verified company fixture information',
+            ]),
+          ),
+        },
+        current.revision,
+      );
+    }
+    record = repo.get(w.project.id);
     assert.equal(
       reminders.scan('2026-09-07').items.find((r) => r.id === first.id).active,
       false,
     );
     const older = structuredClone(record.workspace);
     delete older.ssr;
-    assert.equal(
-      repo.save(w.project.id, older, record.revision).workspace.ssr.submissions
-        .length,
-      1,
+    assert.throws(
+      () => repo.save(w.project.id, older, record.revision),
+      /read-only/,
     );
+    assert.deepEqual(repo.get(w.project.id), record);
   } finally {
     reminders?.close();
     repo?.close();

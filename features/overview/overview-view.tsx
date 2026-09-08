@@ -1,6 +1,6 @@
 /** Today workspace derived entirely from persisted portfolio and review data. */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -22,11 +22,21 @@ import { KpiCard } from '@/components/workbench/kpi-card';
 import { SectionHeading } from '@/components/workbench/section-heading';
 import {
   buildDailyDigest,
+  groupDigestItemsByProject,
   normalizeDigestDate,
+  isDigestProjectCompleted,
 } from '@/features/agent/digest-domain';
 import { ProjectTable } from '@/features/projects/project-table';
-import type { Project, ProjectStatus } from '@/features/projects/types';
-import { getReviewTiming, type ReviewGate } from '@/features/reviews/types';
+import {
+  buildWorkflowDistribution,
+  currentProjectWorkflowNodeCodes,
+} from './workflow-distribution';
+import type {
+  Project,
+  ProjectStatus,
+  WorkflowStep,
+} from '@/features/projects/types';
+import type { ReviewGate } from '@/features/reviews/types';
 import type { PanelState, ViewKey } from '@/features/workbench/types';
 import { formatSgd } from '@/lib/formatters';
 
@@ -34,13 +44,17 @@ export function OverviewView({
   projects,
   reviews,
   setView,
-  setPanel,
   onSelectProject,
   onOpenCost,
   onOpenQuote,
-  onStatusChange,
-  onWorkflowChange,
+  onTrackWorkflow,
+  workflowDefinitions,
+  workflowDefinitionRevision,
+  workflowDefinitionError,
 }: {
+  workflowDefinitions?: WorkflowStep[];
+  workflowDefinitionRevision?: number;
+  workflowDefinitionError?: string;
   projects: Project[];
   reviews: ReviewGate[];
   setView: (view: ViewKey) => void;
@@ -48,30 +62,31 @@ export function OverviewView({
   onSelectProject: (project: Project) => void;
   onOpenCost: (project: Project) => void;
   onOpenQuote: (project: Project) => void;
-  onStatusChange: (project: Project, status: ProjectStatus) => void;
-  onWorkflowChange: (project: Project, workflowCode: string) => void;
+  onStatusChange?: (project: Project, status: ProjectStatus) => void;
+  onWorkflowChange?: (project: Project, workflowCode: string) => void;
+  onTrackWorkflow?: (project: Project, nodeCode?: string) => void;
 }) {
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [workflowFilter, setWorkflowFilter] = useState('all');
+  const [now, setNow] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date().toISOString()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  const distribution = buildWorkflowDistribution(projects, workflowDefinitions);
+  const workflowOptions = [...distribution.nodes, ...distribution.retained];
+  const activeWorkflowFilter = workflowOptions.some(
+    (entry) => entry.step.code === workflowFilter,
+  )
+    ? workflowFilter
+    : 'all';
   const visibleProjects =
-    statusFilter === 'all'
+    activeWorkflowFilter === 'all'
       ? projects
-      : projects.filter((project) => project.projectStatus === statusFilter);
-  const statusOptions = Array.from(
-    new Map(
-      projects
-        .flatMap((project) => project.statusDefinitions || [])
-        .map((status) => [status.code, status]),
-    ).values(),
-  );
-  const openReviews = reviews.filter(
-    (review) => review.status !== 'completed' && review.status !== 'cancelled',
-  );
-  const urgentReviews = openReviews
-    .filter((review) => {
-      const timing = getReviewTiming(review);
-      return timing.overdue || timing.dueSoon || review.status === 'blocked';
-    })
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+      : projects.filter((project) =>
+          currentProjectWorkflowNodeCodes(project).includes(
+            activeWorkflowFilter,
+          ),
+        );
   const digest = useMemo(
     () =>
       buildDailyDigest(
@@ -80,6 +95,12 @@ export function OverviewView({
           name: project.name,
           client: project.client,
           projectStatus: project.projectStatus,
+          workflowMode: project.workflowMode,
+          workflowEngineVersion: project.workflowEngineVersion,
+          workflowTemplateRevision: project.workflowTemplateRevision,
+          workflowVersion: project.workflowVersion,
+          currentWorkflowStepCode: project.currentWorkflowStepCode,
+          workflowSteps: project.workflowSteps,
           activeVersion: project.version,
           versionState: project.versionState,
           totalCost: project.totalCost,
@@ -87,10 +108,12 @@ export function OverviewView({
           incompleteCostRows: project.incompleteCostRows,
         })),
         reviews,
-        normalizeDigestDate(),
+        normalizeDigestDate(undefined, new Date(now)),
+        now,
       ),
-    [projects, reviews],
+    [now, projects, reviews],
   );
+  const followUpProjects = groupDigestItemsByProject(digest.items);
   const portfolioCost = projects.reduce(
     (sum, project) => sum + Number(project.totalCost || 0),
     0,
@@ -105,7 +128,10 @@ export function OverviewView({
           value={String(
             projects.filter(
               (project) =>
-                !['completed', 'on_hold'].includes(project.projectStatus || ''),
+                !isDigestProjectCompleted({
+                  ...project,
+                  projectId: project.id,
+                }),
             ).length,
           )}
           note={`${projects.length} local projects in total`}
@@ -122,11 +148,11 @@ export function OverviewView({
           tone="blue"
         />
         <KpiCard
-          label="Review Gates"
-          labelZh="待评审节点"
-          value={String(openReviews.length)}
-          note={`${urgentReviews.length} overdue, blocked, or due soon`}
-          noteZh={`${urgentReviews.length} 项逾期、阻塞或临期`}
+          label="Projects to Follow Up"
+          labelZh="待跟进项目"
+          value={String(followUpProjects.length)}
+          note="Based on workflow tasks, upcoming starts and their SLA"
+          noteZh="按项目待办、待启动节点及 SLA 提醒配置判断"
           icon={ClipboardCheck}
           tone="amber"
         />
@@ -148,22 +174,25 @@ export function OverviewView({
             index="01"
             title="Project Portfolio"
             titleZh="项目组合"
-            description="Current SQLite values with direct status and workflow control."
-            descriptionZh="展示 SQLite 当前值，并可直接控制状态与流程。"
+            description="One workflow record for each project."
+            descriptionZh="统一登记项目流程、负责人和跟进日期。"
             action={
               <div className="flex items-center gap-2">
                 <Select
-                  value={statusFilter}
-                  onValueChange={(value) => setStatusFilter(value ?? 'all')}
+                  value={activeWorkflowFilter}
+                  onValueChange={(value) => setWorkflowFilter(value ?? 'all')}
                 >
                   <SelectTrigger size="sm" className="w-44">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All statuses / 全部状态</SelectItem>
-                    {statusOptions.map((status) => (
-                      <SelectItem key={status.code} value={status.code}>
-                        {status.name} / {status.nameZh}
+                    <SelectItem value="all">
+                      All workflows / 全部流程
+                    </SelectItem>
+                    {workflowOptions.map(({ step, legacy }) => (
+                      <SelectItem key={step.code} value={step.code}>
+                        {step.name || step.nameZh}
+                        {legacy ? ' (recorded node)' : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -186,8 +215,7 @@ export function OverviewView({
             }}
             onCost={onOpenCost}
             onQuote={onOpenQuote}
-            onStatusChange={onStatusChange}
-            onWorkflowChange={onWorkflowChange}
+            onTrackWorkflow={onTrackWorkflow}
           />
           <div className="border-t border-border bg-[#f7f5f0] px-4 py-3 text-xs text-muted-foreground">
             Showing {visibleProjects.length} of {projects.length} local projects
@@ -198,75 +226,80 @@ export function OverviewView({
           <section className="border border-border bg-card">
             <SectionHeading
               index="02"
-              title="Urgent Reviews"
-              titleZh="紧急评审"
-              description="Overdue, blocked, and due within three days."
-              descriptionZh="逾期、阻塞及三天内到期节点。"
-              action={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setView('reviews')}
-                >
-                  View all <ChevronRight />
-                </Button>
-              }
+              title="Project Follow-ups"
+              titleZh="项目跟进"
+              description="Projects grouped by their most urgent active task."
+              descriptionZh="查看公司平台后，在同一项目流程中登记更新。"
             />
             <div className="divide-y divide-border">
-              {urgentReviews.length ? (
-                urgentReviews.slice(0, 4).map((review) => {
+              {followUpProjects.length ? (
+                followUpProjects.slice(0, 4).map((group) => {
                   const project = projects.find(
-                    (item) => item.id === review.projectId,
+                    (entry) => entry.id === group.projectId,
                   );
-                  const timing = getReviewTiming(review);
                   return (
-                    <button
-                      key={review.id}
-                      onClick={() =>
-                        setPanel({
-                          type: 'review',
-                          review,
-                          projectId: review.projectId,
-                        })
-                      }
-                      className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-[#f5f4ef]"
+                    <details
+                      key={group.projectId}
+                      data-workflow-project-group={group.projectId}
+                      className="group px-4 py-3"
+                      open={group.severity === 'red'}
                     >
-                      <span
-                        className={`mt-1.5 size-2 shrink-0 rounded-full ${timing.tone === 'red' ? 'bg-[#ad4643]' : 'bg-[#a36b18]'}`}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center justify-between gap-3">
-                          <span className="truncate text-xs font-semibold">
-                            {review.gate}
-                          </span>
-                          <span
-                            className={`financial-numeral shrink-0 text-[10px] ${timing.overdue ? 'text-[#ad4643]' : 'text-muted-foreground'}`}
+                      <summary className="flex cursor-pointer list-none items-center gap-3 text-xs">
+                        <span
+                          className={`size-2 shrink-0 rounded-full ${group.severity === 'red' ? 'bg-[#ad4643]' : group.severity === 'amber' ? 'bg-[#a36b18]' : 'bg-[#376b8a]'}`}
+                        />
+                        <span className="min-w-0 flex-1 font-semibold">
+                          {project?.name || group.projectId}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {group.severity === 'red'
+                            ? '紧急'
+                            : group.severity === 'amber'
+                              ? '马上处理'
+                              : '普通跟进'}{' '}
+                          · {group.items.length} 个待办节点
+                        </span>
+                        <ChevronRight className="size-3.5 group-open:rotate-90" />
+                      </summary>
+                      <div className="mt-2 space-y-1 pl-5">
+                        {group.items.map((item) => (
+                          <button
+                            key={item.id}
+                            aria-label={`更新流程节点 ${item.titleZh}`}
+                            onClick={() => {
+                              if (!project) return;
+                              if (onTrackWorkflow)
+                                onTrackWorkflow(project, item.workflowNodeId);
+                              else {
+                                onSelectProject(project);
+                                setView('project');
+                              }
+                            }}
+                            className="block w-full rounded px-2 py-2 text-left hover:bg-[#f5f4ef]"
                           >
-                            {review.dueDate}
-                          </span>
-                        </span>
-                        <span className="mt-1 block truncate text-[9px] text-muted-foreground">
-                          {review.gateZh} · {project?.name || review.projectId}
-                        </span>
-                        <span className="mt-1.5 block text-[10px] text-muted-foreground">
-                          {timing.en} · Owner {review.owner}
-                        </span>
-                      </span>
-                      <ChevronRight className="mt-0.5 size-3.5 text-muted-foreground" />
-                    </button>
+                            <span className="block text-xs font-medium">
+                              {item.titleZh}
+                            </span>
+                            <span className="mt-1 block text-[10px] text-muted-foreground">
+                              {item.detailZh}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </details>
                   );
                 })
               ) : (
                 <div className="px-4 py-10 text-center text-[10px] text-muted-foreground">
-                  No urgent review gates / 暂无紧急评审
+                  No projects need follow-up / 当前没有需要跟进的项目
                 </div>
               )}
             </div>
             <button
-              onClick={() => setView('reviews')}
+              onClick={() => setView('project')}
               className="flex w-full items-center justify-center gap-1 border-t border-border px-4 py-3 text-xs font-medium text-[#2e6f77] hover:bg-[#f5f4ef]"
             >
-              Open review queue <span className="text-[9px]">查看评审队列</span>
+              Open project list <span className="text-[9px]">查看项目列表</span>
               <ArrowRight className="size-3.5" />
             </button>
           </section>
@@ -282,27 +315,11 @@ export function OverviewView({
               </span>
             </div>
             <div className="space-y-3 p-4">
-              {digest.items.length ? (
-                digest.items.slice(0, 3).map((item) => (
-                  <div key={item.id} className="flex gap-2.5">
-                    <AlertTriangle
-                      className={`mt-0.5 size-4 shrink-0 ${item.severity === 'red' ? 'text-[#ad4643]' : item.severity === 'amber' ? 'text-[#a36b18]' : 'text-[#376b8a]'}`}
-                    />
-                    <div>
-                      <p className="text-xs font-semibold leading-5">
-                        {item.title}
-                      </p>
-                      <p className="text-[9px] text-muted-foreground">
-                        {item.detailZh}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-[#355e62]">
-                  No exceptions found / 当前没有异常事项
-                </p>
-              )}
+              <p className="text-xs leading-5 text-[#355e62]">
+                {followUpProjects.length} 个项目、{digest.items.length}{' '}
+                个节点需要跟进。Agent 按各并行节点的 SLA
+                和跟进安排提醒，阶段衔接时提示待启动；项目完成后停止提醒。
+              </p>
               <Button
                 variant="outline"
                 size="sm"
@@ -320,37 +337,78 @@ export function OverviewView({
       <section className="border border-border bg-card">
         <SectionHeading
           index="03"
-          title="Project Status Distribution"
-          titleZh="项目状态分布"
-          description="Counts use the editable Status definitions, independent of workflow nodes."
-          descriptionZh="按可编辑的项目状态统计，与流程节点独立。"
+          title="Project Workflow Distribution"
+          titleZh="项目流程分布"
+          description="Published node names and order, with counts from actual project progress. Parallel tasks can appear under multiple nodes."
+          descriptionZh="节点名称和顺序跟随已发布配置；数量按项目实际进度统计，含待启动及已完成轮次。"
         />
-        <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-5">
-          {statusOptions.slice(0, 10).map((status) => {
-            const count = projects.filter(
-              (project) => project.projectStatus === status.code,
-            ).length;
-            return (
-              <button
-                key={status.code}
-                onClick={() => setStatusFilter(status.code)}
-                className="group relative px-5 py-4 text-left hover:bg-[#f5f4ef]"
-              >
-                <span className="financial-numeral text-xl font-semibold text-[#173a52]">
-                  {count}
-                </span>
-                <span className="mt-1 block text-xs font-semibold">
-                  {status.name}
-                </span>
-                <span className="mt-1 block text-[9px] text-muted-foreground">
-                  {status.nameZh}
-                </span>
-                <ChevronRight className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#b4b0a6]" />
-              </button>
-            );
-          })}
-        </div>
+        {workflowDefinitionError && (
+          <output className="block border-b px-5 py-2 text-xs text-amber-800">
+            {workflowDefinitionError}
+          </output>
+        )}
+        {workflowDefinitionRevision !== undefined && (
+          <p className="border-b px-5 py-2 text-[10px] text-muted-foreground">
+            Published workflow · Revision {workflowDefinitionRevision}
+          </p>
+        )}
+        <WorkflowDistributionNodes
+          entries={distribution.nodes}
+          onSelect={setWorkflowFilter}
+        />
+        {distribution.retained.length > 0 && (
+          <div className="border-t">
+            <p className="px-5 py-3 text-xs text-muted-foreground">
+              Other recorded nodes · Retained progress from earlier workflow
+              definitions
+            </p>
+            <WorkflowDistributionNodes
+              entries={distribution.retained}
+              onSelect={setWorkflowFilter}
+            />
+          </div>
+        )}
       </section>
+    </div>
+  );
+}
+
+export function WorkflowDistributionNodes({
+  entries,
+  onSelect,
+}: {
+  entries: ReturnType<typeof buildWorkflowDistribution>['nodes'];
+  onSelect: (code: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-5">
+      {entries.map(({ step, count, legacy }) => (
+        <button
+          key={step.code}
+          data-workflow-distribution-node={step.code}
+          data-recorded-node={legacy || undefined}
+          onClick={() => onSelect(step.code)}
+          className="group relative px-5 py-4 text-left hover:bg-[#f5f4ef]"
+        >
+          <span className="financial-numeral text-xl font-semibold text-[#173a52]">
+            {count}
+          </span>
+          <span className="mt-1 block text-xs font-semibold">
+            {step.name || step.nameZh}
+          </span>
+          {step.name && step.nameZh && (
+            <span className="mt-1 block text-[9px] text-muted-foreground">
+              {step.nameZh}
+            </span>
+          )}
+          {step.parallelGroup && (
+            <span className="mt-2 block text-[9px] text-[#2e6f77]">
+              Parallel · {step.parallelGroup}
+            </span>
+          )}
+          <ChevronRight className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#b4b0a6]" />
+        </button>
+      ))}
     </div>
   );
 }

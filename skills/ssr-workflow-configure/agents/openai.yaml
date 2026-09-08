@@ -1,4 +1,4 @@
 interface:
-  display_name: "SSR · 流程配置维护"
-  short_description: "维护未来项目的全局流程默认模板和状态字典，保留现有评审进度。"
-  default_prompt: "使用 $ssr-workflow-configure 维护全局流程默认模板和状态字典，供未来项目采用。"
+  display_name: 'SSR · 流程配置与发布'
+  short_description: '配置节点、并行组、SLA 和关键要求，预览后同步进行中项目，保留历史。'
+  default_prompt: '使用 $ssr-workflow-configure 修改全局流程配置并预览受影响项目，按我的授权发布同步。'

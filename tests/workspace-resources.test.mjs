@@ -21,6 +21,7 @@ import { initialCostRows } from '../features/cost/demo-data.ts';
 import { costLockReason } from '../features/cost/cost-lock.ts';
 import { validatedQuoteInput } from '../features/quote/validated-input.ts';
 import { openReminderService } from '../server/reminder-service.mjs';
+import { completeWorkflowThrough } from './helpers/workflow-actions.mjs';
 
 const fixture = () => {
   const w = createBlankWorkspace(
@@ -218,8 +219,8 @@ test('all master tabs have independent reads, filters and stable-ID updates', ()
       },
       1,
     );
-    const projectBefore = repo.get('P-TEST');
     for (const [tab, [, key]] of Object.entries(GLOBAL_MASTER_TABS)) {
+      const projectBefore = repo.get('P-TEST');
       const allBefore = repo.globalMasterData.all();
       const before = allBefore.find((record) => record.tab === tab);
       const page = repo.globalMasterData.get(tab, { limit: 1 });
@@ -244,7 +245,22 @@ test('all master tabs have independent reads, filters and stable-ID updates', ()
         before.revision,
       );
       assert.equal(result.revision, before.revision + 1);
-      assert.deepEqual(repo.get('P-TEST'), projectBefore);
+      if (tab === 'workflow') {
+        const updatedProject = repo.get('P-TEST');
+        assert.equal(updatedProject.revision, projectBefore.revision + 1);
+        assert.equal(
+          updatedProject.workspace.workflowTemplateRevision,
+          result.revision,
+        );
+        assert.deepEqual(
+          updatedProject.workspace.costVersions,
+          projectBefore.workspace.costVersions,
+        );
+        assert.deepEqual(
+          updatedProject.workspace.resourceTypes,
+          projectBefore.workspace.resourceTypes,
+        );
+      } else assert.deepEqual(repo.get('P-TEST'), projectBefore);
       for (const other of allBefore)
         if (other.tab !== tab)
           assert.deepEqual(
@@ -680,25 +696,21 @@ test('confirmed costs remain locked after DRB completion and later workflow labe
       { set: { state: 'Confirmed' } },
       1,
     );
-    const w = repo.get('P-TEST').workspace;
-    const existing = w.processSteps.find((step) => step.code === 'DRB');
-    const drb = existing || {
-      ...w.processSteps[0],
-      code: 'DRB',
-      name: 'DRB Review',
-      no: '99',
-    };
-    if (!existing) w.processSteps.push(drb);
-    drb.state = 'completed';
-    repo.save('P-TEST', w, 2);
+    completeWorkflowThrough(repo, 'P-TEST', 'DELIVERY_REVIEW');
     const locked = repo.get('P-TEST');
     assert.match(locked.workspace.costVersionLocks.V1.reason, /锁定/);
     assert.equal(locked.workspace.costVersions[0].state, 'Confirmed');
     const reset = structuredClone(locked.workspace);
-    reset.processSteps.find((step) => step.code === 'DRB').state =
+    reset.processSteps.find((step) => step.code === 'DELIVERY_REVIEW').state =
       'not_started';
     delete reset.costVersionLocks;
-    repo.save('P-TEST', reset, 3);
+    assert.throws(
+      () => repo.save('P-TEST', reset, locked.revision),
+      /server-owned/,
+    );
+    const omittedLocks = structuredClone(locked.workspace);
+    delete omittedLocks.costVersionLocks;
+    const retained = repo.save('P-TEST', omittedLocks, locked.revision);
     assert.deepEqual(
       repo.get('P-TEST').workspace.costVersionLocks.V1,
       locked.workspace.costVersionLocks.V1,
@@ -710,14 +722,14 @@ test('confirmed costs remain locked after DRB completion and later workflow labe
           'P-TEST',
           'cost',
           { version: 'V1' },
-          { remove: [w.costRows[0].id] },
-          4,
+          { remove: [locked.workspace.costRows[0].id] },
+          retained.revision,
         ),
       /锁定/,
     );
     const changed = repo.get('P-TEST').workspace;
     changed.resourceTypes[0].mandayRate += 1;
-    repo.save('P-TEST', changed, 4);
+    const refreshed = repo.save('P-TEST', changed, retained.revision);
     assert.deepEqual(
       repo.get('P-TEST').workspace.costVersions,
       locked.workspace.costVersions,
@@ -726,7 +738,10 @@ test('confirmed costs remain locked after DRB completion and later workflow labe
       repo.get('P-TEST').workspace.costVersionLocks.V1.lockedAt,
       locked.workspace.costVersionLocks.V1.lockedAt,
     );
-    assert.throws(() => applyMasterRates(repo, 'P-TEST', 'V1', 5), /锁定/);
+    assert.throws(
+      () => applyMasterRates(repo, 'P-TEST', 'V1', refreshed.revision),
+      /锁定/,
+    );
   } finally {
     repo.close();
   }
@@ -742,21 +757,8 @@ for (const trigger of ['DRB', 'Confirmed']) {
       const w = fixture();
       w.costVersions[0].state = 'Confirmed';
       let saved = repo.save('P-TEST', w, null);
-      if (trigger === 'DRB') {
-        const confirmed = saved.workspace;
-        const existing = confirmed.processSteps.find(
-          (step) => step.code === 'DRB',
-        );
-        const drb = existing || {
-          ...confirmed.processSteps[0],
-          code: 'DRB',
-          name: 'DRB Review',
-          no: '99',
-        };
-        if (!existing) confirmed.processSteps.push(drb);
-        drb.state = 'completed';
-        saved = repo.save('P-TEST', confirmed, saved.revision);
-      }
+      if (trigger === 'DRB')
+        saved = completeWorkflowThrough(repo, 'P-TEST', 'DELIVERY_REVIEW');
       before = saved.workspace;
       initialRevision = saved.revision;
     } finally {
@@ -888,17 +890,22 @@ test('legacy lock wording no longer presents the master catalogue as locked', ()
   assert.equal(w.costLock.lockedAt, '2026-09-07T00:00:00.000Z');
 });
 
-test('DRB requires Confirmed cost and condition closure changes approval without repricing it', async () => {
-  const {
-    emptySsr,
-    recordSubmission,
-    recordReviewResult,
-    closeCondition,
-    commercialBasisKey,
-    isApproved,
-  } = await import('../features/ssr/domain.ts');
+test('Project Workflow requires Confirmed cost for DRB and follow-up updates never reprice it', () => {
   const repo = setup();
   try {
+    assert.throws(
+      () =>
+        updateResource(
+          repo,
+          'P-TEST',
+          'project',
+          { section: 'workflow-tracking' },
+          { set: { currentWorkflowStepCode: 'DELIVERY_REVIEW' } },
+          1,
+        ),
+      /Confirmed|确认成本/,
+    );
+    assert.equal(repo.get('P-TEST').revision, 1);
     updateResource(
       repo,
       'P-TEST',
@@ -907,74 +914,58 @@ test('DRB requires Confirmed cost and condition closure changes approval without
       { set: { state: 'Confirmed' } },
       1,
     );
-    let w = repo.get('P-TEST').workspace;
-    const baseline = w.costVersions[0];
-    let s = {
-      ...emptySsr(),
-      enabled: true,
-      proposalNumber: 'P-DEMO',
-      scopeBrief: 'Deployment',
-      commercialBasis: commercialBasisKey(w),
-    };
-    const submit = (data, kind, target = baseline) =>
-      recordSubmission(data, target, {
-        kind,
-        domain: '',
-        owner: 'PM',
-        dueDate: '2026-09-07',
-        applicationNumber: kind + '-fixture',
-        evidence: 'Company fixture record',
-      });
-    s = submit(s, 'DTRB');
-    s = recordReviewResult(s, s.submissions.at(-1).id, {
-      outcome: 'approved',
-      evidence: 'DTRB fixture approved',
-      conditions: [],
+    const ready = completeWorkflowThrough(repo, 'P-TEST', 'DELIVERY_REVIEW', {
+      includeTarget: false,
     });
-    assert.throws(
-      () => submit(s, 'DRB', { ...baseline, state: 'Draft' }),
-      /Confirmed|确认成本/,
+    const baseline = structuredClone(
+      repo.get('P-TEST').workspace.costVersions[0],
     );
-    s = submit(s, 'DRB');
-    const id = s.submissions.at(-1).id;
-    s = recordReviewResult(s, id, {
-      outcome: 'conditional',
-      evidence: 'DRB fixture conditions',
-      conditions: ['scope evidence'],
-    });
-    repo.save('P-TEST', { ...w, ssr: s }, 2);
-    assert.match(
-      readResource(repo, 'P-TEST', 'project').costLockReason,
-      /定稿/,
+    updateResource(
+      repo,
+      'P-TEST',
+      'project',
+      { section: 'workflow-tracking' },
+      {
+        set: {
+          currentWorkflowStepCode: 'DELIVERY_REVIEW',
+          owner: 'PM',
+          followUpDate: '2026-09-10',
+          note: 'DRB submitted in company platform',
+        },
+      },
+      ready.revision,
     );
+    updateResource(
+      repo,
+      'P-TEST',
+      'project',
+      { section: 'workflow-tracking' },
+      {
+        set: {
+          followUpDate: '2026-09-15',
+          note: 'PM confirmed next follow-up date',
+        },
+      },
+      repo.get('P-TEST').revision,
+    );
+    const beforeGlobal = repo.get('P-TEST');
+    assert.deepEqual(beforeGlobal.workspace.costVersions[0], baseline);
     assert.equal(
-      isApproved(s.submissions.find((entry) => entry.id === id)),
-      false,
-    );
-    assert.deepEqual(repo.get('P-TEST').workspace.costVersions[0], baseline);
-    w = repo.get('P-TEST').workspace;
-    s = closeCondition(w.ssr, id, 'scope evidence', 'Signed fixture closure');
-    repo.save('P-TEST', { ...w, ssr: s }, 3);
-    assert.equal(
-      isApproved(s.submissions.find((entry) => entry.id === id)),
-      true,
+      beforeGlobal.workspace.currentWorkflowStepCode,
+      'DELIVERY_REVIEW',
     );
     assert.match(
       readResource(repo, 'P-TEST', 'project').costLockReason,
       /锁定/,
     );
-    assert.throws(() => applyMasterRates(repo, 'P-TEST', 'V1', 4), /锁定/);
-    const beforeGlobal = repo.get('P-TEST');
+    assert.throws(
+      () => applyMasterRates(repo, 'P-TEST', 'V1', beforeGlobal.revision),
+      /锁定/,
+    );
+    const resource = beforeGlobal.workspace.resourceTypes[0];
     repo.globalMasterData.update(
       'resources',
-      {
-        upsert: [
-          {
-            id: w.resourceTypes[0].id,
-            mandayRate: w.resourceTypes[0].mandayRate * 2,
-          },
-        ],
-      },
+      { upsert: [{ id: resource.id, mandayRate: resource.mandayRate * 2 }] },
       1,
     );
     assert.deepEqual(repo.get('P-TEST'), beforeGlobal);
@@ -986,15 +977,11 @@ test('DRB requires Confirmed cost and condition closure changes approval without
           'cost',
           { section: 'settings', version: 'V1' },
           { set: { manualCosts: { riskContingency: 999 } } },
-          4,
+          beforeGlobal.revision,
         ),
       /锁定/,
     );
-    const after = repo.get('P-TEST').workspace;
-    assert.equal(after.costVersions[0].state, 'Confirmed');
-    assert.deepEqual(after.costVersions[0], baseline);
-    assert.deepEqual(after.costRows, w.costRows);
-    assert.deepEqual(after.ssr.submissions, s.submissions);
+    assert.deepEqual(repo.get('P-TEST'), beforeGlobal);
   } finally {
     repo.close();
   }
@@ -1059,7 +1046,7 @@ test('target-only CPQ changes preserve user selection confirmation while discard
   }
 });
 
-test('compact SSR follow-up reports the actual targeted earlier submission', async () => {
+test('compact SSR follow-up refuses to modify a historical submission and leaves the revision unchanged', async () => {
   const { emptySsr, recordSubmission, recordReviewResult, commercialBasisKey } =
     await import('../features/ssr/domain.ts');
   const dir = mkdtempSync(path.join(tmpdir(), 'ssr-compact-')),
@@ -1069,7 +1056,7 @@ test('compact SSR follow-up reports the actual targeted earlier submission', asy
     const initial = fixture();
     initial.costRows = [];
     initial.costVersions[0].state = 'Confirmed';
-    const w = repo.save('P-TEST', initial, null).workspace;
+    const w = initial;
     const b = w.costVersions[0];
     let s = {
       ...emptySsr(),
@@ -1097,7 +1084,7 @@ test('compact SSR follow-up reports the actual targeted earlier submission', asy
     });
     submit('DRB');
     w.ssr = s;
-    repo.save('P-TEST', w, 1);
+    const original = repo.save('P-TEST', w, null);
     const response = spawnSync(
       process.execPath,
       [
@@ -1110,7 +1097,7 @@ test('compact SSR follow-up reports the actual targeted earlier submission', asy
         '--input',
         '-',
         '--expected-revision',
-        '2',
+        '1',
         '--compact',
         '--db',
         db,
@@ -1131,10 +1118,11 @@ test('compact SSR follow-up reports the actual targeted earlier submission', asy
         }),
       },
     );
-    assert.equal(response.status, 0, response.stdout);
+    assert.equal(response.status, 6, response.stdout);
     const output = JSON.parse(response.stdout);
     assert.ok(validate(output));
-    assert.equal(output.data.submissionId, id);
+    assert.match(output.error.message, /read-only/);
+    assert.deepEqual(repo.get('P-TEST'), original);
   } finally {
     repo.close();
     rmSync(dir, { recursive: true, force: true });

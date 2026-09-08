@@ -9,6 +9,8 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
   initializeGlobalMasterData,
+  upgradeDefaultProjectWorkflowCatalog,
+  upgradeWorkflowEngineCatalog,
   makeGlobalMasterDataStore,
 } from './global-master-data.mjs';
 import {
@@ -19,7 +21,24 @@ import {
   isApproved,
 } from '../features/ssr/domain.ts';
 import { normalizeDigestDate } from '../features/agent/digest-domain.ts';
+import {
+  migrateWorkflowEngine,
+  resetWorkflowRoundSteps,
+} from '../features/projects/workflow-engine.ts';
+import {
+  workflowRepositoryMethods,
+  workflowDefinitions,
+  workflowBusiness,
+} from './workflow-service.mjs';
+import {
+  normalizeProjectWorkflow,
+  updateProjectWorkflow,
+} from '../features/projects/workflow-domain.ts';
 import { assertCostVersionDeletionTransition } from '../features/cost/version-deletion.ts';
+import {
+  assertLegacySubcontractTransition,
+  preserveSubcontractSnapshots,
+} from './subcontract-integrity.mjs';
 import {
   assertVersionWorkflowTransition,
   reconcileVersionWorkflows,
@@ -83,6 +102,14 @@ const nowIso = () => new Date().toISOString();
 const checksum = (value) =>
   createHash('sha256').update(value, 'utf8').digest('hex');
 
+const registerProjectWorkflow = (workspace, patch, timestamp) => {
+  try {
+    return updateProjectWorkflow(workspace, patch, timestamp);
+  } catch (error) {
+    throw new WorkspaceValidationError(error.message, '/workflowVersion');
+  }
+};
+
 /** Calculates the compact, non-formatted metrics returned by Project List. */
 const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
   if (!workspace) return {};
@@ -117,6 +144,7 @@ const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
     resources,
     travelCost,
     workspace.manualCosts || {},
+    workspace.subcontractCost,
   );
   const totalMandays = (workspace.costRows || []).reduce(
     (sum, row) => sum + totalRowMandays(row),
@@ -144,6 +172,21 @@ const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
       ),
   ).length;
   return {
+    workflowEngineVersion: workspace.workflowEngineVersion,
+    workflowTemplateRevision: workspace.workflowTemplateRevision,
+    workflowMode: workspace.workflowMode,
+    workflowOwner:
+      workflowSteps.find((s) => s.code === workspace.currentWorkflowStepCode)
+        ?.owner || '',
+    workflowFollowUpDate:
+      workflowSteps.find((s) => s.code === workspace.currentWorkflowStepCode)
+        ?.followUpDate || '',
+    workflowNote:
+      workflowSteps.find((s) => s.code === workspace.currentWorkflowStepCode)
+        ?.note || '',
+    workflowUpdatedAt:
+      workflowSteps.find((s) => s.code === workspace.currentWorkflowStepCode)
+        ?.updatedAt || '',
     projectStatus: workspace.projectStatus || 'input_preparation',
     statusDefinitions,
     reviewGates: structuredClone(workspace.reviewGates || []),
@@ -160,23 +203,24 @@ const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
     totalQuote: pricing.quoteBeforeTax,
     grossMarginPercent: pricing.grossMarginPercent,
     incompleteCostRows,
-    ssrAttention: workspace.ssr
-      ? workspace.costVersions.flatMap((version) =>
-          ssrAttention(workspace.ssr, version, asOf)
-            .filter(
-              (item) =>
-                version.code ===
-                  (workspace.workflowVersion || workspace.activeVersion) ||
-                !isApproved(
-                  workspace.ssr.submissions.find((s) => s.id === item.id),
-                ),
-            )
-            .map((item) => ({
-              ...item,
-              title: `${version.code} · ${item.title}`,
-            })),
-        )
-      : [],
+    ssrAttention:
+      workspace.workflowMode !== 'project' && workspace.ssr
+        ? workspace.costVersions.flatMap((version) =>
+            ssrAttention(workspace.ssr, version, asOf)
+              .filter(
+                (item) =>
+                  version.code ===
+                    (workspace.workflowVersion || workspace.activeVersion) ||
+                  !isApproved(
+                    workspace.ssr.submissions.find((s) => s.id === item.id),
+                  ),
+              )
+              .map((item) => ({
+                ...item,
+                title: `${version.code} · ${item.title}`,
+              })),
+          )
+        : [],
   };
 };
 
@@ -224,7 +268,7 @@ export const openWorkspaceRepository = (databasePath) => {
           row.revision,
           row.payload_json,
           nowIso(),
-          'Workspace contract, version-rate, version-lock and workflow-round migration',
+          'Configurable workflow engine migration; original costs, reviews and project state retained',
         );
         updateMigratedSnapshot.run(
           row.revision + 1,
@@ -246,6 +290,8 @@ export const openWorkspaceRepository = (databasePath) => {
   }
 
   initializeGlobalMasterData(db);
+  upgradeDefaultProjectWorkflowCatalog(db);
+  upgradeWorkflowEngineCatalog(db);
   const globalMasterData = makeGlobalMasterDataStore(db);
 
   const selectWorkspace = db.prepare(
@@ -275,7 +321,7 @@ export const openWorkspaceRepository = (databasePath) => {
         }
       : null;
 
-  return {
+  const repository = {
     databasePath,
     schemaVersion: LOCAL_DATABASE_SCHEMA_VERSION,
     globalMasterData,
@@ -373,7 +419,7 @@ export const openWorkspaceRepository = (databasePath) => {
      * Saves with optimistic concurrency. `expectedRevision: null` creates a
      * record only when one does not exist; an integer updates that revision.
      */
-    save(projectId, workspace, expectedRevision) {
+    save(projectId, workspace, expectedRevision, internal = {}) {
       // Accept a v1-compatible document from older CLI clients, then persist
       // the fully expanded project-status, pricing, and version-snapshot form.
       if (
@@ -382,39 +428,47 @@ export const openWorkspaceRepository = (databasePath) => {
         Array.isArray(workspace)
       )
         throw new WorkspaceValidationError('workspace must be a JSON object.');
-      let document = migrateWorkspaceDocument(workspace, { workflow: false });
+      let document = internal.workflowMutation
+        ? structuredClone(workspace)
+        : migrateWorkspaceDocument(workspace, { workflow: false });
       assertWorkspaceDocument(document, projectId);
-      // Top-level editors are authoritative for the active version. Derive
-      // labour amounts on every write, including CLI writes, before hashing.
-      const active = document.costVersions.find(
-        (version) => version.code === document.activeVersion,
-      );
-      const costRows = recalculateCostRows(
-        document.costRows,
-        active.resourceTypes,
-        document.rateSettings,
-      );
-      document = {
-        ...document,
-        costRows,
-        costVersions: document.costVersions.map((version) =>
-          version.code === document.activeVersion
-            ? {
-                ...version,
-                costRows,
-                rateSettings: document.rateSettings,
-                travelSettings: document.travelSettings,
-                travelRows: document.travelRows,
-                travelUplift: document.travelUplift,
-                manualCosts: document.manualCosts,
-              }
-            : version,
-        ),
-      };
-      assertWorkspaceDocument(document, projectId);
+      if (!internal.workflowMutation) {
+        // Top-level editors are authoritative for the active version. Derive
+        // labour amounts on every write, including CLI writes, before hashing.
+        const active = document.costVersions.find(
+          (version) => version.code === document.activeVersion,
+        );
+        const costRows = recalculateCostRows(
+          document.costRows,
+          active.resourceTypes,
+          document.rateSettings,
+        );
+        document = {
+          ...document,
+          costRows,
+          costVersions: document.costVersions.map((version) =>
+            version.code === document.activeVersion
+              ? {
+                  ...version,
+                  costRows,
+                  rateSettings: document.rateSettings,
+                  travelSettings: document.travelSettings,
+                  travelRows: document.travelRows,
+                  travelUplift: document.travelUplift,
+                  manualCosts: document.manualCosts,
+                  ...(document.subcontractCost
+                    ? { subcontractCost: document.subcontractCost }
+                    : {}),
+                }
+              : version,
+          ),
+        };
+        assertWorkspaceDocument(document, projectId);
+      }
       const timestamp = nowIso();
 
-      db.exec('BEGIN IMMEDIATE');
+      const ownsTransaction = !internal.inTransaction;
+      if (ownsTransaction) db.exec('BEGIN IMMEDIATE');
       try {
         const current = selectWorkspace.get(projectId);
         const currentRevision = current?.revision ?? null;
@@ -430,169 +484,438 @@ export const openWorkspaceRepository = (databasePath) => {
           );
         }
         const previous = current ? JSON.parse(current.payload_json) : null;
-        let deletedVersion = false;
-        try {
-          deletedVersion = assertCostVersionDeletionTransition(
-            previous,
-            document,
+        preserveSubcontractSnapshots(previous, document, workspace);
+        assertLegacySubcontractTransition(previous, document);
+        if (internal.workflowMutation) {
+          if (!previous)
+            throw new WorkspaceValidationError(
+              'Workflow actions require an existing project.',
+            );
+          const workflowFields = new Set([
+            'workflowMode',
+            'workflowEngineVersion',
+            'workflowTemplateRevision',
+            'processSteps',
+            'currentWorkflowStepCode',
+            'selectedStep',
+            'projectStatus',
+            'projectStatusDefinitions',
+            'workflowUpdates',
+            'workflowVersion',
+            'versionWorkflows',
+            'legacyWorkflowArchive',
+          ]);
+          const business = (value) =>
+            Object.fromEntries(
+              Object.entries(value).filter(([key]) => !workflowFields.has(key)),
+            );
+          if (contentKey(business(document)) !== contentKey(business(previous)))
+            throw new WorkspaceValidationError(
+              'Workflow actions cannot change project, cost, rates or quotation data.',
+              '/workflow',
+            );
+        }
+
+        if (previous?.workflowEngineVersion === 1) {
+          const protectedFields = [
+            'processSteps',
+            'currentWorkflowStepCode',
+            'selectedStep',
+            'workflowUpdates',
+            'workflowVersion',
+            'versionWorkflows',
+            'legacyWorkflowArchive',
+            'workflowEngineVersion',
+            'workflowTemplateRevision',
+          ];
+          const newDraft = document.costVersions.some(
+            (v) =>
+              v.state === 'Draft' &&
+              !previous.costVersions.some((old) => old.code === v.code),
           );
-        } catch (error) {
-          throw new WorkspaceValidationError(
-            error.message,
-            '/deletedCostVersions',
+          const removingRound = !document.costVersions.some(
+            (v) => v.code === previous.workflowVersion,
           );
-        }
-        try {
-          if (!deletedVersion)
-            assertVersionWorkflowTransition(previous, document);
-        } catch (error) {
-          throw new WorkspaceValidationError(error.message, '/workflowVersion');
-        }
-        // Protect each captured baseline, while allowing independent new drafts.
-        for (const [code, lock] of Object.entries(
-          previous ? getCostVersionLocks(previous) : {},
-        )) {
-          const old = previous.costVersions.find((v) => v.code === code);
-          const next = document.costVersions.find((v) => v.code === code);
-          if (
-            !next ||
-            (old.state !== next.state && next.state !== 'Confirmed') ||
-            contentKey({ ...old, state: '' }) !==
-              contentKey({ ...next, state: '' })
-          )
-            throw new WorkspaceValidationError(
-              lock.reason,
-              `/costVersionLocks/${code}`,
-            );
-        }
-        // Older clients must not erase extension data they do not understand.
-        if (!Object.hasOwn(workspace, 'cpq') && previous?.cpq)
-          document = { ...document, cpq: previous.cpq };
-        if (
-          !Object.hasOwn(workspace, 'maintenanceBoq') &&
-          previous?.maintenanceBoq
-        )
-          document = { ...document, maintenanceBoq: previous.maintenanceBoq };
-        for (const old of previous?.maintenanceBoq?.archives || []) {
-          const kept = document.maintenanceBoq?.archives.find(
-            (a) => a.id === old.id,
-          );
-          if (contentKey(kept) !== contentKey(old))
-            throw new WorkspaceValidationError(
-              'Archived maintenance configurations cannot be changed',
-            );
-        }
-        for (const added of document.maintenanceBoq?.archives || []) {
-          if (previous?.maintenanceBoq?.archives.some((a) => a.id === added.id))
-            continue;
-          if (
-            contentKey(added.lines.map((l) => l.boq.id).sort()) !==
-            contentKey(document.maintenanceBoq.boq.map((r) => r.id).sort())
-          )
-            throw new WorkspaceValidationError(
-              'New maintenance archive must include all current BOQ rows',
-            );
-          if (added.client !== document.project.client)
-            throw new WorkspaceValidationError(
-              'Maintenance archive client must match project',
-            );
-          for (const line of added.lines) {
-            if (
-              contentKey(line.reference) !==
-              contentKey(
-                document.maintenancePriceRecords.find(
-                  (r) => r.id === line.reference.id,
-                ),
-              )
-            )
+          for (const key of [
+            'workflowEngineVersion',
+            'workflowTemplateRevision',
+          ]) {
+            if (document[key] === undefined && previous[key] !== undefined)
+              document[key] = structuredClone(previous[key]);
+          }
+          if (!internal.workflowMutation) {
+            if (newDraft) {
+              for (const key of protectedFields)
+                if (previous[key] !== undefined)
+                  document[key] = structuredClone(previous[key]);
+            } else if (removingRound) {
+              try {
+                assertCostVersionDeletionTransition(previous, document);
+              } catch (error) {
+                throw new WorkspaceValidationError(
+                  error.message,
+                  '/deletedCostVersions',
+                );
+              }
+            } else {
+              for (const key of protectedFields)
+                if (contentKey(document[key]) !== contentKey(previous[key]))
+                  throw new WorkspaceValidationError(
+                    'Workflow progress is server-owned. Use project workflow-action or publish a workflow template.',
+                    `/${key}`,
+                  );
+              if (document.projectStatus !== previous.projectStatus)
+                throw new WorkspaceValidationError(
+                  'Project status is derived from workflow execution.',
+                  '/projectStatus',
+                );
+            }
+          }
+          for (const field of ['reviewGates'])
+            if (contentKey(document[field]) !== contentKey(previous[field]))
               throw new WorkspaceValidationError(
-                'New maintenance archive must capture current references',
+                'Historical reviews are read-only.',
+                `/${field}`,
               );
+          for (const field of ['submissions', 'bidResponses'])
             if (
-              contentKey(line.boq) !==
-              contentKey(
-                document.maintenanceBoq.boq.find((r) => r.id === line.boq.id),
-              )
+              contentKey(document.ssr?.[field] || []) !==
+              contentKey(previous.ssr?.[field] || [])
             )
               throw new WorkspaceValidationError(
-                'New archive must capture current BOQ',
+                'Historical SSR reviews are read-only.',
+                `/ssr/${field}`,
+              );
+          const history = previous.workflowUpdates || [];
+          if (
+            contentKey(
+              (document.workflowUpdates || []).slice(0, history.length),
+            ) !== contentKey(history)
+          )
+            throw new WorkspaceValidationError(
+              'Workflow history cannot be changed or removed.',
+              '/workflowUpdates',
+            );
+        } else if (previous?.workflowMode === 'project') {
+          document.workflowMode = 'project';
+          const same = (a, b) => contentKey(a) === contentKey(b);
+          if (!same(previous.reviewGates, document.reviewGates))
+            throw new WorkspaceValidationError(
+              'Historical reviews are read-only. Update Project Workflow.',
+              '/reviewGates',
+            );
+          for (const field of ['submissions', 'bidResponses']) {
+            if (!same(previous.ssr?.[field] || [], document.ssr?.[field] || []))
+              throw new WorkspaceValidationError(
+                'Historical SSR reviews are read-only. Update Project Workflow.',
+                `/ssr/${field}`,
               );
           }
-          if (added.coverageMonths !== document.maintenanceBoq.coverageMonths)
+          const history = previous.workflowUpdates || [];
+          if (
+            document.workflowUpdates &&
+            !same(document.workflowUpdates.slice(0, history.length), history)
+          )
             throw new WorkspaceValidationError(
-              'Maintenance duration differs from current BOQ',
+              'Workflow history cannot be changed or removed.',
+              '/workflowUpdates',
             );
+          document.workflowUpdates = structuredClone(history);
+          const oldStep = previous.processSteps.find(
+            (s) => s.code === previous.currentWorkflowStepCode,
+          );
+          const newStep = document.processSteps.find(
+            (s) => s.code === document.currentWorkflowStepCode,
+          );
+          const newDraft = document.costVersions.some(
+            (v) =>
+              v.state === 'Draft' &&
+              !previous.costVersions.some((old) => old.code === v.code),
+          );
+          const removingRound = !document.costVersions.some(
+            (v) => v.code === previous.workflowVersion,
+          );
+          if (
+            !newDraft &&
+            !removingRound &&
+            document.currentWorkflowStepCode ===
+              previous.currentWorkflowStepCode &&
+            document.projectStatus !== previous.projectStatus
+          )
+            throw new WorkspaceValidationError(
+              'Project status is derived from Project Workflow and cannot be edited separately.',
+              '/projectStatus',
+            );
+          if (
+            !newDraft &&
+            !removingRound &&
+            newStep &&
+            (document.currentWorkflowStepCode !==
+              previous.currentWorkflowStepCode ||
+              ['owner', 'followUpDate', 'note'].some(
+                (key) => (newStep[key] || '') !== (oldStep?.[key] || ''),
+              ))
+          ) {
+            const registered = registerProjectWorkflow(
+              {
+                ...previous,
+                costVersions: document.costVersions,
+                processSteps: [
+                  ...previous.processSteps,
+                  ...document.processSteps.filter(
+                    (step) =>
+                      !previous.processSteps.some(
+                        (old) => old.code === step.code,
+                      ),
+                  ),
+                ],
+              },
+              {
+                currentWorkflowStepCode: document.currentWorkflowStepCode,
+                owner: newStep.owner,
+                followUpDate: newStep.followUpDate || '',
+                note: newStep.note || '',
+              },
+              timestamp,
+            );
+            document.workflowUpdates = registered.workflowUpdates;
+            const registeredStep = registered.processSteps.find(
+              (s) => s.code === registered.currentWorkflowStepCode,
+            );
+            Object.assign(newStep, {
+              updatedAt: registeredStep.updatedAt,
+              state: registeredStep.state,
+              tone: registeredStep.tone,
+            });
+          }
         }
-        if (!Object.hasOwn(workspace, 'ssr') && previous?.ssr)
-          document = { ...document, ssr: previous.ssr };
-        if (document.ssr)
-          document = {
-            ...document,
-            ssr: {
-              ...document.ssr,
-              commercialBasis: commercialBasisKey(document),
-            },
-          };
-        if (document.ssr)
-          assertSsrTransition(
-            previous?.ssr || emptySsr(),
-            document.ssr,
-            document.costVersions,
-          );
-        for (const old of previous?.cpq?.archives || []) {
-          const retained = document.cpq?.archives.find(
-            (item) => item.id === old.id,
-          );
-          if (!retained || contentKey(retained) !== contentKey(old))
+        if (!internal.workflowMutation) {
+          let deletedVersion = false;
+          try {
+            deletedVersion = assertCostVersionDeletionTransition(
+              previous,
+              document,
+            );
+          } catch (error) {
             throw new WorkspaceValidationError(
-              'Archived CPQ configurations cannot be edited or deleted.',
-              '/cpq/archives',
+              error.message,
+              '/deletedCostVersions',
             );
-        }
-        for (const added of document.cpq?.archives || []) {
-          if (previous?.cpq?.archives.some((item) => item.id === added.id))
-            continue;
-          const baseline = document.costVersions.find(
-            (version) => version.code === added.costVersion,
-          );
-          if (!baseline || added.costKey !== costBaselineKey(baseline))
+          }
+          try {
+            if (!deletedVersion && document.workflowEngineVersion !== 1)
+              assertVersionWorkflowTransition(previous, document);
+          } catch (error) {
             throw new WorkspaceValidationError(
-              'New CPQ archive must reference the current cost inputs.',
-              '/cpq/archives',
+              error.message,
+              '/workflowVersion',
             );
-          if (contentKey(added.costBaseline) !== contentKey(baseline))
-            throw new WorkspaceValidationError(
-              'New CPQ archive cost metadata must match the current version.',
-              '/cpq/archives',
-            );
-          for (const line of added.result.lines) {
-            const catalogItem = document.cpq.catalog.find(
-              (item) => item.code === line.item.code,
-            );
+          }
+          // Protect each captured baseline, while allowing independent new drafts.
+          for (const [code, lock] of Object.entries(
+            previous ? getCostVersionLocks(previous) : {},
+          )) {
+            const old = previous.costVersions.find((v) => v.code === code);
+            const next = document.costVersions.find((v) => v.code === code);
             if (
-              !catalogItem ||
-              contentKey(catalogItem) !== contentKey(line.item)
+              !next ||
+              (old.state !== next.state && next.state !== 'Confirmed') ||
+              contentKey({ ...old, state: '' }) !==
+                contentKey({ ...next, state: '' })
             )
               throw new WorkspaceValidationError(
-                'New CPQ archive must use confirmed current catalog entries.',
+                lock.reason,
+                `/costVersionLocks/${code}`,
+              );
+          }
+          // Older clients must not erase extension data they do not understand.
+          if (!Object.hasOwn(workspace, 'cpq') && previous?.cpq)
+            document = { ...document, cpq: previous.cpq };
+          if (
+            !Object.hasOwn(workspace, 'maintenanceBoq') &&
+            previous?.maintenanceBoq
+          )
+            document = { ...document, maintenanceBoq: previous.maintenanceBoq };
+          for (const old of previous?.maintenanceBoq?.archives || []) {
+            const kept = document.maintenanceBoq?.archives.find(
+              (a) => a.id === old.id,
+            );
+            if (contentKey(kept) !== contentKey(old))
+              throw new WorkspaceValidationError(
+                'Archived maintenance configurations cannot be changed',
+              );
+          }
+          for (const added of document.maintenanceBoq?.archives || []) {
+            if (
+              previous?.maintenanceBoq?.archives.some((a) => a.id === added.id)
+            )
+              continue;
+            if (
+              contentKey(added.lines.map((l) => l.boq.id).sort()) !==
+              contentKey(document.maintenanceBoq.boq.map((r) => r.id).sort())
+            )
+              throw new WorkspaceValidationError(
+                'New maintenance archive must include all current BOQ rows',
+              );
+            if (added.client !== document.project.client)
+              throw new WorkspaceValidationError(
+                'Maintenance archive client must match project',
+              );
+            for (const line of added.lines) {
+              if (
+                contentKey(line.reference) !==
+                contentKey(
+                  document.maintenancePriceRecords.find(
+                    (r) => r.id === line.reference.id,
+                  ),
+                )
+              )
+                throw new WorkspaceValidationError(
+                  'New maintenance archive must capture current references',
+                );
+              if (
+                contentKey(line.boq) !==
+                contentKey(
+                  document.maintenanceBoq.boq.find((r) => r.id === line.boq.id),
+                )
+              )
+                throw new WorkspaceValidationError(
+                  'New archive must capture current BOQ',
+                );
+            }
+            if (added.coverageMonths !== document.maintenanceBoq.coverageMonths)
+              throw new WorkspaceValidationError(
+                'Maintenance duration differs from current BOQ',
+              );
+          }
+          if (!Object.hasOwn(workspace, 'ssr') && previous?.ssr)
+            document = { ...document, ssr: previous.ssr };
+          if (document.ssr)
+            document = {
+              ...document,
+              ssr: {
+                ...document.ssr,
+                commercialBasis: commercialBasisKey(document),
+              },
+            };
+          if (document.ssr && document.workflowMode !== 'project')
+            assertSsrTransition(
+              previous?.ssr || emptySsr(),
+              document.ssr,
+              document.costVersions,
+            );
+          for (const old of previous?.cpq?.archives || []) {
+            const retained = document.cpq?.archives.find(
+              (item) => item.id === old.id,
+            );
+            if (!retained || contentKey(retained) !== contentKey(old))
+              throw new WorkspaceValidationError(
+                'Archived CPQ configurations cannot be edited or deleted.',
                 '/cpq/archives',
               );
           }
-        }
-        if (document.cpq) {
-          const cpqBase = document.costVersions.find(
-            (v) => v.code === document.cpq.draft.costVersion,
+          for (const added of document.cpq?.archives || []) {
+            if (previous?.cpq?.archives.some((item) => item.id === added.id))
+              continue;
+            const baseline = document.costVersions.find(
+              (version) => version.code === added.costVersion,
+            );
+            if (!baseline || added.costKey !== costBaselineKey(baseline))
+              throw new WorkspaceValidationError(
+                'New CPQ archive must reference the current cost inputs.',
+                '/cpq/archives',
+              );
+            if (contentKey(added.costBaseline) !== contentKey(baseline))
+              throw new WorkspaceValidationError(
+                'New CPQ archive cost metadata must match the current version.',
+                '/cpq/archives',
+              );
+            for (const line of added.result.lines) {
+              const catalogItem = document.cpq.catalog.find(
+                (item) => item.code === line.item.code,
+              );
+              if (
+                !catalogItem ||
+                contentKey(catalogItem) !== contentKey(line.item)
+              )
+                throw new WorkspaceValidationError(
+                  'New CPQ archive must use confirmed current catalog entries.',
+                  '/cpq/archives',
+                );
+            }
+          }
+          if (document.cpq) {
+            const cpqBase = document.costVersions.find(
+              (v) => v.code === document.cpq.draft.costVersion,
+            );
+            if (cpqBase) assertCurrentCpqResult(document.cpq, cpqBase);
+          }
+          assertWorkspaceDocument(document, projectId);
+          document = reconcileVersionWorkflows(previous, document);
+          if (!previous && workspace.projectStatus === 'completed')
+            document.projectStatus = 'completed';
+          document = normalizeProjectWorkflow(document);
+          document = migrateWorkflowEngine(document, timestamp);
+          if (
+            previous?.workflowMode === 'project' &&
+            document.workflowVersion !== previous.workflowVersion &&
+            document.costVersions.some(
+              (v) =>
+                v.code === document.workflowVersion &&
+                !previous.costVersions.some((old) => old.code === v.code),
+            )
+          ) {
+            if (document.workflowEngineVersion === 1) {
+              const template = globalMasterData.get('workflow', {
+                limit: 10000,
+              });
+              if (template.conflicts.length)
+                throw new WorkspaceValidationError(
+                  'Resolve workflow template conflicts before starting a new cost round.',
+                  '/workflowTemplateRevision',
+                );
+              document.processSteps = workflowBusiness(() =>
+                resetWorkflowRoundSteps(
+                  workflowDefinitions(template.items),
+                  timestamp,
+                ),
+              );
+              const start = document.processSteps.find(
+                (step) => step.roundStart,
+              );
+              document.currentWorkflowStepCode = start.code;
+              document.selectedStep = document.processSteps.indexOf(start);
+              document.projectStatus = 'solution_review';
+              document.workflowTemplateRevision = template.revision;
+              document.versionWorkflows[document.workflowVersion] = {
+                currentWorkflowStepCode: document.currentWorkflowStepCode,
+                processSteps: structuredClone(document.processSteps),
+                projectStatus: document.projectStatus,
+              };
+            }
+            const step = document.processSteps.find(
+              (s) => s.code === document.currentWorkflowStepCode,
+            );
+            document.workflowUpdates.push({
+              id: `workflow-${document.workflowVersion}-${timestamp}-${document.workflowUpdates.length + 1}`,
+              costVersion: document.workflowVersion,
+              fromStepCode: previous.currentWorkflowStepCode,
+              toStepCode: document.currentWorkflowStepCode,
+              nodeCode: document.currentWorkflowStepCode,
+              action: 'new_cost_round',
+              owner: step.owner,
+              followUpDate: '',
+              note: `新成本版本，按当前流程模板重新跟踪 ${step.nameZh || step.name}`,
+              updatedAt: timestamp,
+            });
+          }
+          document.costVersionLocks = reconcileCostVersionLocks(
+            previous,
+            document,
+            timestamp,
           );
-          if (cpqBase) assertCurrentCpqResult(document.cpq, cpqBase);
+          delete document.costLock;
         }
-        assertWorkspaceDocument(document, projectId);
-        document = reconcileVersionWorkflows(previous, document);
-        document.costVersionLocks = reconcileCostVersionLocks(
-          previous,
-          document,
-          timestamp,
-        );
-        delete document.costLock;
         assertWorkspaceDocument(document, projectId);
         const payloadJson = JSON.stringify(document);
         const payloadSha256 = checksum(payloadJson);
@@ -631,10 +954,10 @@ export const openWorkspaceRepository = (databasePath) => {
           payloadSha256,
           timestamp,
         );
-        db.exec('COMMIT');
+        if (ownsTransaction) db.exec('COMMIT');
         return mapWorkspace(selectWorkspace.get(projectId));
       } catch (error) {
-        db.exec('ROLLBACK');
+        if (ownsTransaction) db.exec('ROLLBACK');
         throw error;
       }
     },
@@ -643,4 +966,19 @@ export const openWorkspaceRepository = (databasePath) => {
       db.close();
     },
   };
+  Object.assign(
+    repository,
+    workflowRepositoryMethods(
+      db,
+      repository,
+      RepositoryConflictError,
+      RepositoryNotFoundError,
+    ),
+  );
+  const updateMaster = globalMasterData.update.bind(globalMasterData);
+  globalMasterData.update = (tab, changes, revision, internal) =>
+    tab === 'workflow' && !internal?.workflowPublication
+      ? repository.updateWorkflowMasterData(changes, revision)
+      : updateMaster(tab, changes, revision, internal);
+  return repository;
 };

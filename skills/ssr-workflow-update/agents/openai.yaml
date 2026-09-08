@@ -1,4 +1,4 @@
 interface:
-  display_name: "SSR · 流程与评审更新"
-  short_description: "SSR · 流程与评审更新：独立处理指定项目的业务记录，通过细分 CLI 读写并核对结果。"
-  default_prompt: "使用 $ssr-workflow-update 根据我提供的实际进度更新项目流程、评审记录和下次跟进日期。"
+  display_name: 'SSR · 项目流程更新'
+  short_description: '更新并行节点、关键确认与暂停恢复，按节点 SLA 跟进；历史证据只读。'
+  default_prompt: '使用 $ssr-workflow-update 根据我提供的公司进展更新目标节点，核对并行待办与 SLA 提醒。'

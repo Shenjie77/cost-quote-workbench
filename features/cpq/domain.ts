@@ -101,6 +101,7 @@ export const costBaselineKey = (version: CostVersionSnapshot): string =>
   contentKey({
     code: version.code,
     costRows: version.costRows,
+    subcontractCost: version.subcontractCost,
     rateSettings: version.rateSettings,
     resourceTypes: version.resourceTypes,
     travelSettings: version.travelSettings,

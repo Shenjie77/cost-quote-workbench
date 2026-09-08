@@ -1,16 +1,16 @@
-# 公司评审证据
+# 历史流程与评审（只读）
 
-Set `ssr.enabled=true`, proposal number, brief, technical basis and requiredDomains. Leave `commercialBasis` to the platform to derive from project, pricing, assumptions and selected template. The platform also manages workflowVersion and versionWorkflows: cost creation starts a new DTRB round, while viewing an old activeVersion does not change the working round. Do not write these metadata or construct submission snapshots manually; use commands.
+统一 Project Workflow 后，按计划更新各执行节点的信息、负责人、跟进安排与动作。正式申请和审批仍在公司平台完成；本地不再要求重复提交 SSR 单或评审检查点。
 
-Each command takes `--project-id ID --input operation.json --expected-revision REVISION --compact`. For `ssr submit`, also pass `--version Vn` to name the target cost version; omission uses workflowVersion, falling back to activeVersion only for older data without it. Result, close and followup commands still target the supplied submissionId, not the currently viewed version. All use `OperationRequest`, data schema `1.0.0`, and an `operation` matching the command:
+```sh
+cost-cli project get --project-id ID --section workflow-history --limit 20
+cost-cli cost get --project-id ID --version Vn --section workflow
+cost-cli ssr get --project-id ID --section submissions --id ACTUAL-SUBMISSION-ID
+cost-cli project get --project-id ID --section reviews --id ACTUAL-REVIEW-ID
+```
 
-| Command / operation             | Additional data fields                                                                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ssr submit` / `ssr.submit`     | `kind` (DTRB/DRB/BUDGET/SPECIALIST/QUOTE_DECISION/BID_REVIEW), `domain` (empty except specialist), `owner`, `dueDate`, `applicationNumber`, `evidence` |
-| `ssr result` / `ssr.result`     | `submissionId`, `outcome` (approved/rejected/conditional/withdrawn), `evidence`, `conditions` (nonempty only when conditional)                         |
-| `ssr close` / `ssr.close`       | `submissionId`, `condition`, `evidence`                                                                                                                |
-| `ssr followup` / `ssr.followup` | `submissionId`, `note`, `nextDate`                                                                                                                     |
+`workflow-history` 按最新在前返回 `id/costVersion/fromStepCode/toStepCode/owner/followUpDate/note/updatedAt`。只读需要的页，跟随 nextOffset，跨页 revision 变化时重读。`cost ... --section workflow` 用于旧版流程核查；不会把当前工作轮次切到该版。
 
-Use actual company evidence, not an inferred approval. Submissions capture the explicitly targeted cost version and its snapshot. Each version must satisfy its own DTRB → DRB dependencies; a new Draft never inherits prior-version approval. Before entering, submitting or completing DRB, read that version's cost settings and summary, validate the inputs, and obtain the user's explicit cost-finalization confirmation. Existing explicit authorization for this exact version is sufficient; do not ask again. The cost-update operation must have saved state Confirmed before DRB can proceed. Confirmed finalizes only cost and does not mean DRB approved. A Draft cannot be locked by changing DRB progress or recording its result. Required professional domains must be configured before quote decision. Tender rows under `ssr.bidResponses` cover each required domain; edits invalidate the earlier bid review. Closing a condition binds to the specific result, even when later results repeat its wording.
+原 SSR submissions/results/closures/followUps、投标答复及 reviewGates 保留为历史证据，只读查看；不再调用 `ssr submit/result/close/followup`，不通过 `ssr update` 或 `project update --section reviews` 写历史。结果、条件和原成本快照属于其保存版本，不能作为新版本已获审批的证明。
 
-每次写入使用返回的新 revision，窄读对应 submission 复核。不能用 ssr update 覆写 submissions。投标答复通过 ssr get/update --section bid-responses 维护，字段见 schemas/workspace-state.schema.json 的 $defs.ssrWorkspace.properties.bidResponses.items；不能伪造专业答复或审批。followup 不会发送 PM 消息；登记本地记录不等于已提交公司系统。
+收到新的公司平台反馈，使用 `project workflow-action` 的 update 动作及 note/fields 记录原申请号、涉及版本和结果；只在用户确实要求更新当前轮次时调整当前节点。若反馈针对历史版本，备注明确版本，不把它描述成新轮次批准。

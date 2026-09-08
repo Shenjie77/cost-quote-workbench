@@ -212,7 +212,44 @@ export function useLocalWorkspace({
     return () => window.removeEventListener('beforeunload', warnIfDirty);
   }, []);
 
+  const adoptRemoteIfClean = useCallback(
+    (record: WorkspaceRecord) => {
+      const current = session.current;
+      if (
+        !current ||
+        current.projectId !== record.workspace.project.id ||
+        current.projectId !== projectId
+      )
+        return false;
+      if (
+        !current.queue.adoptRemote(
+          record.workspace,
+          record.revision,
+          latest.current,
+        )
+      )
+        return false;
+      latest.current = record.workspace;
+      hydrate.current(record.workspace);
+      setStatus({
+        phase: 'saved',
+        revision: record.revision,
+        savedAt: record.updatedAt,
+        message: `Updated locally · R${record.revision} / 已同步`,
+      });
+      return true;
+    },
+    [projectId],
+  );
+
+  const getLoadedRevision = useCallback(
+    () => session.current?.queue.currentRevision() ?? null,
+    [],
+  );
+
   return {
+    adoptRemoteIfClean,
+    getLoadedRevision,
     status,
     isReady,
     saveNow,

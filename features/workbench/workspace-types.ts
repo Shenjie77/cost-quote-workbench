@@ -35,6 +35,10 @@ export const LOCAL_API_VERSION = 'cost-workbench/local-v1' as const;
 export const WORKSPACE_SCHEMA_VERSION = '1.0.0' as const;
 
 export type WorkbenchWorkspace = {
+  workflowEngineVersion?: 1;
+  workflowTemplateRevision?: number;
+  workflowMode?: 'project';
+  workflowUpdates?: import('../projects/workflow-domain').WorkflowUpdate[];
   /** Global catalogue revisions explicitly captured by this project. */
   masterDataRevisions?: Record<string, number>;
   /** Current delivery-review round; opening a historical cost does not change it. */
@@ -81,6 +85,7 @@ export type WorkbenchWorkspace = {
   activeVersion: string;
   costVersions: CostVersionSnapshot[];
   costRows: CostInputRow[];
+  subcontractCost?: import('../cost/subcontract-domain').SubcontractCost;
   rateSettings: RateSettings;
   resourceTypes: ResourceType[];
   subcontractItems: SubcontractItem[];
@@ -120,6 +125,14 @@ export type WorkspaceRecord = {
 };
 
 export type LocalWorkspaceIndexItem = {
+  workflowEngineVersion?: 1;
+  workflowTemplateRevision?: number;
+  workflowMode?: 'project';
+  workflowVersion?: string;
+  workflowOwner?: string;
+  workflowFollowUpDate?: string;
+  workflowNote?: string;
+  workflowUpdatedAt?: string;
   projectId: string;
   name: string;
   client: string;

@@ -141,6 +141,93 @@ const route = async (request, response) => {
   const applyMasterMatch = url.pathname.match(
     /^\/api\/local\/projects\/([^/]+)\/apply-masterdata$/,
   );
+  const workflowProject = url.pathname.match(
+    /^\/api\/local\/projects\/([^/]+)\/(workflow-plan|workflow-action)$/,
+  );
+  if (workflowProject) {
+    const projectId = decodeURIComponent(workflowProject[1]);
+    if (workflowProject[2] === 'workflow-plan' && request.method === 'GET') {
+      respond(200, {
+        apiVersion: LOCAL_API_VERSION,
+        kind: 'WorkflowPlanResult',
+        ok: true,
+        data: repository.workflowPlan(projectId),
+      });
+      return;
+    }
+    if (workflowProject[2] === 'workflow-action' && request.method === 'POST') {
+      const body = await readJson(request);
+      if (
+        body?.apiVersion !== LOCAL_API_VERSION ||
+        body?.kind !== 'WorkflowActionRequest' ||
+        !body.action ||
+        !Number.isSafeInteger(body.expectedRevision) ||
+        body.expectedRevision < 1
+      )
+        throw new TypeError('Invalid WorkflowActionRequest envelope.');
+      const record = repository.applyWorkflowAction(
+        projectId,
+        body.action,
+        body.expectedRevision,
+      );
+      scanReminders();
+      respond(200, {
+        apiVersion: LOCAL_API_VERSION,
+        kind: 'WorkspaceRecord',
+        ok: true,
+        data: record,
+      });
+      return;
+    }
+  }
+  if (
+    ['/api/local/workflow/preview', '/api/local/workflow/publish'].includes(
+      url.pathname,
+    ) &&
+    request.method === 'POST'
+  ) {
+    const body = await readJson(request);
+    const publishing = url.pathname.endsWith('/publish');
+    if (
+      body?.apiVersion !== LOCAL_API_VERSION ||
+      body?.kind !==
+        (publishing
+          ? 'WorkflowPublishRequest'
+          : 'WorkflowPublishPreviewRequest') ||
+      !Array.isArray(body.steps) ||
+      !Number.isSafeInteger(body.expectedRevision) ||
+      body.expectedRevision < 1 ||
+      (body.migrateActiveProjectIds !== undefined &&
+        (!Array.isArray(body.migrateActiveProjectIds) ||
+          body.migrateActiveProjectIds.some((id) => typeof id !== 'string')))
+    )
+      throw new TypeError('Invalid workflow publication envelope.');
+    const options = {
+      migrateActiveProjectIds: body.migrateActiveProjectIds || [],
+    };
+    const data = publishing
+      ? repository.publishWorkflow(
+          body.steps,
+          body.expectedRevision,
+          body.projectRevisions,
+          options,
+        )
+      : repository.previewWorkflowPublication(
+          body.steps,
+          body.expectedRevision,
+          options,
+        );
+    if (publishing) scanReminders();
+    respond(200, {
+      apiVersion: LOCAL_API_VERSION,
+      kind: publishing
+        ? 'WorkflowPublishResult'
+        : 'WorkflowPublishPreviewResult',
+      ok: true,
+      data,
+    });
+    return;
+  }
   if (applyMasterMatch && request.method === 'POST') {
     const body = await readJson(request);
     if (

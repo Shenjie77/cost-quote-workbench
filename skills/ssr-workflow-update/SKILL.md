@@ -1,35 +1,63 @@
 ---
 name: ssr-workflow-update
-description: 更新项目当前流程节点、节点进度，登记 DTRB/DRB/概算/专业/投标/报价评审证据及跟进日期；全局流程默认模板维护使用 ssr-workflow-configure。
+description: 更新项目可配置流程的节点信息、完成确认、并行待办和暂停恢复，查询 SLA 跟进提醒；历史评审只读，全局模板用流程配置 skill。
 ---
 
-# SSR · 流程与评审更新
+# SSR · 项目流程更新
 
-在包含 `cli/cost-cli.mjs` 的仓库根目录运行 `npm run --silent cost-cli -- ...`；下文 `cost-cli` 是此前缀的简称。项目号已知时直接读取目标资源；未知才用 `project list`。项目成本和业务配置使用已捕获的数据快照；维护全局主数据不读取或更新项目。
+在含 `cli/cost-cli.mjs` 的仓库根目录运行 `npm run --silent cost-cli -- ...`；下文 `cost-cli` 为此前缀简称。已知项目号直接窄读目标，未知才 `project list`。不读完整 workspace，不要求再填 SSR 审批单或独立 Status。
 
-集合读取按需用 `--id`、`--query`、`--limit`、`--offset`，跟随 `nextOffset`，分页期间 revision 变化须重读。只返回需要的字段和条目，不用 `workspace get/save` 做常规操作。字段不明时查本文指定的本地 schema 定义；接口不符时再查 `system capabilities`。
+## 查询与动作
 
-写入使用最新返回的 `--expected-revision R`，冲突后重读目标资源再重施原意。局部修改仅发送变更字段；新增记录必须字段完整；不把缺失记录视为删除。核对返回 revision 和变更条目，不把预览或校验当成已保存。
+```sh
+cost-cli project get --project-id ID --section workflow-plan
+cost-cli project workflow-action --project-id ID --input action.json --expected-revision R
+```
 
-项目号已知先 `project get --project-id ID`，核对当前 workflowVersion 与查看中的 activeVersion。按需用 `cost get --project-id ID --version Vn --section workflow` 窄读本版流程结构与进度，查看旧版时也明确版本；再按需读 `ssr get --section settings` 或 `ssr get --section submissions --id SUBMISSION-ID`，都带同项目号。读取当前项目节点定义用 `project get --project-id ID --section workflow --id CODE`，状态选项用 `--section status`；全局模板维护另用流程配置 skill。每版有独立 DTRB → DRB 轮次；创建新 Draft 会自动选中新版并回到该版 DTRB，旧版记录保留。切换 activeVersion 查看历史不改变当前工作轮次。workflowVersion/versionWorkflows 由平台管理，不能通过 workspace 手工移动轮次或拷贝完成状态。
+`workflow-plan` 返回 `steps/phases/blockers/completed/templateRevision`。根据实际返回的节点 `code` 和状态选择动作；名称可自定义，不能由“DRB”等名称猜 code。同一并行组可同时有多个活跃节点，不能只处理 `currentWorkflowStepCode`。
 
-当前节点、节点 state、SSR 评审证据是不同记录，不能把其中一个当成其他记录已完成的证明。普通节点进度围绕当前 workflowVersion 更新，不能因正在查看旧版就把新轮次进度写到旧版。根据实际叙述只更新应变字段；“到 DRB”不等于“DRB 已通过”：
-- 当前节点：`project update`，changes 为 `{"set":{"currentWorkflowStepCode":"ACTUAL-CODE"}}`。
-- 节点进度：`project update --section workflow`，changes 为 `{"upsert":[{"code":"ACTUAL-CODE","state":"in_progress"}]}`。可用 state：not_started/in_progress/awaiting_review/blocked/completed。
-- 项目大状态：project update 的 `set.projectStatus` 使用项目 status 目录已有 code，不把流程名称直接当 code。
+```json
+{
+  "apiVersion": "cost-workbench/v2",
+  "kind": "OperationRequest",
+  "requestId": "workflow-action-unique-id",
+  "data": {
+    "schemaVersion": "1.0.0",
+    "operation": "project.workflow-action",
+    "action": {
+      "nodeCode": "ACTUAL-RETURNED-NODE-CODE",
+      "action": "update",
+      "owner": "实际负责人",
+      "followUpDate": "2026-09-15",
+      "note": "按用户提供的公司系统进展登记。"
+    }
+  }
+}
+```
 
-以上更新均带 `--project-id ID --input FILE --expected-revision R`，使用 OperationRequest 信封及对应 operation（project.update），data 含 schemaVersion:"1.0.0" 与 changes。普通窄更新不带 --compact。
+日期和说明换成真实内容；未传字段保持原值。动作包括 `start/complete/skip/update/pause/resume/reopen`。`fields` 只使用节点 `requiredFields` 中的字段名。关键节点完成需填完必填信息，并在用户确实确认信息后发送 `confirmed:true`；已有明确授权无需重复询问。`skip/pause/reopen` 必须给 `reason`，关键节点不能跳过。开始时间修正或手工改 `dueAt` 需原因；正常改 note 不重置 SLA。
 
-登记公司评审、关闭条件或跟进时才读取 [评审证据](references/reviews.md)。不要用 ssr update 覆写 submissions。普通本地 reviewGates 用 `project get/update --section reviews`，按记录 id 窄读与 upsert，完整字段依据 workspace-state schema 的 reviewGate；这不代替公司 SSR 提交记录。不要虚构 workflow update 命令。
+旧节点没有 startedAt 时，迁移以升级时刻初始化需要开始计时节点的 SLA，不推测过去的实际开始日；保留原 followUpDate。用户给出实际开始时间后可通过节点动作修正，并填写原因。旧完成标记不代表公司批准，不补造审批证据。
 
-指定节点在项目配置中不存在时，先澄清要采用哪个现有节点或是否新增，不凭名称猜 code。缺少实际评审提交记录时，不能凭空创建申请号或将跟进写到不存在的 submission：先完成已明确的进度更新，再索取实际申请/提交信息。此时应说明跟进日期尚未登记为提醒，不能只改节点 date/dateZh 就声称提醒已安排。
+带项目最新 revision 写入；成功核对 `OperationResult` 的 projectId/revision/workflowVersion/nodeCode/action。CAS 冲突后重读目标计划并重施原意，不盲重放旧动作。
 
-进入、提交或完成 DRB 前，先 `cost get --project-id ID --version Vn --section settings` 和 `--section summary` 核对本版成本，并完成校验。本版须已由用户明确确认成为 Confirmed；若尚未获得定稿授权，先呈现该版汇总，请用户确认后再交成本更新 skill 定稿。用户已经明确授权本版定稿时无需重复询问。不能把“进入 DRB”、设置 completed 或收到评审结果当成用户确认，也不能让 Draft 被 DRB 直接锁死。Confirmed 只确认成本，不表示 DRB approved；评审结果仍按真实公司证据登记。
+## 业务边界
 
-SSR 提交用 `ssr submit --project-id ID --version Vn --input FILE --expected-revision R --compact` 明确目标；省略版本时使用 workflowVersion，兼容旧数据缺失该字段时才用 activeVersion。每版分别满足本版 DTRB → DRB 前置，不能以旧版已通过 DTRB 代替新版评审。结果、关闭条件和跟进仍按 submissionId 指向原记录。用户可从锁版创建可编辑新版，原汇总与历史审批保留；不清锁或修改旧证据来推进新轮次。
+- 前置关键节点未完成时，后续节点无法开始或完成。并行组内关键节点均需确认。后续节点完成后，符合配置的未办非关键节点记为 **Skipped** 并保留触发依据，不伪造 Completed 或公司审批。
+- `requiresConfirmedCost` 节点要求当前 `workflowVersion` 的成本为 Confirmed。先窄读该版成本 settings/summary 核验；未有定稿授权时展示本版成本后取得用户确认，再交成本更新 skill 定稿。“开始节点”不是成本定稿授权。锁定本版不代表公司审批通过。
+- `finishesWorkflow` 节点实际完成后停止本轮全部提醒；不能按名字或固定 `QUOTE_COMPLETED` 编码推断。导出 Excel 不自动完成节点。完成轮次不能直接重写；需求变化时新建成本 Draft，无论旧轮次是否完成都采用最新全局流程模板，从其 `roundStart`（默认 DTRB）开始，原成本/轮次快照保留。查看旧成本不改变工作轮次。
 
-提醒日期是 SSR 的 dueDate/最新 followup.nextDate（YYYY-MM-DD，Asia/Singapore），不是节点展示用的 date/dateZh。`reminders scan --as-of DATE`、`reminders list` 是全局命令，无 --project-id；返回后按 projectId 筛选。`reminders ack --id ID --fingerprint FINGERPRINT` 只标已读，不代表已解决。跟进记录不表示已联系 PM；未经授权不发送消息。
+## SLA 与提醒
 
-API 运行时每分钟扫描并在重启补扫。用户要求关闭平台后持续提醒时，须另行配置获授权的调度，不能声称 skill 自身常驻。
+按新加坡时间计算。默认工作日历为周一至周五 09:00–18:00，1 SLA 天为 9 工作小时，排除配置的节假日；自然日模式为连续 24 小时。未开始节点不计时；整轮无活跃或暂停节点时，仅首个待开始阶段中开启提醒的节点显示普通“待启动/待登记”，不标逾期、不展示后续阶段。关闭首阶段提醒不改为提示后续阶段，等待成本确认也不能隐藏待启动任务。已开始节点在 SLA 内普通提醒，最后一日马上处理，超过精确 dueAt 为紧急。可设更早 followUpDate。暂停期间停止一般提醒，到恢复安排日期提示恢复；关闭节点提醒不解除关键节点或成本门禁。
 
-收到旧版 DRB 结果时，按实际 submissionId 登记原版结果，不修改新轮次成本或将新版标为已批准。遇到历史快照不再适用的记录，应保留原证据并说明适用版本，不能借登记结果替新版定稿。
+```sh
+cost-cli digest generate --as-of YYYY-MM-DD
+cost-cli reminders scan --as-of YYYY-MM-DD
+cost-cli reminders list
+cost-cli reminders ack --id ID --fingerprint RETURNED_FINGERPRINT
+```
+
+以上是全局入口，无 project-id；按结果筛选。每个活跃节点可有一条提醒，Today 按项目汇总最高紧急程度。ack 仅标已阅；状态更新使提醒退出。API 运行时扫描，skill 不会后台常驻，也不代表已联系 PM；未授权不发消息。
+
+[历史流程与评审](references/reviews.md) 只在核对既有依据时读取。Proposal/Scope/公司链接用 `project get/update --section metadata`。全局节点和发布同步用 [流程配置](../ssr-workflow-configure/SKILL.md)。

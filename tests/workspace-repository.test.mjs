@@ -43,7 +43,7 @@ test('legacy cost correction archives the exact original and runs only once', ()
     const db = new DatabaseSync(dbPath);
     db.prepare('UPDATE workspace_snapshots SET payload_json = ?').run(original);
     // Simulate a database from before the one-time current schema migration.
-    db.prepare('DELETE FROM schema_migrations WHERE version = 6').run();
+    db.prepare('DELETE FROM schema_migrations WHERE version >= 6').run();
     db.close();
     repository = openWorkspaceRepository(dbPath);
     const migrated = repository.get(old.project.id);
@@ -349,7 +349,12 @@ test('SQLite repository creates, reads, lists, and revises one workspace', () =>
       initialProjectStatusDefinitions,
     );
     assert.equal(portfolioItem.currentWorkflowStepCode, 'TD_EFFORT_REVIEW');
-    assert.equal(portfolioItem.workflowSteps.length, 1);
+    assert.equal(portfolioItem.workflowMode, 'project');
+    assert.ok(
+      portfolioItem.workflowSteps.some(
+        (step) => step.code === 'QUOTE_COMPLETED',
+      ),
+    );
     assert.ok(portfolioItem.totalCost > 0);
     assert.ok(portfolioItem.totalQuote > portfolioItem.totalCost);
     assert.ok(portfolioItem.totalMandays > 0);
@@ -430,7 +435,7 @@ test('legacy cost version states migrate without changing other snapshots', () =
   }
 });
 
-test('editable project status names and custom codes persist into Project List', () => {
+test('historical status labels stay preserved while Project Workflow determines the project status', () => {
   const repository = openWorkspaceRepository(':memory:');
   try {
     const workspace = migrateWorkspaceDocument(makeWorkspace());
@@ -445,13 +450,20 @@ test('editable project status names and custom codes persist into Project List',
     workspace.projectStatus = 'commercial_approval';
 
     const saved = repository.save('PRJ-TEST-001', workspace, null);
-    assert.equal(saved.workspace.projectStatus, 'commercial_approval');
+    assert.equal(saved.workspace.projectStatus, 'solution_review');
     assert.equal(
       saved.workspace.projectStatusDefinitions[0].name,
       'Scope Intake',
     );
     const [portfolioItem] = repository.list();
-    assert.equal(portfolioItem.projectStatus, 'commercial_approval');
+    assert.equal(portfolioItem.projectStatus, 'solution_review');
+    const invalid = structuredClone(saved.workspace);
+    invalid.projectStatus = 'commercial_approval';
+    assert.throws(
+      () => repository.save('PRJ-TEST-001', invalid, saved.revision),
+      /derived from workflow/,
+    );
+    assert.equal(repository.get('PRJ-TEST-001').revision, saved.revision);
     assert.equal(portfolioItem.statusDefinitions.at(-1).nameZh, '商务审批');
   } finally {
     repository.close();

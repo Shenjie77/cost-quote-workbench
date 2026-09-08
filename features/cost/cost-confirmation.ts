@@ -27,6 +27,7 @@ export function costConfirmationDetails(
       resourceTypes: resources,
       rows: version.costRows,
       manualCosts: version.manualCosts,
+      subcontractCost: version.subcontractCost,
     }),
   );
   // An old immutable draft cannot repair missing TD dates. Confirming the same
@@ -53,6 +54,7 @@ export function costConfirmationDetails(
       resources,
       travel,
       version.manualCosts,
+      version.subcontractCost,
     ).totalWithRisk,
     totalMandays: version.costRows.reduce(
       (sum, row) => sum + totalRowMandays(row),

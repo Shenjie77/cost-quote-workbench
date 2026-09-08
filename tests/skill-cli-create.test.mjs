@@ -1,3 +1,4 @@
+import { completeWorkflowThrough } from './helpers/workflow-actions.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -81,8 +82,18 @@ test('project create is a narrow create-only operation with empty business input
     );
     assert.deepEqual(w.rateSettings.annualUplifts, [0, 0, 0, 0, 0]);
     assert.equal(w.manualCosts.otherServiceRate, 0.01);
-    assert.ok(Object.entries(w.manualCosts).filter(([key]) => key !== 'otherServiceRate').every(([, value]) => value === 0));
-    assert.ok(Object.values(w.travelSettings).every((v) => v === 0));
+    assert.ok(
+      Object.entries(w.manualCosts)
+        .filter(([key]) => key !== 'otherServiceRate')
+        .every(([, value]) => value === 0),
+    );
+    assert.deepEqual(w.rateSettings.allowanceResourceTypeIds, []);
+    assert.equal(w.travelSettings.enabled, false);
+    assert.ok(
+      ['monthlyAllowance', 'airfarePerTrip', 'trips'].every(
+        (field) => w.travelSettings[field] === 0,
+      ),
+    );
     assert.deepEqual(
       w.subcontractItems,
       repo.globalMasterData.get('subcontract').items,
@@ -259,7 +270,11 @@ test('cost create selects each new Draft and starts its own workflow while retai
     assert.equal(v3.rateSettings.tdStart, '');
     assert.equal(v3.rateSettings.localArpAllowanceEnabled, false);
     assert.equal(v3.manualCosts.otherServiceRate, 0.01);
-    assert.ok(Object.entries(v3.manualCosts).filter(([key]) => key !== 'otherServiceRate').every(([, value]) => value === 0));
+    assert.ok(
+      Object.entries(v3.manualCosts)
+        .filter(([key]) => key !== 'otherServiceRate')
+        .every(([, value]) => value === 0),
+    );
   });
 });
 
@@ -292,25 +307,15 @@ test('cost create rejects invalid requests but allows new drafts after DRB or fi
     undefined,
     5,
   );
-  const completeDrb = (w) => {
-    let step = w.processSteps.find((entry) => entry.code === 'DRB');
-    if (!step) {
-      step = { ...w.processSteps[0], code: 'DRB', name: 'DRB', no: '99' };
-      w.processSteps.push(step);
-    }
-    const dtrb = w.processSteps.find(
-      (entry) => entry.code === 'TD_EFFORT_REVIEW',
-    );
-    if (dtrb) dtrb.state = 'completed';
-    step.state = 'completed';
-    w.currentWorkflowStepCode = step.code;
-    w.selectedStep = w.processSteps.indexOf(step);
-  };
   inspect((repo) => {
     const record = repo.get('SKILL-PROJECT');
-    completeDrb(record.workspace);
     assert.throws(
-      () => repo.save('SKILL-PROJECT', record.workspace, record.revision),
+      () =>
+        repo.applyWorkflowAction(
+          'SKILL-PROJECT',
+          { nodeCode: 'DELIVERY_REVIEW', action: 'start' },
+          record.revision,
+        ),
       /Confirmed|确认成本/,
     );
     assert.equal(repo.get('SKILL-PROJECT').revision, 1);
@@ -334,11 +339,14 @@ test('cost create rejects invalid requests but allows new drafts after DRB or fi
     ],
     envelope('cost.update', { changes: { set: { state: 'Confirmed' } } }),
   );
-  let originalVersion, originalWorkflow;
+  let originalVersion, originalWorkflow, drbRevision;
   inspect((repo) => {
-    const record = repo.get('SKILL-PROJECT');
-    completeDrb(record.workspace);
-    const saved = repo.save('SKILL-PROJECT', record.workspace, record.revision);
+    const saved = completeWorkflowThrough(
+      repo,
+      'SKILL-PROJECT',
+      'DELIVERY_REVIEW',
+    );
+    drbRevision = saved.revision;
     originalVersion = saved.workspace.costVersions[0];
     originalWorkflow = saved.workspace.versionWorkflows.V1;
   });
@@ -351,7 +359,7 @@ test('cost create rejects invalid requests but allows new drafts after DRB or fi
       '--mode',
       'blank',
       '--expected-revision',
-      '3',
+      String(drbRevision),
     ],
     undefined,
     0,
@@ -443,7 +451,7 @@ test('cost import targets an inactive version using its own assumptions and retu
       ...v.rateSettings,
       tdStart: '2026-01-01',
       baseYear: 2026,
-      localArpAllowanceEnabled: true,
+      allowancePools: ['LOCAL'],
     };
     before = repo.save('SKILL-PROJECT', w, record.revision).workspace;
   });

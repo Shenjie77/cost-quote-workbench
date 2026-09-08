@@ -1,3 +1,4 @@
+import type { SubcontractCost } from './subcontract-domain.ts';
 /**
  * Stable serialized contracts shared by the browser, CLI, JSON Schema, and
  * Excel exporter. Domain calculations intentionally do not depend on these
@@ -36,4 +37,5 @@ export type CostExportSnapshot = {
   resourceTypes: ResourceType[];
   costRows: CostInputRow[];
   manualCosts: ManualCostInputs;
+  subcontractCost?: SubcontractCost;
 };

@@ -11,16 +11,18 @@ description: 基于当前成本版本编制服务报价，选择客户模板及�
 
 写入使用最新返回的 `--expected-revision R`，冲突后重读目标资源再重施原意。局部修改仅发送变更字段；新增记录必须字段完整；不把缺失记录视为删除。核对返回 revision 和变更条目，不把预览或校验当成已保存。
 
-先读 `project get`（带项目号）、`cost get --section summary`、`quote get --section settings|assumptions`。当前标准报价与模板填充使用 activeVersion；用户指定其他版本时先核对，不能输出错版。成本要满足平台的定稿/评审前置；Confirmed 只表示用户确认成本，不表示 DRB approved。从已锁定版本创建的新 Draft 有独立 DTRB → DRB 轮次，不继承旧版审批，不能自行批准或解除原版锁定以便导出。
+先读 `project get`（带项目号）、`cost get --section summary`、`quote get --section settings|assumptions`。当前标准报价与模板填充使用 activeVersion；用户指定其他版本时先核对。成本需由用户确认成为 Confirmed 后才能正式导出；Confirmed 不表示 DRB 已批准。统一项目流程按公司实际进展登记，不再维护本地 SSR 审批依赖链。新建或复制 Draft 无论旧轮次是否完成，都采用最新全局流程模板，从其 roundStart（默认 DTRB）开启新轮次，旧证据只读保留；不能自行批准或解除原版锁定。
 
 客户模板与可复用假设读取项目捕获快照：`quote get --project-id ID --section templates|library`，按需用 `--id/--query`。不要用当前全局库替代旧项目采用的条款。客户名称规范化精确匹配，展示真实付款条款、有效期与法务 T&C。模板选中与默认假设拷贝是不同操作；仅设置 selectedQuoteTemplateId 不代表假设已自动应用。用户要求套用时按选定模板的 defaultAssumptionIds 读取库记录，再更新当前报价假设，保留用户手改内容与明确排除项。
 
 `project apply-masterdata` 仅允许当前 activeVersion 为未锁定 Draft 的项目；指定成本版本费率则用 `cost apply-rates --version`。若当前版本已定稿，先按用户的新一轮估算意图建立新 Draft，保持原版与历史归档不变。
 
 写入文件使用以下信封，`CHANGES` 替换为本业务的变更对象，`requestId` 每次操作取唯一值：
+
 ```json
 {"apiVersion":"cost-workbench/v2","kind":"OperationRequest","requestId":"unique-id","data":{"schemaVersion":"1.0.0","operation":"quote.update","changes":CHANGES}}
 ```
+
 集合用 `{"upsert":[...],"remove":[...]}`（只提供需要的键）；对象设置用 `{"set":{...}}`。`upsert` 仅合并已有记录的顶层字段，数组字段整项替换。
 `quote update --project-id ID --section settings --input FILE --expected-revision R` 的 set 支持 `pricing/selectedQuoteTemplateId`。pricing 字段先查 `features/quote/domain.ts` PricingSettings。`--section assumptions` 用 upsert：`id/text/textZh/included/sourceAssumptionId?`。提供的 T&C 和 Scope/交付假设原文不能擅自扩展责任。计算交由平台；成本已经包含可选3%，不得二次增加。
 

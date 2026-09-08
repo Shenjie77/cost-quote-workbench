@@ -152,11 +152,70 @@ test('workflow master editor edits requirements but has no project progress cont
   const markup = renderToStaticMarkup(
     React.createElement(MasterDataView, { ...props, activeTab: 'workflow' }),
   );
-  assert.match(markup, /默认流程模板定义/);
+  assert.match(markup, /Workflow Template/);
   assert.match(markup, /Requirements/);
   assert.doesNotMatch(
     markup,
     /aria-label="[^"]* state"|Current \/ 当前|State \/ 状态/,
+  );
+});
+
+test('subcontract reference prices keep unpriced values distinct from zero and hide legacy suppliers', () => {
+  const row = {
+    id: 'sub-router',
+    code: 'ROUTER',
+    item: 'Installation Cisco 2u router',
+    bu: 'Network',
+    pricingBasis: 'Per unit',
+    currency: 'SGD',
+    active: true,
+    supplier: 'Legacy supplier retained only in stored data',
+  };
+  const items = [
+    { ...row, unit: 'pcs', unitPrice: 200 },
+    { ...row, id: 'sub-free', code: 'FREE', unit: 'pcs', unitPrice: 0 },
+    { ...row, id: 'sub-old', code: 'OLD' },
+    {
+      ...row,
+      id: 'sub-unpriced',
+      code: 'UNPRICED',
+      unit: null,
+      unitPrice: null,
+    },
+  ];
+  const markup = renderToStaticMarkup(
+    React.createElement(MasterDataView, {
+      ...props,
+      activeTab: 'subcontract',
+      subcontractItems: items,
+    }),
+  );
+  const priceInput = (code) =>
+    markup.match(
+      new RegExp(`<input[^>]*aria-label="${code} unit price"[^>]*>`),
+    )?.[0];
+  assert.match(priceInput('ROUTER'), /value="200"/);
+  assert.match(priceInput('FREE'), /value="0"/);
+  assert.match(priceInput('OLD'), /value=""/);
+  assert.match(priceInput('UNPRICED'), /value=""/);
+  assert.match(markup, /Unit Price \/ 参考单价/);
+  assert.match(markup, /value="pcs"/);
+  assert.doesNotMatch(
+    markup,
+    /Supplier|供应商|Legacy supplier|Pricing Basis|Pricing basis|计价依据|Per unit/,
+  );
+  assert.equal(items[0].supplier, row.supplier);
+  assert.equal(Object.hasOwn(items[2], 'unitPrice'), false);
+  const conflictMarkup = renderToStaticMarkup(
+    React.createElement(GlobalConflictFields, {
+      item: items[0],
+      tab: 'subcontract',
+    }),
+  );
+  assert.match(conflictMarkup, /参考单价/);
+  assert.doesNotMatch(
+    conflictMarkup,
+    /Supplier|供应商|Legacy supplier|Pricing Basis|Pricing basis|计价依据|Per unit/,
   );
 });
 
@@ -354,6 +413,39 @@ test('source differences render business fields and human-readable labels instea
   assert.match(markup, /生效日期/);
   assert.match(markup, /每月人天/);
   assert.doesNotMatch(markup, /<pre|internal-record-uuid|mandayRate/);
+
+  const workflowItem = {
+    code: 'internal-workflow-id',
+    no: '03',
+    name: 'Legal Review',
+    nameZh: '法务评审',
+    required: true,
+    requiredFields: ['申请号'],
+  };
+  const original = structuredClone(workflowItem);
+  const workflowConflict = {
+    key: workflowItem.code,
+    variants: [{ item: workflowItem, sources: [] }],
+  };
+  assert.equal(
+    globalConflictTitle(workflowConflict, 'workflow'),
+    '03 · Legal Review',
+  );
+  const workflowMarkup = renderToStaticMarkup(
+    React.createElement(GlobalConflictFields, {
+      item: workflowItem,
+      tab: 'workflow',
+    }),
+  );
+  assert.match(workflowMarkup, /Required Step/);
+  assert.match(workflowMarkup, /Chinese Name/);
+  assert.match(workflowMarkup, /法务评审/);
+  assert.match(workflowMarkup, /申请号/);
+  assert.doesNotMatch(
+    workflowMarkup,
+    /internal-workflow-id|必经节点|Yes \/ 是/,
+  );
+  assert.deepEqual(workflowItem, original);
 });
 
 test('all loaded global rows retain their source records across pagination', async (t) => {

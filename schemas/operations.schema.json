@@ -523,6 +523,133 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "operation", "action"],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "operation": {
+          "const": "project.workflow-action"
+        },
+        "action": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["nodeCode", "action"],
+          "properties": {
+            "nodeCode": {
+              "type": "string",
+              "minLength": 1
+            },
+            "action": {
+              "enum": [
+                "start",
+                "complete",
+                "skip",
+                "update",
+                "pause",
+                "resume",
+                "reopen"
+              ]
+            },
+            "owner": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            },
+            "followUpDate": {
+              "type": "string"
+            },
+            "startedAt": {
+              "type": "string"
+            },
+            "dueAt": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "fields": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "operation", "steps"],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "operation": {
+          "const": "workflow.preview"
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "items": {
+            "type": "object"
+          }
+        },
+        "migrateActiveProjectIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "operation", "steps", "projectRevisions"],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "operation": {
+          "const": "workflow.publish"
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "items": {
+            "type": "object"
+          }
+        },
+        "migrateActiveProjectIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "projectRevisions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
     }
   ]
 }

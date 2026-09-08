@@ -16,24 +16,35 @@ The default site mode uses, for every annual bucket:
 Mandays = Sites × MD per Site
 ```
 
-`inputMode: "mandays"` instead reads `years[].mandays`; all sites and MD/site fields must be zero. It does not create artificial site counts.
+`inputMode: "mandays"` instead reads `years[].mandays`; all sites and MD/site fields must be zero. It does not create artificial site counts. The personnel toolbar switches the whole grid between Sites and Direct MD. Sites-to-MD keeps every year's actual effort; converting populated Direct MD rows back to Sites requires one confirmation before clearing their allocations. Bulk conversion validates all rows and rejects concurrent effort or row-membership changes atomically. Existing mixed-mode data stays unchanged until the user explicitly selects a mode; new rows follow the selected mode.
 
 Total sites, mandays, and cost sum Y1 through Y5. Internal annual cost is
 derived as `Mandays × version MD rate × cumulative uplift`. Changing direct mandays, sites,
 MD/site or delivery/uplift assumptions recalculates it immediately. The same
-normalization runs on workspace saves. Packaged subcontract costs remain
-manually entered monetary inputs.
+normalization runs on workspace saves. New package costs use the version-owned
+Subcon BOQ: project annual quantities × unit prices, or site-type BOQ per-site
+cost × annual site counts, plus shared project items. The result feeds 2.3.2 once.
+Legacy RE subcontract rows retain their stored amounts for historical reads;
+they cannot be newly entered or repriced through Cost Input. See
+[Subcontract costing](subcontract-cost-design.md).
 
-The optional **Local + ARP allowance 3%** checkbox is in Cost Input and defaults
-to off. When enabled, each internal LOCAL/ARP annual Cost uses
-`Mandays × version MD rate × cumulative uplift × 1.03`, rounded once to cents.
-Recalculation starts from effort and rates, so it never compounds a previously
-calculated Cost. HQ, subcontract, travel and manual costs are unchanged.
-Summary, history, quotation and Excel totals sum these final annual costs;
-there is no separate allowance line or second addition. The option is captured
-per version and cannot change once that version is locked. A new Draft may be
-created from a locked version and can change its allowance, effort and captured
-rates independently; the source version and its historical totals stay intact.
+The **3% Allowance** selector in Cost Input chooses personnel Pools through
+`rateSettings.allowancePools`: LOCAL, ARP, HQ and OTHER. All internal RE Types in
+a selected Pool receive the allowance; an explicit empty array disables it.
+Each applicable annual Cost uses `Mandays × version MD rate × cumulative uplift
+× 1.03`, rounded upward once to cents. Recalculation starts from effort and rates,
+so it never compounds a previously calculated Cost. Unselected personnel,
+subcontract, travel and manual costs do not receive this uplift.
+
+Summary, history, quotation and Excel sum these final annual costs; there is no
+separate allowance row or second addition. Selection belongs to the cost version
+and is protected by that version's lock. New blank versions start with no Pools
+selected; clones retain their source settings. Historical snapshots without
+`allowancePools` retain their exact `allowanceResourceTypeIds` selection, or the
+older `localArpAllowanceEnabled` LOCAL/ARP behavior when neither array is stored.
+Reading a historical version never expands its selected RE Types to an entire
+Pool. An explicit Pool change applies the chosen Pool categories to that editable
+version. Global RE rates are never changed to implement the allowance.
 
 Each version captures RE Type rates, MD/month, hours/MD and HQ designation.
 Editing the global master catalogue leaves every existing version snapshot
@@ -52,7 +63,17 @@ reconciles to the displayed total. For example, `18848.282` becomes
 
 ## HQ travel
 
-Only an internal resource type with `hqTravel=true` creates travel cost.
+New cost versions explicitly start with `travelSettings.enabled:false`. **Include
+HQ Travel** must be selected to include travel. With `enabled:true`, only internal
+resources whose pool is HQ contribute effort; an HQ RE Type alone does not enable
+travel. Disabled travel costs zero, including airfare, while entered monthly
+allowance, trips and airfare prices remain saved for reuse. The panel can still
+show HQ effort as a reference while disabled.
+
+Historical snapshots without `enabled` retain their saved legacy calculation using
+`hqTravel=true`, so archived amounts do not change. Reading or cloning them does
+not rewrite their settings. Users can explicitly enable or disable travel in an
+unlocked version.
 
 ```text
 HQ months       = sum(HQ mandays / resource MD per month)
@@ -62,7 +83,8 @@ HQ travel total = allowance cost + airfare cost
 ```
 
 The number of trips is never inferred. HQ travel enters statement account
-`2.3.1.3` exactly once.
+`2.3.1.3` exactly once. No HQ effort means zero HQ travel, even when enabled.
+Neither labour uplift nor the 3% personnel allowance applies to travel expenses.
 
 ## Cost statement
 

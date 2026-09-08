@@ -1,3 +1,4 @@
+import { addSubcontractWorkbookSheets } from './export-subcontract-workbook.ts';
 /** Page-shaped, read-only cost reports built from one detached cost snapshot. */
 
 import type { CostExportSnapshot } from './contracts.ts';
@@ -350,6 +351,7 @@ const addBreakdown = (
     snapshot.resourceTypes,
     travelCost,
     snapshot.manualCosts,
+    snapshot.subcontractCost,
   );
   const totalMandays = items.reduce((sum, item) => sum + item.mandays, 0);
   const maxCost = Math.max(1, ...items.map((item) => item.cost));
@@ -447,6 +449,7 @@ const addStatement = (
     snapshot.resourceTypes,
     travelCost,
     snapshot.manualCosts,
+    snapshot.subcontractCost,
   );
   rows.forEach((item, index) => {
     const fill =
@@ -505,6 +508,7 @@ export const buildSimpleCostWorkbookBytes = async (
     snapshot.travelSettings,
   );
   addDetail(workbook, snapshot);
+  addSubcontractWorkbookSheets(workbook, snapshot);
   addBreakdown(
     workbook,
     snapshot,

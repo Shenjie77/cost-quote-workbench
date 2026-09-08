@@ -43,13 +43,17 @@ import {
   getCostVersionLocks,
   type CostLock,
 } from '../cost/cost-lock';
-import { costVersionDeletionReason, deleteSuspendedCostVersion, nextCostVersionCode } from '../cost/version-deletion';
+import {
+  costVersionDeletionReason,
+  deleteSuspendedCostVersion,
+  nextCostVersionCode,
+} from '../cost/version-deletion';
 import { ProjectBootstrap } from './project-bootstrap';
+import { OpenProjectTabs } from './open-project-tabs';
 import { runVersionTransition } from '../cost/version-transition';
 import {
   migrateVersionWorkflows,
   reconcileVersionWorkflows,
-  isDrbStep,
 } from '../cost/version-workflow';
 import { CostConfirmationDialog } from '../cost/cost-confirmation-dialog';
 import {
@@ -66,13 +70,10 @@ import {
   type MaintenanceWorkspace,
 } from '@/features/maintenance/domain';
 import { ReminderInbox } from '@/features/agent/reminder-inbox';
-import { SsrView } from '@/features/ssr/ssr-view';
-import { applySsrEditFromView } from '@/features/ssr/review-submission-action';
 import {
   assertQuoteDecision,
   commercialBasisKey,
   emptySsr,
-  recordSubmission,
   ssrAttention,
   type SsrWorkspace,
 } from '@/features/ssr/domain';
@@ -81,6 +82,7 @@ import { CpqView } from '@/features/cpq/cpq-view';
 import { emptyCpq, type CpqWorkspace } from '@/features/cpq/domain';
 import type { TravelCostRow } from '@/features/cost/additional-travel-domain';
 import { CostView } from '@/features/cost/cost-view';
+import type { SubcontractCost } from '@/features/cost/subcontract-domain';
 import type { CostExportSnapshot } from '@/features/cost/contracts';
 import { buildCostExportSnapshot } from '@/features/cost/build-export-snapshot';
 import { validateCostExportSnapshot } from '@/features/cost/validation';
@@ -119,6 +121,7 @@ import {
   type SupplementalCostItem,
 } from '@/features/master-data/domain';
 import type { SubcontractItem } from '@/features/master-data/types';
+import { usePublishedWorkflow } from '@/features/master-data/use-published-workflow';
 import { GlobalMasterDataPage } from '@/features/master-data/global-master-data-page';
 import {
   useGlobalMasterData,
@@ -129,7 +132,10 @@ import {
   getGlobalMasterData,
   applyGlobalProjectCatalog,
 } from '@/features/master-data/global-client';
-import { captureResourceRates } from '@/features/master-data/capture';
+import {
+  applyCapturedResourceRates,
+  captureResourceRates,
+} from '@/features/master-data/capture';
 import type {
   MasterDataTab,
   QuoteMasterDataTab,
@@ -150,6 +156,24 @@ import {
 } from './workspace-factories';
 import { ProjectView } from '@/features/projects/project-view';
 import { ProjectEditDialog } from '@/features/projects/project-edit-dialog';
+import {
+  applyLocalWorkflowAction,
+  listLocalWorkspaces,
+} from './workspace-client';
+import { projectFromIndex } from './project-bootstrap';
+import { preflightWorkflowAction } from '@/features/projects/workflow-action-preflight';
+import type { WorkflowAction } from '@/features/projects/workflow-engine';
+import type { WorkspaceRecord } from './workspace-types';
+import { ProjectWorkflowPage } from '@/features/projects/project-workflow-page';
+import {
+  workflowPageHash,
+  parseWorkflowPageHash,
+} from '@/features/projects/workflow-route';
+import {
+  updateProjectWorkflow as applyProjectWorkflow,
+  requiresConfirmedWorkflowStage,
+  type ProjectWorkflowPatch,
+} from '@/features/projects/workflow-domain';
 import { QuoteView } from '@/features/quote/quote-view';
 import {
   calculatePricing,
@@ -165,7 +189,6 @@ import {
   type QuoteHistoryRecord,
   type QuoteTemplate,
 } from '@/features/quote/types';
-import { ReviewsView } from '@/features/reviews/reviews-view';
 import type { ReviewGate } from '@/features/reviews/types';
 import { DetailSheet } from '@/features/workbench/detail-sheet';
 import { navItems, viewTitles } from '@/features/workbench/navigation';
@@ -241,13 +264,58 @@ function ProjectSessionApp({
   const [projectList, setProjectList] = useState<Project[]>(initialProjects);
   const [masterDataRevisions, setMasterDataRevisions] =
     useState<WorkbenchWorkspace['masterDataRevisions']>();
+  const [workflowEngineVersion, setWorkflowEngineVersion] = useState<1>();
+  const [workflowTemplateRevision, setWorkflowTemplateRevision] =
+    useState<number>();
+  const [workflowMode, setWorkflowMode] =
+    useState<WorkbenchWorkspace['workflowMode']>();
+  const [workflowUpdates, setWorkflowUpdates] =
+    useState<WorkbenchWorkspace['workflowUpdates']>();
+  const [workflowTarget, setWorkflowTarget] = useState<{
+    project: Project;
+    workspace: WorkbenchWorkspace;
+    revision: number;
+    focusNodeCode?: string;
+  } | null>(null);
+  const [workflowSaving, setWorkflowSaving] = useState(false);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+  const workflowDirtyRef = useRef(false);
+  const workflowOpeningRef = useRef(false);
+  const workflowReturnView = useRef<ViewKey>('project');
+  const workflowPageGeneration = useRef(0);
+  const [workflowPageKey, setWorkflowPageKey] = useState(0);
+  const workflowRouteHandler = useRef<() => void>(() => {});
+  const initialWorkflowRouteHandled = useRef(false);
+  const workflowUiRef = useRef({
+    target: workflowTarget,
+    saving: workflowSaving,
+  });
+  useEffect(() => {
+    workflowUiRef.current = { target: workflowTarget, saving: workflowSaving };
+  }, [workflowTarget, workflowSaving]);
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (workflowDirtyRef.current) event.preventDefault();
+    };
+    const followLocation = () => workflowRouteHandler.current();
+    window.addEventListener('beforeunload', warn);
+    window.addEventListener('popstate', followLocation);
+    window.addEventListener('hashchange', followLocation);
+    return () => {
+      window.removeEventListener('beforeunload', warn);
+      window.removeEventListener('popstate', followLocation);
+      window.removeEventListener('hashchange', followLocation);
+    };
+  }, []);
+  const [workflowError, setWorkflowError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [editTarget, setEditTarget] = useState<Project | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [costVersionLocks, setCostVersionLocks] = useState<
     Record<string, CostLock>
   >({});
-  const [deletedCostVersions, setDeletedCostVersions] = useState<WorkbenchWorkspace['deletedCostVersions']>();
+  const [deletedCostVersions, setDeletedCostVersions] =
+    useState<WorkbenchWorkspace['deletedCostVersions']>();
   const switchingRef = useRef(false);
   const [workflowVersion, setWorkflowVersion] = useState('V3');
   const [versionWorkflows, setVersionWorkflows] = useState<
@@ -307,6 +375,9 @@ function ProjectSessionApp({
   const [reviewGates, setReviewGates] = useState<ReviewGate[]>([]);
   const [activeVersion, setActiveVersion] = useState('V3');
   const [costView, setCostView] = useState<CostViewKey>('input');
+  const [subcontractCost, setSubcontractCost] = useState<
+    SubcontractCost | undefined
+  >();
   const [costRowInputs, setCostRows] =
     useState<CostInputRow[]>(initialCostRows);
   const [rateSettings, setRateSettings] =
@@ -376,12 +447,21 @@ function ProjectSessionApp({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const publishedWorkflow = usePublishedWorkflow(
+    activeView === 'overview',
+    globalMasterData.tabs.workflow?.record,
+  );
   const title = viewTitles[activeView];
   const projectScopedView = activeView === 'cost' || activeView === 'quote';
   const pageEyebrow = projectScopedView
     ? `${activeView === 'cost' ? 'COST' : 'PRICING'} / ${activeProject.id}`
     : title.eyebrow;
-  const pageSubtitle = projectScopedView ? activeProject.name : title.subtitle;
+  const pageSubtitle =
+    activeView === 'workflow'
+      ? workflowTarget?.project.name || title.subtitle
+      : projectScopedView
+        ? activeProject.name
+        : title.subtitle;
   const pageSubtitleZh = projectScopedView
     ? activeProject.nameZh
     : title.subtitleZh;
@@ -390,6 +470,10 @@ function ProjectSessionApp({
   const hydrateWorkspace = useCallback((input: WorkbenchWorkspace) => {
     const workspace = migrateVersionWorkflows(input);
     setWorkflowVersion(workspace.workflowVersion || workspace.activeVersion);
+    setWorkflowEngineVersion(workspace.workflowEngineVersion);
+    setWorkflowTemplateRevision(workspace.workflowTemplateRevision);
+    setWorkflowMode(workspace.workflowMode);
+    setWorkflowUpdates(workspace.workflowUpdates);
     setVersionWorkflows(workspace.versionWorkflows || {});
     setLegacyWorkflowArchive(workspace.legacyWorkflowArchive || {});
     setDeletedCostVersions(workspace.deletedCostVersions);
@@ -434,6 +518,7 @@ function ProjectSessionApp({
         : [
             createCostVersion(workspace.activeVersion, 'Draft', null, {
               costRows: workspace.costRows,
+              subcontractCost: workspace.subcontractCost,
               rateSettings: workspace.rateSettings,
               travelSettings: workspace.travelSettings,
               travelRows: workspace.travelRows,
@@ -443,6 +528,10 @@ function ProjectSessionApp({
           ],
     );
     setCostRows(workspace.costRows);
+    setSubcontractCost(
+      workspace.costVersions?.find((v) => v.code === workspace.activeVersion)
+        ?.subcontractCost ?? workspace.subcontractCost,
+    );
     setRateSettings(workspace.rateSettings);
     setResourceTypes(workspace.resourceTypes);
     setVersionResourceTypes(
@@ -493,6 +582,7 @@ function ProjectSessionApp({
               ...version,
               resourceTypes: structuredClone(versionResourceTypes),
               costRows: structuredClone(costRows),
+              subcontractCost: structuredClone(subcontractCost),
               rateSettings: structuredClone(rateSettings),
               travelSettings: structuredClone(travelSettings),
               travelRows: structuredClone(travelRows),
@@ -504,6 +594,7 @@ function ProjectSessionApp({
     [
       activeVersion,
       costRows,
+      subcontractCost,
       manualCosts,
       rateSettings,
       travelRows,
@@ -521,6 +612,12 @@ function ProjectSessionApp({
       ...(masterDataRevisions ? { masterDataRevisions } : {}),
       ...(deletedCostVersions ? { deletedCostVersions } : {}),
       costVersionLocks,
+      ...(workflowEngineVersion ? { workflowEngineVersion } : {}),
+      ...(workflowTemplateRevision !== undefined
+        ? { workflowTemplateRevision }
+        : {}),
+      ...(workflowMode ? { workflowMode } : {}),
+      ...(workflowUpdates ? { workflowUpdates } : {}),
       workflowVersion,
       versionWorkflows,
       legacyWorkflowArchive,
@@ -534,6 +631,7 @@ function ProjectSessionApp({
       activeVersion,
       costVersions: synchronizedVersions,
       costRows,
+      subcontractCost,
       rateSettings,
       resourceTypes,
       subcontractItems,
@@ -565,6 +663,10 @@ function ProjectSessionApp({
     [
       masterDataRevisions,
       deletedCostVersions,
+      workflowEngineVersion,
+      workflowTemplateRevision,
+      workflowMode,
+      workflowUpdates,
       costVersionLocks,
       workflowVersion,
       versionWorkflows,
@@ -574,6 +676,7 @@ function ProjectSessionApp({
       ssr,
       activeVersion,
       costRows,
+      subcontractCost,
       currentWorkflowStepCode,
       exportProject,
       maintenancePriceRecords,
@@ -619,6 +722,8 @@ function ProjectSessionApp({
     status: persistenceStatus,
     saveNow,
     adoptSavedRecord,
+    adoptRemoteIfClean,
+    getLoadedRevision,
     saveProjectDetails,
     pauseSaving,
     resumeSaving,
@@ -630,6 +735,10 @@ function ProjectSessionApp({
     onHydrate: hydrateWorkspace,
     onSavedWorkspace: (saved, submitted) => {
       // A save response can normalize workflow metadata; retain any edits made after submission.
+      setWorkflowEngineVersion(saved.workflowEngineVersion);
+      setWorkflowTemplateRevision(saved.workflowTemplateRevision);
+      setWorkflowMode(saved.workflowMode);
+      setWorkflowUpdates(saved.workflowUpdates);
       setVersionWorkflows((current) => ({
         ...current,
         ...saved.versionWorkflows,
@@ -638,8 +747,11 @@ function ProjectSessionApp({
         ...current,
         ...saved.legacyWorkflowArchive,
       }));
-      setDeletedCostVersions((current) => saved.deletedCostVersions
-        ? { ...current, ...saved.deletedCostVersions } : current);
+      setDeletedCostVersions((current) =>
+        saved.deletedCostVersions
+          ? { ...current, ...saved.deletedCostVersions }
+          : current,
+      );
       setWorkflowVersion((current) =>
         current === (submitted.workflowVersion || submitted.activeVersion)
           ? saved.workflowVersion || current
@@ -677,6 +789,129 @@ function ProjectSessionApp({
     onMissing: onEmpty,
   });
 
+  const updateWorkflowProjection = (record: WorkspaceRecord) => {
+    const doc = record.workspace;
+    setProjectList((items) =>
+      items.map((item) =>
+        item.id !== doc.project.id || (item.revision || 0) > record.revision
+          ? item
+          : {
+              ...item,
+              revision: record.revision,
+              name: doc.project.name,
+              client: doc.project.client,
+              workflowEngineVersion: doc.workflowEngineVersion,
+              workflowTemplateRevision: doc.workflowTemplateRevision,
+              workflowMode: doc.workflowMode,
+              workflowVersion: doc.workflowVersion,
+              projectStatus: doc.projectStatus,
+              currentWorkflowStepCode: doc.currentWorkflowStepCode,
+              workflowSteps: doc.processSteps,
+              versionState:
+                doc.costVersions.find((v) => v.code === doc.activeVersion)
+                  ?.state || item.versionState,
+            },
+      ),
+    );
+  };
+
+  // Poll the compact index; load only changed open documents. Both editors retain
+  // their original base while dirty, so external updates cannot rebase unsaved edits.
+  const refreshPortfolio = useCallback(async () => {
+    if (switchingRef.current || versionTransitionRef.current) return;
+    try {
+      const items = await listLocalWorkspaces();
+      if (switchingRef.current || versionTransitionRef.current) return;
+      setProjectList((current) =>
+        items.map((item) => {
+          const existing = current.find((p) => p.id === item.projectId);
+          return existing && (existing.revision || 0) > (item.revision ?? 0)
+            ? existing
+            : projectFromIndex(item);
+        }),
+      );
+      const active = items.find((item) => item.projectId === activeProjectId);
+      const loaded = getLoadedRevision();
+      let activeRecord: WorkspaceRecord | null = null;
+      if (active && loaded !== null && (active.revision ?? 0) > loaded) {
+        const record = await getLocalWorkspace(activeProjectId);
+        activeRecord = record;
+        if (record && !switchingRef.current && !versionTransitionRef.current) {
+          const adopted = adoptRemoteIfClean(record);
+          if (!adopted && record.revision > (getLoadedRevision() ?? 0))
+            setNotice(
+              '项目已有外部更新；当前未保存修改已保留，请先备份当前修改再重新载入。',
+            );
+        }
+      }
+      const target = workflowUiRef.current.target;
+      const indexed = items.find(
+        (item) => item.projectId === target?.project.id,
+      );
+      if (
+        !target ||
+        !indexed ||
+        (indexed.revision ?? 0) <= target.revision ||
+        workflowUiRef.current.saving ||
+        workflowOpeningRef.current ||
+        switchingRef.current ||
+        versionTransitionRef.current
+      )
+        return;
+      if (workflowDirtyRef.current) {
+        setWorkflowError(
+          'This project was updated elsewhere. Your edits are retained; use Refresh to review the latest progress.',
+        );
+        return;
+      }
+      const record =
+        target.project.id === activeProjectId && activeRecord
+          ? activeRecord
+          : await getLocalWorkspace(target.project.id);
+      const current = workflowUiRef.current;
+      if (
+        !record ||
+        current.target?.project.id !== target.project.id ||
+        record.revision <= current.target.revision ||
+        current.saving ||
+        workflowOpeningRef.current ||
+        workflowDirtyRef.current ||
+        switchingRef.current ||
+        versionTransitionRef.current
+      )
+        return;
+      const changedRound =
+        (current.target.workspace.workflowVersion ||
+          current.target.workspace.activeVersion) !==
+        (record.workspace.workflowVersion || record.workspace.activeVersion);
+      if (changedRound) {
+        workflowPageGeneration.current++;
+        setWorkflowPageKey(workflowPageGeneration.current);
+      }
+      setWorkflowTarget({
+        ...current.target,
+        project: { ...current.target.project, ...record.workspace.project },
+        workspace: record.workspace,
+        revision: record.revision,
+        focusNodeCode: changedRound ? undefined : current.target.focusNodeCode,
+      });
+      setWorkflowError('');
+    } catch {
+      /* Existing connection status owns errors; the next refresh retries. */
+    }
+  }, [activeProjectId, adoptRemoteIfClean, getLoadedRevision]);
+  useEffect(() => {
+    const refresh = () => {
+      void refreshPortfolio();
+    };
+    const timer = window.setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [refreshPortfolio]);
+
   /** Explicit lifecycle changes pause edits and adopt the server's canonical document. */
   const persistCanonicalChange = async (
     projectId: string,
@@ -711,6 +946,13 @@ function ProjectSessionApp({
                 : {
                     ...item,
                     projectStatus: saved.workspace.projectStatus,
+                    revision: saved.revision,
+                    workflowEngineVersion:
+                      saved.workspace.workflowEngineVersion,
+                    workflowTemplateRevision:
+                      saved.workspace.workflowTemplateRevision,
+                    workflowMode: saved.workspace.workflowMode,
+                    workflowVersion: saved.workspace.workflowVersion,
                     currentWorkflowStepCode:
                       saved.workspace.currentWorkflowStepCode,
                     workflowSteps: saved.workspace.processSteps,
@@ -842,22 +1084,6 @@ function ProjectSessionApp({
     }
   };
 
-  const handleSsrChange = (next: SsrWorkspace): boolean =>
-    applySsrEditFromView({
-      previous: workspace.ssr!,
-      next,
-      versions: synchronizedVersions,
-      onChange: setSsr,
-      onRequestConfirmCost: (code, value) => {
-        void requestCostConfirmation(
-          workspace,
-          code,
-          '登记本版 DRB 实际评审结果或条件关闭记录',
-          (confirmed) => ({ ...confirmed, ssr: value }),
-        );
-      },
-    });
-
   /** Downloads a restore-ready v2 request without sending local data away. */
   const downloadWorkspaceBackup = () => {
     const request = {
@@ -893,6 +1119,7 @@ function ProjectSessionApp({
       versionResourceTypes,
       travelCost,
       manualCosts,
+      subcontractCost,
     );
     const quote = calculatePricing(statement.totalWithRisk, pricing);
     return {
@@ -906,7 +1133,14 @@ function ProjectSessionApp({
       totalQuote: quote.quoteBeforeTax,
       grossMarginPercent: quote.grossMarginPercent,
     };
-  }, [costRows, manualCosts, pricing, versionResourceTypes, travelSettings]);
+  }, [
+    costRows,
+    manualCosts,
+    pricing,
+    versionResourceTypes,
+    travelSettings,
+    subcontractCost,
+  ]);
 
   const portfolioProjects = useMemo(
     () =>
@@ -915,6 +1149,10 @@ function ProjectSessionApp({
           ? {
               ...project,
               projectStatus,
+              workflowEngineVersion,
+              workflowTemplateRevision,
+              workflowMode,
+              workflowVersion,
               statusDefinitions: projectStatusDefinitions,
               reviewGates,
               currentWorkflowStepCode,
@@ -925,11 +1163,16 @@ function ProjectSessionApp({
                   (version) => version.code === activeVersion,
                 )?.state || 'Draft',
               ...activeMetrics,
-              ssrAttention: ssrAttention(
-                workspace.ssr!,
-                synchronizedVersions.find((v) => v.code === activeVersion)!,
-                normalizeDigestDate(),
-              ),
+              ssrAttention:
+                workflowMode === 'project'
+                  ? []
+                  : ssrAttention(
+                      workspace.ssr!,
+                      synchronizedVersions.find(
+                        (v) => v.code === activeVersion,
+                      )!,
+                      normalizeDigestDate(),
+                    ),
               incompleteCostRows: costRows.filter(
                 (row) =>
                   !row.scope.trim() ||
@@ -949,6 +1192,10 @@ function ProjectSessionApp({
     [
       activeMetrics,
       workspace.ssr,
+      workflowEngineVersion,
+      workflowTemplateRevision,
+      workflowMode,
+      workflowVersion,
       activeProjectId,
       activeVersion,
       currentWorkflowStepCode,
@@ -1031,7 +1278,7 @@ function ProjectSessionApp({
 
   /** Loads a version's complete snapshot after the current version is safely persisted. */
   const selectCostVersion = useCallback(
-    (code: string) => {
+    (code: string, nextView: CostViewKey = 'input') => {
       if (code === activeVersion || !isReady) return;
       const target = synchronizedVersions.find(
         (version) => version.code === code,
@@ -1049,12 +1296,13 @@ function ProjectSessionApp({
           structuredClone(target.resourceTypes || resourceTypes),
         );
         setCostRows(structuredClone(target.costRows));
+        setSubcontractCost(structuredClone(target.subcontractCost));
         setRateSettings(structuredClone(target.rateSettings));
         setTravelSettings(structuredClone(target.travelSettings));
         setTravelRows(structuredClone(target.travelRows));
         setTravelUplift(target.travelUplift);
         setManualCosts(structuredClone(target.manualCosts));
-        setCostView('input');
+        setCostView(nextView);
         setNotice(`Loaded ${code} cost snapshot / 已载入 ${code} 成本快照`);
       });
     },
@@ -1117,6 +1365,7 @@ function ProjectSessionApp({
           activeVersion: nextCode,
           costVersions: [...fresh.costVersions, nextVersion],
           costRows: nextVersion.costRows,
+          subcontractCost: nextVersion.subcontractCost,
           rateSettings: nextVersion.rateSettings,
           travelSettings: nextVersion.travelSettings,
           travelRows: nextVersion.travelRows,
@@ -1154,213 +1403,6 @@ function ProjectSessionApp({
       items.map((v) => (v.code === code ? { ...v, state } : v)),
     );
   };
-
-  /** Direct table status edit; inactive workspaces are updated without opening. */
-  const updateProjectStatus = useCallback(
-    async (project: Project, status: ProjectStatus) => {
-      setProjectList((current) =>
-        current.map((item) =>
-          item.id === project.id ? { ...item, projectStatus: status } : item,
-        ),
-      );
-      if (project.id === activeProjectId) {
-        setProjectStatus(status);
-        return;
-      }
-      try {
-        const record = await getLocalWorkspace(project.id);
-        if (!record)
-          throw new Error('Project no longer exists. Refresh Project List.');
-        const document = { ...record.workspace, projectStatus: status };
-        await saveLocalWorkspaceDocument(document, record?.revision ?? null);
-        setNotice(`Project status updated / 项目状态已更新：${project.name}`);
-      } catch (error) {
-        setProjectList((current) =>
-          current.map((item) =>
-            item.id === project.id
-              ? {
-                  ...item,
-                  projectStatus: project.projectStatus || 'input_preparation',
-                }
-              : item,
-          ),
-        );
-        setNotice(
-          error instanceof Error
-            ? `Status save failed: ${error.message} / 状态保存失败`
-            : 'Status save failed / 状态保存失败',
-        );
-      }
-    },
-    [activeProjectId],
-  );
-
-  /** Advancing this project's current cycle to DRB requires an explicitly confirmed cost. */
-  const updateProjectWorkflow = async (
-    project: Project,
-    workflowCode: string,
-  ) => {
-    if (versionTransitionRef.current) return;
-    const record =
-      project.id === activeProjectId
-        ? { workspace }
-        : await getLocalWorkspace(project.id);
-    if (!record) {
-      setNotice('项目已不存在。');
-      return;
-    }
-    const document = record.workspace;
-    const step = document.processSteps.find((row) => row.code === workflowCode);
-    if (!step) {
-      setNotice('Workflow node not found / 未找到流程节点');
-      return;
-    }
-    const code = document.workflowVersion || document.activeVersion;
-    const version = document.costVersions.find((v) => v.code === code);
-    const apply = (fresh: WorkbenchWorkspace) => ({
-      ...fresh,
-      currentWorkflowStepCode: workflowCode,
-      selectedStep: fresh.processSteps.findIndex(
-        (row) => row.code === workflowCode,
-      ),
-    });
-    if (isDrbStep(step) && version?.state !== 'Confirmed') {
-      await requestCostConfirmation(document, code, '进入本版 DRB 流程', apply);
-      return;
-    }
-    await persistCanonicalChange(project.id, apply, '当前流程已更新。');
-  };
-
-  /** Creates or updates one review gate in its owning project workspace. */
-  const saveReviewGate = useCallback(
-    async (review: ReviewGate) => {
-      const source =
-        review.projectId === activeProjectId
-          ? { workspace }
-          : await getLocalWorkspace(review.projectId);
-      if (!source) {
-        setNotice('未找到评审所属项目');
-        return false;
-      }
-      const document = source.workspace;
-      const boundCode =
-        review.costVersion ||
-        document.reviewGates.find((item) => item.id === review.id)
-          ?.costVersion ||
-        document.workflowVersion ||
-        document.activeVersion;
-      review = { ...review, costVersion: boundCode };
-      const previous = document.reviewGates.find(
-        (item) => item.id === review.id,
-      );
-      const startsDrb =
-        isDrbStep({ code: review.workflowStepCode, name: review.gate }) &&
-        !['not_started', 'cancelled'].includes(review.status) &&
-        previous?.status !== review.status;
-      if (
-        startsDrb &&
-        document.costVersions.find((v) => v.code === boundCode)?.state !==
-          'Confirmed'
-      ) {
-        return requestCostConfirmation(
-          document,
-          boundCode,
-          '保存本版 DRB 评审节点',
-          (confirmed) => ({
-            ...confirmed,
-            reviewGates: confirmed.reviewGates.some(
-              (item) => item.id === review.id,
-            )
-              ? confirmed.reviewGates.map((item) =>
-                  item.id === review.id ? review : item,
-                )
-              : [...confirmed.reviewGates, review],
-          }),
-        );
-      }
-      const project = portfolioProjects.find(
-        (item) => item.id === review.projectId,
-      );
-      if (!project) {
-        setNotice('Review project not found / 未找到评审所属项目');
-        return false;
-      }
-      const upsert = (rows: ReviewGate[]) => {
-        const exists = rows.some((item) => item.id === review.id);
-        return exists
-          ? rows.map((item) => (item.id === review.id ? review : item))
-          : [review, ...rows];
-      };
-      if (review.projectId === activeProjectId) {
-        setReviewGates(upsert);
-        setNotice(`Review gate saved / 评审节点已保存：${review.gate}`);
-        return true;
-      }
-      try {
-        const record = await getLocalWorkspace(review.projectId);
-        if (!record)
-          throw new Error('Project no longer exists. Refresh Project List.');
-        const document = record.workspace;
-        const nextReviewGates = upsert(document.reviewGates || []);
-        await saveLocalWorkspaceDocument(
-          { ...document, reviewGates: nextReviewGates },
-          record?.revision ?? null,
-        );
-        setProjectList((current) =>
-          current.map((item) =>
-            item.id === review.projectId
-              ? { ...item, reviewGates: nextReviewGates }
-              : item,
-          ),
-        );
-        setNotice(`Review gate saved / 评审节点已保存：${review.gate}`);
-        return true;
-      } catch (error) {
-        setNotice(
-          `Review save failed: ${error instanceof Error ? error.message : 'Unknown error'} / 评审保存失败`,
-        );
-        return false;
-      }
-    },
-    [activeProjectId, portfolioProjects, workspace, requestCostConfirmation],
-  );
-
-  /** Removes one review gate while preserving its project's other records. */
-  const deleteReviewGate = useCallback(
-    async (projectId: string, reviewId: string) => {
-      if (projectId === activeProjectId) {
-        setReviewGates((rows) => rows.filter((item) => item.id !== reviewId));
-        setNotice('Review gate deleted / 评审节点已删除');
-        return true;
-      }
-      try {
-        const record = await getLocalWorkspace(projectId);
-        if (!record) throw new Error('Project workspace not found.');
-        const nextReviewGates = (record.workspace.reviewGates || []).filter(
-          (item) => item.id !== reviewId,
-        );
-        await saveLocalWorkspaceDocument(
-          { ...record.workspace, reviewGates: nextReviewGates },
-          record.revision,
-        );
-        setProjectList((current) =>
-          current.map((item) =>
-            item.id === projectId
-              ? { ...item, reviewGates: nextReviewGates }
-              : item,
-          ),
-        );
-        setNotice('Review gate deleted / 评审节点已删除');
-        return true;
-      } catch (error) {
-        setNotice(
-          `Review delete failed: ${error instanceof Error ? error.message : 'Unknown error'} / 评审删除失败`,
-        );
-        return false;
-      }
-    },
-    [activeProjectId],
-  );
 
   /** Creates a persisted project by switching the autosave unit to a new ID. */
   const createProject = async (input: {
@@ -1431,6 +1473,10 @@ function ProjectSessionApp({
       );
       setPanel(null);
       setDeleteTarget(null);
+      if (workflowTarget?.project.id === target.id) {
+        workflowDirtyRef.current = false;
+        setWorkflowTarget(null);
+      }
       setProjectList(remaining);
       setOpenProjectIds((ids) => ids.filter((id) => id !== target.id));
       if (!remaining.length) {
@@ -1508,7 +1554,18 @@ function ProjectSessionApp({
   }).format(new Date());
 
   const navigate = (view: ViewKey) => {
-    setActiveView(view);
+    if (view === 'workflow') {
+      void openProjectWorkflow(activeProject);
+      return;
+    }
+    const next = view === 'ssr' || view === 'reviews' ? 'project' : view;
+    if (parseWorkflowPageHash(window.location.hash))
+      window.history.pushState(
+        { workbenchView: next },
+        '',
+        window.location.pathname + window.location.search,
+      );
+    setActiveView(next);
     setMobileNavOpen(false);
     setNotice('');
   };
@@ -1519,7 +1576,443 @@ function ProjectSessionApp({
     navigate('master-data');
   };
 
-  /** Opens a project in the tab strip and routes to its requested module. */
+  /** Open a dedicated workflow page while keeping the cost editor and its drafts intact. */
+  const openProjectWorkflow = async (
+    project: Project,
+    focusNodeCode?: string,
+    fromLocation = false,
+  ): Promise<boolean> => {
+    if (
+      !isReady ||
+      switchingRef.current ||
+      versionTransitionRef.current ||
+      workflowSaving ||
+      workflowOpeningRef.current
+    )
+      return false;
+    const sameProject = workflowTarget?.project.id === project.id;
+    if (
+      !sameProject &&
+      workflowDirtyRef.current &&
+      !window.confirm(
+        'Discard unsaved workflow edits and open another project?',
+      )
+    ) {
+      if (fromLocation && workflowTarget)
+        window.history.replaceState(
+          null,
+          '',
+          workflowPageHash(
+            workflowTarget.project.id,
+            workflowTarget.focusNodeCode,
+          ),
+        );
+      return false;
+    }
+    workflowOpeningRef.current = true;
+    setWorkflowLoading(true);
+    setWorkflowError('');
+    try {
+      if (project.id === activeProjectId && !(await saveNow()))
+        throw new Error(
+          'Save the current cost edits or resolve their conflict first.',
+        );
+      const record = await getLocalWorkspace(project.id);
+      if (!record)
+        throw new Error(
+          'This project no longer exists. Refresh the project list.',
+        );
+      // Workflow and Cost share the same active project and open-tab session.
+      // The standard switch flushes outgoing cost edits before changing IDs.
+      if (!(await selectProject(project)))
+        throw new Error(
+          'Project switch cancelled. Resolve the current save or export first.',
+        );
+      adoptRemoteIfClean(record);
+      updateWorkflowProjection(record);
+      const preserveDrafts =
+        sameProject && workflowDirtyRef.current && workflowTarget;
+      const changedRound =
+        sameProject &&
+        workflowTarget &&
+        (workflowTarget.workspace.workflowVersion ||
+          workflowTarget.workspace.activeVersion) !==
+          (record.workspace.workflowVersion || record.workspace.activeVersion);
+      if (!sameProject || (changedRound && !preserveDrafts)) {
+        workflowDirtyRef.current = false;
+        workflowPageGeneration.current++;
+        setWorkflowPageKey(workflowPageGeneration.current);
+      }
+      if (activeView !== 'workflow') workflowReturnView.current = activeView;
+      const focus =
+        focusNodeCode ||
+        (sameProject && !changedRound
+          ? workflowTarget?.focusNodeCode
+          : undefined);
+      setWorkflowTarget(
+        preserveDrafts
+          ? {
+              ...workflowTarget,
+              focusNodeCode: focus,
+            }
+          : {
+              project: {
+                ...project,
+                name: record.workspace.project.name,
+                client: record.workspace.project.client,
+              },
+              workspace: record.workspace,
+              revision: record.revision,
+              focusNodeCode: focus,
+            },
+      );
+      if (preserveDrafts && record.revision > workflowTarget.revision)
+        setWorkflowError(
+          'This project was updated elsewhere. Your edits are retained; use Refresh to review the latest progress.',
+        );
+      setActiveView('workflow');
+      setMobileNavOpen(false);
+      const hash = workflowPageHash(project.id, focus);
+      if (!fromLocation && window.location.hash !== hash)
+        window.history.pushState({ workbenchView: 'workflow' }, '', hash);
+      return true;
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load the project workflow.',
+      );
+      if (fromLocation) {
+        window.history.replaceState(
+          null,
+          '',
+          window.location.pathname + window.location.search,
+        );
+        setActiveView('project');
+      }
+      return false;
+    } finally {
+      workflowOpeningRef.current = false;
+      setWorkflowLoading(false);
+    }
+  };
+
+  const refreshWorkflowPage = async () => {
+    if (!workflowTarget || workflowSaving || workflowOpeningRef.current)
+      throw new Error('Another workflow operation is in progress.');
+    if (
+      workflowDirtyRef.current &&
+      !window.confirm(
+        'Discard unsaved workflow edits and reload the latest progress?',
+      )
+    )
+      throw new Error('Refresh cancelled. Your unsaved edits are retained.');
+    workflowOpeningRef.current = true;
+    setWorkflowLoading(true);
+    try {
+      if (workflowTarget.project.id === activeProjectId && !(await saveNow()))
+        throw new Error('Resolve the current save conflict before refreshing.');
+      const record = await getLocalWorkspace(workflowTarget.project.id);
+      if (!record) throw new Error('This project no longer exists.');
+      adoptRemoteIfClean(record);
+      updateWorkflowProjection(record);
+      workflowDirtyRef.current = false;
+      workflowPageGeneration.current++;
+      setWorkflowPageKey(workflowPageGeneration.current);
+      setWorkflowTarget((current) =>
+        current
+          ? {
+              ...current,
+              workspace: record.workspace,
+              revision: record.revision,
+              focusNodeCode:
+                (current.workspace.workflowVersion ||
+                  current.workspace.activeVersion) ===
+                (record.workspace.workflowVersion ||
+                  record.workspace.activeVersion)
+                  ? current.focusNodeCode
+                  : undefined,
+            }
+          : current,
+      );
+      setWorkflowError('');
+    } catch (error) {
+      setWorkflowError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to refresh the workflow.',
+      );
+      throw error;
+    } finally {
+      workflowOpeningRef.current = false;
+      setWorkflowLoading(false);
+    }
+  };
+
+  // Restoring a link only selects a project/task. It never starts or completes a node.
+  useEffect(() => {
+    workflowRouteHandler.current = () => {
+      if (!isReady || workflowOpeningRef.current) return;
+      const route = parseWorkflowPageHash(window.location.hash);
+      if (route) {
+        const project = portfolioProjects.find(
+          (item) => item.id === route.projectId,
+        );
+        if (project) void openProjectWorkflow(project, route.nodeCode, true);
+        else {
+          setNotice('The linked project is unavailable.');
+          window.history.replaceState(
+            null,
+            '',
+            window.location.pathname + window.location.search,
+          );
+          setActiveView('project');
+        }
+      } else if (activeView === 'workflow') {
+        const previous = window.history.state?.workbenchView;
+        setActiveView(
+          previous &&
+            previous !== 'workflow' &&
+            Object.hasOwn(viewTitles, previous)
+            ? previous
+            : workflowReturnView.current,
+        );
+      }
+    };
+  });
+  useEffect(() => {
+    if (!isReady || initialWorkflowRouteHandled.current) return;
+    initialWorkflowRouteHandled.current = true;
+    queueMicrotask(() => workflowRouteHandler.current());
+  }, [isReady]);
+
+  const handleWorkflowAction = async (
+    action: WorkflowAction,
+  ): Promise<void> => {
+    if (!workflowTarget || workflowSaving)
+      throw new Error('Another workflow operation is in progress.');
+    const target = workflowTarget;
+    const targetId = target.project.id;
+    const active = targetId === activeProjectId;
+    setWorkflowSaving(true);
+    setWorkflowError('');
+    try {
+      if (active && !(await saveNow()))
+        throw new Error(
+          'Save the current cost edits or resolve their conflict first.',
+        );
+      let record = await getLocalWorkspace(targetId);
+      if (!record)
+        throw new Error(
+          'This project no longer exists. Refresh the project list.',
+        );
+      const expectedWorkflow = workflowConfirmationFingerprint(
+        target.workspace,
+      );
+      if (
+        workflowConfirmationFingerprint(record.workspace) !== expectedWorkflow
+      )
+        throw new Error(
+          'The workflow has changed. Use Refresh to review it before making updates.',
+        );
+      const { versionCode: code, needsCostConfirmation: needsCost } =
+        preflightWorkflowAction(record.workspace, action);
+      if (needsCost) {
+        const ok = await requestCostConfirmation(
+          record.workspace,
+          code,
+          'Confirm this cost version before proceeding with the workflow task',
+          (fresh) => fresh,
+        );
+        if (!ok)
+          throw new Error(
+            'Cost confirmation was cancelled. No workflow changes were saved.',
+          );
+        record = await getLocalWorkspace(targetId);
+        if (!record) throw new Error('This project no longer exists.');
+        if (
+          workflowConfirmationFingerprint(record.workspace) !== expectedWorkflow
+        )
+          throw new Error(
+            'The workflow changed after cost confirmation. Use Refresh to review the latest progress.',
+          );
+      }
+      // Cost confirmation is a separate durable action; the node remains unmodified until this succeeds.
+      const expectedRevision = record.revision;
+      let failure: unknown;
+      const ok = await runVersionTransition({
+        busy: versionTransitionRef,
+        setBusy: setVersionTransitioning,
+        flushAndPause: active ? pauseSaving : async () => 0,
+        resume: active ? resumeSaving : () => {},
+        commit: async () => {
+          const saved = await applyLocalWorkflowAction(
+            targetId,
+            action,
+            expectedRevision,
+          );
+          if (active) {
+            adoptSavedRecord(saved);
+            hydrateWorkspace(saved.workspace);
+          }
+          updateWorkflowProjection(saved);
+          setWorkflowTarget((current) =>
+            current?.project.id === targetId
+              ? {
+                  ...current,
+                  workspace: saved.workspace,
+                  revision: saved.revision,
+                  focusNodeCode: action.nodeCode,
+                }
+              : current,
+          );
+          setNotice(
+            saved.workspace.projectStatus === 'completed'
+              ? 'Quotation completed. Follow-up reminders for this round have stopped.'
+              : 'Workflow task and follow-up records updated.',
+          );
+        },
+        onFailure: (error) => {
+          failure =
+            error ||
+            new Error(
+              'Unable to save the current edits. Resolve the conflict and try again.',
+            );
+        },
+      });
+      if (!ok)
+        throw (
+          failure ||
+          new Error('Another save is in progress. Please try again shortly.')
+        );
+    } catch (error) {
+      setWorkflowError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to update the workflow task.',
+      );
+      throw error;
+    } finally {
+      setWorkflowSaving(false);
+    }
+  };
+
+  const saveProjectWorkflow = async (
+    patch: ProjectWorkflowPatch,
+    meta?: Pick<
+      SsrWorkspace,
+      | 'proposalNumber'
+      | 'scopeBrief'
+      | 'companyUrl'
+      | 'cpqUrl'
+      | 'technicalBasis'
+    >,
+  ) => {
+    if (!workflowTarget || workflowSaving)
+      throw new Error('Another workflow operation is in progress.');
+    const targetId = workflowTarget.project.id;
+    setWorkflowSaving(true);
+    setWorkflowError('');
+    try {
+      if (targetId === activeProjectId && !(await saveNow()))
+        throw new Error(
+          'Resolve the current save conflict before saving references.',
+        );
+      const record = await getLocalWorkspace(targetId);
+      if (!record)
+        throw new Error(
+          'This project no longer exists. Refresh the project list.',
+        );
+      const expectedWorkflow = workflowConfirmationFingerprint(
+        workflowTarget.workspace,
+      );
+      if (
+        workflowConfirmationFingerprint(record.workspace) !== expectedWorkflow
+      )
+        throw new Error(
+          'The workflow has changed. Use Refresh to review it before making updates.',
+        );
+      const code =
+        record.workspace.workflowVersion || record.workspace.activeVersion;
+      const stage =
+        patch.currentWorkflowStepCode ||
+        record.workspace.currentWorkflowStepCode;
+      const apply = (fresh: WorkbenchWorkspace) => {
+        if (workflowConfirmationFingerprint(fresh) !== expectedWorkflow)
+          throw new Error(
+            'The workflow has changed. Use Refresh to review it before making updates.',
+          );
+        const next =
+          fresh.workflowEngineVersion === 1
+            ? structuredClone(fresh)
+            : applyProjectWorkflow(fresh, patch);
+        if (meta) next.ssr = { ...(next.ssr || emptySsr()), ...meta };
+        return next;
+      };
+      const needsConfirmation =
+        stage !== record.workspace.currentWorkflowStepCode &&
+        requiresConfirmedWorkflowStage(record.workspace, stage) &&
+        record.workspace.costVersions.find((version) => version.code === code)
+          ?.state !== 'Confirmed';
+      const ok = needsConfirmation
+        ? await requestCostConfirmation(
+            record.workspace,
+            code,
+            'Confirm this cost version before updating project progress',
+            apply,
+          )
+        : await persistCanonicalChange(
+            targetId,
+            apply,
+            stage === 'QUOTE_COMPLETED'
+              ? 'Quotation completed. Project follow-up reminders have stopped.'
+              : 'Project workflow and follow-up records updated.',
+          );
+      if (!ok)
+        throw new Error(
+          'References were not saved. Please retry after resolving the save error.',
+        );
+      if (ok) {
+        const updated = await getLocalWorkspace(targetId);
+        if (updated)
+          setWorkflowTarget((current) =>
+            current?.project.id === targetId
+              ? {
+                  ...current,
+                  workspace: updated.workspace,
+                  revision: updated.revision,
+                }
+              : current,
+          );
+      }
+    } catch (error) {
+      setWorkflowError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to save the project workflow.',
+      );
+      throw error;
+    } finally {
+      setWorkflowSaving(false);
+    }
+  };
+
+  /** Legacy links all resolve to the same project register. */
+  const openPanel = (next: PanelState) => {
+    if (!next || next.type === 'new-project') {
+      setPanel(next);
+      return;
+    }
+    const id =
+      next.type === 'project'
+        ? next.project.id
+        : next.type === 'review'
+          ? next.review.projectId
+          : next.projectId;
+    const project = portfolioProjects.find((item) => item.id === id);
+    if (project) void openProjectWorkflow(project);
+  };
+
   const openProjectModule = async (
     project: Project,
     view: 'cost' | 'quote',
@@ -1540,7 +2033,13 @@ function ProjectSessionApp({
     if (projectId === activeProjectId) {
       const nextId = remaining[Math.min(closingIndex, remaining.length - 1)];
       const nextProject = portfolioProjects.find((item) => item.id === nextId);
-      if (nextProject && !(await selectProject(nextProject))) return;
+      if (
+        nextProject &&
+        !(await (activeView === 'workflow'
+          ? openProjectWorkflow(nextProject)
+          : selectProject(nextProject)))
+      )
+        return;
     }
     setOpenProjectIds(remaining);
   };
@@ -1549,26 +2048,31 @@ function ProjectSessionApp({
   if (activeView === 'overview')
     content = (
       <OverviewView
+        workflowDefinitions={publishedWorkflow.record?.items}
+        workflowDefinitionRevision={publishedWorkflow.record?.revision}
+        workflowDefinitionError={publishedWorkflow.error}
         projects={visiblePortfolioProjects}
         reviews={allReviewGates}
         setView={navigate}
-        setPanel={setPanel}
+        setPanel={openPanel}
         onSelectProject={selectProject}
         onOpenCost={(project) => openProjectModule(project, 'cost')}
         onOpenQuote={(project) => openProjectModule(project, 'quote')}
-        onStatusChange={updateProjectStatus}
-        onWorkflowChange={updateProjectWorkflow}
+        onTrackWorkflow={openProjectWorkflow}
       />
     );
-  else if (activeView === 'project')
+  else if (
+    activeView === 'project' ||
+    activeView === 'ssr' ||
+    activeView === 'reviews'
+  )
     content = (
       <ProjectView
         projects={visiblePortfolioProjects}
         onOpenProject={(project) => openProjectModule(project, 'cost')}
         onOpenCost={(project) => openProjectModule(project, 'cost')}
         onOpenQuote={(project) => openProjectModule(project, 'quote')}
-        onStatusChange={updateProjectStatus}
-        onWorkflowChange={updateProjectWorkflow}
+        onTrackWorkflow={openProjectWorkflow}
         onCreateProject={() => setPanel({ type: 'new-project' })}
         onEditProject={(project) => {
           if (
@@ -1588,18 +2092,40 @@ function ProjectSessionApp({
         }}
       />
     );
+  else if (activeView === 'workflow') content = null;
   else if (activeView === 'cost')
     content = (
       <CostView
+        proposalNumber={ssr.proposalNumber}
+        onProposalNumberChange={(proposalNumber) =>
+          setSsr((current) => ({ ...current, proposalNumber }))
+        }
         lockedReason={lockedReason}
         versionLockReasons={versionLockReasons}
-        versionDeletionReasons={Object.fromEntries(synchronizedVersions.map((version) => [version.code, costVersionDeletionReason(workspace, version.code) || '']))}
+        versionDeletionReasons={Object.fromEntries(
+          synchronizedVersions.map((version) => [
+            version.code,
+            costVersionDeletionReason(workspace, version.code) || '',
+          ]),
+        )}
         onDeleteVersion={(code) => {
           if (!isReady || versionTransitionRef.current) return;
           const reason = costVersionDeletionReason(workspace, code);
-          if (reason) { setNotice(reason); return; }
-          if (!window.confirm(`删除成本 ${code}（Suspended）？它将从版本列表移除，历史快照和评审记录仍会保留。`)) return;
-          void persistCanonicalChange(activeProjectId, (fresh) => deleteSuspendedCostVersion(fresh, code), `成本 ${code} 已删除，历史记录已保留。`);
+          if (reason) {
+            setNotice(reason);
+            return;
+          }
+          if (
+            !window.confirm(
+              `删除成本 ${code}（Suspended）？它将从版本列表移除，历史快照和评审记录仍会保留。`,
+            )
+          )
+            return;
+          void persistCanonicalChange(
+            activeProjectId,
+            (fresh) => deleteSuspendedCostVersion(fresh, code),
+            `成本 ${code} 已删除，历史记录已保留。`,
+          );
         }}
         key={`${activeProject.id}:${activeVersion}`}
         activeVersion={activeVersion}
@@ -1610,6 +2136,18 @@ function ProjectSessionApp({
         setCostView={setCostView}
         rows={costRows}
         setRows={guardCostEdit(setCostRows)}
+        subcontractCost={subcontractCost}
+        onSubcontractCostChange={guardCostEdit(setSubcontractCost)}
+        subcontractCatalog={subcontractItems}
+        onRefreshSubcontractCatalog={async () => {
+          const record =
+            await getGlobalMasterData<SubcontractItem>('subcontract');
+          if (record.conflictTotal)
+            throw new Error(
+              'Resolve Subcontract master data conflicts before selecting new items.',
+            );
+          return record.items;
+        }}
         rateSettings={rateSettings}
         setRateSettings={guardCostEdit(setRateSettings)}
         resourceTypes={versionResourceTypes}
@@ -1629,15 +2167,7 @@ function ProjectSessionApp({
               const globalRates =
                 await getGlobalMasterData<ResourceType>('resources');
               const updated = captureResourceRates(version, globalRates);
-              return {
-                ...fresh,
-                costVersions: fresh.costVersions.map((item) =>
-                  item.code === versionCode ? updated : item,
-                ),
-                ...(fresh.activeVersion === versionCode
-                  ? { costRows: updated.costRows }
-                  : {}),
-              };
+              return applyCapturedResourceRates(fresh, updated);
             },
             `${versionCode} 已明确应用全局资源费率并重算；其他成本版本保持不变。`,
           );
@@ -1662,32 +2192,6 @@ function ProjectSessionApp({
         onChange={setMaintenanceBoq}
         records={maintenancePriceRecords}
         client={exportProject.client}
-        announce={setNotice}
-      />
-    );
-  else if (activeView === 'ssr')
-    content = (
-      <SsrView
-        key={`${activeProject.id}:${workflowVersion}`}
-        value={workspace.ssr!}
-        onChange={handleSsrChange}
-        baseline={synchronizedVersions.find((v) => v.code === workflowVersion)!}
-        baselines={synchronizedVersions}
-        onRequestConfirmCost={(input) => {
-          void requestCostConfirmation(
-            workspace,
-            workflowVersion,
-            '登记本版 DRB 送审记录',
-            (confirmed) => ({
-              ...confirmed,
-              ssr: recordSubmission(
-                confirmed.ssr!,
-                confirmed.costVersions.find((v) => v.code === workflowVersion)!,
-                input,
-              ),
-            }),
-          );
-        }}
         announce={setNotice}
       />
     );
@@ -1723,12 +2227,20 @@ function ProjectSessionApp({
         store={globalMasterData}
         activeTab={masterDataTab}
         onTabChange={setMasterDataTab}
+        onWorkflowPublished={() => {
+          void publishedWorkflow.refresh();
+          void refreshPortfolio();
+        }}
         announce={setNotice}
       />
     );
   else if (activeView === 'quote')
     content = (
       <QuoteView
+        proposalNumber={ssr.proposalNumber}
+        onProposalNumberChange={(proposalNumber) =>
+          setSsr((current) => ({ ...current, proposalNumber }))
+        }
         key={exportProject.id}
         onOpenMasterData={openQuoteMasterData}
         exportInProgress={quoteExporting}
@@ -1744,6 +2256,7 @@ function ProjectSessionApp({
         }
         totalCost={activeMetrics.totalCost}
         decisionError={(() => {
+          if (workflowMode === 'project') return '';
           try {
             assertQuoteDecision(
               workspace.ssr,
@@ -1767,6 +2280,7 @@ function ProjectSessionApp({
             resourceTypes: versionResourceTypes,
             rows: costRows,
             manualCosts,
+            subcontractCost,
           }),
         )
           .filter((issue) => issue.severity === 'error')
@@ -1785,22 +2299,15 @@ function ProjectSessionApp({
         announce={setNotice}
       />
     );
-  else if (activeView === 'reviews')
-    content = (
-      <ReviewsView
-        projects={portfolioProjects}
-        reviews={allReviewGates}
-        setPanel={setPanel}
-      />
-    );
   else
     content = (
       <AgentView
         projects={portfolioProjects}
         reviews={allReviewGates}
         setView={navigate}
-        setPanel={setPanel}
+        setPanel={openPanel}
         onSelectProject={selectProject}
+        onTrackWorkflow={openProjectWorkflow}
       />
     );
 
@@ -1992,8 +2499,8 @@ function ProjectSessionApp({
             <Button
               variant="outline"
               size="icon"
-              aria-label="Open review notifications"
-              onClick={() => navigate('reviews')}
+              aria-label="Open project follow-up reminders"
+              onClick={() => navigate('agent')}
             >
               <Bell />
             </Button>
@@ -2020,58 +2527,34 @@ function ProjectSessionApp({
           ) : null}
           {activeView === 'project' ||
           activeView === 'cost' ||
+          activeView === 'workflow' ||
           activeView === 'quote' ? (
-            <div className="workbench-scrollbar flex items-end gap-1 overflow-x-auto border-t border-border bg-[#eeeae2] px-4 pt-1.5 sm:px-6 xl:px-8">
-              <span className="mb-2 mr-2 shrink-0 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                Open Projects <span className="normal-case">已打开项目</span>
-              </span>
-              {openProjectIds.map((projectId) => {
-                const tabProject = portfolioProjects.find(
-                  (item) => item.id === projectId,
-                );
-                if (!tabProject) return null;
-                const active = projectId === activeProjectId;
-                return (
-                  <div
-                    key={projectId}
-                    className={
-                      'flex h-8 min-w-[190px] max-w-[280px] items-center border border-b-0 ' +
-                      (active
-                        ? 'border-border bg-background text-[#173a52]'
-                        : 'border-transparent bg-[#e3dfd6] text-muted-foreground hover:bg-[#e9e6de]')
-                    }
-                  >
-                    <button
-                      className="min-w-0 flex-1 px-3 text-left"
-                      onClick={async () => {
-                        if (!(await selectProject(tabProject))) return;
-                        if (activeView === 'project') setActiveView('cost');
-                      }}
-                      title={`${tabProject.id} · ${tabProject.name}`}
-                    >
-                      <span className="financial-numeral block truncate text-[9px] font-semibold">
-                        {tabProject.id}
-                      </span>
-                      <span className="block truncate text-[8px]">
-                        {tabProject.name}
-                      </span>
-                    </button>
-                    <button
-                      className="mr-1.5 rounded-sm p-1 hover:bg-black/5"
-                      onClick={() => closeProjectTab(projectId)}
-                      aria-label={`Close ${tabProject.name} tab`}
-                      title="Close tab only / 仅关闭标签"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+            <OpenProjectTabs
+              projects={portfolioProjects}
+              openProjectIds={openProjectIds}
+              activeProjectId={activeProjectId}
+              disabled={
+                !isReady ||
+                isProjectSwitching ||
+                isVersionTransitioning ||
+                workflowSaving ||
+                workflowLoading ||
+                quoteExporting
+              }
+              onSelect={async (project) => {
+                if (activeView === 'workflow') {
+                  await openProjectWorkflow(project);
+                  return;
+                }
+                if (!(await selectProject(project))) return;
+                if (activeView === 'project') setActiveView('cost');
+              }}
+              onClose={closeProjectTab}
+            />
           ) : null}
         </header>
         <div className="relative z-0 isolate mx-auto w-full max-w-[1780px] px-4 py-5 sm:px-6 xl:px-8 xl:py-6">
-          {activeView !== 'master-data' && (
+          {activeView !== 'master-data' && activeView !== 'workflow' && (
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                 <Badge
@@ -2156,18 +2639,87 @@ function ProjectSessionApp({
               (!isReady || isVersionTransitioning)
             }
           >
-            {activeView !== 'master-data' && (
+            {activeView !== 'master-data' && activeView !== 'workflow' && (
               <ReminderInbox
-                onOpen={(projectId, view) => {
+                refreshKey={JSON.stringify(
+                  portfolioProjects.map((project) => [
+                    project.id,
+                    project.workflowVersion,
+                    project.currentWorkflowStepCode,
+                    project.workflowSteps?.map((step) => [
+                      step.code,
+                      step.state,
+                      step.updatedAt,
+                      step.reminderEnabled,
+                      step.dueAt,
+                      step.followUpDate,
+                    ]),
+                  ]),
+                )}
+                onOpen={(projectId, view, nodeCode) => {
                   const project = portfolioProjects.find(
                     (p) => p.id === projectId,
                   );
-                  if (project)
-                    void selectProject(project).then((ok) => {
-                      if (ok) setActiveView(view);
-                    });
+                  if (project) {
+                    if (
+                      view === 'project' ||
+                      view === 'ssr' ||
+                      view === 'reviews'
+                    )
+                      void openProjectWorkflow(project, nodeCode);
+                    else
+                      void selectProject(project).then((ok) => {
+                        if (ok) setActiveView(view);
+                      });
+                  }
                 }}
               />
+            )}
+            {workflowTarget && (
+              <div
+                hidden={activeView !== 'workflow'}
+                inert={activeView !== 'workflow'}
+              >
+                <ProjectWorkflowPage
+                  key={`${workflowTarget.project.id}:${workflowPageKey}`}
+                  project={workflowTarget.project}
+                  workspace={workflowTarget.workspace}
+                  onAction={handleWorkflowAction}
+                  onSaveReferences={(meta) => saveProjectWorkflow({}, meta)}
+                  onBack={() => navigate(workflowReturnView.current)}
+                  onRefresh={refreshWorkflowPage}
+                  onOpenCost={() => {
+                    const target = workflowTarget;
+                    setRequestedCostView({
+                      projectId: target.project.id,
+                      code:
+                        target.workspace.workflowVersion ||
+                        target.workspace.activeVersion,
+                    });
+                    void selectProject(target.project).then((ok) => {
+                      if (ok) navigate('cost');
+                      else setRequestedCostView(null);
+                    });
+                  }}
+                  onFocusNode={(code) => {
+                    setWorkflowTarget((current) =>
+                      current ? { ...current, focusNodeCode: code } : current,
+                    );
+                    if (activeView === 'workflow')
+                      window.history.replaceState(
+                        { workbenchView: 'workflow' },
+                        '',
+                        workflowPageHash(workflowTarget.project.id, code),
+                      );
+                  }}
+                  onDirtyChange={(dirty) => {
+                    workflowDirtyRef.current = dirty;
+                  }}
+                  focusNodeCode={workflowTarget.focusNodeCode}
+                  busy={workflowSaving || workflowLoading || !isReady}
+                  error={workflowError}
+                />
+              </div>
             )}
             {content}
           </div>
@@ -2213,6 +2765,7 @@ function ProjectSessionApp({
             });
             void selectProject(project).then((ok) => {
               if (!ok) setRequestedCostView(null);
+              else navigate('cost');
             });
           }}
         />
@@ -2302,20 +2855,10 @@ function ProjectSessionApp({
         </AlertDialogContent>
       </AlertDialog>
       <DetailSheet
-        key={
-          panel
-            ? `${panel.type}-${panel.type === 'review' ? panel.review.id : panel.type === 'new-review' ? panel.projectId : panel.type === 'project' ? panel.project.id : 'new'}`
-            : 'closed'
-        }
-        panel={panel}
-        setPanel={setPanel}
-        setView={navigate}
-        projects={portfolioProjects}
+        key={panel?.type === 'new-project' ? 'new-project' : 'closed'}
+        open={panel?.type === 'new-project'}
+        onClose={() => setPanel(null)}
         onCreateProject={createProject}
-        onSelectProject={selectProject}
-        onSaveReview={saveReviewGate}
-        onDeleteReview={deleteReviewGate}
-        announce={setNotice}
       />
     </main>
   );

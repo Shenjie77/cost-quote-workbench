@@ -3,9 +3,9 @@
 import {
   BarChart3,
   Bot,
-  ClipboardCheck,
   Database,
   FolderKanban,
+  ListChecks,
   LayoutDashboard,
   WalletCards,
 } from 'lucide-react';
@@ -31,9 +31,17 @@ export const navItems: Array<{
     key: 'project',
     label: 'Project List',
     labelZh: '项目列表',
-    description: 'Portfolio & status',
-    descriptionZh: '项目组合与状态',
+    description: 'Project workflow & follow-up',
+    descriptionZh: '项目流程与跟进',
     icon: FolderKanban,
+  },
+  {
+    key: 'workflow',
+    label: 'Project Workflow',
+    labelZh: '',
+    description: 'Current tasks & progress',
+    descriptionZh: '',
+    icon: ListChecks,
   },
   {
     key: 'cost',
@@ -66,22 +74,6 @@ export const navItems: Array<{
     description: 'Equipment and references',
     descriptionZh: '设备、客户参考与报价草稿',
     icon: Database,
-  },
-  {
-    key: 'ssr',
-    label: 'SSR Workflow',
-    labelZh: 'SSR 流程',
-    description: 'Submissions and results',
-    descriptionZh: '送审、结果与条件关闭',
-    icon: ClipboardCheck,
-  },
-  {
-    key: 'reviews',
-    label: 'Reviews',
-    labelZh: '评审与跟进',
-    description: 'Gates & owners',
-    descriptionZh: '节点与责任人',
-    icon: ClipboardCheck,
   },
   {
     key: 'agent',
@@ -137,16 +129,23 @@ export const viewTitles: Record<
     eyebrow: 'WORKSPACE / TODAY',
     title: 'Today Workspace',
     titleZh: '今日工作台',
-    subtitle:
-      'Resolve blockers and due reviews before moving cost versions forward.',
-    subtitleZh: '先处理阻塞和临期评审，再推进成本版本。',
+    subtitle: 'Follow up on project stages and record company-system progress.',
+    subtitleZh: '跟进项目当前阶段，并登记公司平台的实际进展。',
   },
   project: {
     eyebrow: 'PORTFOLIO / LOCAL PROJECTS',
     title: 'Project List',
     titleZh: '项目列表',
-    subtitle: 'Edit project status and open cost or quote workspaces.',
-    subtitleZh: '集中维护项目状态，并进入成本或报价工作区。',
+    subtitle:
+      'Record project workflow and follow-up, then open cost or quote workspaces.',
+    subtitleZh: '统一登记项目流程和跟进记录，并进入成本或报价工作区。',
+  },
+  workflow: {
+    eyebrow: 'PROJECT / WORKFLOW',
+    title: 'Project Workflow',
+    titleZh: '',
+    subtitle: 'Work on one task at a time and keep the full process in view.',
+    subtitleZh: '',
   },
   cost: {
     eyebrow: 'COST / PRJ-2026-018',
@@ -178,11 +177,11 @@ export const viewTitles: Record<
     subtitleZh: '所有判断均来自平台记录，并保留可查看的依据。',
   },
   'master-data': {
-    eyebrow: 'DATA / PROJECT LIBRARIES',
+    eyebrow: 'DATA / GLOBAL LIBRARIES',
     title: 'Master Data',
     titleZh: '基础数据管理',
     subtitle:
-      'Maintain this project’s reference data, assumptions and customer templates in one place.',
-    subtitleZh: '统一维护当前项目的基础数据、假设库与客户模板。',
+      'Maintain global reference data, assumptions and customer templates for future projects.',
+    subtitleZh: '统一维护供未来项目采用的全局基础数据、假设库与客户模板。',
   },
 };

@@ -1,3 +1,4 @@
+import { validateSubcontractCost } from './subcontract-domain.ts';
 /**
  * Runtime validation shared by browser export and cost-cli.
  *
@@ -15,6 +16,7 @@ import {
   getOtherServiceCost,
   getHQTravelSummary,
   getY1Year,
+  validatePersonnelAllowanceSelection,
   calculatedYearCost,
   roundMoney,
   totalRowCost,
@@ -125,6 +127,10 @@ export const validateCostExportSnapshot = (
   });
 
   const { rateSettings } = snapshot;
+  validatePersonnelAllowanceSelection(
+    rateSettings,
+    snapshot.resourceTypes,
+  ).forEach((issue) => add('error', issue.code, issue.path, issue.message));
   if (
     rateSettings.localArpAllowanceEnabled !== undefined &&
     typeof rateSettings.localArpAllowanceEnabled !== 'boolean'
@@ -306,7 +312,10 @@ export const validateCostExportSnapshot = (
         'Internal RE Types require a pool and level; subcontract RE Types require null.',
       );
     }
-    if (resource.category === 'internal') {
+    if (
+      resource.category === 'internal' &&
+      snapshot.travelSettings.enabled === undefined
+    ) {
       if (resource.hqTravel !== (resource.pool === 'HQ')) {
         add(
           'error',
@@ -342,7 +351,15 @@ export const validateCostExportSnapshot = (
     }
   });
 
-  if (snapshot.costRows.length === 0) {
+  const subcontractIssues = validateSubcontractCost(snapshot.subcontractCost);
+  subcontractIssues.forEach((issue) =>
+    add('error', issue.code, issue.path, issue.message),
+  );
+  const hasSubcontract =
+    !!snapshot.subcontractCost &&
+    (snapshot.subcontractCost.lines.length > 0 ||
+      snapshot.subcontractCost.siteTypes.some((site) => site.lines.length > 0));
+  if (snapshot.costRows.length === 0 && !hasSubcontract) {
     add(
       'error',
       'COST_ROWS_REQUIRED',
@@ -352,6 +369,13 @@ export const validateCostExportSnapshot = (
   }
   const seenLineIds = new Set<string>();
   const hasDeliveryYear = getY1Year(rateSettings) !== null;
+  if (hasSubcontract && !hasDeliveryYear)
+    add(
+      'error',
+      'DELIVERY_YEAR_REQUIRED',
+      '/rateSettings/tdStart',
+      'Set the TD start date to map subcontract quantities to delivery years.',
+    );
   snapshot.costRows.forEach((row, rowIndex) => {
     const path = `/costRows/${rowIndex}`;
     const id = row.id.trim();
@@ -552,6 +576,17 @@ export const validateCostExportSnapshot = (
     }
   });
 
+  if (
+    snapshot.travelSettings.enabled !== undefined &&
+    typeof snapshot.travelSettings.enabled !== 'boolean'
+  ) {
+    add(
+      'error',
+      'INVALID_HQ_TRAVEL_SETTING',
+      '/travelSettings/enabled',
+      'HQ travel must be explicitly enabled or disabled.',
+    );
+  }
   const travelNumeric: Array<
     [keyof CostExportSnapshot['travelSettings'], number]
   > = [
@@ -575,7 +610,13 @@ export const validateCostExportSnapshot = (
   });
   Object.entries(snapshot.manualCosts).forEach(([field, value]) => {
     if (field === 'otherServiceRate') {
-      if (typeof value !== 'number' || !finiteInRange(value, 0, 1)) add('error', 'INVALID_OTHER_SERVICE_RATE', '/manualCosts/otherServiceRate', 'Other service rate must be a finite fraction between 0 and 1.');
+      if (typeof value !== 'number' || !finiteInRange(value, 0, 1))
+        add(
+          'error',
+          'INVALID_OTHER_SERVICE_RATE',
+          '/manualCosts/otherServiceRate',
+          'Other service rate must be a finite fraction between 0 and 1.',
+        );
       return;
     }
     if (!finiteInRange(value, 0, COST_LIMITS.money)) {
@@ -598,6 +639,7 @@ export const validateCostExportSnapshot = (
     snapshot.resourceTypes,
     travel.totalCost,
     snapshot.manualCosts,
+    snapshot.subcontractCost,
   );
   const derivedNumbers = [
     travel.hqMandays,

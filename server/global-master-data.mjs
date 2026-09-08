@@ -4,6 +4,8 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import { GLOBAL_MASTER_DATA_TABS } from '../features/master-data/global-types.ts';
 import { initialResourceTypes } from '../features/master-data/demo-data.ts';
 import { initialProcessSteps } from '../features/projects/demo-data.ts';
+import { createProjectWorkflowSteps } from '../features/projects/workflow-domain.ts';
+import { normalizeWorkflowDefinition } from '../features/projects/workflow-engine.ts';
 import { initialProjectStatusDefinitions } from '../features/projects/types.ts';
 import {
   createAssumptionLibrary,
@@ -26,6 +28,8 @@ export const GLOBAL_MASTER_TABS = {
   'cpq-catalog': ['catalog', 'code', 'cpqCatalogItem'],
 };
 const INITIALIZATION_KEY = 'shared-catalogs-v1';
+const PROJECT_WORKFLOW_TEMPLATE_KEY = 'project-workflow-template-v1';
+const WORKFLOW_ENGINE_KEY = 'workflow-engine-definition-v1';
 const codedTabs = new Set(['resources', 'subcontract', 'supplemental']);
 const clone = (value) => structuredClone(value);
 const workspaceSchema = JSON.parse(
@@ -87,15 +91,30 @@ const objectOnly = (value, description) => {
 const keyOf = (tab, item) => item[tabSpec(tab)[1]];
 const sameIdentity = (tab, a, b) =>
   keyOf(tab, a) === keyOf(tab, b) || (codedTabs.has(tab) && a.code === b.code);
-const workflowDefinition = (item) => ({
-  ...item,
-  state: 'not_started',
-  tone: 'gray',
-  date: '',
-  dateZh: '',
-  input: '',
-  inputZh: '',
-});
+const workflowDefinition = (item) => {
+  const definition = {
+    ...item,
+    state: 'not_started',
+    tone: 'gray',
+    date: '',
+    dateZh: '',
+    input: '',
+    inputZh: '',
+  };
+  for (const key of [
+    'startedAt',
+    'dueAt',
+    'completedAt',
+    'pausedAt',
+    'fieldValues',
+    'skippedBy',
+    'followUpDate',
+    'note',
+    'updatedAt',
+  ])
+    delete definition[key];
+  return definition;
+};
 const defaultCatalogs = () => ({
   resources: initialResourceTypes,
   subcontract: [],
@@ -103,7 +122,7 @@ const defaultCatalogs = () => ({
   maintenance: [],
   assumptions: createAssumptionLibrary(initialQuoteAssumptions),
   'quote-templates': initialQuoteTemplates,
-  workflow: initialProcessSteps,
+  workflow: createProjectWorkflowSteps(),
   status: initialProjectStatusDefinitions,
   'cpq-catalog': [],
 });
@@ -207,6 +226,10 @@ function collectTab(tab, rows, initializedFrom, timestamp) {
   return payload;
 }
 
+export function validateGlobalMasterDataRows(tab, items) {
+  validateItems(tab, items);
+}
+
 function unavailableTemplateReferences(payloads) {
   const available = new Set(payloads.assumptions.items.map((item) => item.id));
   const templates = payloads['quote-templates'];
@@ -307,6 +330,111 @@ export function initializeGlobalMasterData(db) {
   }
 }
 
+/** Upgrade only the untouched legacy default; user templates and conflicts retain their exact values. */
+export function upgradeDefaultProjectWorkflowCatalog(db) {
+  const marker = db.prepare(
+    'SELECT value FROM master_data_metadata WHERE key = ?',
+  );
+  if (marker.get(PROJECT_WORKFLOW_TEMPLATE_KEY)) return false;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (marker.get(PROJECT_WORKFLOW_TEMPLATE_KEY)) {
+      db.exec('COMMIT');
+      return false;
+    }
+    const row = db
+      .prepare(
+        'SELECT revision, payload_json FROM master_data_tabs WHERE tab = ?',
+      )
+      .get('workflow');
+    const timestamp = new Date().toISOString();
+    let changed = false;
+    if (row) {
+      const payload = JSON.parse(row.payload_json);
+      const oldDefaults = initialProcessSteps.map(workflowDefinition);
+      const untouched =
+        !payload.conflicts.length &&
+        payload.items.length === oldDefaults.length &&
+        payload.items.every(
+          (item, index) => contentKey(item) === contentKey(oldDefaults[index]),
+        );
+      if (untouched) {
+        const revision = row.revision + 1;
+        payload.items = createProjectWorkflowSteps();
+        payload.sources = payload.items.map((item) => ({
+          key: item.code,
+          sources: [{ kind: 'defaults' }],
+        }));
+        const json = JSON.stringify(payload);
+        db.prepare(
+          'INSERT INTO master_data_revisions (tab,revision,payload_json,updated_at) VALUES (?,?,?,?)',
+        ).run('workflow', revision, json, timestamp);
+        db.prepare(
+          'UPDATE master_data_tabs SET revision=?,payload_json=?,updated_at=? WHERE tab=?',
+        ).run(revision, json, timestamp, 'workflow');
+        changed = true;
+      }
+    }
+    db.prepare('INSERT INTO master_data_metadata (key,value) VALUES (?,?)').run(
+      PROJECT_WORKFLOW_TEMPLATE_KEY,
+      timestamp,
+    );
+    db.exec('COMMIT');
+    return changed;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+/** Add configurable rules once, retaining catalog revisions and unresolved source alternatives. */
+export function upgradeWorkflowEngineCatalog(db) {
+  if (
+    db
+      .prepare('SELECT 1 FROM master_data_metadata WHERE key=?')
+      .get(WORKFLOW_ENGINE_KEY)
+  )
+    return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const row = db
+      .prepare('SELECT revision,payload_json FROM master_data_tabs WHERE tab=?')
+      .get('workflow');
+    const timestamp = new Date().toISOString();
+    if (row) {
+      const payload = JSON.parse(row.payload_json);
+      payload.items = payload.items.map((item) =>
+        workflowDefinition(normalizeWorkflowDefinition(item)),
+      );
+      payload.conflicts = payload.conflicts.map((conflict) => ({
+        ...conflict,
+        variants: conflict.variants.map((variant) => ({
+          ...variant,
+          item: workflowDefinition(normalizeWorkflowDefinition(variant.item)),
+        })),
+      }));
+      const json = JSON.stringify(payload);
+      if (contentKey(payload) !== contentKey(JSON.parse(row.payload_json))) {
+        const revision = row.revision + 1;
+        db.prepare(
+          'INSERT INTO master_data_revisions (tab,revision,payload_json,updated_at) VALUES (?,?,?,?)',
+        ).run('workflow', revision, json, timestamp);
+        db.prepare(
+          'UPDATE master_data_tabs SET revision=?,payload_json=?,updated_at=? WHERE tab=?',
+        ).run(revision, json, timestamp, 'workflow');
+      }
+    }
+    db.prepare('INSERT INTO master_data_metadata (key,value) VALUES (?,?)').run(
+      WORKFLOW_ENGINE_KEY,
+      timestamp,
+    );
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
 function assertReferences(tab, payload, select) {
   if (!['assumptions', 'quote-templates'].includes(tab)) return;
   const assumptions =
@@ -385,7 +513,7 @@ export function makeGlobalMasterDataStore(db) {
   return {
     get,
     all: () => GLOBAL_MASTER_DATA_TABS.map((tab) => get(tab, { limit: 10000 })),
-    update(tab, changes, expectedRevision) {
+    update(tab, changes, expectedRevision, internal = {}) {
       tabSpec(tab);
       objectOnly(changes, 'changes');
       for (const key of Object.keys(changes))
@@ -415,7 +543,8 @@ export function makeGlobalMasterDataStore(db) {
         fail('upsert must contain unique keys.');
       if (remove.some((key) => written.has(key)))
         fail('Do not upsert and remove the same key in one update.');
-      db.exec('BEGIN IMMEDIATE');
+      const ownsTransaction = !internal.inTransaction;
+      if (ownsTransaction) db.exec('BEGIN IMMEDIATE');
       try {
         const current = select.get(tab);
         if (!current) fail('Global master data has not been initialized.');
@@ -507,10 +636,10 @@ export function makeGlobalMasterDataStore(db) {
           'INSERT INTO master_data_revisions (tab,revision,payload_json,updated_at) VALUES (?,?,?,?)',
         ).run(tab, revision, json, timestamp);
         const result = projectRecord(select.get(tab), { limit: 10000 });
-        db.exec('COMMIT');
+        if (ownsTransaction) db.exec('COMMIT');
         return result;
       } catch (error) {
-        db.exec('ROLLBACK');
+        if (ownsTransaction) db.exec('ROLLBACK');
         throw error;
       }
     },

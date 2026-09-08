@@ -37,20 +37,21 @@
     },
     "resourceTypes": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "$ref": "#/$defs/resourceType"
       }
     },
     "costRows": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "$ref": "#/$defs/costRow"
       }
     },
     "manualCosts": {
       "$ref": "#/$defs/manualCosts"
+    },
+    "subcontractCost": {
+      "$ref": "#/$defs/subcontractCost"
     }
   },
   "$defs": {
@@ -413,7 +414,7 @@
         "pool": {
           "oneOf": [
             {
-              "enum": ["LOCAL", "HQ", "ARP"]
+              "enum": ["LOCAL", "HQ", "ARP", "OTHER"]
             },
             {
               "type": "null"
@@ -471,7 +472,7 @@
             "type": "object",
             "properties": {
               "pool": {
-                "enum": ["LOCAL", "HQ", "ARP"]
+                "enum": ["LOCAL", "HQ", "ARP", "OTHER"]
               },
               "level": {
                 "enum": ["L0", "L1", "L2", "L3", "L4"]
@@ -509,7 +510,28 @@
       "properties": {
         "localArpAllowanceEnabled": {
           "type": "boolean",
-          "description": "Include a fixed 3% allowance in each Y1-Y5 Cost for internal LOCAL/ARP labour. Omitted means disabled. Summaries only sum the calculated costs."
+          "description": "Legacy fallback only when allowancePools and allowanceResourceTypeIds are absent: include 3% for internal LOCAL/ARP labour."
+        },
+        "allowancePools": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["LOCAL", "ARP", "HQ", "OTHER"]
+          },
+          "description": "Apply 3% to all internal personnel in these Pool categories for this cost version. An explicit empty array disables allowance. Takes precedence over legacy IDs and the Local/ARP boolean."
+        },
+        "allowanceResourceTypeIds": {
+          "type": "array",
+          "maxItems": 10000,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "\\S"
+          },
+          "description": "Legacy selection used only when allowancePools is absent. Apply 3% only to these personnel RE Type IDs in the version resource snapshot. An explicit empty array disables allowance."
         },
         "quoteAsOf": {
           "$ref": "#/$defs/date"
@@ -547,6 +569,10 @@
       "additionalProperties": false,
       "required": ["monthlyAllowance", "airfarePerTrip", "trips"],
       "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Explicit opt-in to HQ travel for internal HQ personnel. False disables calculated HQ travel without erasing saved price inputs. Absent retains legacy hqTravel eligibility."
+        },
         "monthlyAllowance": {
           "$ref": "#/$defs/moneyInput"
         },
@@ -602,6 +628,169 @@
         },
         "riskContingency": {
           "$ref": "#/$defs/moneyInput"
+        }
+      }
+    },
+    "subcontractCostLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "code",
+        "description",
+        "bu",
+        "unit",
+        "unitPrice",
+        "currency",
+        "quantities"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "catalogItemId": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "code": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "bu": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "unitPrice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/moneyInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "const": "SGD"
+        },
+        "quantities": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          }
+        }
+      }
+    },
+    "subcontractSiteLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "code",
+        "description",
+        "bu",
+        "unit",
+        "unitPrice",
+        "currency",
+        "quantityPerSite"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "catalogItemId": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "code": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "bu": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "unitPrice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/moneyInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "const": "SGD"
+        },
+        "quantityPerSite": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        }
+      }
+    },
+    "subcontractSiteType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "sites", "lines"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sites": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          }
+        },
+        "lines": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/subcontractSiteLine"
+          }
+        }
+      }
+    },
+    "subcontractCost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "lines", "siteTypes"],
+      "properties": {
+        "mode": {
+          "enum": ["project", "site-types"]
+        },
+        "lines": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/subcontractCostLine"
+          }
+        },
+        "siteTypes": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/subcontractSiteType"
+          }
         }
       }
     }

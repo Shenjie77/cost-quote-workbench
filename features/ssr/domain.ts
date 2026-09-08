@@ -61,6 +61,7 @@ export type SsrWorkspace = {
   enabled: boolean;
   proposalNumber: string;
   companyUrl: string;
+  cpqUrl?: string;
   scopeBrief: string;
   technicalBasis: string;
   mode: 'service' | 'tender';

@@ -1,9 +1,10 @@
 /** Live, deterministic daily digest generated from persisted project data. */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ChevronRight,
+  ClipboardCheck,
   Clock3,
   Database,
   Sparkles,
@@ -14,6 +15,7 @@ import { SectionHeading } from '@/components/workbench/section-heading';
 import { StatusBadge } from '@/components/workbench/status-badge';
 import {
   buildDailyDigest,
+  isDigestProjectCompleted,
   normalizeDigestDate,
   type DigestCategory,
 } from '@/features/agent/digest-domain';
@@ -41,8 +43,8 @@ const groupDefinitions: Array<{
   },
   {
     category: 'decisions_due',
-    title: 'Decisions Due',
-    titleZh: '临期决策',
+    title: 'Upcoming Follow-up',
+    titleZh: '即将跟进',
     tone: 'amber',
     icon: Clock3,
   },
@@ -68,14 +70,21 @@ export function AgentView({
   setView,
   setPanel,
   onSelectProject,
+  onTrackWorkflow,
 }: {
   projects: Project[];
   reviews: ReviewGate[];
   setView: (view: ViewKey) => void;
   setPanel: (panel: PanelState) => void;
   onSelectProject: (project: Project) => void;
+  onTrackWorkflow?: (project: Project, nodeCode?: string) => void;
 }) {
-  const asOf = normalizeDigestDate();
+  const [now, setNow] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date().toISOString()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  const asOf = normalizeDigestDate(undefined, new Date(now));
   const digest = useMemo(
     () =>
       buildDailyDigest(
@@ -90,16 +99,79 @@ export function AgentView({
           totalQuote: project.totalQuote,
           incompleteCostRows: project.incompleteCostRows,
           ssrAttention: project.ssrAttention,
+          workflowMode: project.workflowMode,
+          workflowEngineVersion: project.workflowEngineVersion,
+          workflowTemplateRevision: project.workflowTemplateRevision,
+          workflowVersion: project.workflowVersion,
+          currentWorkflowStepCode: project.currentWorkflowStepCode,
+          workflowSteps: project.workflowSteps,
         })),
         reviews,
         asOf,
+        now,
       ),
-    [asOf, projects, reviews],
+    [asOf, now, projects, reviews],
   );
+
+  const engineMode = projects.some(
+    (project) => project.workflowEngineVersion === 1,
+  );
+  const groups = [
+    ...(engineMode
+      ? [
+          {
+            id: 'urgent',
+            title: 'Urgent',
+            titleZh: '紧急处理',
+            tone: 'red' as const,
+            icon: AlertTriangle,
+            items: digest.items.filter((item) => item.urgency === 'urgent'),
+          },
+          {
+            id: 'immediate',
+            title: 'Handle Now',
+            titleZh: '马上处理',
+            tone: 'amber' as const,
+            icon: Clock3,
+            items: digest.items.filter((item) => item.urgency === 'immediate'),
+          },
+          {
+            id: 'normal',
+            title: 'Normal Follow-up',
+            titleZh: '普通跟进',
+            tone: 'blue' as const,
+            icon: ClipboardCheck,
+            items: digest.items.filter((item) => item.urgency === 'normal'),
+          },
+        ]
+      : []),
+    ...groupDefinitions
+      .map((group) => ({
+        ...group,
+        id: group.category,
+        items: digest.items.filter(
+          (item) => !item.urgency && item.category === group.category,
+        ),
+      }))
+      .filter(
+        (group) =>
+          group.items.length ||
+          (!engineMode &&
+            ['immediate_follow_up', 'decisions_due'].includes(group.category)),
+      ),
+  ];
 
   /** Routes each digest exception back to the exact source record. */
   const openItem = (item: (typeof digest.items)[number]) => {
     const project = projects.find((entry) => entry.id === item.projectId);
+    if (
+      project &&
+      onTrackWorkflow &&
+      (project.workflowMode === 'project' || item.action === 'project')
+    ) {
+      onTrackWorkflow(project, item.workflowNodeId);
+      return;
+    }
     if (item.action === 'review') {
       const review = reviews.find(
         (entry) =>
@@ -130,10 +202,11 @@ export function AgentView({
             </span>
             <div>
               <p className="text-sm font-semibold text-[#225860]">
-                Agent Digest · Daily Exception Summary
+                Agent Digest · Project Follow-up
               </p>
               <p className="mt-1 text-[9px] text-[#557276]">
-                从本地 SQLite 项目、评审、版本状态和成本完整度实时生成。
+                按 Project Workflow 按节点 SLA
+                和负责人跟进并行待办；节点关闭提醒或项目完成后停止提示。
               </p>
             </div>
           </div>
@@ -148,16 +221,11 @@ export function AgentView({
         </div>
       </section>
       <div className="grid gap-4 lg:grid-cols-2">
-        {groupDefinitions.map((group, index) => {
+        {groups.map((group, index) => {
           const Icon = group.icon;
-          const items = digest.items.filter(
-            (item) => item.category === group.category,
-          );
+          const items = group.items;
           return (
-            <section
-              key={group.category}
-              className="border border-border bg-card"
-            >
+            <section key={group.id} className="border border-border bg-card">
               <SectionHeading
                 index={'0' + (index + 1)}
                 title={group.title}
@@ -199,7 +267,7 @@ export function AgentView({
                   ))
                 ) : (
                   <div className="px-5 py-8 text-center text-[10px] text-muted-foreground">
-                    No exceptions in this category / 本分类暂无异常
+                    No follow-ups in this category / 本分类暂无跟进事项
                   </div>
                 )}
               </div>
@@ -209,33 +277,33 @@ export function AgentView({
       </div>
       <section className="border border-border bg-card">
         <SectionHeading
-          index="05"
-          title="Digest Evidence"
-          titleZh="摘要依据"
-          description="Every item links back to a persisted source; the same digest is available through CLI."
-          descriptionZh="每条摘要均可回到持久化来源，同一摘要也可通过 CLI 查询。"
+          index="03"
+          title="Follow-up Rules"
+          titleZh="跟进规则"
+          description="Open an item to update the project workflow after checking the company platform."
+          descriptionZh="查看公司系统后，点击提醒回到项目流程更新记录。"
         />
         <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4">
           {[
             [
-              'project_summary',
+              'Project Workflow',
               `${projects.length} projects`,
-              '项目状态、成本版本与金额',
+              '各并行节点与负责人',
             ],
             [
-              'review_gates_due',
-              `${reviews.length} review gates`,
-              '评审期限、负责人和跟进历史',
+              'SLA',
+              'Normal · Handle now · Urgent',
+              '期限内普通、最后一天马上处理、超期紧急',
             ],
             [
-              'cost_version_state',
-              `${projects.filter((project) => project.versionState === 'Draft').length} draft baselines`,
-              '成本版本确认状态',
+              'Paused / Disabled',
+              'No active reminders',
+              '暂停或关闭提醒的节点不提示；到恢复跟进日时提醒安排恢复',
             ],
             [
-              'data_quality_flags',
-              `${projects.reduce((sum, project) => sum + Number(project.incompleteCostRows || 0), 0)} incomplete rows`,
-              '成本输入完整度异常',
+              'Quote completed',
+              `${projects.filter((project) => isDigestProjectCompleted({ ...project, projectId: project.id })).length} completed projects`,
+              '报价完成后不再提醒',
             ],
           ].map(([name, detail, detailZh]) => (
             <div key={name} className="bg-card p-4">

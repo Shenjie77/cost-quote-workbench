@@ -148,3 +148,44 @@ test('Import detects totals, missing formula caches, invalid text and missing de
     /TD/,
   );
 });
+
+test('Excel RE imports reject subcontract mappings and point to the structured Subcon cost input', async () => {
+  const { w, resources, mapping } = setup();
+  const resource = resources.find((r) => r.category === 'subcontract');
+  const preview = await previewCostImport(
+    await bytes([
+      ['Scope', 'Cost'],
+      ['Router installation', 200],
+    ]),
+    'PM.xlsx',
+    {
+      ...mapping,
+      role: 'PM',
+      defaultResource: resource.id,
+      columns: { ...mapping.columns, mandays: 0, cost: 2 },
+    },
+    resources,
+    w.rateSettings,
+  );
+  assert.equal(preview.rows.length, 0);
+  assert.match(preview.issues.join('\n'), /Subcon BOQ.*--section subcontract/);
+  assert.throws(
+    () => applyCostImport([], preview, { resources, rates: w.rateSettings }),
+    /Subcon BOQ/,
+  );
+  const valid = await previewCostImport(
+    await bytes([
+      ['Scope', 'MD'],
+      ['Deployment', 10],
+    ]),
+    'TD.xlsx',
+    mapping,
+    resources,
+    w.rateSettings,
+  );
+  valid.rows[0].reTypeId = resource.id;
+  assert.throws(
+    () => applyCostImport([], valid, { resources, rates: w.rateSettings }),
+    /Subcon BOQ/,
+  );
+});

@@ -11,7 +11,12 @@ import type { LocalWorkspaceIndexItem } from './workspace-types';
 
 export const projectFromIndex = (item: LocalWorkspaceIndexItem): Project => ({
   ...projectRecord(item.projectId, item.name, item.client),
+  revision: item.revision ?? undefined,
+  workflowEngineVersion: item.workflowEngineVersion,
+  workflowTemplateRevision: item.workflowTemplateRevision,
   projectStatus: item.projectStatus,
+  workflowMode: item.workflowMode,
+  workflowVersion: item.workflowVersion,
   ...(item.statusDefinitions?.length
     ? { statusDefinitions: item.statusDefinitions }
     : {}),

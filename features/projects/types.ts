@@ -8,7 +8,9 @@ export type WorkflowState =
   | 'in_progress'
   | 'awaiting_review'
   | 'blocked'
-  | 'not_started';
+  | 'not_started'
+  | 'skipped'
+  | 'paused';
 
 /** Stable code of a user-controlled project status shown in Project List. */
 export type ProjectStatus = string;
@@ -63,6 +65,15 @@ export const initialProjectStatusDefinitions: ProjectStatusDefinition[] = [
 ];
 
 export type Project = {
+  revision?: number;
+  workflowEngineVersion?: 1;
+  workflowTemplateRevision?: number;
+  workflowMode?: 'project';
+  workflowVersion?: string;
+  workflowOwner?: string;
+  workflowFollowUpDate?: string;
+  workflowNote?: string;
+  workflowUpdatedAt?: string;
   id: string;
   name: string;
   nameZh: string;
@@ -107,6 +118,27 @@ export type Project = {
 };
 
 export type WorkflowStep = {
+  /** Definition fields are independent from the immutable internal code. */
+  parallelGroup?: string;
+  slaDays?: number;
+  slaCalendar?: 'business' | 'calendar';
+  slaHolidays?: string[];
+  reminderEnabled?: boolean;
+  requiredFields?: string[];
+  roundStart?: boolean;
+  requiresConfirmedCost?: boolean;
+  finishesWorkflow?: boolean;
+  autoSkip?: boolean;
+  /** Version-owned execution data; templates never carry these values. */
+  startedAt?: string;
+  dueAt?: string;
+  completedAt?: string;
+  pausedAt?: string;
+  fieldValues?: Record<string, string>;
+  skippedBy?: string;
+  followUpDate?: string;
+  note?: string;
+  updatedAt?: string;
   code: string;
   no: string;
   name: string;

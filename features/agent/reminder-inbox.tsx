@@ -12,10 +12,14 @@ type Reminder = {
 const url = 'http://127.0.0.1:3210/api/local/reminders';
 export function ReminderInbox({
   onOpen,
+  refreshKey = '',
 }: {
+  /** Recheck immediately after a project workflow or round changes. */
+  refreshKey?: string;
   onOpen: (
     projectId: string,
     view: 'ssr' | 'reviews' | 'cost' | 'project',
+    nodeCode?: string,
   ) => void;
 }) {
   const [items, setItems] = useState<Reminder[]>([]),
@@ -47,7 +51,7 @@ export function ReminderInbox({
       alive = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [refreshKey]);
   const active = items.filter((i) => i.active),
     unread = active.filter((i) => !i.acknowledged);
   return (
@@ -57,7 +61,7 @@ export function ReminderInbox({
           跟进提醒 · {unread.length} 条未读 / {active.length} 条待处理
         </Button>
         <span className="text-xs text-muted-foreground">
-          {error || '本地服务每分钟检查，已关闭事项自动移出'}
+          {error || '按节点 SLA 与提醒配置检查，完成或关闭提醒后自动移出'}
         </span>
       </div>
       {open && (
@@ -82,6 +86,7 @@ export function ReminderInbox({
                         : r.item.action === 'cost'
                           ? 'cost'
                           : 'project',
+                    r.item.workflowNodeId,
                   )
                 }
               >

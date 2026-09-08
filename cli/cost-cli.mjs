@@ -96,13 +96,16 @@ const ROUNDING_CONTRACT = Object.freeze({
 });
 
 const IMPLEMENTED_COMMANDS = Object.freeze([
+  'project workflow-action --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
+  'workflow preview --input REQUEST --expected-revision REVISION [--db FILE]',
+  'workflow publish --input REQUEST --expected-revision REVISION [--db FILE]',
   'project create --input REQUEST [--db FILE]',
   'cost create --project-id ID --mode blank|clone [--source-version V1] --expected-revision REVISION [--db FILE]',
   'cost delete --project-id ID --version V1 --expected-revision REVISION [--db FILE]',
-  'project get --project-id ID [--id ID --query TEXT --limit N --offset N] [--db FILE]',
-  'project update --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
-  'cost get --project-id ID [--section SECTION] [--version V1] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
-  'cost update --project-id ID [--section SECTION] [--version V1] --input REQUEST --expected-revision REVISION [--db FILE]',
+  'project get --project-id ID [--section settings|metadata|workflow-tracking|workflow-history|workflow|reviews] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
+  'project update --project-id ID [--section settings|metadata|workflow-tracking] --input REQUEST --expected-revision REVISION [--db FILE]',
+  'cost get --project-id ID [--section rows|subcontract|settings|resources|travel|summary|versions] [--version V1] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
+  'cost update --project-id ID [--section rows|subcontract|settings|travel] [--version V1] --input REQUEST --expected-revision REVISION [--db FILE]',
   'masterdata get --tab TAB [--id ID --query TEXT --limit N --offset N] [--db FILE]',
   'masterdata update --tab TAB --input REQUEST --expected-revision REVISION [--db FILE]',
   'cpq get --project-id ID [--section SECTION] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
@@ -207,6 +210,21 @@ const COMMAND_SPECS = Object.freeze({
     ],
     booleans: ['pretty'],
     required: ['project-id'],
+  },
+  'project.workflow-action': {
+    values: ['project-id', 'input', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'input', 'expected-revision'],
+  },
+  'workflow.preview': {
+    values: ['input', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['input', 'expected-revision'],
+  },
+  'workflow.publish': {
+    values: ['input', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['input', 'expected-revision'],
   },
   'project.update': {
     values: [
@@ -1086,6 +1104,7 @@ const readValidCostSnapshot = async (options) => {
           resourceTypes: v.resourceTypes,
           costRows: v.costRows,
           manualCosts: v.manualCosts,
+          ...(v.subcontractCost ? { subcontractCost: v.subcontractCost } : {}),
         };
       });
   const validated = await validateWithSchema('cost-export', snapshot);
@@ -1121,6 +1140,7 @@ const readValidCostSnapshot = async (options) => {
 
 /** Removes domain-only row objects from the serializable HQ travel result. */
 const serializeTravel = (travel) => ({
+  enabled: travel.enabled,
   triggeredCostLineIds: travel.hqRows.map((row) => row.id),
   hqMandays: travel.hqMandays,
   yearMandays: travel.yearMandays,
@@ -1218,6 +1238,63 @@ const execute = async () => {
   responseCommand = resolved.command;
   const options = parseOptions(resolved.command, resolved.optionTokens);
   compactRequested = Boolean(options.compact);
+  if (
+    [
+      'project.workflow-action',
+      'workflow.preview',
+      'workflow.publish',
+    ].includes(resolved.command)
+  ) {
+    const input = await readCommandRequest(
+      options,
+      'OperationRequest',
+      'operations',
+      '1.0.0',
+    );
+    if (input.operation !== resolved.command)
+      throw new CliFault(
+        'OPERATION_MISMATCH',
+        'Request operation must match command.',
+        EXIT.VALIDATION,
+      );
+    return withWorkspaceRepository(options, (repository) => {
+      const revision = parseExpectedRevision(options['expected-revision']);
+      let data;
+      if (resolved.command === 'project.workflow-action') {
+        const record = repository.applyWorkflowAction(
+          String(options['project-id']),
+          input.action,
+          revision,
+        );
+        data = {
+          projectId: record.workspace.project.id,
+          revision: record.revision,
+          updatedAt: record.updatedAt,
+          workflowVersion: record.workspace.workflowVersion,
+          nodeCode: input.action.nodeCode,
+          action: input.action.action,
+        };
+      } else {
+        const settings = {
+          migrateActiveProjectIds: input.migrateActiveProjectIds || [],
+        };
+        data =
+          resolved.command === 'workflow.preview'
+            ? repository.previewWorkflowPublication(
+                input.steps,
+                revision,
+                settings,
+              )
+            : repository.publishWorkflow(
+                input.steps,
+                revision,
+                input.projectRevisions,
+                settings,
+              );
+      }
+      return success('OperationResult', data, [], '1.0.0');
+    });
+  }
 
   if (
     resolved.command === 'masterdata.get' ||
@@ -1952,6 +2029,10 @@ const execute = async () => {
           );
         }
         const domain = await import('../features/ssr/domain.ts');
+        if (w.workflowMode === 'project')
+          throw new TypeError(
+            'Historical SSR reviews are read-only. Use project update --section workflow-tracking.',
+          );
         let next = w.ssr || domain.emptySsr();
         if (resolved.command === 'ssr.submit') {
           const versionCode =
@@ -2197,6 +2278,7 @@ const execute = async () => {
       snapshot.resourceTypes,
       travel.totalCost,
       snapshot.manualCosts,
+      snapshot.subcontractCost,
     );
     if (resolved.command === 'cost.calculate') {
       const summary = (dimension) =>
@@ -2206,6 +2288,7 @@ const execute = async () => {
           snapshot.resourceTypes,
           travel.totalCost,
           snapshot.manualCosts,
+          snapshot.subcontractCost,
         );
       return success(
         'CostCalculationResult',
@@ -2226,6 +2309,7 @@ const execute = async () => {
               snapshot.resourceTypes,
               travel.totalCost,
               snapshot.manualCosts,
+              snapshot.subcontractCost,
             ),
           },
         },

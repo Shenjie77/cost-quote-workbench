@@ -13,8 +13,9 @@ results can then be entered into the company system.
 
 - **Master Data** is the single maintenance entry point for RE Types/rates,
   subcontract references, supplemental costs, maintenance history, reusable
-  assumptions, customer quotation templates, workflow defaults, status options
-  and CPQ catalog. These are nine global tabs with independent revisions; no
+  assumptions, customer quotation templates, workflow defaults
+  and CPQ catalog. A legacy status tab remains in the nine-tab storage contract
+  for compatibility, not as another progress UI. Each tab has its own revision; no
   project must be read or selected to maintain them.
 - **Pricing & Quote** selects/applies templates and assumptions, edits this
   project's current quotation copies, calculates pricing and creates output.
@@ -31,6 +32,12 @@ results can then be entered into the company system.
 - `features/master-data/navigation.ts` owns supported tab IDs and labels. The
   composition root owns the selected tab as session-only UI state; it is not a
   new SQLite field or CLI command. Changing views never resets workspace data.
+
+### Project Workflow and reminders
+
+`features/projects/workflow-domain.ts` normalizes one register and applies revision-checked tracking updates. Project List and Overview share the workflow dialog. `project --section workflow-tracking` exposes only the current node and tracking fields; `workflow-history` exposes paginated records. Proposal/Scope metadata has a separate narrow `project metadata` section using the existing stored values.
+
+`currentWorkflowStepCode` and the selected process step are the progress source. `projectStatus` is derived compatibility data. `QUOTE_COMPLETED` suppresses all reminders for that project; a new cost Draft opens DTRB and resumes date-based follow-up. SSR submissions and reviewGates are retained as read-only evidence instead of a second editable process. The Agent digest and reminder service consume the same compact workflow projection. See [workflow behavior](project-workflow.md).
 
 ### Technical layers
 
@@ -85,8 +92,9 @@ keys, SHA-256 payload hashes, and optimistic `revision` checks. Browser edits
 autosave after 900 ms; CLI writes must present the exact expected revision.
 The current atomic workspace document contains:
 
-- manually controlled project status and quote-pricing parameters;
-- persisted review gates, due dates, owners, evidence, and follow-up history;
+- one project workflow with current code, owner, follow-up date and note;
+- append-only workflow updates, with legacy SSR/review gates retained read-only;
+- derived compatibility projectStatus and quote-pricing parameters;
 - independent cost-version input snapshots plus the active version;
 - cost lines and manual statement inputs;
 - labour-rate and HQ-travel assumptions;
@@ -127,8 +135,9 @@ separate event ledger.
   into new Drafts, which become the active version and start independent DTRB
   rounds. workflowVersion identifies the working round and versionWorkflows
   retains per-version progress; these fields are platform-managed. Selecting an
-  older activeVersion only views history. Old approvals do not satisfy a new
-  version's DTRB → DRB dependencies.
+  older activeVersion only views history. Company progress is registered in the
+  one Project Workflow; old SSR records are read-only and no longer impose
+  a duplicate local approval chain on project-mode quote export.
 - RE Type consolidates personnel family, level, MD rate, conversion factors,
   and effective dates. Every cost version captures an independent RE Type
   catalogue. Cost rows reference that snapshot; current global resources are

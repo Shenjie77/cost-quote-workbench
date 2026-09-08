@@ -1,6 +1,6 @@
 /** Presentation-only types for cost workspace navigation and charts. */
 
-export type CostViewKey = 'input' | 'summary' | 'compare';
+export type CostViewKey = 'input' | 'subcontract' | 'summary' | 'compare';
 
 export type BreakdownItem = {
   name: string;

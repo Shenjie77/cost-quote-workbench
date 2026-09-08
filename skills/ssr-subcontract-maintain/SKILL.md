@@ -1,6 +1,6 @@
 ---
 name: ssr-subcontract-maintain
-description: 维护全局 Master Data 分包服务目录、供应商参考条目和成本信息；实际项目分包入账用 ssr-cost-update。
+description: 维护全局 Master Data 分包条目、单位和参考单价；项目数量、站型和年度分包成本使用 ssr-cost-update。
 ---
 
 # SSR · 分包主数据维护
@@ -25,6 +25,8 @@ cost-cli masterdata update --tab subcontract --input change.json --expected-revi
 
 按稳定 `id` 合并用户提供的分包目录记录。新记录依 subcontractItem 定义完整填写。相似名称不能视为同一合同/编码；需要用户给出匹配依据才合并。
 
-这里只维护目录参考，不直接插入 Cost Input，不覆盖 PM 已给的实际分包成本。费用包含范围、供应商来源和币种按原始文件保留，不能把一个打包分包再次拆成重复费用。
+目录价格填写 `unit/unitPrice/currency`。Supplier 和 Pricing Basis 不再显示或必填，已有兼容字段无需补写。单价留空为未定价，0 为明确零成本；局部更新省略字段表示保留原值，显式 `null` 可清空 unit 或 unitPrice。
+
+这里只维护目录参考，不直接插入项目成本。实际 PM 分包使用 `ssr-cost-update` 的版本内 `--section subcontract`，按条目数量或站型年度计划汇入 2.3.2。费用包含范围和币种按原始文件保留，供应安装打包金额不能再次拆成重复设备或安装费用。
 
 全局更新不会改动任何已有项目，包括 Draft；已有成本、报价和归档继续使用其原始快照。迁移发现同编码/ID 不同内容时保留差异与来源，用用户提供的完整条目明确 upsert 解决（冲突条目不能只传局部字段），不猜测哪个项目正确、不静默覆盖冲突。

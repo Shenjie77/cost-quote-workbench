@@ -35,6 +35,7 @@ import {
 import type { SubcontractItem } from '@/features/master-data/types';
 import type { CatalogItem } from '@/features/cpq/domain';
 import { GlobalCpqCatalog } from './global-cpq-catalog';
+import { WorkflowTemplateEditor } from './workflow-template-editor';
 import type {
   ProjectStatusDefinition,
   WorkflowStep,
@@ -63,6 +64,7 @@ import {
 
 type Props = {
   editingDisabled?: boolean;
+  saveLabel?: string;
   activeTab: MasterDataTab;
   onTabChange: (tab: MasterDataTab) => void;
   onSave: () => Promise<boolean>;
@@ -118,11 +120,17 @@ function EditCell({
   type = 'text',
   onChange,
   ariaLabel,
+  min,
+  step,
+  placeholder,
 }: {
   value: string | number;
   type?: 'text' | 'number' | 'date';
   onChange: (value: string) => void;
   ariaLabel: string;
+  min?: number;
+  step?: number | 'any';
+  placeholder?: string;
 }) {
   return (
     <Input
@@ -130,6 +138,9 @@ function EditCell({
       type={type}
       value={value}
       aria-label={ariaLabel}
+      min={min}
+      step={step}
+      placeholder={placeholder}
       onChange={(event) => onChange(event.target.value)}
     />
   );
@@ -246,6 +257,7 @@ export function ResourceIdentityCells({
 export function MasterDataView(props: Props) {
   const {
     editingDisabled = false,
+    saveLabel,
     activeTab,
     onTabChange,
     resourceTypes,
@@ -270,6 +282,10 @@ export function MasterDataView(props: Props) {
     setCatalog,
   } = props;
   const [query, setQuery] = useState('');
+  const workflow = activeTab === 'workflow';
+  const currentSaveLabel =
+    saveLabel ||
+    (workflow ? 'Preview & Publish' : 'Save this tab / 保存当前页签');
   const tabCounts: Record<MasterDataTab, number> = {
     'cpq-catalog': catalog.length,
     resources: resourceTypes.length,
@@ -320,16 +336,6 @@ export function MasterDataView(props: Props) {
     setMaintenancePriceRecords((rows) =>
       rows.map((row) => (row.id === id ? { ...row, [key]: value } : row)),
     );
-  /** Edits a reusable workflow definition, never project progress. */
-  const updateProcessStep = <K extends keyof WorkflowStep>(
-    code: string,
-    key: K,
-    value: WorkflowStep[K],
-  ) =>
-    setProcessSteps((rows) =>
-      rows.map((row) => (row.code === code ? { ...row, [key]: value } : row)),
-    );
-
   const resources = resourceTypes.filter((row) =>
     matches(
       row.code,
@@ -341,7 +347,7 @@ export function MasterDataView(props: Props) {
     ),
   );
   const subcontract = subcontractItems.filter((row) =>
-    matches(row.code, row.item, row.bu, row.supplier),
+    matches(row.code, row.item, row.bu, row.unit, row.currency),
   );
   const supplemental = supplementalCostItems.filter((row) =>
     matches(row.code, row.name, row.statementCode, row.owner),
@@ -349,49 +355,9 @@ export function MasterDataView(props: Props) {
   const maintenance = maintenancePriceRecords.filter((row) =>
     matches(row.client, row.service, row.productModel, row.site, row.source),
   );
-  const workflow = processSteps.filter((row) =>
-    matches(row.no, row.code, row.name, row.nameZh, row.owner, row.state),
-  );
   const statuses = projectStatusDefinitions.filter((row) =>
     matches(row.code, row.name, row.nameZh, row.active),
   );
-
-  /** Adds a reusable workflow stage with schema-valid starter data. */
-  const addWorkflowStep = () => {
-    setQuery('');
-    const code = `CUSTOM-STAGE-${newCodeSuffix()}`;
-    setProcessSteps((rows) => {
-      const nextNumber =
-        Math.max(0, ...rows.map((row) => Number(row.no) || 0)) + 1;
-      return [
-        ...rows,
-        {
-          code,
-          no: String(nextNumber).padStart(2, '0'),
-          name: 'New Workflow Stage',
-          nameZh: '新流程节点',
-          owner: 'Me',
-          state: 'not_started',
-          tone: 'gray',
-          date: '',
-          dateZh: '',
-          detail: '',
-          detailZh: '',
-          input: '',
-          inputZh: '',
-          required: false,
-        },
-      ];
-    });
-    announce('Workflow stage added. / 已新增流程节点。');
-  };
-
-  /** Removing a global definition leaves project snapshots unchanged. */
-  const deleteWorkflowStep = (step: WorkflowStep) => {
-    if (!confirmDelete(`${step.no} · ${step.name}`)) return;
-    setProcessSteps((rows) => rows.filter((item) => item.code !== step.code));
-    announce('Global workflow definition removed / 已移除全局流程定义。');
-  };
 
   /** Updates a display field without changing the stable Agent/CLI status code. */
   const updateProjectStatusDefinition = <
@@ -464,8 +430,8 @@ export function MasterDataView(props: Props) {
         code: `SUB-${suffix}`,
         item: 'New Subcontract Item',
         bu: 'Unassigned BU',
-        supplier: 'TBD Supplier',
-        pricingBasis: 'Fixed price',
+        unit: 'pcs',
+        unitPrice: null,
         currency: 'SGD',
         active: true,
       },
@@ -661,30 +627,43 @@ export function MasterDataView(props: Props) {
         <SectionHeading
           index="01"
           title="Master Data"
-          titleZh="基础数据管理"
-          description="Global reference data for future projects. Existing project and cost-version snapshots stay unchanged."
-          descriptionZh="全局主数据供未来项目使用；维护不读取项目，已有项目及成本版本保留采用时的数据快照。"
+          titleZh={workflow ? '' : '基础数据管理'}
+          description={
+            workflow
+              ? 'Configure the global workflow and preview changes before publishing to ongoing projects.'
+              : 'Global reference data for future projects. Existing project and cost-version snapshots stay unchanged.'
+          }
+          descriptionZh={
+            workflow
+              ? undefined
+              : '全局主数据供未来项目使用；维护不读取项目，已有项目及成本版本保留采用时的数据快照。'
+          }
           action={
             <Button
               size="sm"
               disabled={editingDisabled}
               onClick={async () => {
                 if (await onSave())
-                  announce('Global master data saved / 全局主数据已保存。');
+                  announce(
+                    workflow
+                      ? 'Workflow template saved.'
+                      : 'Global master data saved / 全局主数据已保存。',
+                  );
               }}
             >
-              <Save /> Save this tab / 保存当前页签
+              <Save /> {currentSaveLabel}
             </Button>
           }
         />
         <p className="border-t bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          Global / 全局共享 · 新项目取得独立副本。已有 Draft
-          也不会自动更新汇率；如需采用新汇率，请在目标成本版本明确应用。
+          {workflow
+            ? 'Publishing updates pending steps in ongoing projects. Active deadlines are retained unless explicitly recalculated; completed history and cost snapshots remain unchanged.'
+            : 'Global / 全局共享 · 新项目取得独立副本。已有 Draft 也不会自动更新汇率；如需采用新汇率，请在目标成本版本明确应用。'}
         </p>
       </section>
       <section className="min-w-0 overflow-hidden border border-border bg-card">
         <Tabs
-          value={activeTab}
+          value={activeTab === 'status' ? 'workflow' : activeTab}
           onValueChange={(value) => {
             if (!isMasterDataTab(value)) return;
             onTabChange(value);
@@ -694,7 +673,9 @@ export function MasterDataView(props: Props) {
           <div className="border-b border-border px-3 py-2">
             <div className="flex items-center justify-between gap-3 pb-2">
               <p className="text-xs text-muted-foreground">
-                Reference Libraries / 基础数据与模板库
+                {workflow
+                  ? 'Reference Libraries'
+                  : 'Reference Libraries / 基础数据与模板库'}
               </p>
               <div className="relative w-[260px] max-w-[60%]">
                 <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -703,7 +684,11 @@ export function MasterDataView(props: Props) {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   aria-label="Search current master-data tab"
-                  placeholder="Search this tab / 搜索当前页签"
+                  placeholder={
+                    workflow
+                      ? 'Search Workflow Steps'
+                      : 'Search this tab / 搜索当前页签'
+                  }
                 />
               </div>
             </div>
@@ -713,21 +698,25 @@ export function MasterDataView(props: Props) {
                 aria-label="Master Data libraries"
                 className="min-w-max justify-start"
               >
-                {masterDataTabs.map((tab) => (
-                  <TabsTrigger
-                    key={tab.value}
-                    value={tab.value}
-                    className="h-8 px-2"
-                  >
-                    {tab.label}
-                    <span className="text-[10px] opacity-60">
-                      {tab.labelZh}
-                    </span>
-                    <span className="financial-numeral rounded-sm bg-muted px-1 text-[10px]">
-                      {tabCounts[tab.value]}
-                    </span>
-                  </TabsTrigger>
-                ))}
+                {masterDataTabs
+                  .filter((tab) => tab.value !== 'status')
+                  .map((tab) => (
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                      className="h-8 px-2"
+                    >
+                      {tab.label}
+                      <span className="text-[10px] opacity-60">
+                        {workflow && tab.value === 'workflow'
+                          ? ''
+                          : tab.labelZh}
+                      </span>
+                      <span className="financial-numeral rounded-sm bg-muted px-1 text-[10px]">
+                        {tabCounts[tab.value]}
+                      </span>
+                    </TabsTrigger>
+                  ))}
               </TabsList>
             </div>
           </div>
@@ -740,126 +729,13 @@ export function MasterDataView(props: Props) {
               />
             </TabsContent>
             <TabsContent value="workflow" className="mt-0">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-                <span>Default workflow definitions / 默认流程模板定义</span>
-                <div className="flex items-center gap-2">
-                  <StatusBadge tone="blue">
-                    <BiInline en="Global defaults" zh="全局默认值" />
-                  </StatusBadge>
-                  <Button
-                    size="sm"
-                    className="h-7 text-[10px]"
-                    onClick={addWorkflowStep}
-                  >
-                    <Plus />
-                    Add row / 新增
-                  </Button>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <Table className="min-w-[1240px] text-[11px]">
-                  <TableHeader>
-                    <TableRow className="bg-[#f2f0ea] hover:bg-[#f2f0ea]">
-                      <TableHead className="w-16">No.</TableHead>
-                      <TableHead className="w-52">Code / 系统编码</TableHead>
-                      <TableHead>Stage Name / 英文名称</TableHead>
-                      <TableHead>中文名称</TableHead>
-                      <TableHead className="w-36">Owner / 负责人</TableHead>
-                      <TableHead className="w-64">
-                        Requirements / 输入要求
-                      </TableHead>
-                      <TableHead className="w-24 text-center">
-                        Required / 必须
-                      </TableHead>
-                      <TableHead className="w-16 text-center">
-                        Action / 操作
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {workflow.map((step) => (
-                      <TableRow key={step.code} className="h-9">
-                        <TableCell className="financial-numeral font-semibold">
-                          {step.no}
-                        </TableCell>
-                        <TableCell>
-                          <code className="text-[10px] text-muted-foreground">
-                            {step.code}
-                          </code>
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            value={step.name}
-                            ariaLabel={`${step.code} English name`}
-                            onChange={(value) =>
-                              updateProcessStep(step.code, 'name', value)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            value={step.nameZh}
-                            ariaLabel={`${step.code} Chinese name`}
-                            onChange={(value) =>
-                              updateProcessStep(step.code, 'nameZh', value)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            value={step.owner}
-                            ariaLabel={`${step.code} owner`}
-                            onChange={(value) =>
-                              updateProcessStep(step.code, 'owner', value)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            value={step.detail}
-                            ariaLabel={`${step.code} requirements`}
-                            onChange={(value) =>
-                              updateProcessStep(step.code, 'detail', value)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateProcessStep(
-                                step.code,
-                                'required',
-                                !step.required,
-                              )
-                            }
-                          >
-                            <StatusBadge
-                              tone={step.required ? 'amber' : 'gray'}
-                            >
-                              <BiInline
-                                en={step.required ? 'Required' : 'Optional'}
-                                zh={step.required ? '必须' : '可选'}
-                              />
-                            </StatusBadge>
-                          </button>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <DeleteRowButton
-                            label={`${step.no} · ${step.name}`}
-                            onDelete={() => deleteWorkflowStep(step)}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-                Defines names, default owners and input requirements for future
-                projects. /
-                仅维护未来项目的节点名称、默认负责人和输入要求；实际项目进度请在流程与评审中更新。
-              </p>
+              <WorkflowTemplateEditor
+                steps={processSteps}
+                setSteps={setProcessSteps}
+                query={query}
+                disabled={editingDisabled}
+                announce={announce}
+              />
             </TabsContent>
             <TabsContent value="status" className="mt-0">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
@@ -967,8 +843,8 @@ export function MasterDataView(props: Props) {
               <div className="min-w-0">
                 <div className="flex items-center justify-between border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
                   <span>
-                    Internal / 自有 · Subcontract / 分包 · LOCAL / ARP / HQ ·
-                    L0–L4 · SGD/MD
+                    Internal / 自有 · Subcontract / 分包 · LOCAL / ARP / HQ /
+                    OTHER · L0–L4 · SGD/MD
                   </span>
                   <div className="flex items-center gap-2">
                     <Button
@@ -1134,7 +1010,8 @@ export function MasterDataView(props: Props) {
                   MM rate = MD rate × MD/MM. Hour rate = MD rate ÷ Hour/MD. HQ
                   rows automatically enable travel. Classification changes keep
                   the code unchanged. / 人月、人时汇率自动换算；自有人员可选择
-                  Pool 和 Level，HQ 自动启用差旅；分包不使用人员 Pool 和
+                  Pool 和 Level，HQ 自动启用差旅；OTHER（如远程支持）不计 HQ
+                  差旅，也不适用 3% allowance。分包不使用人员 Pool 和
                   Level。修改分类不会改写编码。
                 </p>
               </div>
@@ -1142,15 +1019,15 @@ export function MasterDataView(props: Props) {
             <TabsContent value="subcontract" className="mt-0">
               <TableToolbar count={subcontract.length} onAdd={addSubcontract} />
               <div className="overflow-x-auto">
-                <Table className="min-w-[900px]">
+                <Table className="min-w-[1000px]">
                   <TableHeader>
                     <TableRow className="bg-[#f2f0ea]">
                       {[
                         'Code',
                         'Item / 条目',
                         'BU',
-                        'Supplier / 供应商',
-                        'Pricing Basis / 计价依据',
+                        'Unit / 单位',
+                        'Unit Price / 参考单价',
                         'Currency',
                         'Status',
                         'Action / 操作',
@@ -1171,7 +1048,7 @@ export function MasterDataView(props: Props) {
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="min-w-[260px]">
                           <EditCell
                             value={row.item}
                             ariaLabel="Subcontract item"
@@ -1189,20 +1066,37 @@ export function MasterDataView(props: Props) {
                         </TableCell>
                         <TableCell>
                           <EditCell
-                            value={row.supplier}
-                            ariaLabel="Supplier"
+                            value={row.unit ?? ''}
+                            ariaLabel={`${row.code} unit`}
+                            placeholder="Not set"
                             onChange={(v) =>
-                              updateSubcontract(row.id, 'supplier', v)
+                              updateSubcontract(row.id, 'unit', v || null)
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="tabular-nums">
                           <EditCell
-                            value={row.pricingBasis}
-                            ariaLabel="Pricing basis"
-                            onChange={(v) =>
-                              updateSubcontract(row.id, 'pricingBasis', v)
-                            }
+                            value={row.unitPrice ?? ''}
+                            type="number"
+                            min={0}
+                            step="any"
+                            ariaLabel={`${row.code} unit price`}
+                            placeholder="Not priced"
+                            onChange={(v) => {
+                              const price = v === '' ? null : Number(v);
+                              if (
+                                price !== null &&
+                                (!Number.isFinite(price) ||
+                                  price < 0 ||
+                                  price > 1e12)
+                              ) {
+                                announce(
+                                  'Enter a unit price between 0 and 1,000,000,000,000. / 单价须为 0 至 1,000,000,000,000 之间的数字。',
+                                );
+                                return;
+                              }
+                              updateSubcontract(row.id, 'unitPrice', price);
+                            }}
                           />
                         </TableCell>
                         <TableCell>{row.currency}</TableCell>
@@ -1237,6 +1131,13 @@ export function MasterDataView(props: Props) {
                     ))}
                   </TableBody>
                 </Table>
+                <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                  Unit Price is a reference price in the listed currency. Blank
+                  means not priced; 0 means zero cost. Catalogue edits do not
+                  create or update project costs. /
+                  单价按本行币种填写；留空为未定价， 0
+                  为零成本。目录更新不会自动生成或修改项目成本。
+                </p>
               </div>
             </TabsContent>
             <TabsContent value="supplemental" className="mt-0">

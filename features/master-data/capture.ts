@@ -40,6 +40,25 @@ export function captureResourceRates(
 ): CostVersionSnapshot {
   const master = assertMasterCapture(raw);
   const resources = structuredClone(master.items) as ResourceType[];
+  const rateSettings = structuredClone(version.rateSettings);
+  if (
+    rateSettings.allowancePools === undefined &&
+    rateSettings.allowanceResourceTypeIds !== undefined
+  )
+    rateSettings.allowanceResourceTypeIds =
+      rateSettings.allowanceResourceTypeIds.map((id) => {
+        const old = version.resourceTypes?.find(
+          (resource) => resource.id === id,
+        );
+        const target = old
+          ? resources.find((resource) => resource.code === old.code)
+          : resources.find((resource) => resource.id === id);
+        if (!target || target.category !== 'internal')
+          throw new TypeError(
+            `Allowance RE Type ${old?.code || id} is missing or no longer personnel in global Master Data. Update the version's allowance selection before applying rates.`,
+          );
+        return target.id;
+      });
   const rows = version.costRows.map((row) => {
     const old = version.resourceTypes?.find((item) => item.id === row.reTypeId);
     const target = old
@@ -54,8 +73,35 @@ export function captureResourceRates(
   return {
     ...structuredClone(version),
     resourceTypes: resources,
-    costRows: recalculateCostRows(rows, resources, version.rateSettings),
+    rateSettings,
+    costRows: recalculateCostRows(rows, resources, rateSettings),
     masterDataRevision: master.revision,
+  };
+}
+
+/** Keep the active editors and their named version on the same captured rate basis. */
+export function applyCapturedResourceRates(
+  workspace: WorkbenchWorkspace,
+  updatedVersion: CostVersionSnapshot,
+): WorkbenchWorkspace {
+  if (
+    !workspace.costVersions.some(
+      (version) => version.code === updatedVersion.code,
+    )
+  )
+    throw new TypeError(`Cost version ${updatedVersion.code} does not exist.`);
+  const captured = structuredClone(updatedVersion);
+  return {
+    ...workspace,
+    costVersions: workspace.costVersions.map((version) =>
+      version.code === captured.code ? captured : version,
+    ),
+    ...(workspace.activeVersion === captured.code
+      ? {
+          costRows: structuredClone(captured.costRows),
+          rateSettings: structuredClone(captured.rateSettings),
+        }
+      : {}),
   };
 }
 

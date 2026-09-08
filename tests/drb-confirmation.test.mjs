@@ -110,7 +110,7 @@ test('a legacy pending Draft DRB can record approval only after confirmation of 
   );
 });
 
-test('CLI sends explicit versions and defaults to the workflow round while a historical cost is open', async (t) => {
+test('CLI retires SSR writes and tracks the current workflow round while a historical cost is open', async (t) => {
   const { mkdtempSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const path = await import('node:path');
@@ -146,6 +146,9 @@ test('CLI sends explicit versions and defaults to the workflow round while a his
         '--expected-revision',
         String(revision),
         ...(operation.startsWith('ssr.') ? ['--compact'] : []),
+        ...(operation === 'project.update'
+          ? ['--section', 'workflow-tracking']
+          : []),
         '--db',
         file,
         ...(version ? ['--version', version] : []),
@@ -172,19 +175,27 @@ test('CLI sends explicit versions and defaults to the workflow round while a his
     applicationNumber: 'TD-1',
     evidence: 'Company reference',
   };
-  run('ssr.submit', request, 'V1');
-  const current = run('ssr.submit', { ...request, applicationNumber: 'TD-2' });
+  const retired = run('ssr.submit', request, 'V1', 6);
+  assert.match(retired.error.message, /read-only/);
+  const current = run('project.update', {
+    changes: {
+      set: {
+        currentWorkflowStepCode: 'TD_EFFORT_REVIEW',
+        owner: 'TD',
+        followUpDate: '2026-09-10',
+        note: 'Checked the current company workflow',
+      },
+    },
+  });
   const check = openWorkspaceRepository(file);
   const record = check.get(w.project.id);
   assert.equal(record.workspace.activeVersion, 'V1');
   assert.equal(record.workspace.workflowVersion, 'V2');
   assert.deepEqual(
     record.workspace.ssr.submissions.map((s) => s.costBaseline.code),
-    ['V1', 'V2'],
+    [],
   );
   assert.equal(current.data.workflowVersion, 'V2');
-  assert.equal(current.data.version, 'V2');
-  assert.equal(current.data.costLockReason, null);
   const revision = record.revision;
   check.close();
   const blocked = run(
@@ -193,14 +204,14 @@ test('CLI sends explicit versions and defaults to the workflow round while a his
     'V2',
     6,
   );
-  assert.match(blocked.error.message, /先确认成本 V2/);
+  assert.match(blocked.error.message, /read-only/);
   const blockedWorkflow = run(
     'project.update',
     { changes: { set: { currentWorkflowStepCode: 'DELIVERY_REVIEW' } } },
     undefined,
     6,
   );
-  assert.match(blockedWorkflow.error.message, /先确认成本 V2/);
+  assert.match(blockedWorkflow.error.message, /Confirm cost V2/);
   const unchanged = openWorkspaceRepository(file);
   assert.equal(unchanged.get(w.project.id).revision, revision);
   unchanged.close();

@@ -200,13 +200,18 @@ test('workspace CLI persists with revision checks and can list/read records', ()
     );
 
     const listed = runCli(['workspace', 'list', '--db', databasePath]);
-    assert.equal(listed.status, 0);
+    assert.equal(listed.status, 0, JSON.stringify(listed.response));
     assert.equal(listed.response.data.items.length, 1);
     assert.equal(
       listed.response.data.items[0].currentWorkflowStepCode,
       'TD_EFFORT_REVIEW',
     );
-    assert.equal(listed.response.data.items[0].workflowSteps.length, 1);
+    assert.equal(listed.response.data.items[0].workflowMode, 'project');
+    assert.ok(
+      listed.response.data.items[0].workflowSteps.some(
+        (step) => step.code === 'QUOTE_COMPLETED',
+      ),
+    );
     assert.equal(listed.response.data.items[0].workflowVersion, 'V3');
     assert.equal(listed.response.data.items[0].statusDefinitions.length, 9);
     assert.deepEqual(listed.response.data.items[0].reviewGates, []);
@@ -222,7 +227,9 @@ test('workspace CLI persists with revision checks and can list/read records', ()
     assert.equal(digest.status, 0);
     assert.equal(digest.response.kind, 'DigestResult');
     assert.equal(digest.response.data.asOf, '2026-09-05');
-    assert.equal(digest.response.data.counts.cost_attention, 1);
+    assert.equal(digest.response.data.counts.cost_attention, 0);
+    assert.equal(digest.response.data.items.length, 1);
+    assert.equal(digest.response.data.items[0].action, 'project');
     assert.equal(digest.response.data.items[0].projectId, data.project.id);
 
     const stale = runCli(
@@ -455,23 +462,56 @@ test('export returns the actual nine-sheet workbook manifest', () => {
   }
 });
 
-
 test('simple cost export is a five-sheet business workbook and validates format before I/O', () => {
   const directory = mkdtempSync(path.join(tmpdir(), 'cost-simple-cli-'));
   try {
     const output = path.join(directory, 'simple.xlsx');
-    const result = runCli(['cost', 'export', '--format', 'simple', '--input', '-', '--output', output], {
-      input: JSON.stringify(makeCostRequest()),
-    });
+    const result = runCli(
+      [
+        'cost',
+        'export',
+        '--format',
+        'simple',
+        '--input',
+        '-',
+        '--output',
+        output,
+      ],
+      {
+        input: JSON.stringify(makeCostRequest()),
+      },
+    );
     assert.equal(result.status, 0, JSON.stringify(result.response));
     assert.equal(result.response.data.sheets.length, 5);
-    assert.deepEqual(result.response.data.sheets, ['Cost Detail', 'Summary Scope', 'Summary BU', 'Summary RE Type', 'Cost Statement']);
+    assert.deepEqual(result.response.data.sheets, [
+      'Cost Detail',
+      'Summary Scope',
+      'Summary BU',
+      'Summary RE Type',
+      'Cost Statement',
+    ]);
     assert.equal(result.response.data.artifact.path, output);
     assert.ok(readFileSync(output).byteLength > 5000);
-    const invalid = runCli(['cost', 'export', '--format', 'unknown', '--project-id', 'MISSING', '--db', path.join(directory, 'missing.sqlite'), '--output', output]);
+    const invalid = runCli([
+      'cost',
+      'export',
+      '--format',
+      'unknown',
+      '--project-id',
+      'MISSING',
+      '--db',
+      path.join(directory, 'missing.sqlite'),
+      '--output',
+      output,
+    ]);
     assert.equal(invalid.status, 2);
     assert.equal(invalid.response.error.code, 'INVALID_EXPORT_FORMAT');
-    const unrelated = runCli(['cost', 'validate', '--format', 'simple', '--input', '-'], { input: JSON.stringify(makeCostRequest()) });
+    const unrelated = runCli(
+      ['cost', 'validate', '--format', 'simple', '--input', '-'],
+      { input: JSON.stringify(makeCostRequest()) },
+    );
     assert.equal(unrelated.status, 2);
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

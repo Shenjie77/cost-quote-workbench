@@ -118,3 +118,26 @@ export async function deleteLocalProject(
     deleted: boolean;
   };
 }
+
+/** Dedicated node action; the server owns workflow transitions and audit history. */
+export async function applyLocalWorkflowAction(
+  projectId: string,
+  action: import('../projects/workflow-engine').WorkflowAction,
+  expectedRevision: number,
+): Promise<WorkspaceRecord> {
+  return parseRecord(
+    await fetch(
+      `${API_BASE}/projects/${encodeURIComponent(projectId)}/workflow-action`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiVersion: LOCAL_API_VERSION,
+          kind: 'WorkflowActionRequest',
+          expectedRevision,
+          action,
+        }),
+      },
+    ),
+  );
+}

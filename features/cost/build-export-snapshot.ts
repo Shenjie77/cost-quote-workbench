@@ -1,3 +1,4 @@
+import type { SubcontractCost } from './subcontract-domain.ts';
 /**
  * Creates the immutable browser-to-export boundary object.
  *
@@ -9,14 +10,14 @@
 import {
   COST_EXPORT_SCHEMA_VERSION,
   type CostExportSnapshot,
-} from '@/features/cost/contracts';
+} from './contracts.ts';
 import type {
   CostInputRow,
   ManualCostInputs,
   RateSettings,
   ResourceType,
   TravelSettings,
-} from '@/features/cost/domain';
+} from './domain.ts';
 
 export type BuildCostExportSnapshotInput = {
   activeVersion: string;
@@ -27,6 +28,7 @@ export type BuildCostExportSnapshotInput = {
   resourceTypes: ResourceType[];
   rows: CostInputRow[];
   manualCosts: ManualCostInputs;
+  subcontractCost?: SubcontractCost;
   exportedAt?: string;
 };
 
@@ -40,6 +42,7 @@ export function buildCostExportSnapshot({
   resourceTypes,
   rows,
   manualCosts,
+  subcontractCost,
   exportedAt = new Date().toISOString(),
 }: BuildCostExportSnapshotInput): CostExportSnapshot {
   return {
@@ -53,6 +56,16 @@ export function buildCostExportSnapshot({
     rateSettings: {
       ...rateSettings,
       annualUplifts: [...rateSettings.annualUplifts],
+      ...(rateSettings.allowancePools === undefined
+        ? {}
+        : { allowancePools: [...rateSettings.allowancePools] }),
+      ...(rateSettings.allowanceResourceTypeIds === undefined
+        ? {}
+        : {
+            allowanceResourceTypeIds: [
+              ...rateSettings.allowanceResourceTypeIds,
+            ],
+          }),
     },
     travelSettings: { ...travelSettings },
     resourceTypes: resourceTypes.map((item) => ({ ...item })),
@@ -61,5 +74,8 @@ export function buildCostExportSnapshot({
       years: row.years.map((year) => ({ ...year })),
     })),
     manualCosts: { ...manualCosts },
+    ...(subcontractCost === undefined
+      ? {}
+      : { subcontractCost: structuredClone(subcontractCost) }),
   };
 }

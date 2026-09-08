@@ -76,6 +76,7 @@ export function deleteSuspendedCostVersion(
     w.activeVersion = highest.code;
     for (const field of [
       'costRows',
+      'subcontractCost',
       'rateSettings',
       'travelSettings',
       'travelRows',
@@ -135,6 +136,7 @@ export function assertCostVersionDeletionTransition(
     'deletedCostVersions',
     'activeVersion',
     'costRows',
+    'subcontractCost',
     'rateSettings',
     'travelSettings',
     'travelRows',

@@ -197,3 +197,72 @@ test('paused explicit workflow save adopts its canonical revision before autosav
   assert.equal(await queue.save({ amount: 200, workflowVersion: 'V2' }), true);
   assert.deepEqual(revisions, [2]);
 });
+
+test('remote workflow refresh adopts only a clean idle editor and the next write uses its revision', async () => {
+  const writes = [];
+  const queue = create({
+    savedDocument: { cost: 1, workflow: 'A' },
+    persist: async (document, revision) => {
+      writes.push({ document, revision });
+      return { revision: revision + 1, updatedAt: 'now' };
+    },
+  });
+  assert.equal(
+    queue.adoptRemote({ cost: 1, workflow: 'B' }, 5, {
+      cost: 2,
+      workflow: 'A',
+    }),
+    false,
+  );
+  assert.equal(queue.currentRevision(), 4);
+  assert.equal(
+    queue.adoptRemote({ cost: 1, workflow: 'B' }, 5, {
+      cost: 1,
+      workflow: 'A',
+    }),
+    true,
+  );
+  assert.equal(
+    queue.adoptRemote({ cost: 1, workflow: 'A' }, 4, {
+      cost: 1,
+      workflow: 'B',
+    }),
+    false,
+  );
+  await queue.save({ cost: 2, workflow: 'B' });
+  assert.equal(writes[0].revision, 5);
+  assert.equal(writes[0].document.workflow, 'B');
+});
+
+test('remote refresh cannot race an in-flight cost save, lifecycle pause, or conflict', async () => {
+  let release;
+  const wait = new Promise((resolve) => {
+    release = resolve;
+  });
+  const queue = create({
+    savedDocument: { cost: 1 },
+    persist: async () => {
+      await wait;
+      return { revision: 5, updatedAt: 'now' };
+    },
+  });
+  const pending = queue.save({ cost: 2 });
+  assert.equal(queue.adoptRemote({ cost: 99 }, 6, { cost: 1 }), false);
+  release();
+  await pending;
+  await queue.pause();
+  assert.equal(queue.adoptRemote({ cost: 99 }, 6, { cost: 2 }), false);
+  queue.resume();
+  assert.equal(
+    queue.adoptRemote({ cost: 2, workflow: 'new' }, 6, { cost: 2 }),
+    true,
+  );
+  const conflicted = create({
+    savedDocument: { cost: 1 },
+    persist: async () => {
+      throw new Error('conflict');
+    },
+  });
+  await conflicted.save({ cost: 2 });
+  assert.equal(conflicted.adoptRemote({ cost: 3 }, 5, { cost: 1 }), false);
+});
