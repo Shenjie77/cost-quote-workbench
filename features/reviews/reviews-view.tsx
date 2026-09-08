@@ -203,6 +203,9 @@ export function ReviewsView({
                       </span>
                       <span className="mt-1 block truncate text-[9px] text-muted-foreground">
                         {review.gateZh} · {project?.name || review.projectId}
+                        {review.costVersion
+                          ? ` · 成本 ${review.costVersion}`
+                          : ''}
                       </span>
                     </span>
                     <span className="max-sm:hidden">

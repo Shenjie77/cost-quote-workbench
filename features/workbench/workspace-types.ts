@@ -35,6 +35,26 @@ export const LOCAL_API_VERSION = 'cost-workbench/local-v1' as const;
 export const WORKSPACE_SCHEMA_VERSION = '1.0.0' as const;
 
 export type WorkbenchWorkspace = {
+  /** Current delivery-review round; opening a historical cost does not change it. */
+  workflowVersion?: string;
+  legacyWorkflowArchive?: Record<
+    string,
+    {
+      currentWorkflowStepCode: string;
+      processSteps: import('../projects/types').WorkflowStep[];
+      projectStatus: string;
+    }
+  >;
+  versionWorkflows?: Record<
+    string,
+    {
+      currentWorkflowStepCode: string;
+      processSteps: import('../projects/types').WorkflowStep[];
+      projectStatus: string;
+    }
+  >;
+  costVersionLocks?: import('../cost/cost-lock').CostVersionLocks;
+  /** Legacy project lock, migrated to costVersionLocks on load. */
   costLock?: import('../cost/cost-lock').CostLock;
   cpq?: CpqWorkspace;
   ssr?: SsrWorkspace;

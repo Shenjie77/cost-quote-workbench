@@ -601,6 +601,7 @@
                 "type": ["integer", "null"],
                 "minimum": 0
               },
+              "workflowVersion": { "type": "string" },
               "costLockReason": {
                 "type": ["string", "null"]
               }
@@ -733,6 +734,7 @@
                   "type": "string"
                 }
               },
+              "workflowVersion": { "type": "string" },
               "costLockReason": {
                 "type": ["string", "null"]
               }
@@ -1713,6 +1715,7 @@
         "followUps"
       ],
       "properties": {
+        "costVersion": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
         "id": {
           "$ref": "#/$defs/nonBlankText"
         },
@@ -1860,6 +1863,7 @@
             "$ref": "#/$defs/workflowStep"
           }
         },
+        "workflowVersion": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
         "activeVersion": {
           "type": "string",
           "pattern": "^V[1-9][0-9]*$"

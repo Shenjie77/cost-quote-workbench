@@ -134,3 +134,66 @@ test('disposing an unmounted project cancels queued writes that have not started
   assert.equal(await pending, false);
   assert.equal(writes, 1);
 });
+
+test('server-derived lock metadata is returned without replacing newer editor inputs', async () => {
+  const submitted = {
+    project: { id: 'P-TEST' },
+    amount: 100,
+    costVersionLocks: {},
+  };
+  const returned = {
+    ...submitted,
+    costVersionLocks: {
+      V1: { reason: 'DRB completed', lockedAt: '2026-09-07T00:00:00Z' },
+    },
+  };
+  const newerEditor = { ...submitted, amount: 200 };
+  let seen;
+  const queue = createSaveQueue({
+    revision: 1,
+    persist: async () => ({
+      revision: 2,
+      updatedAt: 'now',
+      workspace: returned,
+    }),
+    onSaving: noop,
+    onSaved: (record, original) => {
+      seen = { record, original };
+    },
+    onError: (error) => {
+      throw error;
+    },
+    isConflict: () => false,
+  });
+  assert.equal(await queue.save(submitted), true);
+  assert.deepEqual(seen.record.workspace, returned);
+  assert.deepEqual(seen.original, submitted);
+  assert.equal(queue.isSaved(returned), true);
+  assert.equal(queue.isSaved(newerEditor), false);
+  assert.equal(newerEditor.amount, 200);
+});
+
+test('paused explicit workflow save adopts its canonical revision before autosave resumes', async () => {
+  const revisions = [];
+  const queue = createSaveQueue({
+    revision: 1,
+    savedDocument: { amount: 100 },
+    persist: async (document, revision) => {
+      revisions.push(revision);
+      return { revision: revision + 1, updatedAt: 'now', workspace: document };
+    },
+    onSaving: noop,
+    onSaved: noop,
+    onError: (error) => {
+      throw error;
+    },
+    isConflict: () => false,
+  });
+  assert.throws(() => queue.adoptSaved({ amount: 100 }, 2), /Pause/);
+  await queue.pause();
+  queue.adoptSaved({ amount: 100, workflowVersion: 'V2' }, 2);
+  assert.equal(queue.isSaved({ amount: 100, workflowVersion: 'V2' }), true);
+  queue.resume();
+  assert.equal(await queue.save({ amount: 200, workflowVersion: 'V2' }), true);
+  assert.deepEqual(revisions, [2]);
+});

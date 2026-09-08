@@ -45,10 +45,18 @@ absolute file path and SHA-256 so an Agent can detect a changed contract.
 For normal edits, use the [narrow resource contract](../skills/cost-workbench/references/resources.md)
 (`project`, `cost`, `masterdata`, `cpq`, `quote`, `ssr`, `boq` get/update).
 Reads are filtered/paginated; updates merge named rows or fields with revision
-checks. Project delete/restore is recoverable. After DRB completion or cost
-finalization, cost edits and `cost apply-rates` are blocked. `masterdata update
---tab resources` remains available to refresh the catalogue; captured rates and
-cost amounts stay unchanged. Existing mutators support `--compact`;
+checks. Project delete/restore is recoverable. Explicit user cost confirmation
+locks only that version. DRB entry, submission and completion require that cost
+version to be Confirmed first; Confirmed is not DRB approval. Cost edits and imports check the named
+`--version`, defaulting to activeVersion when omitted; `cost apply-rates` requires
+an explicit version. Version listings include each version's `costLockReason`.
+`cost get --project-id ID --version Vn --section workflow` reads that version's
+workflow structure/progress; project and mutation receipts expose workflowVersion.
+Locked versions remain readable, and
+new blank or cloned Drafts may be created and edited independently.
+`masterdata update --tab resources` remains available to refresh the catalogue;
+captured rates and cost amounts stay unchanged until explicitly applied to an
+unlocked target. Existing mutators support `--compact`;
 legacy workspace get/save remains for backups and deliberate bulk work.
 
 Cost validate/calculate/export additionally accept `--project-id ID [--version V1] [--db FILE]`
@@ -227,12 +235,16 @@ The workspace also carries the fields used by Project List and project tabs:
 - `selectedStep` is retained for v1 compatibility. Keep it equal to the array
   index of `currentWorkflowStepCode`; the browser and repository migration
   synchronize it automatically.
-- `activeVersion` identifies the cost snapshot loaded by the UI.
-- `costVersions[]` contains complete independent cost inputs. To create a
-  version, read the latest workspace revision, clone the active snapshot,
-  assign the next `V<number>` code, set `sourceVersion`, append it, set
-  `activeVersion`, mirror the new snapshot into the top-level live cost fields,
-  and save with the exact revision.
+- `activeVersion` identifies the cost snapshot loaded by the UI. Selecting an
+  older version is historical viewing, not a change to the current workflow round.
+- `workflowVersion` identifies the current work round; `versionWorkflows` retains
+  per-version progress. Both are platform-managed metadata, not writable agent
+  inputs. Older documents without workflowVersion use activeVersion as fallback.
+- `costVersions[]` contains complete independent cost inputs. Create a version
+  with `cost create --mode blank|clone` and the exact revision. The platform
+  selects the new Draft as activeVersion/workflowVersion and starts its DTRB
+  round, retaining old version costs, progress and submissions. Do not manually
+  append snapshots or write workflow metadata through workspace saves.
 - Each version stores its own `resourceTypes` rate/conversion snapshot. Updating
   the project-level catalogue does not reprice old versions. To apply new rates,
   copy the catalogue into the selected version's `resourceTypes` explicitly.
@@ -250,10 +262,14 @@ The workspace also carries the fields used by Project List and project tabs:
 - `costVersions[].state` is a user-controlled enum: `Draft`, `Suspended`, or
   `Confirmed`. Creating or selecting a version must never change the state of
   any other version. An Agent may change a state only when the user explicitly
-  requests that lifecycle update. `Confirmed` finalizes the project cost and RE rates.
-  DRB completion also locks cost inputs; a locked Draft/Suspended version may
-  still be marked Confirmed without changing its cost inputs. Other cost changes
-  and downgrades are rejected by the repository.
+  requests that lifecycle update. Before finalization, read that version's cost
+  settings/summary, validate the inputs and obtain explicit user confirmation.
+  Existing explicit authorization for this version is sufficient. `Confirmed`
+  locks its cost inputs and captured rates; it must precede DRB entry, submission
+  or completion and does not mean DRB approved. Draft cannot be locked by changing
+  a DRB node or recording a result. New blank/cloned Drafts remain editable and
+  independently satisfy their own DTRB → DRB review prerequisites; old approvals
+  and completion states do not transfer to them.
 - `processSteps[]` contains the project's workflow nodes. Keep `code` stable for
   machine operations; the user-editable fields are `name`, `nameZh`, `owner`,
   `state`, and `required`. Workflow state is one of `completed`, `in_progress`,
@@ -475,5 +491,6 @@ suite.
 可直接使用 [业务 Skill 清单](business-skills.md) 中的独立入口，无需先读取完整 workspace。
 
 - `project create --input REQUEST`：OperationRequest 的 data 为 `{schemaVersion:"1.0.0",operation:"project.create",project:{id,name,client}}`，仅创建新项目和空白 V1，已有或已删除同号项目均拒绝。
-- `cost create --project-id ID --mode blank|clone [--source-version V1] --expected-revision R`：新增 Draft 并返回版本号，保持 activeVersion；clone 必须指定源版本，blank 禁止 source-version。锁定项目不能新建版本。
+- `cost create --project-id ID --mode blank|clone [--source-version V1] --expected-revision R`：新增 Draft 并返回版本号，自动选为 activeVersion/workflowVersion 并启动本版 DTRB；clone 必须指定源版本，blank 禁止 source-version。允许从锁定源版本复制新版；原锁版输入及历史流程保留，新版不继承旧锁或旧审批。
 - `cost import --project-id ID --version Vn ...`：预览和应用均可指定版本；未指定仍为 activeVersion。预览返回 revision/version；`--apply --compact` 返回窄收据，未加 compact 保留旧完整记录响应。
+- `ssr submit --project-id ID --version Vn --input REQUEST --expected-revision R --compact`：明确提交成本版本；省略 version 时使用 workflowVersion，旧数据缺失时才回退 activeVersion。DRB 要求本版已由用户确认成本为 Confirmed，并满足本版 DTRB 前置。`ssr result/close/followup` 继续按 submissionId 处理原记录，不跟随历史查看切换。

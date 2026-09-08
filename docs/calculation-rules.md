@@ -31,7 +31,9 @@ Recalculation starts from effort and rates, so it never compounds a previously
 calculated Cost. HQ, subcontract, travel and manual costs are unchanged.
 Summary, history, quotation and Excel totals sum these final annual costs;
 there is no separate allowance line or second addition. The option is captured
-per version and cannot change after the project cost is locked.
+per version and cannot change once that version is locked. A new Draft may be
+created from a locked version and can change its allowance, effort and captured
+rates independently; the source version and its historical totals stay intact.
 
 Each version captures RE Type rates, MD/month, hours/MD and HQ designation.
 Editing the master catalogue leaves existing version snapshots unchanged.

@@ -28,6 +28,7 @@ const setup = () => {
     'costing',
   );
   const baseline = w.costVersions[0];
+  baseline.state = 'Confirmed';
   const ssr = {
     ...emptySsr(),
     enabled: true,

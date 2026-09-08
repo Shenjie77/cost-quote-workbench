@@ -4,6 +4,8 @@ Local-first personal workbench for project delivery review, cost construction,
 pricing, quote output, review follow-up, reusable master data, and maintenance
 price history.
 
+Current release: [v0.6.0 · Version-owned cost locks and DRB workflows](docs/releases/v0.6.0.md).
+
 The product UI is English-first with compact Chinese helper labels. It runs on
 the company computer and is designed to give both the user and an internal
 Agent a stable, auditable data source.
@@ -15,10 +17,20 @@ column mappings, templates and all new CLI commands.
 
 Project List includes recoverable deletion. Deleted projects stay out of the UI,
 including after restart; snapshots can be recovered with `project restore`.
-DRB-completed or cost-finalized projects lock their cost versions, including
-the rates captured in those versions. Masterdata Resources remains editable;
-catalogue rate updates never recalculate locked costs. Viewing, quotations and
-Excel exports remain available.
+Costs must be explicitly confirmed by the user before their version can enter,
+submit or complete DRB. `Confirmed` makes that version's inputs immutable; it
+is cost finalization, not DRB approval. Draft costs remain editable and cannot
+be locked merely by marking DRB complete. Locked versions remain available for
+summary, comparison and export. Create a new blank Draft or clone a locked
+version to revise effort, captured rates or the optional 3% allowance; creation
+selects the new version and starts its own DTRB round. Masterdata Resources
+remains editable, and rates apply only to an explicitly selected unlocked version.
+
+Each version has an independent DTRB → DRB review sequence. The platform tracks
+the current round with `workflowVersion`; selecting an older `activeVersion`
+only views history and does not redirect the round. Existing submissions and
+approvals remain bound to their original versions. A new estimate needs its own
+applicable review evidence before quotation export.
 
 Cost Input has an optional 3% allowance for Local and ARP internal labour,
 off by default per cost version. When enabled, each Y1–Y5 Cost is calculated

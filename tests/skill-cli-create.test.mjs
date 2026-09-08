@@ -125,7 +125,7 @@ test('project create validates identity and operation before writing', (t) => {
   inspect((repo) => assert.deepEqual(repo.headers(), []));
 });
 
-test('cost create blank and clone retain active data, source captured rates and independent drafts', (t) => {
+test('cost create selects each new Draft and starts its own workflow while retaining source inputs', (t) => {
   const { run, inspect, create } = setup(t);
   create();
   let before;
@@ -168,6 +168,18 @@ test('cost create blank and clone retain active data, source captured rates and 
   ]);
   assert.equal(clone.kind, 'MutationResult');
   assert.equal(clone.data.version, 'V2');
+  assert.equal(clone.data.workflowVersion, 'V2');
+  inspect((repo) => {
+    const w = repo.get('SKILL-PROJECT').workspace;
+    assert.equal(w.activeVersion, 'V2');
+    assert.equal(w.workflowVersion, 'V2');
+    assert.equal(w.currentWorkflowStepCode, 'TD_EFFORT_REVIEW');
+    assert.equal(
+      w.versionWorkflows.V2.currentWorkflowStepCode,
+      'TD_EFFORT_REVIEW',
+    );
+    assert.deepEqual(w.versionWorkflows.V1, before.versionWorkflows.V1);
+  });
   const blank = run([
     'cost',
     'create',
@@ -179,17 +191,31 @@ test('cost create blank and clone retain active data, source captured rates and 
     '3',
   ]);
   assert.equal(blank.data.version, 'V3');
+  assert.equal(blank.data.workflowVersion, 'V3');
   inspect((repo) => {
     const w = repo.get('SKILL-PROJECT').workspace;
-    assert.equal(w.activeVersion, 'V1');
+    assert.equal(w.activeVersion, 'V3');
+    assert.equal(w.workflowVersion, 'V3');
+    assert.equal(w.currentWorkflowStepCode, 'TD_EFFORT_REVIEW');
     for (const key of [
       'costRows',
       'rateSettings',
       'manualCosts',
       'travelSettings',
-      'resourceTypes',
+      'travelRows',
+      'travelUplift',
     ])
-      assert.deepEqual(w[key], before[key]);
+      assert.deepEqual(w[key], w.costVersions[2][key]);
+    assert.deepEqual(w.resourceTypes, before.resourceTypes);
+    assert.deepEqual(w.versionWorkflows.V1, before.versionWorkflows.V1);
+    assert.equal(
+      w.versionWorkflows.V2.currentWorkflowStepCode,
+      'TD_EFFORT_REVIEW',
+    );
+    assert.equal(
+      w.versionWorkflows.V3.currentWorkflowStepCode,
+      'TD_EFFORT_REVIEW',
+    );
     assert.deepEqual(w.costVersions[0], before.costVersions[0]);
     const v2 = w.costVersions[1],
       v3 = w.costVersions[2];
@@ -207,7 +233,7 @@ test('cost create blank and clone retain active data, source captured rates and 
   });
 });
 
-test('cost create rejects invalid mode, missing source, stale revision and DRB/finalized locks', (t) => {
+test('cost create rejects invalid requests but allows new drafts after DRB or finalization', (t) => {
   const { run, inspect, create } = setup(t);
   create();
   const args = [
@@ -236,16 +262,57 @@ test('cost create rejects invalid mode, missing source, stale revision and DRB/f
     undefined,
     5,
   );
+  const completeDrb = (w) => {
+    let step = w.processSteps.find((entry) => entry.code === 'DRB');
+    if (!step) {
+      step = { ...w.processSteps[0], code: 'DRB', name: 'DRB', no: '99' };
+      w.processSteps.push(step);
+    }
+    const dtrb = w.processSteps.find(
+      (entry) => entry.code === 'TD_EFFORT_REVIEW',
+    );
+    if (dtrb) dtrb.state = 'completed';
+    step.state = 'completed';
+    w.currentWorkflowStepCode = step.code;
+    w.selectedStep = w.processSteps.indexOf(step);
+  };
   inspect((repo) => {
     const record = repo.get('SKILL-PROJECT');
-    const step = record.workspace.processSteps[0];
-    step.code = 'DRB';
-    step.name = 'DRB';
-    step.state = 'completed';
-    record.workspace.currentWorkflowStepCode = 'DRB';
-    repo.save('SKILL-PROJECT', record.workspace, record.revision);
+    completeDrb(record.workspace);
+    assert.throws(
+      () => repo.save('SKILL-PROJECT', record.workspace, record.revision),
+      /Confirmed|确认成本/,
+    );
+    assert.equal(repo.get('SKILL-PROJECT').revision, 1);
+    assert.equal(
+      repo.get('SKILL-PROJECT').workspace.costVersions[0].state,
+      'Draft',
+    );
   });
   run(
+    [
+      'cost',
+      'update',
+      '--project-id',
+      'SKILL-PROJECT',
+      '--version',
+      'V1',
+      '--section',
+      'settings',
+      '--expected-revision',
+      '1',
+    ],
+    envelope('cost.update', { changes: { set: { state: 'Confirmed' } } }),
+  );
+  let originalVersion, originalWorkflow;
+  inspect((repo) => {
+    const record = repo.get('SKILL-PROJECT');
+    completeDrb(record.workspace);
+    const saved = repo.save('SKILL-PROJECT', record.workspace, record.revision);
+    originalVersion = saved.workspace.costVersions[0];
+    originalWorkflow = saved.workspace.versionWorkflows.V1;
+  });
+  const next = run(
     [
       'cost',
       'create',
@@ -254,14 +321,23 @@ test('cost create rejects invalid mode, missing source, stale revision and DRB/f
       '--mode',
       'blank',
       '--expected-revision',
-      '2',
+      '3',
     ],
     undefined,
-    6,
+    0,
   );
-  inspect((repo) =>
-    assert.equal(repo.get('SKILL-PROJECT').workspace.costVersions.length, 1),
-  );
+  assert.equal(next.data.workflowVersion, 'V2');
+  inspect((repo) => {
+    const w = repo.get('SKILL-PROJECT').workspace;
+    assert.equal(w.costVersions.length, 2);
+    assert.deepEqual(w.costVersions[0], originalVersion);
+    assert.deepEqual(w.versionWorkflows.V1, originalWorkflow);
+    assert.equal(w.activeVersion, 'V2');
+    assert.equal(w.workflowVersion, 'V2');
+    assert.equal(w.currentWorkflowStepCode, 'TD_EFFORT_REVIEW');
+    assert.equal(w.costVersions[1].state, 'Draft');
+    assert.equal(next.data.costLockReason, null);
+  });
   // A separate project verifies Confirmed finality independently of DRB.
   run(
     ['project', 'create'],
@@ -298,7 +374,7 @@ test('cost create rejects invalid mode, missing source, stale revision and DRB/f
       '2',
     ],
     undefined,
-    6,
+    0,
   );
 });
 
@@ -320,6 +396,17 @@ test('cost import targets an inactive version using its own assumptions and retu
     const record = repo.get('SKILL-PROJECT'),
       w = record.workspace,
       v = w.costVersions[1];
+    // Viewing V1 keeps the new V2 workflow round active; imports still target V2.
+    w.activeVersion = 'V1';
+    for (const field of [
+      'costRows',
+      'rateSettings',
+      'travelSettings',
+      'travelRows',
+      'travelUplift',
+      'manualCosts',
+    ])
+      w[field] = structuredClone(w.costVersions[0][field]);
     reType = v.resourceTypes.find((r) => r.pool === 'LOCAL');
     reType.mandayRate = 100;
     v.rateSettings = {
@@ -382,6 +469,8 @@ test('cost import targets an inactive version using its own assumptions and retu
   inspect((repo) => {
     const w = repo.get('SKILL-PROJECT').workspace;
     assert.equal(w.activeVersion, 'V1');
+    assert.equal(w.workflowVersion, 'V2');
+    assert.equal(w.currentWorkflowStepCode, 'TD_EFFORT_REVIEW');
     assert.deepEqual(w.costRows, before.costRows);
     assert.deepEqual(w.rateSettings, before.rateSettings);
     assert.deepEqual(w.costVersions[0], before.costVersions[0]);

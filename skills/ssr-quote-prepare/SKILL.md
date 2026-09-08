@@ -11,7 +11,7 @@ description: 基于当前成本版本编制服务报价，选择客户模板及�
 
 写入使用最新返回的 `--expected-revision R`，冲突后重读目标资源再重施原意。局部修改仅发送变更字段；新增记录必须字段完整；不把缺失记录视为删除。核对返回 revision 和变更条目，不把预览或校验当成已保存。
 
-先读 `project get`（带项目号）、`cost get --section summary`、`quote get --section settings|assumptions`。当前标准报价与模板填充使用 activeVersion；用户指定其他版本时先核对，不能输出错版。成本要满足平台的定稿/评审前置；不能自行批准或解除锁定以便导出。
+先读 `project get`（带项目号）、`cost get --section summary`、`quote get --section settings|assumptions`。当前标准报价与模板填充使用 activeVersion；用户指定其他版本时先核对，不能输出错版。成本要满足平台的定稿/评审前置；Confirmed 只表示用户确认成本，不表示 DRB approved。从已锁定版本创建的新 Draft 有独立 DTRB → DRB 轮次，不继承旧版审批，不能自行批准或解除原版锁定以便导出。
 
 客户模板与假设仅按需读取 `masterdata get --tab quote-templates|assumptions`。客户名称规范化精确匹配，展示真实付款条款、有效期与法务 T&C。模板选中与默认假设拷贝是不同操作；仅设置 selectedQuoteTemplateId 不代表假设已自动应用。用户要求套用时按选定模板的 defaultAssumptionIds 读取库记录，再更新当前报价假设，保留用户手改内容与明确排除项。
 

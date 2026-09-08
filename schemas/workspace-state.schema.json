@@ -192,6 +192,36 @@
     "maintenanceBoq": {
       "$ref": "#/$defs/maintenanceWorkspace"
     },
+    "workflowVersion": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
+    "legacyWorkflowArchive": { "$ref": "#/properties/versionWorkflows" },
+    "versionWorkflows": {
+      "type": "object",
+      "propertyNames": { "pattern": "^V[1-9][0-9]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "currentWorkflowStepCode",
+          "processSteps",
+          "projectStatus"
+        ],
+        "properties": {
+          "currentWorkflowStepCode": { "$ref": "#/$defs/text" },
+          "processSteps": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 1000,
+            "items": { "$ref": "#/$defs/workflowStep" }
+          },
+          "projectStatus": { "$ref": "#/$defs/identifier" }
+        }
+      }
+    },
+    "costVersionLocks": {
+      "type": "object",
+      "propertyNames": { "pattern": "^V[1-9][0-9]*$" },
+      "additionalProperties": { "$ref": "#/properties/costLock" }
+    },
     "costLock": {
       "type": "object",
       "additionalProperties": false,
@@ -623,6 +653,7 @@
         "followUps"
       ],
       "properties": {
+        "costVersion": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
         "id": {
           "$ref": "#/$defs/identifier"
         },

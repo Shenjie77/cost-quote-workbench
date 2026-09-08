@@ -26,4 +26,4 @@ cost-cli masterdata update --project-id ID --tab workflow --input change.json --
 
 两种记录都以 code 为键。流程节点字段按 workspace-state schema 的 workflowStep；状态字典字段为 `code/name/nameZh/active`。维护节点名称、责任人、输入/说明和 required 等结构时保留实际 state、日期和当前节点。新增节点需完整字段；新增初态按未开始，不复制其他项目的完成状态或评审证据。
 
-名称可以改，稳定 code 应保留。当前选用节点/状态不能直接删除；确需移除时先按用户明确意图调整引用，并逐次使用最新 revision。不要把“模板更新”变成 completed 状态写入；完成 DRB/成本基线节点会锁成本。无论如何不得通过改节点名/code/state 绕过已有成本锁。
+名称可以改，稳定 code 应保留。当前选用节点/状态不能直接删除；确需移除时先按用户明确意图调整引用，并逐次使用最新 revision。不要把“模板更新”变成 completed 状态写入；当前节点进度属于 workflowVersion 对应的工作轮次；activeVersion 切旧仅用于历史查看。进入、提交或完成 DRB 都要求该版成本先由用户明确确认为 Confirmed，不能把 Draft 靠改节点 completed 直接锁定。Confirmed 不表示 DRB 已批准。每个新版从独立 DTRB 轮次开始，不复制旧版进度；workflowVersion/versionWorkflows 元数据由平台管理，不手工覆写。无论如何不得通过改节点名/code/state 解锁原版成本。

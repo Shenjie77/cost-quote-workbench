@@ -7,7 +7,7 @@
  * normalize individual business records without changing the public payload.
  */
 
-export const LOCAL_DATABASE_SCHEMA_VERSION = 3;
+export const LOCAL_DATABASE_SCHEMA_VERSION = 5;
 
 /** Each entry is exactly one statement so initialization stays portable. */
 export const LOCAL_DATABASE_STATEMENTS = [

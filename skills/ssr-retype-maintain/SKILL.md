@@ -27,4 +27,4 @@ cost-cli masterdata update --project-id ID --tab resources --input change.json -
 
 示例 changes：`{"upsert":[{"id":"ACTUAL-RE-ID","mandayRate":650}]}`，650 仅为示例，使用用户给定费率。保留其他等级、有效期和换算参数。新增 RE 使用完整 schema 字段。
 
-DRB 完成/成本锁定后仍可维护该目录。该操作不会更改任何成本版本捕获的费率和金额。不要自动执行 `cost apply-rates`，也不通过增加费率实现 Local/ARP 3% allowance。
+任何成本版本经用户确认定稿并锁定后，仍可维护该目录。该操作不会更改任何成本版本捕获的费率和金额。用户另外要求把新费率应用到某个未锁定版本时，转成本更新 skill 并明确版本；不要自动执行 `cost apply-rates`，也不通过增加费率实现 Local/ARP 3% allowance。

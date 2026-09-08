@@ -38,8 +38,25 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
-import { costLockReason, type CostLock } from '../cost/cost-lock';
+import {
+  costLockReason,
+  getCostVersionLocks,
+  type CostLock,
+} from '../cost/cost-lock';
 import { ProjectBootstrap } from './project-bootstrap';
+import { runVersionTransition } from '../cost/version-transition';
+import {
+  migrateVersionWorkflows,
+  reconcileVersionWorkflows,
+  isDrbStep,
+} from '../cost/version-workflow';
+import { CostConfirmationDialog } from '../cost/cost-confirmation-dialog';
+import {
+  costConfirmationDetails,
+  confirmReviewedCost,
+  workflowConfirmationFingerprint,
+  type CostConfirmationDetails,
+} from '../cost/cost-confirmation';
 import { deleteLocalProject } from './workspace-client';
 import { AgentView } from '@/features/agent/agent-view';
 import { MaintenanceView } from '@/features/maintenance/maintenance-view';
@@ -49,10 +66,12 @@ import {
 } from '@/features/maintenance/domain';
 import { ReminderInbox } from '@/features/agent/reminder-inbox';
 import { SsrView } from '@/features/ssr/ssr-view';
+import { applySsrEditFromView } from '@/features/ssr/review-submission-action';
 import {
   assertQuoteDecision,
   commercialBasisKey,
   emptySsr,
+  recordSubmission,
   ssrAttention,
   type SsrWorkspace,
 } from '@/features/ssr/domain';
@@ -148,6 +167,14 @@ import {
 } from '@/features/workbench/local-persistence';
 import type { PanelState, ViewKey } from '@/features/workbench/types';
 
+type PendingCostConfirmation = {
+  details: CostConfirmationDetails;
+  action: string;
+  workflowFingerprint?: string;
+  apply: (workspace: WorkbenchWorkspace) => WorkbenchWorkspace;
+  resolve: (success: boolean) => void;
+};
+
 export function WorkbenchApp() {
   return (
     <ProjectBootstrap
@@ -175,8 +202,26 @@ function ProjectSessionApp({
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [editTarget, setEditTarget] = useState<Project | null>(null);
   const [deleteError, setDeleteError] = useState('');
-  const [costLock, setCostLock] = useState<CostLock | undefined>();
+  const [costVersionLocks, setCostVersionLocks] = useState<
+    Record<string, CostLock>
+  >({});
   const switchingRef = useRef(false);
+  const [workflowVersion, setWorkflowVersion] = useState('V3');
+  const [versionWorkflows, setVersionWorkflows] = useState<
+    NonNullable<WorkbenchWorkspace['versionWorkflows']>
+  >({});
+  const [legacyWorkflowArchive, setLegacyWorkflowArchive] = useState<
+    NonNullable<WorkbenchWorkspace['legacyWorkflowArchive']>
+  >({});
+  const [costConfirmation, setCostConfirmation] =
+    useState<PendingCostConfirmation | null>(null);
+  const [confirmationError, setConfirmationError] = useState('');
+  const [requestedCostView, setRequestedCostView] = useState<{
+    projectId: string;
+    code: string;
+  } | null>(null);
+  const versionTransitionRef = useRef(false);
+  const [isVersionTransitioning, setVersionTransitioning] = useState(false);
   const quoteExportingRef = useRef(false);
   const [quoteExporting, setQuoteExporting] = useState(false);
   /** Protect the output/history pair when users navigate during Excel generation. */
@@ -299,12 +344,12 @@ function ProjectSessionApp({
     : title.subtitleZh;
 
   /** Applies one database snapshot without coupling the API to child views. */
-  const hydrateWorkspace = useCallback((workspace: WorkbenchWorkspace) => {
-    const reason = costLockReason(workspace);
-    setCostLock(
-      workspace.costLock ||
-        (reason ? { reason, lockedAt: new Date().toISOString() } : undefined),
-    );
+  const hydrateWorkspace = useCallback((input: WorkbenchWorkspace) => {
+    const workspace = migrateVersionWorkflows(input);
+    setWorkflowVersion(workspace.workflowVersion || workspace.activeVersion);
+    setVersionWorkflows(workspace.versionWorkflows || {});
+    setLegacyWorkflowArchive(workspace.legacyWorkflowArchive || {});
+    setCostVersionLocks(getCostVersionLocks(workspace));
     // Detail data is authoritative even if the parallel portfolio request is
     // delayed or unavailable (e.g. a project renamed through the CLI).
     setProjectList((current) => {
@@ -428,7 +473,10 @@ function ProjectSessionApp({
   const workspace = useMemo<WorkbenchWorkspace>(
     () => ({
       schemaVersion: WORKSPACE_SCHEMA_VERSION,
-      ...(costLock ? { costLock } : {}),
+      costVersionLocks,
+      workflowVersion,
+      versionWorkflows,
+      legacyWorkflowArchive,
       project: exportProject,
       currentWorkflowStepCode,
       selectedStep,
@@ -468,7 +516,10 @@ function ProjectSessionApp({
       },
     }),
     [
-      costLock,
+      costVersionLocks,
+      workflowVersion,
+      versionWorkflows,
+      legacyWorkflowArchive,
       cpq,
       maintenanceBoq,
       ssr,
@@ -499,10 +550,26 @@ function ProjectSessionApp({
       synchronizedVersions,
     ],
   );
-  const lockedReason = costLockReason(workspace);
+  const guardCostEdit =
+    <T,>(setter: (value: T) => void) =>
+    (value: T) => {
+      if (
+        !versionTransitionRef.current &&
+        !costLockReason(workspace, activeVersion)
+      )
+        setter(value);
+    };
+  const lockedReason = costLockReason(workspace, activeVersion);
+  const versionLockReasons = Object.fromEntries(
+    Object.entries(getCostVersionLocks(workspace)).map(([code, lock]) => [
+      code,
+      lock.reason,
+    ]),
+  );
   const {
     status: persistenceStatus,
     saveNow,
+    adoptSavedRecord,
     saveProjectDetails,
     pauseSaving,
     resumeSaving,
@@ -512,8 +579,218 @@ function ProjectSessionApp({
     projectId: exportProject.id,
     workspace,
     onHydrate: hydrateWorkspace,
+    onSavedWorkspace: (saved, submitted) => {
+      // A save response can normalize workflow metadata; retain any edits made after submission.
+      setVersionWorkflows((current) => ({
+        ...current,
+        ...saved.versionWorkflows,
+      }));
+      setLegacyWorkflowArchive((current) => ({
+        ...current,
+        ...saved.legacyWorkflowArchive,
+      }));
+      setWorkflowVersion((current) =>
+        current === (submitted.workflowVersion || submitted.activeVersion)
+          ? saved.workflowVersion || current
+          : current,
+      );
+      setCurrentWorkflowStepCode((current) =>
+        current === submitted.currentWorkflowStepCode
+          ? saved.currentWorkflowStepCode
+          : current,
+      );
+      setProcessSteps((current) =>
+        JSON.stringify(current) === JSON.stringify(submitted.processSteps)
+          ? saved.processSteps
+          : current,
+      );
+      setProjectStatus((current) =>
+        current === submitted.projectStatus ? saved.projectStatus : current,
+      );
+      setSelectedStep((current) =>
+        current === submitted.selectedStep ? saved.selectedStep : current,
+      );
+      setReviewGates((current) =>
+        JSON.stringify(current) === JSON.stringify(submitted.reviewGates)
+          ? saved.reviewGates
+          : current,
+      );
+      const savedLocks = getCostVersionLocks(saved);
+      setCostVersionLocks((current) => {
+        const merged = { ...current, ...savedLocks };
+        return JSON.stringify(merged) === JSON.stringify(current)
+          ? current
+          : merged;
+      });
+    },
     onMissing: onEmpty,
   });
+
+  /** Explicit lifecycle changes pause edits and adopt the server's canonical document. */
+  const persistCanonicalChange = async (
+    projectId: string,
+    transform: (document: WorkbenchWorkspace) => WorkbenchWorkspace,
+    successMessage: string,
+  ) => {
+    if (!isReady || switchingRef.current) return false;
+    const active = projectId === activeProjectId;
+    return runVersionTransition({
+      busy: versionTransitionRef,
+      setBusy: setVersionTransitioning,
+      flushAndPause: active ? pauseSaving : async () => 0,
+      resume: active ? resumeSaving : () => {},
+      commit: async () => {
+        const record = await getLocalWorkspace(projectId);
+        if (!record) throw new Error('项目已不存在，请刷新列表。');
+        const next = reconcileVersionWorkflows(
+          record.workspace,
+          transform(record.workspace),
+        );
+        const saved = await saveLocalWorkspaceDocument(next, record.revision);
+        if (active) {
+          adoptSavedRecord(saved);
+          hydrateWorkspace(saved.workspace);
+        } else {
+          setProjectList((items) =>
+            items.map((item) =>
+              item.id !== projectId
+                ? item
+                : {
+                    ...item,
+                    projectStatus: saved.workspace.projectStatus,
+                    currentWorkflowStepCode:
+                      saved.workspace.currentWorkflowStepCode,
+                    workflowSteps: saved.workspace.processSteps,
+                    reviewGates: saved.workspace.reviewGates,
+                    version: saved.workspace.activeVersion,
+                    versionState:
+                      saved.workspace.costVersions.find(
+                        (v) => v.code === saved.workspace.activeVersion,
+                      )?.state || item.versionState,
+                  },
+            ),
+          );
+        }
+        setNotice(successMessage);
+      },
+      onFailure: (error) => {
+        const message =
+          error instanceof Error
+            ? error.message
+            : '保存失败，当前成本和流程保持不变。';
+        setNotice(message);
+        setConfirmationError(message);
+      },
+    });
+  };
+
+  const requestCostConfirmation = useCallback(
+    (
+      document: WorkbenchWorkspace,
+      code: string,
+      action: string,
+      apply?: (confirmed: WorkbenchWorkspace) => WorkbenchWorkspace,
+    ): Promise<boolean> => {
+      try {
+        const details = costConfirmationDetails(document, code);
+        setConfirmationError('');
+        return new Promise((resolve) =>
+          setCostConfirmation({
+            details,
+            action,
+            apply: apply || ((confirmed) => confirmed),
+            resolve,
+            workflowFingerprint: apply
+              ? workflowConfirmationFingerprint(document)
+              : undefined,
+          }),
+        );
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : String(error));
+        return Promise.resolve(false);
+      }
+    },
+    [],
+  );
+  const cancelCostConfirmation = () => {
+    costConfirmation?.resolve(false);
+    setCostConfirmation(null);
+    setConfirmationError('');
+  };
+  const confirmCostAndContinue = async () => {
+    const pending = costConfirmation;
+    if (
+      !pending ||
+      pending.details.errors.length ||
+      versionTransitionRef.current
+    )
+      return;
+    const ok = await persistCanonicalChange(
+      pending.details.projectId,
+      (fresh) => {
+        if (
+          pending.workflowFingerprint &&
+          pending.workflowFingerprint !== workflowConfirmationFingerprint(fresh)
+        ) {
+          throw new Error('流程或评审记录已更新，请重新发起并确认本次操作。');
+        }
+        const confirmed = confirmReviewedCost(
+          fresh,
+          pending.details.versionCode,
+          pending.details.costKey,
+        );
+        return pending.apply(confirmed);
+      },
+      `成本 ${pending.details.versionCode} 已确认。${pending.action}。`,
+    );
+    if (ok) {
+      pending.resolve(true);
+      setCostConfirmation(null);
+      setConfirmationError('');
+    }
+  };
+
+  const handleSsrChange = (next: SsrWorkspace): boolean =>
+    applySsrEditFromView({
+      previous: workspace.ssr!,
+      next,
+      versions: synchronizedVersions,
+      onChange: setSsr,
+      onRequestConfirmCost: (code, value) => {
+        void requestCostConfirmation(
+          workspace,
+          code,
+          '登记本版 DRB 实际评审结果或条件关闭记录',
+          (confirmed) => ({ ...confirmed, ssr: value }),
+        );
+      },
+    });
+
+  const setWorkflowStepsWithConfirmation: React.Dispatch<
+    React.SetStateAction<WorkflowStep[]>
+  > = (change) => {
+    const next = typeof change === 'function' ? change(processSteps) : change;
+    const startingDrb = next.some(
+      (step) =>
+        isDrbStep(step) &&
+        step.state !== 'not_started' &&
+        processSteps.find((old) => old.code === step.code)?.state !==
+          step.state,
+    );
+    const version = synchronizedVersions.find(
+      (v) => v.code === workflowVersion,
+    );
+    if (startingDrb && version?.state !== 'Confirmed') {
+      void requestCostConfirmation(
+        workspace,
+        workflowVersion,
+        '继续更新本版 DRB 流程',
+        (confirmed) => ({ ...confirmed, processSteps: next }),
+      );
+      return;
+    }
+    setProcessSteps(next);
+  };
 
   /** Downloads a restore-ready v2 request without sending local data away. */
   const downloadWorkspaceBackup = () => {
@@ -628,7 +905,8 @@ function ProjectSessionApp({
       return false;
     }
     if (project.id === activeProjectId) return true;
-    if (switchingRef.current || !isReady) return false;
+    if (switchingRef.current || versionTransitionRef.current || !isReady)
+      return false;
     switchingRef.current = true;
     setProjectSwitching(true);
     try {
@@ -666,86 +944,155 @@ function ProjectSessionApp({
     }
   };
 
-  /** Loads a version's complete snapshot into the cost editors. */
+  /** Flush before version changes so completed workflow events lock their original version. */
+  const transitionCostVersion = useCallback(
+    (commit: () => void | Promise<void>) => {
+      if (switchingRef.current) return Promise.resolve(false);
+      return runVersionTransition({
+        busy: versionTransitionRef,
+        setBusy: setVersionTransitioning,
+        flushAndPause: pauseSaving,
+        resume: resumeSaving,
+        commit,
+        onFailure: () =>
+          setNotice(
+            '成本版本尚未保存，仍保留当前版本。请先处理保存错误后重试。',
+          ),
+      });
+    },
+    [pauseSaving, resumeSaving],
+  );
+
+  /** Loads a version's complete snapshot after the current version is safely persisted. */
   const selectCostVersion = useCallback(
     (code: string) => {
-      if (code === activeVersion) return;
+      if (code === activeVersion || !isReady) return;
       const target = synchronizedVersions.find(
         (version) => version.code === code,
       );
       if (!target) return;
-      setVersionSnapshots(synchronizedVersions);
-      setActiveVersion(code);
-      setVersionResourceTypes(
-        structuredClone(target.resourceTypes || resourceTypes),
-      );
-      setCostRows(structuredClone(target.costRows));
-      setRateSettings(structuredClone(target.rateSettings));
-      setTravelSettings(structuredClone(target.travelSettings));
-      setTravelRows(structuredClone(target.travelRows));
-      setTravelUplift(target.travelUplift);
-      setManualCosts(structuredClone(target.manualCosts));
-      setCostView('input');
-      setNotice(`Loaded ${code} cost snapshot / 已载入 ${code} 成本快照`);
+      void transitionCostVersion(() => {
+        // Keep server-added locks from the preceding save as well as locally derived ones.
+        setCostVersionLocks((current) => ({
+          ...getCostVersionLocks(workspace),
+          ...current,
+        }));
+        setVersionSnapshots(synchronizedVersions);
+        setActiveVersion(code);
+        setVersionResourceTypes(
+          structuredClone(target.resourceTypes || resourceTypes),
+        );
+        setCostRows(structuredClone(target.costRows));
+        setRateSettings(structuredClone(target.rateSettings));
+        setTravelSettings(structuredClone(target.travelSettings));
+        setTravelRows(structuredClone(target.travelRows));
+        setTravelUplift(target.travelUplift);
+        setManualCosts(structuredClone(target.manualCosts));
+        setCostView('input');
+        setNotice(`Loaded ${code} cost snapshot / 已载入 ${code} 成本快照`);
+      });
     },
-    [activeVersion, synchronizedVersions, resourceTypes],
+    [
+      activeVersion,
+      synchronizedVersions,
+      resourceTypes,
+      workspace,
+      isReady,
+      transitionCostVersion,
+    ],
   );
 
-  /**
-   * Clones the currently selected snapshot. Existing version states are
-   * intentionally preserved because lifecycle changes are user-controlled.
-   */
-  const createNewCostVersion = useCallback(() => {
-    const nextNumber =
-      Math.max(
-        0,
-        ...synchronizedVersions.map((version) =>
-          Number(version.code.replace(/^V/, '')),
-        ),
-      ) + 1;
-    const nextCode = `V${nextNumber}`;
-    const activeSnapshot = synchronizedVersions.find(
-      (version) => version.code === activeVersion,
-    );
-    const nextVersion = createCostVersion(nextCode, 'Draft', activeVersion, {
-      resourceTypes: versionResourceTypes,
-      costRows,
-      rateSettings,
-      travelSettings,
-      travelRows,
-      travelUplift,
-      manualCosts,
+  useEffect(() => {
+    if (
+      !requestedCostView ||
+      !isReady ||
+      requestedCostView.projectId !== activeProjectId
+    )
+      return;
+    let cancelled = false;
+    // Complete navigation after the requested project's asynchronous hydration.
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setRequestedCostView(null);
+      setActiveView('cost');
+      if (requestedCostView.code !== activeVersion)
+        selectCostVersion(requestedCostView.code);
+      else setCostView('summary');
     });
-    setVersionSnapshots([...synchronizedVersions, nextVersion]);
-    setActiveVersion(nextCode);
-    setCostView('input');
-    setNotice(
-      `${nextCode} created from ${activeSnapshot?.code || activeVersion} / 已复制为新成本版本`,
-    );
+    return () => {
+      cancelled = true;
+    };
   }, [
+    requestedCostView,
+    isReady,
+    activeProjectId,
     activeVersion,
-    versionResourceTypes,
-    costRows,
-    manualCosts,
-    rateSettings,
-    synchronizedVersions,
-    travelRows,
-    travelSettings,
-    travelUplift,
+    selectCostVersion,
   ]);
 
-  /** Updates one version lifecycle without altering any other version. */
-  const updateCostVersionState = useCallback(
-    (code: string, state: CostVersionState) => {
-      setVersionSnapshots((current) =>
-        current.map((version) =>
-          version.code === code ? { ...version, state } : version,
-        ),
+  /** New drafts start their own DTRB cycle while earlier workflow history remains intact. */
+  const createNewCostVersion = () => {
+    if (!isReady) return;
+    void persistCanonicalChange(
+      activeProjectId,
+      (fresh) => {
+        const source = fresh.costVersions.find(
+          (v) => v.code === fresh.activeVersion,
+        )!;
+        const nextNumber =
+          Math.max(
+            0,
+            ...fresh.costVersions.map((v) => Number(v.code.replace(/^V/, ''))),
+          ) + 1;
+        const nextCode = `V${nextNumber}`;
+        const nextVersion = createCostVersion(
+          nextCode,
+          'Draft',
+          source.code,
+          source,
+        );
+        return {
+          ...fresh,
+          activeVersion: nextCode,
+          costVersions: [...fresh.costVersions, nextVersion],
+          costRows: nextVersion.costRows,
+          rateSettings: nextVersion.rateSettings,
+          travelSettings: nextVersion.travelSettings,
+          travelRows: nextVersion.travelRows,
+          travelUplift: nextVersion.travelUplift,
+          manualCosts: nextVersion.manualCosts,
+        };
+      },
+      '已创建新成本草稿，本轮流程停留 DTRB，原版本及评审历史已保留。',
+    ).then((ok) => {
+      if (ok) setCostView('input');
+    });
+  };
+
+  /** Finalization always asks the user to confirm the exact version and total. */
+  const updateCostVersionState = (code: string, state: CostVersionState) => {
+    if (versionTransitionRef.current) return;
+    const target = synchronizedVersions.find((v) => v.code === code);
+    if (!target || target.state === state) return;
+    if (
+      target.state === 'Confirmed' ||
+      (costLockReason(workspace, code) && state !== 'Confirmed')
+    ) {
+      setNotice(costLockReason(workspace, code) || '已定稿版本不能回退状态。');
+      return;
+    }
+    if (state === 'Confirmed') {
+      void requestCostConfirmation(
+        workspace,
+        code,
+        '仅完成本版成本定稿，DRB 结果仍需实际登记',
       );
-      setNotice(`${code}: ${state} / 版本状态已更新`);
-    },
-    [],
-  );
+      return;
+    }
+    setVersionSnapshots((items) =>
+      items.map((v) => (v.code === code ? { ...v, state } : v)),
+    );
+  };
 
   /** Direct table status edit; inactive workspaces are updated without opening. */
   const updateProjectStatus = useCallback(
@@ -787,81 +1134,89 @@ function ProjectSessionApp({
     [activeProjectId],
   );
 
-  /**
-   * Selects the project's current workflow node by stable code. Inactive
-   * projects are updated directly in SQLite without forcing a tab switch.
-   */
-  const updateProjectWorkflow = useCallback(
-    async (project: Project, workflowCode: string) => {
-      const previousCode = project.currentWorkflowStepCode || '';
-      setProjectList((current) =>
-        current.map((item) =>
-          item.id === project.id
-            ? { ...item, currentWorkflowStepCode: workflowCode }
-            : item,
-        ),
-      );
-      if (project.id === activeProjectId) {
-        const nextIndex = processSteps.findIndex(
-          (step) => step.code === workflowCode,
-        );
-        if (nextIndex < 0) {
-          setProjectList((current) =>
-            current.map((item) =>
-              item.id === project.id
-                ? { ...item, currentWorkflowStepCode: previousCode }
-                : item,
-            ),
-          );
-          setNotice('Workflow node not found / 未找到流程节点');
-          return;
-        }
-        setCurrentWorkflowStepCode(workflowCode);
-        setSelectedStep(nextIndex);
-        setNotice(`Current workflow updated / 当前流程已更新：${project.name}`);
-        return;
-      }
-      try {
-        const record = await getLocalWorkspace(project.id);
-        if (!record)
-          throw new Error('Project no longer exists. Refresh Project List.');
-        const document = record.workspace;
-        const nextIndex = document.processSteps.findIndex(
-          (step) => step.code === workflowCode,
-        );
-        if (nextIndex < 0) {
-          throw new Error('The selected workflow node is not in this project.');
-        }
-        await saveLocalWorkspaceDocument(
-          {
-            ...document,
-            currentWorkflowStepCode: workflowCode,
-            selectedStep: nextIndex,
-          },
-          record?.revision ?? null,
-        );
-        setNotice(`Current workflow updated / 当前流程已更新：${project.name}`);
-      } catch (error) {
-        setProjectList((current) =>
-          current.map((item) =>
-            item.id === project.id
-              ? { ...item, currentWorkflowStepCode: previousCode }
-              : item,
-          ),
-        );
-        setNotice(
-          error instanceof Error
-            ? `Workflow save failed: ${error.message} / 流程保存失败`
-            : 'Workflow save failed / 流程保存失败',
-        );
-      }
-    },
-    [activeProjectId, processSteps],
-  );
+  /** Advancing this project's current cycle to DRB requires an explicitly confirmed cost. */
+  const updateProjectWorkflow = async (
+    project: Project,
+    workflowCode: string,
+  ) => {
+    if (versionTransitionRef.current) return;
+    const record =
+      project.id === activeProjectId
+        ? { workspace }
+        : await getLocalWorkspace(project.id);
+    if (!record) {
+      setNotice('项目已不存在。');
+      return;
+    }
+    const document = record.workspace;
+    const step = document.processSteps.find((row) => row.code === workflowCode);
+    if (!step) {
+      setNotice('Workflow node not found / 未找到流程节点');
+      return;
+    }
+    const code = document.workflowVersion || document.activeVersion;
+    const version = document.costVersions.find((v) => v.code === code);
+    const apply = (fresh: WorkbenchWorkspace) => ({
+      ...fresh,
+      currentWorkflowStepCode: workflowCode,
+      selectedStep: fresh.processSteps.findIndex(
+        (row) => row.code === workflowCode,
+      ),
+    });
+    if (isDrbStep(step) && version?.state !== 'Confirmed') {
+      await requestCostConfirmation(document, code, '进入本版 DRB 流程', apply);
+      return;
+    }
+    await persistCanonicalChange(project.id, apply, '当前流程已更新。');
+  };
 
   /** Creates or updates one review gate in its owning project workspace. */
   const saveReviewGate = useCallback(
     async (review: ReviewGate) => {
+      const source =
+        review.projectId === activeProjectId
+          ? { workspace }
+          : await getLocalWorkspace(review.projectId);
+      if (!source) {
+        setNotice('未找到评审所属项目');
+        return false;
+      }
+      const document = source.workspace;
+      const boundCode =
+        review.costVersion ||
+        document.reviewGates.find((item) => item.id === review.id)
+          ?.costVersion ||
+        document.workflowVersion ||
+        document.activeVersion;
+      review = { ...review, costVersion: boundCode };
+      const previous = document.reviewGates.find(
+        (item) => item.id === review.id,
+      );
+      const startsDrb =
+        isDrbStep({ code: review.workflowStepCode, name: review.gate }) &&
+        !['not_started', 'cancelled'].includes(review.status) &&
+        previous?.status !== review.status;
+      if (
+        startsDrb &&
+        document.costVersions.find((v) => v.code === boundCode)?.state !==
+          'Confirmed'
+      ) {
+        return requestCostConfirmation(
+          document,
+          boundCode,
+          '保存本版 DRB 评审节点',
+          (confirmed) => ({
+            ...confirmed,
+            reviewGates: confirmed.reviewGates.some(
+              (item) => item.id === review.id,
+            )
+              ? confirmed.reviewGates.map((item) =>
+                  item.id === review.id ? review : item,
+                )
+              : [...confirmed.reviewGates, review],
+          }),
+        );
+      }
       const project = portfolioProjects.find(
         (item) => item.id === review.projectId,
       );
@@ -906,7 +1261,7 @@ function ProjectSessionApp({
         return false;
       }
     },
-    [activeProjectId, portfolioProjects],
+    [activeProjectId, portfolioProjects, workspace, requestCostConfirmation],
   );
 
   /** Removes one review gate while preserving its project's other records. */
@@ -957,7 +1312,13 @@ function ProjectSessionApp({
       ...projectRecord(id, input.name, input.client),
       reviewOwner: input.owner || 'Me',
     };
-    if (quoteExportingRef.current || switchingRef.current || !isReady) return;
+    if (
+      quoteExportingRef.current ||
+      switchingRef.current ||
+      versionTransitionRef.current ||
+      !isReady
+    )
+      return;
     switchingRef.current = true;
     setProjectSwitching(true);
     try {
@@ -1149,7 +1510,12 @@ function ProjectSessionApp({
         onWorkflowChange={updateProjectWorkflow}
         onCreateProject={() => setPanel({ type: 'new-project' })}
         onEditProject={(project) => {
-          if (quoteExportingRef.current || switchingRef.current || !isReady) {
+          if (
+            quoteExportingRef.current ||
+            switchingRef.current ||
+            versionTransitionRef.current ||
+            !isReady
+          ) {
             setNotice('请等待当前保存或导出完成后编辑项目。');
             return;
           }
@@ -1165,6 +1531,7 @@ function ProjectSessionApp({
     content = (
       <CostView
         lockedReason={lockedReason}
+        versionLockReasons={versionLockReasons}
         key={`${activeProject.id}:${activeVersion}`}
         activeVersion={activeVersion}
         versions={synchronizedVersions}
@@ -1173,24 +1540,29 @@ function ProjectSessionApp({
         costView={costView}
         setCostView={setCostView}
         rows={costRows}
-        setRows={setCostRows}
+        setRows={guardCostEdit(setCostRows)}
         rateSettings={rateSettings}
-        setRateSettings={setRateSettings}
+        setRateSettings={guardCostEdit(setRateSettings)}
         resourceTypes={versionResourceTypes}
         onApplyMasterRates={() => {
+          if (versionTransitionRef.current) return;
+          if (lockedReason) {
+            setNotice(lockedReason);
+            return;
+          }
           setVersionResourceTypes(structuredClone(resourceTypes));
           setNotice(
             'Master rates applied to this version; costs recalculated. / 本版本已应用当前汇率并重算。',
           );
         }}
         travelSettings={travelSettings}
-        setTravelSettings={setTravelSettings}
+        setTravelSettings={guardCostEdit(setTravelSettings)}
         travelRows={travelRows}
-        setTravelRows={setTravelRows}
+        setTravelRows={guardCostEdit(setTravelRows)}
         travelUplift={travelUplift}
-        setTravelUplift={setTravelUplift}
+        setTravelUplift={guardCostEdit(setTravelUplift)}
         manualCosts={manualCosts}
-        setManualCosts={setManualCosts}
+        setManualCosts={guardCostEdit(setManualCosts)}
         project={exportProject}
         announce={setNotice}
       />
@@ -1209,10 +1581,26 @@ function ProjectSessionApp({
   else if (activeView === 'ssr')
     content = (
       <SsrView
-        key={activeProject.id}
+        key={`${activeProject.id}:${workflowVersion}`}
         value={workspace.ssr!}
-        onChange={setSsr}
-        baseline={synchronizedVersions.find((v) => v.code === activeVersion)!}
+        onChange={handleSsrChange}
+        baseline={synchronizedVersions.find((v) => v.code === workflowVersion)!}
+        baselines={synchronizedVersions}
+        onRequestConfirmCost={(input) => {
+          void requestCostConfirmation(
+            workspace,
+            workflowVersion,
+            '登记本版 DRB 送审记录',
+            (confirmed) => ({
+              ...confirmed,
+              ssr: recordSubmission(
+                confirmed.ssr!,
+                confirmed.costVersions.find((v) => v.code === workflowVersion)!,
+                input,
+              ),
+            }),
+          );
+        }}
         announce={setNotice}
       />
     );
@@ -1245,7 +1633,7 @@ function ProjectSessionApp({
         setCurrentWorkflowStepCode={setCurrentWorkflowStepCode}
         setSelectedStep={setSelectedStep}
         processSteps={processSteps}
-        setProcessSteps={setProcessSteps}
+        setProcessSteps={setWorkflowStepsWithConfirmation}
         projectStatus={projectStatus}
         setProjectStatus={setProjectStatus}
         projectStatusDefinitions={projectStatusDefinitions}
@@ -1674,7 +2062,7 @@ function ProjectSessionApp({
                   size="sm"
                   className="h-6 px-2 text-[9px]"
                   onClick={createNewCostVersion}
-                  disabled={!isReady || !!lockedReason}
+                  disabled={!isReady || isVersionTransitioning}
                 >
                   <Plus className="size-3" /> New Version{' '}
                   <span className="text-[8px] opacity-60">创建版本</span>
@@ -1685,7 +2073,10 @@ function ProjectSessionApp({
               {displayDate}
             </span>
           </div>
-          <div inert={!isReady} aria-busy={!isReady}>
+          <div
+            inert={!isReady || isVersionTransitioning}
+            aria-busy={!isReady || isVersionTransitioning}
+          >
             <ReminderInbox
               onOpen={(projectId, view) => {
                 const project = portfolioProjects.find(
@@ -1717,6 +2108,34 @@ function ProjectSessionApp({
           </button>
         </output>
       ) : null}
+      {costConfirmation && (
+        <CostConfirmationDialog
+          open
+          details={costConfirmation.details}
+          action={costConfirmation.action}
+          busy={isVersionTransitioning}
+          error={confirmationError}
+          onConfirm={() => {
+            void confirmCostAndContinue();
+          }}
+          onCancel={cancelCostConfirmation}
+          onViewCost={() => {
+            const pending = costConfirmation;
+            cancelCostConfirmation();
+            const project = portfolioProjects.find(
+              (item) => item.id === pending.details.projectId,
+            );
+            if (!project) return;
+            setRequestedCostView({
+              projectId: project.id,
+              code: pending.details.versionCode,
+            });
+            void selectProject(project).then((ok) => {
+              if (!ok) setRequestedCostView(null);
+            });
+          }}
+        />
+      )}
       {editTarget && (
         <ProjectEditDialog
           key={editTarget.id}

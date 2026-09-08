@@ -5,8 +5,11 @@ import { Input } from '@/components/ui/input';
 import type { CostVersionSnapshot } from '@/features/cost/domain';
 import { normalizeDigestDate } from '@/features/agent/digest-domain';
 import {
+  submitReviewFromView,
+  type ReviewSubmissionInput,
+} from './review-submission-action';
+import {
   REVIEW_KINDS,
-  recordSubmission,
   recordReviewResult,
   closeCondition,
   followUpSubmission,
@@ -32,11 +35,15 @@ export function SsrView({
   value,
   onChange,
   baseline,
+  baselines = [baseline],
+  onRequestConfirmCost,
   announce,
 }: {
   value: SsrWorkspace;
-  onChange: (v: SsrWorkspace) => void;
+  onChange: (v: SsrWorkspace) => void | boolean;
   baseline: CostVersionSnapshot;
+  baselines?: CostVersionSnapshot[];
+  onRequestConfirmCost: (input: ReviewSubmissionInput) => void;
   announce: (s: string) => void;
 }) {
   const domainsSource = value.requiredDomains.join(', ');
@@ -57,6 +64,7 @@ export function SsrView({
     evidence: '',
   });
   const [selected, setSelected] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
   const [result, setResult] = useState({
     outcome: 'approved' as ReviewResult['outcome'],
     evidence: '',
@@ -76,20 +84,39 @@ export function SsrView({
     owner: '',
     dueDate: '',
   });
-  const record = value.submissions.find((s) => s.id === selected);
+  const visibleSubmissions = value.submissions.filter(
+    (item) => showHistory || item.costBaseline.code === baseline.code,
+  );
+  const record = visibleSubmissions.find((item) => item.id === selected);
+  const recordBaseline = (item: SsrWorkspace['submissions'][number]) =>
+    baselines.find((v) => v.code === item.costBaseline.code) ||
+    item.costBaseline;
   const run = (action: () => SsrWorkspace, message: string) => {
     try {
-      onChange(action());
-      announce(message);
+      if (onChange(action()) !== false) announce(message);
     } catch (e) {
       announce(e instanceof Error ? e.message : String(e));
     }
   };
   const edit = (patch: Partial<SsrWorkspace>) =>
     onChange({ ...value, ...patch });
-  const items = ssrAttention(value, baseline, normalizeDigestDate());
+  const currentSubmissionIds = new Set(
+    value.submissions
+      .filter((item) => item.costBaseline.code === baseline.code)
+      .map((item) => item.id),
+  );
+  const items = ssrAttention(value, baseline, normalizeDigestDate()).filter(
+    (item) => currentSubmissionIds.has(item.id),
+  );
   return (
     <div className="space-y-5">
+      <div className="rounded border bg-card px-4 py-3 text-sm">
+        当前流程成本版本：<strong>{baseline.code}</strong> · {baseline.state}。
+        {baseline.state !== 'Confirmed'
+          ? 'DTRB · 本版成本待确认。'
+          : '本版成本已确认。'}
+        查看历史成本版本不会改变本轮流程。
+      </div>
       <section className="space-y-3 rounded border bg-card p-5">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">项目范围与正式记录</h2>
@@ -422,17 +449,34 @@ export function SsrView({
         </div>
         <Button
           onClick={() =>
-            run(
-              () => recordSubmission(value, baseline, submission),
-              '已保存送审快照',
-            )
+            submitReviewFromView({
+              value,
+              baseline,
+              input: submission,
+              onChange,
+              onRequestConfirmCost,
+              announce,
+            })
           }
         >
-          登记送审记录
+          {submission.kind === 'DRB' && baseline.state !== 'Confirmed'
+            ? '确认成本后登记 DRB'
+            : '登记送审记录'}
         </Button>
       </section>
       <section className="space-y-3 rounded border bg-card p-5">
         <h2 className="font-semibold">评审结果与条件关闭</h2>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={showHistory}
+            onChange={(event) => {
+              setShowHistory(event.target.checked);
+              setSelected('');
+            }}
+          />
+          显示所有版本的历史送审记录
+        </label>
         <select
           aria-label="选择送审记录"
           className={selectClass + ' w-full'}
@@ -444,11 +488,11 @@ export function SsrView({
           }}
         >
           <option value="">选择送审记录</option>
-          {[...value.submissions].reverse().map((s) => (
+          {[...visibleSubmissions].reverse().map((s) => (
             <option key={s.id} value={s.id}>
-              {labels[s.kind]} {s.domain} · {s.applicationNumber} ·{' '}
-              {latestResult(s)?.outcome || '待结果'}
-              {isStale(value, s, baseline) ? ' · 材料已变化' : ''}
+              {s.costBaseline.code} · {labels[s.kind]} {s.domain} ·{' '}
+              {s.applicationNumber} · {latestResult(s)?.outcome || '待结果'}
+              {isStale(value, s, recordBaseline(s)) ? ' · 材料已变化' : ''}
             </option>
           ))}
         </select>

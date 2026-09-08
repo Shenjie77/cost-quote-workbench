@@ -1,6 +1,6 @@
 {
   "name": "cost-quote-workbench",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "bin": {
     "cost-cli": "./cli/cost-cli.mjs"

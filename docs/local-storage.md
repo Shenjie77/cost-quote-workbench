@@ -23,6 +23,8 @@ atomic JSON workspace per project with:
 - manual project status and pricing parameters;
 - active cost version plus independent version snapshots with manual `Draft`,
   `Suspended`, or `Confirmed` states;
+- platform-managed workflowVersion and versionWorkflows for current and historical
+  version review rounds, independent of which cost version is being viewed;
 - cost rows, rate/travel assumptions, and manual costs;
 - consolidated RE Type/rate, subcontract, supplemental-cost, and maintenance master
   data;
@@ -56,6 +58,16 @@ The Cost page labels affected versions for review. Historical rate values that
 were never stored cannot be reconstructed. The archive is local recovery data,
 not a per-edit audit ledger; preserve it with the database backup.
 
+Database schema 4 migrates the former project lock into `costVersionLocks` once,
+using the recorded version evidence and retaining the original document in the
+migration archive. Current-format cost amounts and approval/configuration archives
+are unchanged. Subsequent reads do not scan other projects for this migration.
+
+Database schema 5 adds version-owned workflow rounds. Existing highest Drafts
+return to DTRB; their previous progress is preserved in `legacyWorkflowArchive`
+when it belongs to that same version. Cost snapshots and actual company review
+evidence remain unchanged. New DRB actions require explicit cost confirmation.
+
 Agent writes use the same rule:
 
 ```bash
@@ -88,7 +100,13 @@ the stopped application's database file with a known-good copy. Keep the
 source copy until the restored application has passed `system doctor` and
 `workspace list`.
 
-Confirmed versions are lifecycle states rather than cryptographically signed
-records. General row changes do not have a separate event ledger; revision,
+User-confirmed cost versions have immutable inputs enforced by the repository,
+rather than cryptographic signatures. Confirmed is cost finalization, not DRB
+approval, and must precede entry/submission/completion of that version's DRB.
+New Drafts can be created or cloned without changing the locked original; creation
+selects the new version and starts its independent DTRB round. The platform
+maintains workflowVersion and versionWorkflows separately from the version being
+viewed through activeVersion. Review evidence remains bound to its submitted
+version and snapshot. General row changes do not have a separate event ledger; revision,
 payload hash, cost-version snapshots, review follow-ups, and quote history form
 the current traceability model.

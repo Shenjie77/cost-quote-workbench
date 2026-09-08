@@ -2,6 +2,8 @@
  * Workspace compatibility and integrity boundary. Pure document migrations and
  * validation live here; this module never opens or writes a database.
  */
+import { migrateVersionWorkflows } from '../features/cost/version-workflow.ts';
+import { getCostVersionLocks } from '../features/cost/cost-lock.ts';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,7 +58,10 @@ const nowIso = () => new Date().toISOString();
  * governed RE Type rate model. The migration is deterministic and idempotent,
  * so opening an older local database is safe and requires no user action.
  */
-export const migrateWorkspaceDocument = (workspace) => {
+export const migrateWorkspaceDocument = (
+  workspace,
+  { workflow = true } = {},
+) => {
   let document = workspace;
   let changed = false;
   const legacy =
@@ -313,6 +318,21 @@ export const migrateWorkspaceDocument = (workspace) => {
     };
     changed = true;
   }
+  if (document.costVersionLocks === undefined || document.costLock) {
+    document = { ...document, costVersionLocks: getCostVersionLocks(document) };
+    delete document.costLock;
+    changed = true;
+  }
+  if (
+    workflow &&
+    (!document.workflowVersion ||
+      !document.versionWorkflows ||
+      !document.legacyWorkflowArchive ||
+      document.reviewGates.some((g) => !g.costVersion))
+  ) {
+    document = migrateVersionWorkflows(document);
+    changed = true;
+  }
   return changed ? document : workspace;
 };
 
@@ -393,7 +413,13 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
     }
     if (
       review.workflowStepCode &&
-      !workflowCodes.has(review.workflowStepCode)
+      !workflowCodes.has(review.workflowStepCode) &&
+      !workspace.versionWorkflows?.[review.costVersion]?.processSteps.some(
+        (s) => s.code === review.workflowStepCode,
+      ) &&
+      !workspace.legacyWorkflowArchive?.[review.costVersion]?.processSteps.some(
+        (s) => s.code === review.workflowStepCode,
+      )
     ) {
       throw new WorkspaceValidationError(
         'workspace.reviewGates[].workflowStepCode must reference processSteps[].code.',
@@ -509,6 +535,48 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
       );
   });
 
+  for (const code of Object.keys(workspace.costVersionLocks || {})) {
+    if (!versionCodes.has(code))
+      throw new WorkspaceValidationError(
+        'A cost lock must reference an existing version.',
+        `/costVersionLocks/${code}`,
+      );
+  }
+  if (workspace.workflowVersion && !versionCodes.has(workspace.workflowVersion))
+    throw new WorkspaceValidationError(
+      'Workflow version must reference an existing cost version.',
+      '/workflowVersion',
+    );
+  for (const [field, rounds] of Object.entries({
+    versionWorkflows: workspace.versionWorkflows,
+    legacyWorkflowArchive: workspace.legacyWorkflowArchive,
+  })) {
+    for (const [code, round] of Object.entries(rounds || {})) {
+      if (
+        !versionCodes.has(code) ||
+        (round.currentWorkflowStepCode &&
+          !round.processSteps.some(
+            (s) => s.code === round.currentWorkflowStepCode,
+          ))
+      )
+        throw new WorkspaceValidationError(
+          'Workflow round must reference its cost version and a valid node.',
+          `/${field}/${code}`,
+        );
+      requireUnique(
+        round.processSteps,
+        'code',
+        `/${field}/${code}/processSteps`,
+      );
+    }
+  }
+  for (const gate of workspace.reviewGates) {
+    if (gate.costVersion && !versionCodes.has(gate.costVersion))
+      throw new WorkspaceValidationError(
+        'Review must reference an existing cost version.',
+        '/reviewGates',
+      );
+  }
   const uniqueFields = [
     ['reviewGates', workspace.reviewGates.map((review) => review.id)],
     ['quoteTemplates', workspace.quoteTemplates.map((template) => template.id)],

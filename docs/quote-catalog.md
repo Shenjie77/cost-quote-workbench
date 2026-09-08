@@ -117,7 +117,7 @@ revision; quote/history copies remain independent.
 
 For an intentional atomic edit spanning multiple sections, the legacy
 `workspace get/save` request remains available. Preserve unrelated fields,
-archives and inactive versions, and never use it to bypass a project cost lock.
+archives and inactive versions, and never use it to rewrite a locked cost version. New Drafts may be created from locked versions, but existing approval snapshots do not transfer to the new estimate.
 
 Use existing CLI commands; no generated Skill or model invocation is needed.
 Customer quotation XLSX is currently generated in the browser; `cost export`

@@ -202,8 +202,12 @@ test('workspace CLI persists with revision checks and can list/read records', ()
     const listed = runCli(['workspace', 'list', '--db', databasePath]);
     assert.equal(listed.status, 0);
     assert.equal(listed.response.data.items.length, 1);
-    assert.equal(listed.response.data.items[0].currentWorkflowStepCode, '');
-    assert.deepEqual(listed.response.data.items[0].workflowSteps, []);
+    assert.equal(
+      listed.response.data.items[0].currentWorkflowStepCode,
+      'TD_EFFORT_REVIEW',
+    );
+    assert.equal(listed.response.data.items[0].workflowSteps.length, 1);
+    assert.equal(listed.response.data.items[0].workflowVersion, 'V3');
     assert.equal(listed.response.data.items[0].statusDefinitions.length, 9);
     assert.deepEqual(listed.response.data.items[0].reviewGates, []);
 

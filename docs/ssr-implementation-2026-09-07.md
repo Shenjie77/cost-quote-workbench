@@ -22,7 +22,7 @@
 
 ## 核心约束
 
-- 后续补充：DRB 通过并关闭条件、显式完成 DRB/成本基线节点，或成本版本 `Confirmed`，都会锁定项目成本，包括版本已捕获的 RE 费率。Masterdata Resources 目录仍可更新，但不能通过“应用主数据汇率”改写已锁定成本。锁定后仅允许把不变的 Draft/Suspended 成本标记为 Confirmed 以继续报价，不允许改价或降级绕过。送审与配置归档保留独立快照。
+- 后续补充：成本先由用户明确确认成为 `Confirmed`，才能进入、提交或完成本版 DRB；Draft 不会被 DRB 直接锁死。Confirmed 只定稿成本并锁该版输入，不表示 DRB approved。定稿前读本版 settings/summary、核验成本并取得确认；已经明确授权本版定稿时不重复询问。允许从锁版复制可编辑新版，平台自动选为 activeVersion/workflowVersion 并从独立 DTRB 轮次开始；每版分别满足 DTRB → DRB 前置。旧版成本、汇总与评审保留，切旧版仅历史查看，不移动工作轮次。Masterdata 可维护，应用费率只改指定未锁版。`ssr submit --version Vn` 明确提交版；省略使用 workflowVersion，旧数据缺失时才回退 activeVersion。workflowVersion/versionWorkflows 由平台管理，不手改。旧快照审批不能沿用到新版。
 - CPQ 首先接受简述并推荐现有编码，不要求 TD 提供详细 scope 或每项成本。人工选择确认后才计算；固定设备数量不能由成本反推。
 - 多服务配量优先使用可解释的参考。没有参考时，等额预算是明确的计算假设，不代表 TD 实际投入。搜索达到上限不等于无解。
 - 新 CPQ 结果在保存时核对固定数量和金额；归档核对当前成本和目录快照，旧档案不受目录后续改价影响。

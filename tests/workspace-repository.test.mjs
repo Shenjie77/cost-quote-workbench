@@ -42,8 +42,8 @@ test('legacy cost correction archives the exact original and runs only once', ()
     repository.close();
     const db = new DatabaseSync(dbPath);
     db.prepare('UPDATE workspace_snapshots SET payload_json = ?').run(original);
-    // Simulate a database from before the one-time schema-3 migration.
-    db.prepare('DELETE FROM schema_migrations WHERE version = 3').run();
+    // Simulate a database from before the one-time current schema migration.
+    db.prepare('DELETE FROM schema_migrations WHERE version = 5').run();
     db.close();
     repository = openWorkspaceRepository(dbPath);
     const migrated = repository.get(old.project.id);
@@ -318,35 +318,38 @@ test('SQLite repository creates, reads, lists, and revises one workspace', () =>
     const first = repository.save('PRJ-TEST-001', makeWorkspace(), null);
     assert.equal(first.revision, 1);
     assert.equal(first.workspace.project.name, 'Repository Test');
-    assert.equal(first.workspace.projectStatus, 'input_preparation');
+    assert.equal(first.workspace.projectStatus, 'solution_review');
     assert.deepEqual(
       first.workspace.projectStatusDefinitions,
       initialProjectStatusDefinitions,
     );
-    assert.equal(first.workspace.currentWorkflowStepCode, '');
+    assert.equal(first.workspace.currentWorkflowStepCode, 'TD_EFFORT_REVIEW');
     assert.equal(first.workspace.costVersions.length, 1);
     assert.equal(first.workspace.costVersions[0].code, 'V1');
     assert.equal(first.workspace.pricing.targetGrossMargin, 25);
     assert.match(first.sha256, /^[a-f0-9]{64}$/);
 
-    const changed = makeWorkspace();
-    changed.selectedStep = 3;
+    const changed = structuredClone(first.workspace);
+    changed.project.name = 'Updated repository test';
     const second = repository.save('PRJ-TEST-001', changed, 1);
     assert.equal(second.revision, 2);
-    assert.equal(repository.get('PRJ-TEST-001').workspace.selectedStep, 3);
+    assert.equal(
+      repository.get('PRJ-TEST-001').workspace.project.name,
+      'Updated repository test',
+    );
     assert.deepEqual(
       repository.list().map((item) => item.projectId),
       ['PRJ-TEST-001'],
     );
     const [portfolioItem] = repository.list();
     assert.equal(portfolioItem.activeVersion, 'V1');
-    assert.equal(portfolioItem.projectStatus, 'delivery_review');
+    assert.equal(portfolioItem.projectStatus, 'solution_review');
     assert.deepEqual(
       portfolioItem.statusDefinitions,
       initialProjectStatusDefinitions,
     );
-    assert.equal(portfolioItem.currentWorkflowStepCode, '');
-    assert.deepEqual(portfolioItem.workflowSteps, []);
+    assert.equal(portfolioItem.currentWorkflowStepCode, 'TD_EFFORT_REVIEW');
+    assert.equal(portfolioItem.workflowSteps.length, 1);
     assert.ok(portfolioItem.totalCost > 0);
     assert.ok(portfolioItem.totalQuote > portfolioItem.totalCost);
     assert.ok(portfolioItem.totalMandays > 0);
@@ -500,10 +503,7 @@ test('bundled UI defaults satisfy the durable workspace contract', () => {
     const saved = repository.save(project.id, workspace, null);
     assert.equal(saved.revision, 1);
     assert.equal(saved.workspace.costRows.length, initialCostRows.length);
-    assert.equal(
-      saved.workspace.currentWorkflowStepCode,
-      'COST_BASELINE_APPROVAL',
-    );
+    assert.equal(saved.workspace.currentWorkflowStepCode, 'TD_EFFORT_REVIEW');
     assert.equal(
       saved.workspace.projectStatusDefinitions.length,
       initialProjectStatusDefinitions.length,

@@ -11,7 +11,11 @@ import {
   saveLocalWorkspaceDocument,
   LocalApiError,
 } from './workspace-client';
-import type { WorkbenchWorkspace, PersistenceStatus } from './workspace-types';
+import type {
+  WorkbenchWorkspace,
+  PersistenceStatus,
+  WorkspaceRecord,
+} from './workspace-types';
 
 export * from './workspace-types';
 export {
@@ -24,11 +28,16 @@ export function useLocalWorkspace({
   projectId,
   workspace,
   onHydrate,
+  onSavedWorkspace,
   onMissing,
 }: {
   projectId: string;
   workspace: WorkbenchWorkspace;
   onHydrate: (workspace: WorkbenchWorkspace) => void;
+  onSavedWorkspace?: (
+    workspace: WorkbenchWorkspace,
+    submitted: WorkbenchWorkspace,
+  ) => void;
   onMissing: () => void;
 }) {
   const [status, setStatus] = useState<PersistenceStatus>({
@@ -42,6 +51,7 @@ export function useLocalWorkspace({
   const [reloadKey, setReloadKey] = useState(0);
   const latest = useRef(workspace);
   const hydrate = useRef(onHydrate);
+  const savedWorkspace = useRef(onSavedWorkspace);
   const missing = useRef(onMissing);
   useEffect(() => {
     missing.current = onMissing;
@@ -56,6 +66,9 @@ export function useLocalWorkspace({
   useEffect(() => {
     hydrate.current = onHydrate;
   }, [onHydrate]);
+  useEffect(() => {
+    savedWorkspace.current = onSavedWorkspace;
+  }, [onSavedWorkspace]);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,14 +103,17 @@ export function useLocalWorkspace({
                 message: 'Saving locally / 正在保存',
               }));
           },
-          onSaved: (saved) => {
-            if (!cancelled)
-              setStatus({
-                phase: 'saved',
-                revision: saved.revision,
-                savedAt: saved.updatedAt,
-                message: `Saved locally · R${saved.revision} / 已保存`,
-              });
+          onSaved: (saved, submitted) => {
+            if (cancelled) return;
+            setStatus({
+              phase: 'saved',
+              revision: saved.revision,
+              savedAt: saved.updatedAt,
+              message: `Saved locally · R${saved.revision} / 已保存`,
+            });
+            // Merge server-derived metadata without replacing newer editor inputs.
+            if (saved.workspace)
+              savedWorkspace.current?.(saved.workspace, submitted);
           },
           isConflict: (error) =>
             error instanceof LocalApiError && error.status === 409,
@@ -200,6 +216,23 @@ export function useLocalWorkspace({
     status,
     isReady,
     saveNow,
+    adoptSavedRecord: (record: WorkspaceRecord) => {
+      const current = session.current;
+      if (
+        !current ||
+        current.projectId !== projectId ||
+        record.workspace.project.id !== projectId
+      )
+        throw new Error('Saved workspace belongs to another project session.');
+      current.queue.adoptSaved(record.workspace, record.revision);
+      latest.current = record.workspace;
+      setStatus({
+        phase: 'saved',
+        revision: record.revision,
+        savedAt: record.updatedAt,
+        message: `Saved locally · R${record.revision} / 已保存`,
+      });
+    },
     saveProjectDetails: (details: { name: string; client: string }) => {
       const current = session.current;
       if (!current || current.projectId !== projectId || !isReady)

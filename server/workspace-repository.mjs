@@ -12,9 +12,17 @@ import {
   emptySsr,
   assertSsrTransition,
   ssrAttention,
+  isApproved,
 } from '../features/ssr/domain.ts';
 import { normalizeDigestDate } from '../features/agent/digest-domain.ts';
-import { costLockReason } from '../features/cost/cost-lock.ts';
+import {
+  assertVersionWorkflowTransition,
+  reconcileVersionWorkflows,
+} from '../features/cost/version-workflow.ts';
+import {
+  getCostVersionLocks,
+  reconcileCostVersionLocks,
+} from '../features/cost/cost-lock.ts';
 import {
   assertCurrentCpqResult,
   contentKey,
@@ -138,6 +146,7 @@ const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
       workspace.currentWorkflowStepCode || workflowSteps[0]?.code || '',
     workflowSteps,
     activeVersion,
+    workflowVersion: workspace.workflowVersion || activeVersion,
     versionState,
     serviceCost: roundMoney(statement.service - statement.subcontract),
     subcontractCost: statement.subcontract,
@@ -147,12 +156,20 @@ const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
     grossMarginPercent: pricing.grossMarginPercent,
     incompleteCostRows,
     ssrAttention: workspace.ssr
-      ? ssrAttention(
-          workspace.ssr,
-          workspace.costVersions.find(
-            (v) => v.code === workspace.activeVersion,
-          ),
-          asOf,
+      ? workspace.costVersions.flatMap((version) =>
+          ssrAttention(workspace.ssr, version, asOf)
+            .filter(
+              (item) =>
+                version.code ===
+                  (workspace.workflowVersion || workspace.activeVersion) ||
+                !isApproved(
+                  workspace.ssr.submissions.find((s) => s.id === item.id),
+                ),
+            )
+            .map((item) => ({
+              ...item,
+              title: `${version.code} · ${item.title}`,
+            })),
         )
       : [],
   };
@@ -202,7 +219,7 @@ export const openWorkspaceRepository = (databasePath) => {
           row.revision,
           row.payload_json,
           nowIso(),
-          'Workspace contract and version-rate migration',
+          'Workspace contract, version-rate, version-lock and workflow-round migration',
         );
         updateMigratedSnapshot.run(
           row.revision + 1,
@@ -356,7 +373,7 @@ export const openWorkspaceRepository = (databasePath) => {
         Array.isArray(workspace)
       )
         throw new WorkspaceValidationError('workspace must be a JSON object.');
-      let document = migrateWorkspaceDocument(workspace);
+      let document = migrateWorkspaceDocument(workspace, { workflow: false });
       assertWorkspaceDocument(document, projectId);
       // Top-level editors are authoritative for the active version. Derive
       // labour amounts on every write, including CLI writes, before hashing.
@@ -404,42 +421,27 @@ export const openWorkspaceRepository = (databasePath) => {
           );
         }
         const previous = current ? JSON.parse(current.payload_json) : null;
-        const lockedReason = previous ? costLockReason(previous) : null;
-        if (lockedReason) {
-          const versionsChanged =
-            previous.costVersions.length !== document.costVersions.length ||
-            previous.costVersions.some((old) => {
-              const next = document.costVersions.find(
-                (v) => v.code === old.code,
-              );
-              // Completing the lifecycle after DRB must remain possible so the
-              // unchanged cost baseline can be used for formal quotation.
-              return (
-                !next ||
-                (old.state !== next.state && next.state !== 'Confirmed') ||
-                contentKey({ ...old, state: '' }) !==
-                  contentKey({ ...next, state: '' })
-              );
-            });
-          // Freeze captured cost inputs, not the independently editable master
-          // catalogue. Updating its rates must never rewrite a saved version.
-          if (versionsChanged)
-            throw new WorkspaceValidationError(lockedReason, '/costLock');
+        try {
+          assertVersionWorkflowTransition(previous, document);
+        } catch (error) {
+          throw new WorkspaceValidationError(error.message, '/workflowVersion');
         }
-        // The persisted lock survives older clients and later workflow changes.
-        if (previous?.costLock)
-          document = {
-            ...document,
-            costLock: { ...previous.costLock, reason: lockedReason },
-          };
-        else {
-          delete document.costLock;
-          const reason = lockedReason || costLockReason(document);
-          if (reason)
-            document = {
-              ...document,
-              costLock: { reason, lockedAt: timestamp },
-            };
+        // Protect each captured baseline, while allowing independent new drafts.
+        for (const [code, lock] of Object.entries(
+          previous ? getCostVersionLocks(previous) : {},
+        )) {
+          const old = previous.costVersions.find((v) => v.code === code);
+          const next = document.costVersions.find((v) => v.code === code);
+          if (
+            !next ||
+            (old.state !== next.state && next.state !== 'Confirmed') ||
+            contentKey({ ...old, state: '' }) !==
+              contentKey({ ...next, state: '' })
+          )
+            throw new WorkspaceValidationError(
+              lock.reason,
+              `/costVersionLocks/${code}`,
+            );
         }
         // Older clients must not erase extension data they do not understand.
         if (!Object.hasOwn(workspace, 'cpq') && previous?.cpq)
@@ -513,9 +515,7 @@ export const openWorkspaceRepository = (databasePath) => {
           assertSsrTransition(
             previous?.ssr || emptySsr(),
             document.ssr,
-            document.costVersions.find(
-              (v) => v.code === document.activeVersion,
-            ),
+            document.costVersions,
           );
         for (const old of previous?.cpq?.archives || []) {
           const retained = document.cpq?.archives.find(
@@ -563,6 +563,14 @@ export const openWorkspaceRepository = (databasePath) => {
           );
           if (cpqBase) assertCurrentCpqResult(document.cpq, cpqBase);
         }
+        assertWorkspaceDocument(document, projectId);
+        document = reconcileVersionWorkflows(previous, document);
+        document.costVersionLocks = reconcileCostVersionLocks(
+          previous,
+          document,
+          timestamp,
+        );
+        delete document.costLock;
         assertWorkspaceDocument(document, projectId);
         const payloadJson = JSON.stringify(document);
         const payloadSha256 = checksum(payloadJson);

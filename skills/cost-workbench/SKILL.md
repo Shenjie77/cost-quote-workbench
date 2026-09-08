@@ -30,6 +30,6 @@ description: SSR 工作台跨业务任务入口与业务 skill 路由；用于�
 
 跨模块任务按真实依赖推进：项目建档 → 成本编制 → CPQ 配置/维保 → 公司评审证据 → 商业报价。单项主数据更新只操作该目录。公司平台仍是正式审批系统，本地登记不能替代审批或代表已联系 PM。
 
-所有日常操作通过目标项目/版本/页签的细分 CLI，写入使用最新 revision。已完成 DRB/成本定稿保护项目成本，主数据 RE 费率目录仍可维护；不通过换版本、清锁或改证据绕过。归档保持不可变。
+所有日常操作通过目标项目/版本/页签的细分 CLI，写入使用最新 revision。用户明确确认成本为 Confirmed 后才可进入、提交或完成该版 DRB；Confirmed 只定稿成本，不代表 DRB approved。锁版输入不可改，汇总与导出可查看，主数据 RE 目录仍可维护。允许从锁版创建可编辑新 Draft，平台自动选中新版并启动独立 DTRB 轮次；切旧版查看历史不改变当前 workflowVersion。旧审批不适用于新版本，不清锁或改证据修改原版。workflowVersion/versionWorkflows 由平台管理，归档保持不可变。
 
 使用者说明见 [业务 skill 清单](../../docs/business-skills.md)。仅排查旧版接口、手工备份或模板兼容时，按需查 [旧操作参考](references/operations.md) 或 [细分资源契约](references/resources.md)，不是每次调用的前置。

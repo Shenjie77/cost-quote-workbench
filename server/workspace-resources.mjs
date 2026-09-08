@@ -6,7 +6,10 @@ import {
 } from '../features/cpq/domain.ts';
 import { emptySsr } from '../features/ssr/domain.ts';
 import { emptyMaintenance } from '../features/maintenance/domain.ts';
-import { costLockReason } from '../features/cost/cost-lock.ts';
+import {
+  costLockReason,
+  getCostVersionLocks,
+} from '../features/cost/cost-lock.ts';
 import {
   createBlankWorkspace,
   createCostVersion,
@@ -101,18 +104,23 @@ export const compactValue = (value) => {
     'bidKey',
   ];
   return Object.fromEntries(
-    Object.entries(value)
+    Object.entries(
+      value.costBaseline?.code
+        ? { ...value, costVersion: value.costBaseline.code }
+        : value,
+    )
       .filter(([k]) => !hidden.includes(k))
       .map(([k, v]) => [k, compactValue(v)]),
   );
 };
-export const mutationReceipt = (record, command, subjectId) => {
+export const mutationReceipt = (record, command, subjectId, version) => {
   const w = record.workspace;
   const data = {
     projectId: record.projectId,
     revision: record.revision,
+    workflowVersion: w.workflowVersion || w.activeVersion,
     updatedAt: record.updatedAt,
-    costLockReason: costLockReason(w),
+    costLockReason: costLockReason(w, version),
   };
   if (command === 'cpq.solve') data.result = compactValue(w.cpq.draft.result);
   if (command === 'cpq.confirm')
@@ -120,9 +128,17 @@ export const mutationReceipt = (record, command, subjectId) => {
   if (command === 'cpq.archive') data.archiveId = w.cpq.archives.at(-1).id;
   if (command === 'maintenance.archive')
     data.archiveId = w.maintenanceBoq.archives.at(-1).id;
-  if (command.startsWith('ssr.'))
+  if (command.startsWith('ssr.')) {
     data.submissionId =
       command === 'ssr.submit' ? w.ssr.submissions.at(-1)?.id : subjectId;
+    const submission = w.ssr.submissions.find(
+      (s) => s.id === data.submissionId,
+    );
+    if (submission) {
+      data.version = submission.costBaseline.code;
+      data.costLockReason = costLockReason(w, data.version);
+    }
+  }
   return data;
 };
 
@@ -135,6 +151,7 @@ function locate(w, module, options) {
         projectStatus: w.projectStatus,
         currentWorkflowStepCode: w.currentWorkflowStepCode,
         activeVersion: w.activeVersion,
+        workflowVersion: w.workflowVersion || w.activeVersion,
       },
       fields: ['name', 'client', 'projectStatus', 'currentWorkflowStepCode'],
     };
@@ -147,18 +164,28 @@ function locate(w, module, options) {
     return { parent: w, field: tab[0], key: tab[1] };
   }
   if (module === 'cost') {
-    if (section === 'versions')
+    if (section === 'versions') {
+      const locks = getCostVersionLocks(w);
       return {
-        items: w.costVersions.map((v) =>
-          pick(v, ['code', 'state', 'createdAt', 'sourceVersion']),
-        ),
+        items: w.costVersions.map((v) => ({
+          ...pick(v, ['code', 'state', 'createdAt', 'sourceVersion']),
+          costLockReason: locks[v.code]?.reason || null,
+        })),
         key: 'code',
         readonly: true,
       };
+    }
     const version = options.version || w.activeVersion;
     const v = w.costVersions.find((v) => v.code === version);
     if (!v)
       throw new RepositoryNotFoundError(`Cost version not found: ${version}`);
+    if (section === 'workflow')
+      return {
+        object: w.versionWorkflows?.[version] || {},
+        fields: [],
+        version,
+        readonly: true,
+      };
     if (!section || section === 'rows')
       return { parent: v, field: 'costRows', key: 'id', version };
     if (section === 'settings')
@@ -278,7 +305,7 @@ export function readResource(repository, id, module, options = {}) {
   const record = requireRecord(repository, id);
   const target = locate(record.workspace, module, options);
   const data = {
-    ...mutationReceipt(record, ''),
+    ...mutationReceipt(record, '', undefined, target.version),
     resource: module,
     section:
       options.tab ||
@@ -389,7 +416,7 @@ export function updateResource(
   const w = record.workspace;
   const oldMapping =
     module === 'cpq' ? safeMapping(w.cpq || emptyCpq()).key : null;
-  const locked = costLockReason(w);
+  const locked = costLockReason(w, options.version || w.activeVersion);
   const finalizingOnly =
     module === 'cost' &&
     options.section === 'settings' &&
@@ -482,7 +509,7 @@ export function updateResource(
   }
   const saved = repository.save(id, w, expectedRevision);
   return {
-    ...mutationReceipt(saved, ''),
+    ...mutationReceipt(saved, '', undefined, target.version),
     resource: module,
     section: options.tab || options.section || 'default',
     ...(target.version ? { version: target.version } : {}),
@@ -511,14 +538,19 @@ export function syncVersion(w, code) {
 
 export function applyMasterRates(repository, id, version, revision) {
   const record = requireRecord(repository, id);
-  const locked = costLockReason(record.workspace);
+  const locked = costLockReason(record.workspace, version);
   if (locked) fail(locked);
   const v = record.workspace.costVersions.find((v) => v.code === version);
   if (!v) throw new RepositoryNotFoundError('Cost version not found.');
   v.resourceTypes = structuredClone(record.workspace.resourceTypes);
   syncVersion(record.workspace, version);
   return {
-    ...mutationReceipt(repository.save(id, record.workspace, revision), ''),
+    ...mutationReceipt(
+      repository.save(id, record.workspace, revision),
+      '',
+      undefined,
+      version,
+    ),
     version,
   };
 }
@@ -569,7 +601,7 @@ export function createProject(repository, project) {
   return { ...mutationReceipt(saved, ''), resource: 'project', version: 'V1' };
 }
 
-/** Adds a Draft without changing the active editor, CPQ basis or old versions. */
+/** Starts a new active Draft and a separate DTRB round; old cost baselines remain intact. */
 export function createCostDraft(repository, id, options, revision) {
   if (!['blank', 'clone'].includes(options.mode))
     fail('--mode must be blank or clone.');
@@ -582,8 +614,6 @@ export function createCostDraft(repository, id, options, revision) {
       record.revision,
     );
   const w = record.workspace;
-  const locked = costLockReason(w);
-  if (locked) fail(locked);
   const source =
     options.mode === 'clone'
       ? w.costVersions.find((v) => v.code === options.sourceVersion)
@@ -600,8 +630,15 @@ export function createCostDraft(repository, id, options, revision) {
     source || blankCostInputs(w.resourceTypes),
   );
   w.costVersions.push(version);
+  w.activeVersion = version.code;
+  syncVersion(w, version.code);
   return {
-    ...mutationReceipt(repository.save(id, w, revision), ''),
+    ...mutationReceipt(
+      repository.save(id, w, revision),
+      '',
+      undefined,
+      version.code,
+    ),
     resource: 'cost',
     section: 'versions',
     version: version.code,

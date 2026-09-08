@@ -21,12 +21,14 @@ import {
 import { formatSgd } from '@/lib/formatters';
 
 export function CostStatementTable({
+  readOnly = false,
   rows,
   resourceTypes,
   travelCost,
   manualCosts,
   setManualCosts,
 }: {
+  readOnly?: boolean;
   rows: CostInputRow[];
   resourceTypes: ResourceType[];
   travelCost: number;
@@ -55,11 +57,13 @@ export function CostStatementTable({
     manualCosts,
   );
 
-  const updateManualCost = (key: keyof ManualCostInputs, value: number) =>
+  const updateManualCost = (key: keyof ManualCostInputs, value: number) => {
+    if (readOnly) return;
     setManualCosts((current) => ({
       ...current,
       [key]: Math.max(0, Number.isFinite(value) ? value : 0),
     }));
+  };
 
   return (
     <div>
@@ -173,6 +177,7 @@ export function CostStatementTable({
                         <Input
                           aria-label={`${row.en} cost in SGD`}
                           type="number"
+                          disabled={readOnly}
                           min="0"
                           step="100"
                           className="financial-numeral h-9 rounded-none border-0 bg-transparent pl-7 pr-2 text-right text-[11px] shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-white focus-visible:ring-1"

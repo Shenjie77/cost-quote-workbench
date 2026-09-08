@@ -20,6 +20,7 @@ export type ReviewFollowUp = {
 
 /** One user-created checkpoint belonging to exactly one project workspace. */
 export type ReviewGate = {
+  costVersion?: string;
   id: string;
   projectId: string;
   gate: string;

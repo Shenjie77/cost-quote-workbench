@@ -120,7 +120,7 @@ const IMPLEMENTED_COMMANDS = Object.freeze([
   'maintenance export --project-id ID --archive-id ID --output FILE.xlsx [--db FILE]',
   'workbook inspect --file FILE.xlsx [--header-row N]',
   'cost import --project-id ID [--version V1] --file FILE.xlsx --input REQUEST [--apply --expected-revision REVISION] [--compact] [--db FILE]',
-  'ssr submit --project-id ID --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
+  'ssr submit --project-id ID [--version Vn] --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
   'ssr result --project-id ID --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
   'ssr close --project-id ID --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
   'ssr followup --project-id ID --input REQUEST --expected-revision REVISION [--compact] [--db FILE]',
@@ -448,7 +448,14 @@ const COMMAND_SPECS = Object.freeze({
     required: ['scope'],
   },
   'ssr.submit': {
-    values: ['project-id', 'input', 'expected-revision', 'db', 'request-id'],
+    values: [
+      'version',
+      'project-id',
+      'input',
+      'expected-revision',
+      'db',
+      'request-id',
+    ],
     booleans: ['compact', 'pretty'],
     required: ['project-id', 'input', 'expected-revision'],
   },
@@ -1674,8 +1681,7 @@ const execute = async () => {
           'Workspace not found',
           EXIT.NOT_FOUND,
         );
-      const w = record.workspace,
-        baseline = w.costVersions.find((v) => v.code === w.activeVersion);
+      const w = record.workspace;
       try {
         if (resolved.command === 'boq.import') {
           const { importBoq, appendBoq, emptyMaintenance } =
@@ -1726,8 +1732,8 @@ const execute = async () => {
               'Cost version not found.',
               EXIT.NOT_FOUND,
             );
-          if (options.apply && costLockReason(w))
-            throw new TypeError(costLockReason(w));
+          if (options.apply && costLockReason(w, version))
+            throw new TypeError(costLockReason(w, version));
           const resources = target.resourceTypes || w.resourceTypes;
           const preview = await previewCostImport(
             await readWorkbookFile(String(options.file)),
@@ -1765,7 +1771,7 @@ const execute = async () => {
           return success(
             'MutationResult',
             {
-              ...mutationReceipt(saved, ''),
+              ...mutationReceipt(saved, '', undefined, version),
               resource: 'cost',
               section: 'rows',
               version,
@@ -1852,8 +1858,14 @@ const execute = async () => {
         }
         const domain = await import('../features/ssr/domain.ts');
         let next = w.ssr || domain.emptySsr();
-        if (resolved.command === 'ssr.submit')
-          next = domain.recordSubmission(next, baseline, {
+        if (resolved.command === 'ssr.submit') {
+          const versionCode =
+            options.version || w.workflowVersion || w.activeVersion;
+          const reviewBaseline = w.costVersions.find(
+            (v) => v.code === versionCode,
+          );
+          if (!reviewBaseline) throw new TypeError('Cost version not found.');
+          next = domain.recordSubmission(next, reviewBaseline, {
             kind: input.kind,
             domain: input.domain,
             owner: input.owner,
@@ -1861,6 +1873,7 @@ const execute = async () => {
             applicationNumber: input.applicationNumber,
             evidence: input.evidence,
           });
+        }
         if (resolved.command === 'ssr.result')
           next = domain.recordReviewResult(next, input.submissionId, {
             outcome: input.outcome,

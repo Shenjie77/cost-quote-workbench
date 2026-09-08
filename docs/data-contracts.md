@@ -76,7 +76,9 @@ local repository expands older compatible documents with these fields:
   column and referencing one item in `processSteps[]`;
 - `processSteps[]`: the project-specific editable workflow-node list used as
   the selector source;
-- `activeVersion`: a positive numbered version such as `V1` or `V12`;
+- `activeVersion`: the viewed cost version, such as `V1` or `V12`;
+- `workflowVersion`: the version whose workflow round is currently being handled;
+- `versionWorkflows`: per-version workflow progress retained by the platform;
 - `costVersions[]`: complete independent cost-input snapshots;
 - `pricing`: project quotation parameters.
 - `reviewGates[]`: project review checkpoints and their follow-up log;
@@ -100,8 +102,14 @@ Every `costVersions[]` item stores `code`, `state`, `createdAt`,
 `travelUplift`, `manualCosts`, and `resourceTypes` (independent rate snapshot).
 Legacy inputs may omit the last field; migration captures the available project
 catalogue and may add `calculationNote` when correcting stale labour values.
-New Version clones these fields, then edits its snapshot independently. Other master-data arrays
-remain project-level shared masters.
+New Version clones these fields into a Draft, selects it as activeVersion and
+workflowVersion, and starts its independent DTRB round. Viewing a historical
+activeVersion does not move the current workflow round. workflowVersion and
+versionWorkflows are platform-managed metadata, not fields for agent workspace
+patches. Cost must be explicitly confirmed by the user before that version can
+enter, submit or complete DRB; Confirmed finalizes cost but is not DRB approval.
+SSR submissions and dependency checks use the target version, not another
+version's approvals. Other master-data arrays remain project-level shared masters.
 
 `pricing` contains numeric `targetGrossMargin`, `discount`, and `gstPercent`.
 The pre-tax quote is calculated as:

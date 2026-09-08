@@ -30,14 +30,14 @@ import {
 import { formatSgd } from '@/lib/formatters';
 
 export function VersionComparisonView({
-  readOnly = false,
+  lockReasons = {},
   versions,
   activeVersion,
   resourceTypes,
   onSelectVersion,
   onUpdateVersionState,
 }: {
-  readOnly?: boolean;
+  lockReasons?: Record<string, string>;
   versions: CostVersionSnapshot[];
   activeVersion: string;
   resourceTypes: ResourceType[];
@@ -136,10 +136,14 @@ export function VersionComparisonView({
               </TableCell>
               <TableCell>
                 <Select
-                  disabled={readOnly && record.state === 'Confirmed'}
+                  disabled={record.state === 'Confirmed'}
                   value={record.state}
                   onValueChange={(value) => {
-                    if (value) {
+                    if (
+                      value &&
+                      record.state !== 'Confirmed' &&
+                      (!lockReasons[record.code] || value === 'Confirmed')
+                    ) {
                       onUpdateVersionState(
                         record.code,
                         value as CostVersionState,
@@ -160,7 +164,9 @@ export function VersionComparisonView({
                         <SelectItem
                           key={state}
                           value={state}
-                          disabled={readOnly && state !== 'Confirmed'}
+                          disabled={
+                            !!lockReasons[record.code] && state !== 'Confirmed'
+                          }
                         >
                           <BiInline
                             en={state}

@@ -110,9 +110,9 @@ Confirm requires existing user selection. Equipment/fixed service quantities mus
 
 ## SSR records
 
-Set `ssr.enabled=true`, proposal number, brief, technical basis and requiredDomains. Leave `commercialBasis` to the platform to derive from project, pricing, assumptions and selected template. Do not construct submission snapshots manually; use commands.
+Set `ssr.enabled=true`, proposal number, brief, technical basis and requiredDomains. Leave `commercialBasis` to the platform to derive from project, pricing, assumptions and selected template. The platform also manages workflowVersion and versionWorkflows: cost creation starts a new DTRB round, while viewing an old activeVersion does not change the working round. Do not write these metadata or construct submission snapshots manually; use commands.
 
-Each command takes `--project-id ID --input operation.json --expected-revision REVISION --compact`. All use `OperationRequest`, data schema `1.0.0`, and an `operation` matching the command:
+Each command takes `--project-id ID --input operation.json --expected-revision REVISION --compact`. For `ssr submit`, also pass `--version Vn` to name the target cost version; omission uses workflowVersion, falling back to activeVersion only for older data without it. Result, close and followup commands still target the supplied submissionId, not the currently viewed version. All use `OperationRequest`, data schema `1.0.0`, and an `operation` matching the command:
 
 | Command / operation             | Additional data fields                                                                                                                                 |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -121,7 +121,7 @@ Each command takes `--project-id ID --input operation.json --expected-revision R
 | `ssr close` / `ssr.close`       | `submissionId`, `condition`, `evidence`                                                                                                                |
 | `ssr followup` / `ssr.followup` | `submissionId`, `note`, `nextDate`                                                                                                                     |
 
-Use actual company evidence, not an inferred approval. Required professional domains must be configured before quote decision. Tender rows under `ssr.bidResponses` cover each required domain; edits invalidate the earlier bid review. Closing a condition binds to the specific result, even when later results repeat its wording.
+Use actual company evidence, not an inferred approval. Each version has its own DTRB → DRB prerequisites. Before entering, submitting or completing DRB, read the target version's cost settings/summary, validate it and obtain explicit user confirmation to finalize that version. Do not ask again if that exact finalization is already authorized. Save cost state Confirmed before DRB can proceed; Confirmed is not DRB approval, and Draft cannot be locked merely by DRB progress or a result. Required professional domains must be configured before quote decision. Tender rows under `ssr.bidResponses` cover each required domain; edits invalidate the earlier bid review. Closing a condition binds to the specific result, even when later results repeat its wording.
 
 ## Reminders and historical references
 

@@ -37,16 +37,16 @@
 - `使用 $ssr-maintenance-data，补充项目 PRJ-XXXX 的客户设备维保参考记录。`
 - `使用 $ssr-quote-export，导出项目 PRJ-XXXX 当前版本的客户报价 Excel。`
 - `使用 $ssr-quote-template，把项目 PRJ-XXXX 的指定客户模板有效期更新为 30 天，并采用我提供的 T&C。`
-- `使用 $ssr-workflow-update，项目 PRJ-XXXX 当前进入 DRB，等待 PM 评审。`
+- `使用 $ssr-workflow-update，项目 PRJ-XXXX 的 V3 已由我确认定稿，请核对成本后将本版流程推进到 DRB，等待 PM 评审。`
 
 ## 模块边界
 
 - 主数据目前按项目保存。RE、分包、补充成本、维保参考、假设和模板维护不等于应用到当前成本或报价。
-- 成本新建创建独立 Draft，版本号自动生成，保持当前 activeVersion。后续成本修改、导入和标准成本导出显式指定返回版本。新项目需要真实项目号、名称、客户。
-- 成本更新只改指定未锁定版本。DRB 完成/成本定稿锁住项目成本；RE 主数据仍可更新。3% 开关在 Cost Input，LOCAL/ARP 年度 Cost 已含金额，其他汇总不重复加算。
+- 成本新建创建独立 Draft，版本号自动生成，并自动选为 activeVersion 与 workflowVersion，开始本版 DTRB 轮次。后续成本修改、导入和标准成本导出显式指定返回版本。历史记录保留；切旧版查看不改变工作轮次。新项目需要真实项目号、名称、客户。
+- 成本更新只改指定未锁定版本。用户明确确认本版为 Confirmed 才定稿并锁对应版本；原版汇总可查看，允许从锁版创建可编辑新 Draft。`cost get --section versions` 返回每个版本的锁原因，修改/导入/应用费率均显式指定目标版本。RE 主数据仍可更新。3% 开关在 Cost Input，LOCAL/ARP 年度 Cost 已含金额，其他汇总不重复加算。
 - CPQ 数据维护只改目录；CPQ 配置负责推荐、用户选定、求解及归档。固定设备数量不得为凑金额调整。
 - 维保数据维护负责历史参考库；维保报价负责真实 BOQ、选价和草稿输出。
-- 流程更新负责当前节点、实际进度和评审证据。流程配置负责项目级节点/状态定义，保留实际进度。节点移动不等于审批通过。
+- 流程更新负责 workflowVersion 的当前节点、实际进度和评审证据。流程配置负责节点/状态定义，保留实际进度。每版独立 DTRB → DRB；成本必须先经用户确认成为 Confirmed，才能进入、提交或完成 DRB。不能把 Draft 直接靠 DRB 状态锁死；Confirmed 也不代表 DRB approved。SSR 提交显式使用 `--version Vn`，省略时跟随工作轮次；旧版审批不适用于新版。可用 `cost get --project-id ID --version Vn --section workflow` 查看本版或历史流程；workflowVersion/versionWorkflows 由平台维护，不能手改。
 - 报价编制负责定价及当前报价假设；报价模板更新负责 Master Data 的客户模板库；报价导出单独生成客户文件。
 - 商业报价和公司模板当前使用 activeVersion；不能把模板映射版本当成本版本。报价文件不包含内部成本/费率/毛利。
 

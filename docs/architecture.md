@@ -111,9 +111,16 @@ separate event ledger.
 
 ## Deliberate boundaries
 
-- Cost versions are full editable snapshots with manual `Draft`, `Suspended`,
-  and `Confirmed` lifecycle states. `Confirmed` is a workflow state, not a
-  cryptographic lock or electronic signature.
+- Cost versions are independent snapshots with manual `Draft`, `Suspended`,
+  and `Confirmed` lifecycle states. Explicit user cost confirmation makes that
+  version's inputs immutable through repository validation; this is not a
+  cryptographic signature or DRB approval. DRB entry, submission and completion
+  require Confirmed cost first. Locked versions remain readable and can be cloned
+  into new Drafts, which become the active version and start independent DTRB
+  rounds. workflowVersion identifies the working round and versionWorkflows
+  retains per-version progress; these fields are platform-managed. Selecting an
+  older activeVersion only views history. Old approvals do not satisfy a new
+  version's DTRB → DRB dependencies.
 - RE Type consolidates personnel family, level, MD rate, conversion factors,
   and effective dates. Every cost version captures an independent RE Type
   catalogue. Cost rows reference that snapshot; the project master catalogue

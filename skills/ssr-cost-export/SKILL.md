@@ -17,7 +17,7 @@ cost-cli cost validate --project-id ID --version V1
 cost-cli cost calculate --project-id ID --version V1
 cost-cli cost export --project-id ID --version V1 --output outputs/Cost-new.xlsx
 ```
-以领域计算结果为准，不在提示词重做金额计算。已锁定成本仍可查看、校验和导出。Local/ARP 3% 若开启，年度 Cost 已包含，不再增加层级、字段或额外金额行。
+以领域计算结果为准，不在提示词重做金额计算。已锁定版本的汇总仍可查看、校验和导出，显式指定版本即可；同项目其他新版本可继续编制，不改变该锁版。Local/ARP 3% 若开启，年度 Cost 已包含，不再增加层级、字段或额外金额行。
 
 公司原始模板：先 `workbook inspect --file Company.xlsx`，需要映射时才读取 [成本模板](references/template.md)。没有实际模板不能声称符合公司版式。不要为了导出成功修改成本或批准状态。
 

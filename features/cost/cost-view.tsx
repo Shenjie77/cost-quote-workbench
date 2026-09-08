@@ -32,6 +32,7 @@ import { formatSgd } from '@/lib/formatters';
 
 export function CostView({
   lockedReason = null,
+  versionLockReasons = {},
   activeVersion,
   versions,
   onSelectVersion,
@@ -56,6 +57,7 @@ export function CostView({
   announce,
 }: {
   lockedReason?: string | null;
+  versionLockReasons?: Record<string, string>;
   activeVersion: string;
   versions: CostVersionSnapshot[];
   onSelectVersion: (version: string) => void;
@@ -79,6 +81,12 @@ export function CostView({
   project: CostExportSnapshot['project'];
   announce: (message: string) => void;
 }) {
+  // Browsing remains available; only cost writers are guarded by this version's lock.
+  const writeIfUnlocked =
+    <T,>(setter: (value: T) => void) =>
+    (value: T) => {
+      if (!lockedReason) setter(value);
+    };
   const version =
     versions.find((item) => item.code === activeVersion) || versions[0];
   /** Latest means the highest numeric V-code, independent of array order. */
@@ -280,21 +288,27 @@ export function CostView({
             <span className="text-xs text-muted-foreground">
               Version rates · 版本独立汇率
             </span>
-            <Button size="sm" variant="outline" onClick={onApplyMasterRates}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (!lockedReason) onApplyMasterRates();
+              }}
+            >
               Apply Master Rates{' '}
               <span className="text-xs opacity-60">应用当前主数据汇率</span>
             </Button>
           </div>
           <RateAssumptions
             settings={rateSettings}
-            setSettings={setRateSettings}
+            setSettings={writeIfUnlocked(setRateSettings)}
           />
           <CostInputSheet
             key={activeVersion}
             rows={rows}
-            setRows={setRows}
+            setRows={writeIfUnlocked(setRows)}
             rateSettings={rateSettings}
-            setRateSettings={setRateSettings}
+            setRateSettings={writeIfUnlocked(setRateSettings)}
             resourceTypes={resourceTypes}
             includedTravelCost={includedTravelCost}
             announce={announce}
@@ -303,33 +317,32 @@ export function CostView({
             rows={rows}
             resourceTypes={resourceTypes}
             settings={travelSettings}
-            setSettings={setTravelSettings}
+            setSettings={writeIfUnlocked(setTravelSettings)}
           />
           {travelRows.length > 0 ? (
             <AdditionalTravelTable
               rows={travelRows}
-              setRows={setTravelRows}
+              setRows={writeIfUnlocked(setTravelRows)}
               rateSettings={rateSettings}
               travelUplift={travelUplift}
-              setTravelUplift={setTravelUplift}
+              setTravelUplift={writeIfUnlocked(setTravelUplift)}
             />
           ) : null}
         </fieldset>
       ) : null}
       {costView === 'summary' ? (
-        <fieldset disabled={!!lockedReason} className="min-w-0">
-          <CostSummaryView
-            rows={rows}
-            resourceTypes={resourceTypes}
-            travelCost={hqTravelCost}
-            manualCosts={manualCosts}
-            setManualCosts={setManualCosts}
-          />
-        </fieldset>
+        <CostSummaryView
+          readOnly={!!lockedReason}
+          rows={rows}
+          resourceTypes={resourceTypes}
+          travelCost={hqTravelCost}
+          manualCosts={manualCosts}
+          setManualCosts={writeIfUnlocked(setManualCosts)}
+        />
       ) : null}
       {costView === 'compare' ? (
         <VersionComparisonView
-          readOnly={!!lockedReason}
+          lockReasons={versionLockReasons}
           versions={versions}
           activeVersion={activeVersion}
           resourceTypes={resourceTypes}

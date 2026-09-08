@@ -17,12 +17,14 @@ import type { BreakdownItem } from '@/features/cost/ui-types';
 import { formatSgd } from '@/lib/formatters';
 
 export function CostSummaryView({
+  readOnly = false,
   rows,
   resourceTypes,
   travelCost,
   manualCosts,
   setManualCosts,
 }: {
+  readOnly?: boolean;
   rows: CostInputRow[];
   resourceTypes: ResourceType[];
   travelCost: number;
@@ -155,6 +157,7 @@ export function CostSummaryView({
           </TabsContent>
           <TabsContent value="statement">
             <CostStatementTable
+              readOnly={readOnly}
               rows={rows}
               resourceTypes={resourceTypes}
               travelCost={travelCost}

@@ -12,10 +12,11 @@ export function createSaveQueue<T>(options: {
   ) => Promise<{
     revision: number;
     updatedAt: string;
+    workspace?: T;
   }>;
   onSaving: () => void;
   onSaved: (
-    record: { revision: number; updatedAt: string },
+    record: { revision: number; updatedAt: string; workspace?: T },
     document: T,
   ) => void;
   onError: (error: unknown) => void;
@@ -43,6 +44,15 @@ export function createSaveQueue<T>(options: {
     dispose() {
       disposed = true;
     },
+    /** Adopt a canonical explicit write only while ordinary autosave is paused. */
+    adoptSaved(document: T, nextRevision: number) {
+      if (!paused || disposed || nextRevision < (revision ?? 0))
+        throw new Error(
+          'Pause the current save session before adopting a saved workspace.',
+        );
+      revision = nextRevision;
+      savedJson = JSON.stringify(document);
+    },
     /** Returns whether a document already has a successful durable write. */
     isSaved(document: T) {
       return JSON.stringify(document) === savedJson;
@@ -59,7 +69,7 @@ export function createSaveQueue<T>(options: {
         try {
           const record = await options.persist(snapshot, revision);
           revision = record.revision;
-          savedJson = json;
+          savedJson = JSON.stringify(record.workspace ?? snapshot);
           options.onSaved(record, snapshot);
           return true;
         } catch (error) {

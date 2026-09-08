@@ -286,6 +286,10 @@ export function DetailSheet({
                 {reviewProject?.name || reviewDraft.projectId} ·{' '}
                 {reviewDraft.id}
               </SheetDescription>
+              <p className="text-sm text-muted-foreground">
+                成本版本：{reviewDraft.costVersion || '保存时绑定当前流程版本'}
+                ；已有评审记录保留原版本归属。
+              </p>
             </SheetHeader>
             <div className="workbench-scrollbar flex-1 space-y-4 overflow-y-auto p-5">
               <div>

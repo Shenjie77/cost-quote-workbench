@@ -127,6 +127,7 @@ export function isStale(
   if (visited.has(submission.id)) return true;
   const seen = new Set(visited).add(submission.id);
   if (
+    submission.costBaseline.code !== baseline.code ||
     submission.scopeBasis !== scopeBasisKey(ssr) ||
     (submission.kind !== 'DTRB' &&
       submission.costKey !== costBaselineKey(baseline)) ||
@@ -155,7 +156,7 @@ export function isStale(
     const dep = ssr.submissions.find((s) => s.id === id);
     if (
       !dep ||
-      latest(ssr, dep.kind, dep.domain)?.id !== id ||
+      latest(ssr, dep.kind, dep.domain, baseline.code)?.id !== id ||
       isStale(ssr, dep, baseline, seen)
     )
       return true;
@@ -169,8 +170,20 @@ export function isStale(
     );
   });
 }
-const latest = (ssr: SsrWorkspace, kind: ReviewKind, domain = '') =>
-  ssr.submissions.filter((s) => s.kind === kind && s.domain === domain).at(-1);
+export const latest = (
+  ssr: SsrWorkspace,
+  kind: ReviewKind,
+  domain: string,
+  version: string,
+) =>
+  ssr.submissions
+    .filter(
+      (s) =>
+        s.kind === kind &&
+        s.domain === domain &&
+        s.costBaseline.code === version,
+    )
+    .at(-1);
 /** Returns concrete missing prerequisites without changing any current project state. */
 export function submissionDependencies(
   ssr: SsrWorkspace,
@@ -182,9 +195,17 @@ export function submissionDependencies(
     throw new TypeError(
       'Enable SSR and record proposal number and brief / 请启用SSR并填写proposal和简述',
     );
+  if (
+    kind !== 'DTRB' &&
+    kind !== 'BID_REVIEW' &&
+    baseline.state !== 'Confirmed'
+  )
+    throw new TypeError(
+      `请先确认成本 ${baseline.code} (Confirmed)，再进入 ${kind}；Draft 保持在 DTRB。`,
+    );
   const dependencies: string[] = [];
   const requireGate = (k: ReviewKind, d = '', mustApprove = true) => {
-    const s = latest(ssr, k, d);
+    const s = latest(ssr, k, d, baseline.code);
     if (
       !s ||
       isStale(ssr, s, baseline) ||
@@ -409,7 +430,11 @@ export function ssrAttention(
     fingerprint: string;
   }[] = [];
   for (const s of ssr.submissions) {
-    if (latest(ssr, s.kind, s.domain)?.id !== s.id) continue;
+    if (
+      s.costBaseline.code !== baseline.code ||
+      latest(ssr, s.kind, s.domain, baseline.code)?.id !== s.id
+    )
+      continue;
     const outcome = latestResult(s)?.outcome;
     if (outcome === 'withdrawn') continue;
     const stale = isStale(ssr, s, baseline),
@@ -508,12 +533,31 @@ export function assertSsr(ssr: SsrWorkspace) {
 export function assertSsrTransition(
   previous: SsrWorkspace,
   next: SsrWorkspace,
-  baseline: CostVersionSnapshot,
+  baselineOrVersions: CostVersionSnapshot | CostVersionSnapshot[],
 ) {
+  const versions = Array.isArray(baselineOrVersions)
+    ? baselineOrVersions
+    : [baselineOrVersions];
   for (const old of previous.submissions) {
     const current = next.submissions.find((s) => s.id === old.id);
     if (!current)
       throw new TypeError('Submitted review records cannot be deleted');
+    if (
+      old.kind === 'DRB' &&
+      (current.results.length > old.results.length ||
+        current.closures.length > old.closures.length) &&
+      ['approved', 'conditional'].includes(latestResult(current)?.outcome || '')
+    ) {
+      const version = versions.find((v) => v.code === old.costBaseline.code);
+      if (!version || version.state !== 'Confirmed')
+        throw new TypeError(
+          `请先确认成本 ${old.costBaseline.code} (Confirmed)，再登记 DRB 通过或关闭条件。`,
+        );
+      if (old.costKey !== costBaselineKey(version))
+        throw new TypeError(
+          'DRB 送审成本已过期，请确认当前成本后重新提交本版本评审。',
+        );
+    }
     const { results: a, closures: b, followUps: c, ...oldCore } = old;
     const { results: x, closures: y, followUps: z, ...newCore } = current;
     if (contentKey(oldCore) !== contentKey(newCore))
@@ -536,6 +580,9 @@ export function assertSsrTransition(
   accepted.submissions = [];
   for (const s of next.submissions) {
     if (!previous.submissions.some((old) => old.id === s.id)) {
+      const baseline = versions.find((v) => v.code === s.costBaseline.code);
+      if (!baseline)
+        throw new TypeError('Submission cost version does not exist.');
       if (
         contentKey(s.costBaseline) !== contentKey(baseline) ||
         s.scopeBasis !== scopeBasisKey(next) ||
@@ -580,7 +627,7 @@ export function assertQuoteDecision(
   baseline: CostVersionSnapshot,
 ) {
   if (!ssr?.enabled) return;
-  const gate = latest(ssr, 'QUOTE_DECISION');
+  const gate = latest(ssr, 'QUOTE_DECISION', '', baseline.code);
   if (!gate || !isApproved(gate) || isStale(ssr, gate, baseline))
     throw new TypeError(
       '请先记录适用于当前成本与范围的报价决策，并关闭所有条件',
