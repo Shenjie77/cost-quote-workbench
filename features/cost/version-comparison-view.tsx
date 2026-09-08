@@ -31,6 +31,8 @@ import { formatSgd } from '@/lib/formatters';
 
 export function VersionComparisonView({
   lockReasons = {},
+  deletionReasons = {},
+  onDeleteVersion,
   versions,
   activeVersion,
   resourceTypes,
@@ -38,6 +40,8 @@ export function VersionComparisonView({
   onUpdateVersionState,
 }: {
   lockReasons?: Record<string, string>;
+  deletionReasons?: Record<string, string>;
+  onDeleteVersion?: (version: string) => void;
   versions: CostVersionSnapshot[];
   activeVersion: string;
   resourceTypes: ResourceType[];
@@ -118,7 +122,7 @@ export function VersionComparisonView({
                 className="items-end"
               />
             </TableHead>
-            <TableHead className="w-28 pr-4 text-right">
+            <TableHead className="w-48 pr-4 text-right">
               <BiText en="Action" zh="操作" className="items-end" />
             </TableHead>
           </TableRow>
@@ -206,6 +210,7 @@ export function VersionComparisonView({
                   : `${record.delta > 0 ? '+' : ''}${formatSgd(record.delta)}`}
               </TableCell>
               <TableCell className="pr-4 text-right">
+                <div className="flex justify-end gap-2">
                 <Button
                   type="button"
                   variant={record.code === activeVersion ? 'ghost' : 'outline'}
@@ -219,6 +224,15 @@ export function VersionComparisonView({
                   </span>
                   {record.code === activeVersion ? null : <ArrowRight />}
                 </Button>
+                {record.state === 'Suspended' && onDeleteVersion ? (
+                  <Button type="button" variant="outline" size="sm" className="text-red-700"
+                    disabled={!!deletionReasons[record.code]}
+                    title={deletionReasons[record.code] || '删除暂停版本，保留历史记录'}
+                    onClick={() => onDeleteVersion(record.code)}>
+                    Delete <span className="text-[8px] opacity-60">删除</span>
+                  </Button>
+                ) : null}
+                </div>
               </TableCell>
             </TableRow>
           ))}

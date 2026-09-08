@@ -1,4 +1,4 @@
 interface:
   display_name: "SSR · 分包主数据维护"
-  short_description: "SSR · 分包主数据维护：独立处理指定项目的业务记录，通过细分 CLI 读写并核对结果。"
-  default_prompt: "使用 $ssr-subcontract-maintain 根据提供的数据维护指定项目的分包主数据。"
+  short_description: "维护全局分包服务和供应商参考目录，保留已有项目采用的成本。"
+  default_prompt: "使用 $ssr-subcontract-maintain 根据附件维护全局分包目录，保留已有项目成本快照。"

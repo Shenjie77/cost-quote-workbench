@@ -7,7 +7,7 @@
  * normalize individual business records without changing the public payload.
  */
 
-export const LOCAL_DATABASE_SCHEMA_VERSION = 5;
+export const LOCAL_DATABASE_SCHEMA_VERSION = 6;
 
 /** Each entry is exactly one statement so initialization stays portable. */
 export const LOCAL_DATABASE_STATEMENTS = [
@@ -49,4 +49,22 @@ export const LOCAL_DATABASE_STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_workspace_snapshots_updated_at
    ON workspace_snapshots(updated_at DESC)`,
+  // Shared source catalogs have their own revisions, independent of projects.
+  `CREATE TABLE IF NOT EXISTS master_data_tabs (
+    tab TEXT PRIMARY KEY,
+    revision INTEGER NOT NULL CHECK (revision >= 1),
+    payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS master_data_revisions (
+    tab TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK (revision >= 1),
+    payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (tab, revision)
+  )`,
+  `CREATE TABLE IF NOT EXISTS master_data_metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`,
 ] as const;

@@ -1,4 +1,4 @@
-/** Compact, project-owned assumption and customer-template editors. */
+/** Global assumption and customer-template editors; projects keep independent copies. */
 import { useState } from 'react';
 import { Plus, Trash2, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -28,17 +28,13 @@ export function AssumptionLibraryView({
   library,
   setLibrary,
   templates,
-  setTemplates,
   query,
-  client,
   announce,
 }: {
   library: AssumptionDefinition[];
   setLibrary: Setter<AssumptionDefinition>;
   templates: QuoteTemplate[];
-  setTemplates: Setter<QuoteTemplate>;
   query: string;
-  client: string;
   announce: (message: string) => void;
 }) {
   const rows = library.filter((row) =>
@@ -54,9 +50,7 @@ export function AssumptionLibraryView({
   return (
     <>
       <div className="flex items-center justify-between gap-3 border-b px-3 py-2 text-xs">
-        <p>
-          {rows.length} assumptions · 假设库 · Client 客户: {client}
-        </p>
+        <p>{rows.length} global assumptions · 全局假设库</p>
         <Button
           size="sm"
           onClick={() =>
@@ -147,23 +141,20 @@ export function AssumptionLibraryView({
                       const linked = templates.filter((item) =>
                         item.defaultAssumptionIds.includes(row.id),
                       ).length;
+                      if (linked) {
+                        announce(
+                          `Delete blocked: ${linked} global template(s) still reference this assumption. Remove their references and save templates first. / 请先移除全局模板引用并保存模板，再删除假设。`,
+                        );
+                        return;
+                      }
                       if (
                         !window.confirm(
-                          `Delete "${row.name}"? Remove ${linked} template links; copied quote text stays. / 删除假设及模板关联，已引用内容保留。`,
+                          `Delete "${row.name}" from global data? Project snapshots remain unchanged. / 删除全局假设，已有项目快照不变。`,
                         )
                       )
                         return;
                       setLibrary((items) =>
                         items.filter((item) => item.id !== row.id),
-                      );
-                      setTemplates((items) =>
-                        items.map((item) => ({
-                          ...item,
-                          defaultAssumptionIds:
-                            item.defaultAssumptionIds.filter(
-                              (id) => id !== row.id,
-                            ),
-                        })),
                       );
                       announce(
                         'Assumption deleted; existing quotation copies retained. / 假设已删除，报价引用内容保留。',
@@ -193,21 +184,15 @@ export function QuoteTemplatesView({
   setTemplates,
   library,
   query,
-  client,
-  selectedId,
-  setSelectedId,
   announce,
 }: {
   templates: QuoteTemplate[];
   setTemplates: Setter<QuoteTemplate>;
   library: AssumptionDefinition[];
   query: string;
-  client: string;
-  selectedId: string;
-  setSelectedId: React.Dispatch<React.SetStateAction<string>>;
   announce: (message: string) => void;
 }) {
-  const [editingId, setEditingId] = useState(selectedId);
+  const [editingId, setEditingId] = useState('');
   const template =
     templates.find((item) => item.id === editingId) || templates[0];
   const rows = templates.filter((row) =>
@@ -234,7 +219,7 @@ export function QuoteTemplatesView({
           id,
           name: 'New Client Template',
           nameZh: '',
-          clientPattern: client || '*',
+          clientPattern: '*',
           documentTitle: 'SERVICE QUOTATION',
           documentTitleZh: '',
           validityDays: 30,
@@ -320,14 +305,6 @@ export function QuoteTemplatesView({
                           (item) => item.id !== row.id,
                         );
                         setTemplates(remaining);
-                        if (selectedId === row.id)
-                          setSelectedId(
-                            remaining.find(
-                              (item) =>
-                                item.active &&
-                                matchesClient(item.clientPattern, client),
-                            )?.id || remaining[0].id,
-                          );
                       }}
                     >
                       <Trash2 />
@@ -470,8 +447,8 @@ export function QuoteTemplatesView({
             </fieldset>
             <p className="text-xs text-muted-foreground">
               Exact client match (case-insensitive); * is common. Changes affect
-              future exports, not saved history. /
-              客户完整名称匹配，不区分大小写；修改用于后续输出，不回写历史。
+              future projects. Existing project templates remain unchanged. /
+              客户完整名称匹配，不区分大小写；修改作为未来项目数据来源，已有项目模板不变。
             </p>
           </div>
         )}

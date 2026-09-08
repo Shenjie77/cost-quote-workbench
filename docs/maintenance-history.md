@@ -1,7 +1,9 @@
 # Maintenance price history
 
-The maintenance history page is a searchable, persisted reference dataset. It
-supports manual add/edit/delete and controlled JSON/XLSX import.
+Master Data → Maintenance is a global, searchable reference dataset for future
+projects. It supports manual add/edit/delete and controlled JSON/XLSX import,
+without selecting a project. Existing projects retain their adopted reference
+snapshot; global changes do not rewrite BOQ choices or historical archives.
 
 CLI validation requires a `cost-workbench/v2` request envelope with
 `kind: "MaintenancePriceRequest"`; the nested maintenance dataset remains
@@ -33,10 +35,17 @@ is rejected. JSON numbers must be actual JSON numbers.
 - The displayed unit/year quote normalizes both duration and quantity: amount × 12 / months / quantity. Invalid denominators display unavailable; retain the original contract amount.
 - `Won`, `Lost`, and `Quoted` are distinct commercial outcomes. A manually
   entered market reference uses `Reference`.
-- Imported IDs already present in the project are replaced; new IDs are added.
+- Imported IDs already present in the global library are updated; new IDs are added.
   XLSX rows receive generated IDs and retain `Source` or the import filename.
 
 Historical records are evidence, not automatic price recommendations. Any
 future pricing rule must show its matched records and filters.
+
+The CLI maintains the global library with `masterdata get/update --tab maintenance`
+and that tab's revision, without a project ID. BOQ references are read through
+`boq get --project-id ID --section references`. Only explicit
+`project apply-masterdata --project-id ID --tab maintenance --expected-revision R`
+captures the newer global library for that project; then recheck its current
+reference selections. Archived results retain their original reference snapshots.
 
 The Maintenance BOQ page imports or enters actual equipment quantities, compares exact model matches across customers, records selected SLA/price differences and archives all rows with reference snapshots. It exports a clearly labelled draft; final taxes and legal terms remain part of formal quotation. See the [SSR implementation guide](ssr-implementation-2026-09-07.md).

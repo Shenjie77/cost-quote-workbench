@@ -36,6 +36,11 @@
               "pattern": "\\S",
               "minLength": 1,
               "maxLength": 300
+            },
+            "reviewOwner": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
             }
           }
         }

@@ -7,7 +7,7 @@ description: 导出指定 SSR 项目的客户报价 Excel，或填入用户提�
 
 在包含 `cli/cost-cli.mjs` 的仓库根目录运行 `npm run --silent cost-cli -- ...`；下文 cost-cli 是此前缀的简称。已知项目号直接读取该项目，未知才用 project list；不读取完整 workspace，也不先加载报价编制或模板维护 skill。
 
-按需读取 `project get --project-id ID`、`cost get --project-id ID --section settings`、`quote get --project-id ID --section settings|assumptions`。需要核对条款时，只读取 selectedQuoteTemplateId 对应的 `masterdata get --tab quote-templates --id TEMPLATE-ID`，带同项目号。
+按需读取 `project get --project-id ID`、`cost get --project-id ID --section settings`、`quote get --project-id ID --section settings|assumptions`。需要核对条款时，只读取 selectedQuoteTemplateId 对应的 `quote get --project-id ID --section templates --id TEMPLATE-ID`。导出使用项目捕获的模板和该成本版本原始费率，不读取最新全局库来替换历史依据。
 
 标准报价及公司模板填充都使用 activeVersion。用户指定其他版本时先核对，不能默认输出当前版本冒充指定版本。当前成本须为 Confirmed，并满足平台适用的报价决策、客户模板及输入校验；Confirmed 本身不表示 DRB approved。SSR 开启时，报价决策必须对当前成本、Scope、商业条款及依赖评审仍有效，批准条件须已关闭；从锁版创建的新 Draft 不能沿用旧版快照的审批，不得关闭 SSR 绕过。导出请求不授权把 Draft 自动改为 Confirmed、代作公司审批或改定价/条款；缺项时说明具体前置，保留已完成的准备工作。
 

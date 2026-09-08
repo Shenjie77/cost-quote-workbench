@@ -1,29 +1,31 @@
 ---
 name: ssr-workflow-configure
-description: 维护项目级流程节点名称、责任人、输入要求以及状态字典；保持当前实际进度和评审证据，进度更新用 ssr-workflow-update。
+description: 维护全局流程默认模板的节点名称、责任人、输入要求及状态字典；不更改已有项目进度或评审证据，进度更新用 ssr-workflow-update。
 ---
 
 # SSR · 流程配置维护
 
-在包含 `cli/cost-cli.mjs` 的仓库根目录运行 `npm run --silent cost-cli -- ...`；下文 `cost-cli` 是此前缀的简称。项目号已知时直接读取目标资源；未知才用 `project list`。主数据也是项目级，不能默认更新全部项目。
+在包含 `cli/cost-cli.mjs` 的仓库根目录运行 `npm run --silent cost-cli -- ...`；下文 `cost-cli` 是此前缀的简称。Master Data 是独立全局库，为未来项目提供数据；无需项目号，不执行 `project list/get` 或读取 workspace 作为维护前置。
 
-集合读取按需用 `--id`、`--query`、`--limit`、`--offset`，跟随 `nextOffset`，分页期间 revision 变化须重读。只返回需要的字段和条目，不用 `workspace get/save` 做常规操作。字段不明时查本文指定的本地 schema 定义；接口不符时再查 `system capabilities`。
+集合读取按需用 `--id`、`--query`、`--limit`、`--offset`，全局默认 limit 为 100、上限 10000；跟随 `nextOffset`，分页期间 revision 变化须重读。只返回需要的字段和条目，不用 `workspace get/save` 做常规操作。字段不明时查本文指定的本地 schema 定义；接口不符时再查 `system capabilities`。
 
-写入使用最新返回的 `--expected-revision R`，冲突后重读目标资源再重施原意。局部修改仅发送变更字段；新增记录必须字段完整；不把缺失记录视为删除。核对返回 revision 和变更条目，不把预览或校验当成已保存。
+每个全局页签有独立 revision；写入使用该页签最新返回的 `--expected-revision R`，不能拿项目或另一页签的 revision。冲突后重读该页签再重施原意。局部修改仅发送变更字段；新增记录必须字段完整；不把缺失记录视为删除。读取返回 `GlobalMasterDataResult`，更新返回 `GlobalMasterDataMutationResult`。核对 scope/tab/revision、changedIds/removedIds 与 unresolvedKeys；不把预览或校验当成已保存。
 
-平台当前没有独立全局流程模板库。`masterdata --tab workflow` 实际保存指定项目的 processSteps，`--tab status` 保存项目状态字典，不能称为全公司配置。
+`masterdata --tab workflow` 维护未来项目采用的全局流程默认模板，`--tab status` 维护全局状态字典。当前项目节点进度和 DTRB/DRB 证据另由流程更新 skill 处理。
 
 ```sh
-cost-cli masterdata get --project-id ID --tab workflow --id NODE-CODE
-cost-cli masterdata update --project-id ID --tab workflow --input change.json --expected-revision R
+cost-cli masterdata get --tab workflow --id NODE-CODE
+cost-cli masterdata update --tab workflow --input change.json --expected-revision R
 ```
 状态字典使用相同命令换成 `--tab status`。
 写入文件使用以下信封，`CHANGES` 替换为本业务的变更对象，`requestId` 每次操作取唯一值：
 ```json
 {"apiVersion":"cost-workbench/v2","kind":"OperationRequest","requestId":"unique-id","data":{"schemaVersion":"1.0.0","operation":"masterdata.update","changes":CHANGES}}
 ```
-集合用 `{"upsert":[...],"remove":[...]}`（只提供需要的键）；对象设置用 `{"set":{...}}`。`upsert` 仅合并已有记录的顶层字段，数组字段整项替换。
+全局页签是集合，只用 `{"upsert":[...],"remove":[...]}`（只提供需要的键）；不支持 set。`upsert` 仅合并已有记录的顶层字段，数组字段整项替换。
 
-两种记录都以 code 为键。流程节点字段按 workspace-state schema 的 workflowStep；状态字典字段为 `code/name/nameZh/active`。维护节点名称、责任人、输入/说明和 required 等结构时保留实际 state、日期和当前节点。新增节点需完整字段；新增初态按未开始，不复制其他项目的完成状态或评审证据。
+两种记录都以 code 为键。流程节点字段按 workspace-state schema 的 workflowStep；状态字典字段为 `code/name/nameZh/active`。名称可以改，稳定 code 应保留。新增节点需完整字段，模板只保留未开始的初态和默认责任/输入要求，不填项目实际日期、完成状态或评审证据。全局模板的修改不会重写任何已有项目的当前节点、版本流程或已批准记录。
 
-名称可以改，稳定 code 应保留。当前选用节点/状态不能直接删除；确需移除时先按用户明确意图调整引用，并逐次使用最新 revision。不要把“模板更新”变成 completed 状态写入；当前节点进度属于 workflowVersion 对应的工作轮次；activeVersion 切旧仅用于历史查看。进入、提交或完成 DRB 都要求该版成本先由用户明确确认为 Confirmed，不能把 Draft 靠改节点 completed 直接锁定。Confirmed 不表示 DRB 已批准。每个新版从独立 DTRB 轮次开始，不复制旧版进度；workflowVersion/versionWorkflows 元数据由平台管理，不手工覆写。无论如何不得通过改节点名/code/state 解锁原版成本。
+已有项目的节点进度、当前节点和状态通过 [流程与评审更新](../ssr-workflow-update/SKILL.md) 维护；不拿全局模板更新代替实际进度。用户确认成本为 Confirmed 才可进入本版 DRB，新 Draft 有独立 DTRB 轮次；模板维护不能改变这些规则或解除成本锁。
+
+全局更新不会改动任何已有项目，包括 Draft；已有成本、报价和归档继续使用其原始快照。迁移发现同编码/ID 不同内容时保留差异与来源，用用户提供的完整条目明确 upsert 解决（冲突条目不能只传局部字段），不猜测哪个项目正确、不静默覆盖冲突。

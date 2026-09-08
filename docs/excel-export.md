@@ -3,6 +3,24 @@
 The Cost Workspace export button creates one `.xlsx` file for internal sharing.
 Workbook contract version is `2.0.0`.
 
+## Simple export
+
+**Simple Export** produces five business sheets: `Cost Detail`, `Summary Scope`,
+`Summary BU`, `Summary RE Type`, and `Cost Statement`. It follows the page's
+annual inputs, calculated costs, dimension totals and statement hierarchy.
+Report Item contains both English and Chinese in one cell, including its report
+account number. Technical IDs, classification codes and Source columns are
+omitted. Both automatic 2.3.4.2 percentages and manual overrides use the version's
+shared calculated amounts.
+
+```sh
+npm run --silent cost-cli -- cost export --project-id ID --version Vn --format simple --output outputs/Cost-simple.xlsx
+```
+
+The simple report is read-only and available for locked versions. The same
+validation rules apply to both formats. Omit `--format` or use `--format full`
+for the detailed audit workbook described below.
+
 ## Sheets
 
 | Sheet                 | Purpose                                                                                       |

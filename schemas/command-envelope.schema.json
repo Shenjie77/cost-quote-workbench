@@ -39,7 +39,9 @@
         "OperationResult",
         "ResourceResult",
         "MutationResult",
-        "ProjectListResult"
+        "ProjectListResult",
+        "GlobalMasterDataResult",
+        "GlobalMasterDataMutationResult"
       ]
     },
     "requestId": {
@@ -140,7 +142,9 @@
               "project.restore",
               "cost.apply-rates",
               "project.create",
-              "cost.create"
+              "cost.create",
+              "project.apply-masterdata",
+              "cost.delete"
             ]
           }
         }
@@ -601,7 +605,9 @@
                 "type": ["integer", "null"],
                 "minimum": 0
               },
-              "workflowVersion": { "type": "string" },
+              "workflowVersion": {
+                "type": "string"
+              },
               "costLockReason": {
                 "type": ["string", "null"]
               }
@@ -673,7 +679,9 @@
               "project.restore",
               "cost.apply-rates",
               "project.create",
-              "cost.create"
+              "cost.create",
+              "project.apply-masterdata",
+              "cost.delete"
             ]
           },
           "data": {
@@ -734,9 +742,15 @@
                   "type": "string"
                 }
               },
-              "workflowVersion": { "type": "string" },
+              "workflowVersion": {
+                "type": "string"
+              },
               "costLockReason": {
                 "type": ["string", "null"]
+              },
+              "masterDataRevision": {
+                "type": "integer",
+                "minimum": 1
               }
             }
           }
@@ -796,6 +810,269 @@
                       "type": ["string", "null"]
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "GlobalMasterDataResult"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "const": "masterdata.get"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "limit",
+              "sources",
+              "scope",
+              "tab",
+              "revision",
+              "initializedAt",
+              "items",
+              "initializedFrom",
+              "conflictTotal",
+              "updatedAt",
+              "total",
+              "conflicts",
+              "offset",
+              "keyField"
+            ],
+            "properties": {
+              "scope": {
+                "const": "global"
+              },
+              "tab": {
+                "enum": [
+                  "resources",
+                  "subcontract",
+                  "supplemental",
+                  "maintenance",
+                  "assumptions",
+                  "quote-templates",
+                  "workflow",
+                  "status",
+                  "cpq-catalog"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "updatedAt": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "keyField": {
+                "enum": ["id", "code"]
+              },
+              "initializedFrom": {
+                "enum": ["projects", "defaults"]
+              },
+              "initializedAt": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "conflicts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["key", "variants"],
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "variants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["item", "sources"],
+                        "properties": {
+                          "item": {
+                            "type": "object"
+                          },
+                          "sources": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "kind": {
+                                  "enum": [
+                                    "project",
+                                    "defaults",
+                                    "global-update"
+                                  ]
+                                },
+                                "projectId": {
+                                  "type": "string"
+                                },
+                                "projectName": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "integer",
+                                  "minimum": 1
+                                },
+                                "updatedAt": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["key", "sources"],
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "enum": ["project", "defaults", "global-update"]
+                          },
+                          "projectId": {
+                            "type": "string"
+                          },
+                          "projectName": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "conflictTotal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "nextOffset": {
+                "type": ["integer", "null"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "GlobalMasterDataMutationResult"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "const": "masterdata.update"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "unresolvedKeys",
+              "scope",
+              "tab",
+              "revision",
+              "updatedAt",
+              "changedIds",
+              "removedIds"
+            ],
+            "properties": {
+              "scope": {
+                "const": "global"
+              },
+              "tab": {
+                "enum": [
+                  "resources",
+                  "subcontract",
+                  "supplemental",
+                  "maintenance",
+                  "assumptions",
+                  "quote-templates",
+                  "workflow",
+                  "status",
+                  "cpq-catalog"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "updatedAt": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "changedIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "removedIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "unresolvedKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
                 }
               }
             }
@@ -1715,7 +1992,10 @@
         "followUps"
       ],
       "properties": {
-        "costVersion": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
+        "costVersion": {
+          "type": "string",
+          "pattern": "^V[1-9][0-9]*$"
+        },
         "id": {
           "$ref": "#/$defs/nonBlankText"
         },
@@ -1863,7 +2143,10 @@
             "$ref": "#/$defs/workflowStep"
           }
         },
-        "workflowVersion": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
+        "workflowVersion": {
+          "type": "string",
+          "pattern": "^V[1-9][0-9]*$"
+        },
         "activeVersion": {
           "type": "string",
           "pattern": "^V[1-9][0-9]*$"

@@ -61,3 +61,7 @@
 项目列表增加可恢复删除，旧自动保存和 seed 无法复活已删项目；最后项目删除后仍可新建。支持 `project list --deleted` / `project restore`。
 
 新增单项目成本行/版本设置、八个 Masterdata 页签、CPQ 目录/草稿/选择、SSR、报价和 BOQ 的分区 get/update，以及过滤、分页、短回执。成本校验/计算/导出可直接指定项目和版本。Skill 默认使用这些窄入口，完整 workspace 命令保留作备份和兼容用途；详细契约见[细分入口](../skills/cost-workbench/references/resources.md)。SQLite 内部仍以单项目文档完成原子校验和保存。
+
+## 后续更新：全局主数据
+
+本记录描述当时的项目级实现；当前 Master Data 已独立为九个全局页签，维护无需项目号，每页签独立 revision。项目现有目录与成本版本继续保留已采用的数据快照；全局更新不改已有 Draft 或历史金额。CPQ 目录也改用全局 `masterdata --tab cpq-catalog`。实际流程进度仍用项目入口。最新用法见[全局主数据与项目快照](global-master-data.md)及[细分资源契约](../skills/cost-workbench/references/resources.md)。

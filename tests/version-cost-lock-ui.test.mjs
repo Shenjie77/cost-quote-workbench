@@ -198,3 +198,59 @@ test('version controls keep Open and unlocked versions usable while blocking loc
     assert.doesNotMatch(trigger, / disabled(?:[ =])/);
   }
 });
+
+
+test('cost toolbar shows five information tiles, current status, master apply and both exports', () => {
+  const draft = { ...costProps, lockedReason: null, activeVersion: 'V3' };
+  const html = renderToStaticMarkup(React.createElement(CostView, draft));
+  assert.match(html, /lg:grid-cols-5/);
+  assert.match(html, /Calculation Basis/);
+  assert.match(html, /应用最新主数据/);
+  assert.match(html, /Current version status/);
+  assert.match(html, /Simple Export/);
+  assert.match(html, /Export Cost Workbook/);
+  const apply = html.match(/<button[^>]*>(?:(?!<\/button>)[\s\S])*Apply Master Rates(?:(?!<\/button>)[\s\S])*<\/button>/)?.[0];
+  assert.ok(apply);
+  assert.doesNotMatch(apply, / disabled(?:[ =])/);
+  const lockedHtml = renderToStaticMarkup(React.createElement(CostView, costProps));
+  const lockedApply = lockedHtml.match(/<button[^>]*>(?:(?!<\/button>)[\s\S])*Apply Master Rates(?:(?!<\/button>)[\s\S])*<\/button>/)?.[0];
+  assert.match(lockedApply, / disabled(?:[ =])/);
+});
+
+test('other service field displays calculated one percent, preserves auto on blur and permits explicit override', () => {
+  let manual = { ...snapshot.manualCosts, otherService: 999999, otherServiceRate: 0.01 };
+  const render = (readOnly = false) => walk(CostStatementTable({
+    rows: snapshot.costRows, resourceTypes: snapshot.resourceTypes, travelCost: 0,
+    manualCosts: manual, setManualCosts: (next) => { manual = next(manual); }, readOnly,
+  }));
+  const input = (nodes) => nodes.find((node) => node.props['aria-label'] === 'Other Service Costs cost in SGD');
+  const automatic = input(render());
+  assert.notEqual(automatic.props.value, 999999);
+  assert.ok(Number(automatic.props.value) > 0);
+  automatic.props.onBlur({ target: { value: String(automatic.props.value) } });
+  assert.equal(manual.otherServiceRate, 0.01);
+  automatic.props.onChange({ target: { value: '123.45' } });
+  assert.equal(manual.otherServiceRate, undefined);
+  assert.equal(input(render()).props.value, 123.45);
+  const restore = render().find((node) => node.props.title?.startsWith('2.3.4.2 ='));
+  restore.props.onClick();
+  assert.equal(manual.otherServiceRate, 0.01);
+  input(render(true)).props.onChange({ target: { value: '999' } });
+  assert.equal(manual.otherServiceRate, 0.01);
+});
+
+test('comparison deletion control is only offered for suspended versions and respects server eligibility', () => {
+  const chosen = [];
+  const props = {
+    versions: [version('V1', 'Confirmed'), version('V2', 'Suspended'), version('V3', 'Draft')],
+    activeVersion: 'V3', resourceTypes: snapshot.resourceTypes,
+    onSelectVersion: noop, onUpdateVersionState: noop, onDeleteVersion: (code) => chosen.push(code),
+  };
+  const nodes = walk(VersionComparisonView(props));
+  const del = nodes.filter((node) => node.props.title === '删除暂停版本，保留历史记录');
+  assert.equal(del.length, 1);
+  del[0].props.onClick();
+  assert.deepEqual(chosen, ['V2']);
+  const locked = walk(VersionComparisonView({ ...props, deletionReasons: { V2: 'Locked by DRB' } }));
+  assert.equal(locked.find((node) => node.props.title === 'Locked by DRB').props.disabled, true);
+});

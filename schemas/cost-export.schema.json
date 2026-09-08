@@ -385,7 +385,7 @@
           ]
         },
         "code": {
-          "description": "Canonical pool-level code, unique within this rate snapshot. Historical rates are retained by cost-version snapshots.",
+          "description": "User-managed RE code, unique within this rate snapshot; classification is determined by category, pool and level. Historical rates are retained by cost-version snapshots.",
           "allOf": [
             {
               "$ref": "#/$defs/nonBlankText"
@@ -594,6 +594,11 @@
         },
         "otherService": {
           "$ref": "#/$defs/moneyInput"
+        },
+        "otherServiceRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         },
         "riskContingency": {
           "$ref": "#/$defs/moneyInput"

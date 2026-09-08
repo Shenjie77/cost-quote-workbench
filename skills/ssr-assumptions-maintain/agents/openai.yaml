@@ -1,4 +1,4 @@
 interface:
   display_name: "SSR · 风险假设库维护"
-  short_description: "SSR · 风险假设库维护：独立处理指定项目的业务记录，通过细分 CLI 读写并核对结果。"
-  default_prompt: "使用 $ssr-assumptions-maintain 维护指定项目的风险和交付假设库，保留提供的原文。"
+  short_description: "维护全局法务、Scope 和交付条件假设库，保留已有报价采用的条款。"
+  default_prompt: "使用 $ssr-assumptions-maintain 根据提供的法务及业务文本维护全局风险与交付假设库。"

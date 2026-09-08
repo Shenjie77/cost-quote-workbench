@@ -63,6 +63,15 @@ CLI file/stdin input wraps this snapshot in
 Annualized quote is calculated as `quotedAmount / coverageMonths × 12` and
 must not be supplied by callers.
 
+## Global reference data
+
+`masterdata get/update --tab TAB` manages nine independent global tabs without
+a project ID or workspace read. Each tab has its own revision and record schema;
+project revisions are not valid CAS tokens for global writes. New projects capture
+these defaults, while later updates leave all existing project snapshots intact.
+Migration retains conflicting same-key values with their source rather than
+silently replacing them. See [global data contract](global-master-data.md).
+
 ## Local project workspace extensions
 
 `schemas/workspace-state.schema.json` is the atomic browser/CLI document. The
@@ -86,7 +95,8 @@ local repository expands older compatible documents with these fields:
   governed customer-output configuration;
 - `quoteHistory[]`: generated or manually entered quotation snapshots.
 
-`assumptionLibrary[]` stores reusable project assumptions. Customer templates
+`assumptionLibrary[]` stores the project's captured reusable assumption library.
+The global source is maintained independently through masterdata tabs. Customer templates
 also contain `termsAndConditions` and `defaultAssumptionIds`. Quotation copies
 may retain a `sourceAssumptionId`, while generated history stores detached
 `templateSnapshot` and `assumptionSnapshots`. See [quote catalog contract](quote-catalog.md)
@@ -102,14 +112,20 @@ Every `costVersions[]` item stores `code`, `state`, `createdAt`,
 `travelUplift`, `manualCosts`, and `resourceTypes` (independent rate snapshot).
 Legacy inputs may omit the last field; migration captures the available project
 catalogue and may add `calculationNote` when correcting stale labour values.
-New Version clones these fields into a Draft, selects it as activeVersion and
+A cloned new version retains these source fields; a blank version captures
+current global resources. Both create a Draft, select it as activeVersion and
 workflowVersion, and starts its independent DTRB round. Viewing a historical
 activeVersion does not move the current workflow round. workflowVersion and
 versionWorkflows are platform-managed metadata, not fields for agent workspace
 patches. Cost must be explicitly confirmed by the user before that version can
 enter, submit or complete DRB; Confirmed finalizes cost but is not DRB approval.
 SSR submissions and dependency checks use the target version, not another
-version's approvals. Other master-data arrays remain project-level shared masters.
+version's approvals. Other catalog arrays are detached project reference
+snapshots. Global updates never mutate these arrays or any existing version,
+including Draft. Explicit adoption uses project apply-masterdata for supported
+reference tabs, or cost apply-rates for the named unlocked version. Global
+workflow/status defaults apply to new projects only; project workflow/status
+updates still record actual project state.
 
 `pricing` contains numeric `targetGrossMargin`, `discount`, and `gstPercent`.
 The pre-tax quote is calculated as:
@@ -140,3 +156,9 @@ Project List projections use these definitions:
 - `totalMandays = sum(sites × MD/site)` across all cost rows and years;
 - `totalQuote = quoteBeforeTax`;
 - `grossMarginPercent` is the actual margin after discount.
+
+## Suspended cost deletion and percentage inputs
+
+`deletedCostVersions` is optional, keyed by version code, with immutable `{version, workflow, removedAt}` snapshots. Only unlocked Suspended versions may leave `costVersions`; one visible version must remain. Deleting the active or workflow version selects the highest remaining version and restores its existing workflow. Review/CPQ/quote provenance remains intact, and deleted codes cannot be reused. Repository validation rejects bare removals, tampered archives and unrelated edits bundled into deletion. `cost get --section archive --version Vn` provides read-only tracing.
+
+`manualCosts.otherServiceRate` is optional, numeric 0–1. Presence computes 2.3.4.2 from the 2.3.1 subtotal; absence preserves manual `otherService`. Narrow cost settings patches that supply only `otherService` clear the rate, while an explicit rate keeps automatic mode. No migration changes historical amounts.

@@ -1,6 +1,7 @@
 /** Hierarchical cost statement; only leaf accounts allow manual monetary input. */
 
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -12,6 +13,7 @@ import {
 import {
   buildCostStatementRows,
   getCostStatementValues,
+  overrideOtherServiceCost,
   roundMoney,
   totalRowCost,
   type CostInputRow,
@@ -59,6 +61,10 @@ export function CostStatementTable({
 
   const updateManualCost = (key: keyof ManualCostInputs, value: number) => {
     if (readOnly) return;
+    if (key === 'otherService') {
+      setManualCosts((current) => overrideOtherServiceCost(current, value));
+      return;
+    }
     setManualCosts((current) => ({
       ...current,
       [key]: Math.max(0, Number.isFinite(value) ? value : 0),
@@ -71,7 +77,7 @@ export function CostStatementTable({
         <span>
           Auto-linked: in-house labour, subcontract/partner cost, and HQ travel.
           <span className="ml-1 text-[9px]">
-            自动带入：自有人力、合作成本和 HQ 差旅；其余叶子科目手动录入。
+            自动带入：自有人力、合作成本和 HQ 差旅；2.3.4.2 可按人力成本的 1% 计算或手动录入。
           </span>
         </span>
         <span className="financial-numeral font-semibold text-[#173a52]">
@@ -167,6 +173,20 @@ export function CostStatementTable({
                     }
                   >
                     {row.source}
+                    {row.manualKey === 'otherService' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="ml-2 h-6 text-[9px]"
+                        disabled={readOnly || manualCosts.otherServiceRate === 0.01}
+                        onClick={() => {
+                          if (!readOnly) setManualCosts((current) => ({ ...current, otherServiceRate: 0.01 }));
+                        }}
+                        title="2.3.4.2 = 2.3.1 人力成本合计 × 1%；输入金额可切换为手动"
+                      >
+                        {manualCosts.otherServiceRate === 0.01 ? '1% · 自动' : 'Use 1% · 按1%计算'}
+                      </Button>
+                    ) : null}
                   </TableCell>
                   <TableCell className="p-0 text-right">
                     {isManual && row.manualKey ? (
@@ -179,9 +199,9 @@ export function CostStatementTable({
                           type="number"
                           disabled={readOnly}
                           min="0"
-                          step="100"
+                          step={row.manualKey === 'otherService' ? '0.01' : '100'}
                           className="financial-numeral h-9 rounded-none border-0 bg-transparent pl-7 pr-2 text-right text-[11px] shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-white focus-visible:ring-1"
-                          value={manualCosts[row.manualKey] || ''}
+                          value={(row.manualKey === 'otherService' ? row.amount : manualCosts[row.manualKey]) || ''}
                           placeholder="0"
                           onChange={(event) =>
                             updateManualCost(
@@ -189,12 +209,13 @@ export function CostStatementTable({
                               Number(event.target.value),
                             )
                           }
-                          onBlur={(event) =>
+                          onBlur={(event) => {
+                            if (row.manualKey === 'otherService' && manualCosts.otherServiceRate !== undefined) return;
                             updateManualCost(
                               row.manualKey as keyof ManualCostInputs,
                               roundMoney(Number(event.target.value)),
-                            )
-                          }
+                            );
+                          }}
                         />
                       </div>
                     ) : (

@@ -13,18 +13,21 @@ results can then be entered into the company system.
 
 - **Master Data** is the single maintenance entry point for RE Types/rates,
   subcontract references, supplemental costs, maintenance history, reusable
-  assumptions, customer quotation templates, workflow nodes and status options.
-  These remain eight independent tabs, with record counts shown in navigation.
+  assumptions, customer quotation templates, workflow defaults, status options
+  and CPQ catalog. These are nine global tabs with independent revisions; no
+  project must be read or selected to maintain them.
 - **Pricing & Quote** selects/applies templates and assumptions, edits this
   project's current quotation copies, calculates pricing and creates output.
-  Its Manage buttons open the corresponding Master Data tab in the same project;
-  returning to Quote retains draft edits. Templates and T&C are edited only in
-  Master Data; generated quotation history keeps its original text snapshot.
+  Its Manage buttons open the corresponding global Master Data tab. Existing
+  project templates and assumptions remain detached snapshots; adopting new global
+  content is explicit. Generated quotation history retains its original text.
 - The redundant **Templates & Settings** navigation alias was removed. There is
   no separate platform-settings page until actual platform configuration is added.
-- Master Data explicitly shows the active project and client. Catalogs are still
-  project-owned, not global. Cross-project reuse is an explicit copy, not live
-  synchronization. This navigation cleanup does not migrate or merge catalogs.
+- Global maintenance saves only the target tab. New projects capture the global
+  defaults; blank cost versions capture current global resources and clones keep
+  source-version rates. Later global updates do not alter any existing Draft or
+  historical cost/quote. Explicit adoption uses project apply-masterdata or
+  cost apply-rates for the named unlocked version. See [data boundaries](global-master-data.md).
 - `features/master-data/navigation.ts` owns supported tab IDs and labels. The
   composition root owns the selected tab as session-only UI state; it is not a
   new SQLite field or CLI command. Changing views never resets workspace data.
@@ -87,11 +90,16 @@ The current atomic workspace document contains:
 - independent cost-version input snapshots plus the active version;
 - cost lines and manual statement inputs;
 - labour-rate and HQ-travel assumptions;
-- consolidated RE Type/rate, supplier, and subcontract master data;
-- quotation templates, assumptions, and generated/manual quotation history;
+- captured RE Type/rate, supplier, and subcontract reference snapshots;
+- captured quotation templates/library, current assumptions and quotation history;
 - supplemental-cost and maintenance-price reference records;
 - schema and calculation-engine versions;
 - source file references and hashes.
+
+Global Master Data is stored separately, with one revision per tab and migration
+provenance for same-key conflicts. Existing workspace catalog arrays are captured
+project snapshots, not the global source of truth. A global update neither scans
+projects nor writes their snapshots.
 
 The repository layer is the only SQL adapter. UI and CLI call it through the
 local API or repository service and never issue SQL directly. The project list
@@ -123,8 +131,9 @@ separate event ledger.
   version's DTRB → DRB dependencies.
 - RE Type consolidates personnel family, level, MD rate, conversion factors,
   and effective dates. Every cost version captures an independent RE Type
-  catalogue. Cost rows reference that snapshot; the project master catalogue
-  is applied only through the explicit rate-refresh action.
+  catalogue. Cost rows reference that snapshot; current global resources are
+  applied only through the explicit rate-refresh action for the named unlocked
+  version. Rates are SGD/MD; no independent currency-conversion engine exists.
 - Manual statement costs and HQ travel are project-level. Until allocation keys
   exist, they appear under `UNALLOCATED` in dimensional exports.
 - Open-project tabs are session UI state. Project data remains durable even

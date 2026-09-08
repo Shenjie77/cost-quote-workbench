@@ -16,8 +16,10 @@ import {
   readResource,
   updateResource,
   applyMasterRates,
+  applyProjectMasterData,
   createProject,
   createCostDraft,
+  deleteCostVersion,
   syncVersion,
   mutationReceipt,
 } from '../server/workspace-resources.mjs';
@@ -96,12 +98,13 @@ const ROUNDING_CONTRACT = Object.freeze({
 const IMPLEMENTED_COMMANDS = Object.freeze([
   'project create --input REQUEST [--db FILE]',
   'cost create --project-id ID --mode blank|clone [--source-version V1] --expected-revision REVISION [--db FILE]',
+  'cost delete --project-id ID --version V1 --expected-revision REVISION [--db FILE]',
   'project get --project-id ID [--id ID --query TEXT --limit N --offset N] [--db FILE]',
   'project update --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
   'cost get --project-id ID [--section SECTION] [--version V1] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
   'cost update --project-id ID [--section SECTION] [--version V1] --input REQUEST --expected-revision REVISION [--db FILE]',
-  'masterdata get --project-id ID --tab TAB [--id ID --query TEXT --limit N --offset N] [--db FILE]',
-  'masterdata update --project-id ID --tab TAB --input REQUEST --expected-revision REVISION [--db FILE]',
+  'masterdata get --tab TAB [--id ID --query TEXT --limit N --offset N] [--db FILE]',
+  'masterdata update --tab TAB --input REQUEST --expected-revision REVISION [--db FILE]',
   'cpq get --project-id ID [--section SECTION] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
   'cpq update --project-id ID [--section SECTION] --input REQUEST --expected-revision REVISION [--db FILE]',
   'quote get --project-id ID [--section SECTION] [--id ID --query TEXT --limit N --offset N] [--db FILE]',
@@ -112,6 +115,7 @@ const IMPLEMENTED_COMMANDS = Object.freeze([
   'boq update --project-id ID [--section SECTION] --input REQUEST --expected-revision REVISION [--db FILE]',
   'project delete --project-id ID --expected-revision REVISION [--db FILE]',
   'project restore --project-id ID --expected-revision REVISION [--db FILE]',
+  'project apply-masterdata --project-id ID --tab TAB --expected-revision REVISION [--db FILE]',
   'cost apply-rates --project-id ID --expected-revision REVISION --version V1 [--db FILE]',
   'project list [--deleted] [--db FILE]',
 
@@ -137,7 +141,7 @@ const IMPLEMENTED_COMMANDS = Object.freeze([
   'schema show --name NAME [--schema-version VERSION]',
   'cost validate (--input FILE|- | --project-id ID [--version V1]) [--db FILE]',
   'cost calculate (--input FILE|- | --project-id ID [--version V1]) [--db FILE]',
-  'cost export (--input FILE|- | --project-id ID [--version V1]) --output FILE.xlsx [--db FILE] [--overwrite]',
+  'cost export (--input FILE|- | --project-id ID [--version V1]) --output FILE.xlsx [--format full|simple] [--db FILE] [--overwrite]',
   'maintenance validate --input FILE|-',
   'digest generate [--as-of YYYY-MM-DD] [--db FILE]',
   'workspace list [--db FILE]',
@@ -168,6 +172,11 @@ const readWorkbookFile = async (file) => {
  * boolean options never do. Keeping this explicit prevents silent typos.
  */
 const COMMAND_SPECS = Object.freeze({
+  'cost.delete': {
+    values: ['project-id', 'version', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'version', 'expected-revision'],
+  },
   'project.create': {
     values: ['input', 'db', 'request-id'],
     booleans: ['pretty'],
@@ -188,6 +197,7 @@ const COMMAND_SPECS = Object.freeze({
   'project.get': {
     values: [
       'project-id',
+      'section',
       'db',
       'request-id',
       'id',
@@ -199,7 +209,14 @@ const COMMAND_SPECS = Object.freeze({
     required: ['project-id'],
   },
   'project.update': {
-    values: ['project-id', 'db', 'request-id', 'input', 'expected-revision'],
+    values: [
+      'project-id',
+      'section',
+      'db',
+      'request-id',
+      'input',
+      'expected-revision',
+    ],
     booleans: ['pretty'],
     required: ['project-id', 'input', 'expected-revision'],
   },
@@ -232,30 +249,14 @@ const COMMAND_SPECS = Object.freeze({
     required: ['project-id', 'input', 'expected-revision'],
   },
   'masterdata.get': {
-    values: [
-      'project-id',
-      'db',
-      'request-id',
-      'tab',
-      'id',
-      'query',
-      'offset',
-      'limit',
-    ],
+    values: ['db', 'request-id', 'tab', 'id', 'query', 'offset', 'limit'],
     booleans: ['pretty'],
-    required: ['project-id', 'tab'],
+    required: ['tab'],
   },
   'masterdata.update': {
-    values: [
-      'project-id',
-      'db',
-      'request-id',
-      'tab',
-      'input',
-      'expected-revision',
-    ],
+    values: ['db', 'request-id', 'tab', 'input', 'expected-revision'],
     booleans: ['pretty'],
-    required: ['project-id', 'tab', 'input', 'expected-revision'],
+    required: ['tab', 'input', 'expected-revision'],
   },
   'cpq.get': {
     values: [
@@ -370,6 +371,11 @@ const COMMAND_SPECS = Object.freeze({
     values: ['project-id', 'expected-revision', 'db', 'request-id'],
     booleans: ['pretty'],
     required: ['project-id', 'expected-revision'],
+  },
+  'project.apply-masterdata': {
+    values: ['project-id', 'tab', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: ['project-id', 'tab', 'expected-revision'],
   },
   'cost.apply-rates': {
     values: ['project-id', 'expected-revision', 'version', 'db', 'request-id'],
@@ -543,7 +549,15 @@ const COMMAND_SPECS = Object.freeze({
     required: [],
   },
   'cost.export': {
-    values: ['project-id', 'version', 'db', 'input', 'output', 'request-id'],
+    values: [
+      'project-id',
+      'version',
+      'db',
+      'input',
+      'output',
+      'format',
+      'request-id',
+    ],
     booleans: ['overwrite', 'pretty'],
     required: ['output'],
   },
@@ -1163,7 +1177,10 @@ const withWorkspaceRepository = async (options, action) => {
         error.message,
         EXIT.NOT_FOUND,
       );
-    if (error instanceof WorkspaceValidationError) {
+    if (
+      error instanceof WorkspaceValidationError ||
+      error.name === 'GlobalMasterDataValidationError'
+    ) {
       throw new CliFault(
         'BUSINESS_VALIDATION_FAILED',
         error.message,
@@ -1174,7 +1191,10 @@ const withWorkspaceRepository = async (options, action) => {
         },
       );
     }
-    if (error instanceof RepositoryConflictError) {
+    if (
+      error instanceof RepositoryConflictError ||
+      error.name === 'GlobalMasterDataConflictError'
+    ) {
       throw new CliFault('REVISION_CONFLICT', error.message, EXIT.CONFLICT, {
         violations: [
           {
@@ -1199,6 +1219,68 @@ const execute = async () => {
   const options = parseOptions(resolved.command, resolved.optionTokens);
   compactRequested = Boolean(options.compact);
 
+  if (
+    resolved.command === 'masterdata.get' ||
+    resolved.command === 'masterdata.update'
+  ) {
+    const update = resolved.command === 'masterdata.update';
+    const input = update
+      ? await readCommandRequest(
+          options,
+          'OperationRequest',
+          'operations',
+          '1.0.0',
+        )
+      : null;
+    if (input && input.operation !== 'masterdata.update')
+      throw new CliFault(
+        'OPERATION_MISMATCH',
+        'Request operation must match command.',
+        EXIT.VALIDATION,
+      );
+    return withWorkspaceRepository(options, (repository) => {
+      const record = update
+        ? repository.globalMasterData.update(
+            options.tab,
+            input.changes,
+            parseExpectedRevision(options['expected-revision']),
+          )
+        : repository.globalMasterData.get(options.tab, options);
+      return success(
+        update ? 'GlobalMasterDataMutationResult' : 'GlobalMasterDataResult',
+        update
+          ? {
+              scope: 'global',
+              tab: record.tab,
+              revision: record.revision,
+              updatedAt: record.updatedAt,
+              changedIds: (input.changes.upsert || []).map(
+                (item) => item[record.keyField],
+              ),
+              removedIds: input.changes.remove || [],
+              unresolvedKeys: record.conflicts.map((c) => c.key),
+            }
+          : record,
+        [],
+        '1.0.0',
+      );
+    });
+  }
+  if (resolved.command === 'project.apply-masterdata') {
+    return withWorkspaceRepository(options, (repository) =>
+      success(
+        'MutationResult',
+        applyProjectMasterData(
+          repository,
+          options['project-id'],
+          options.tab,
+          parseExpectedRevision(options['expected-revision']),
+        ),
+        [],
+        '1.0.0',
+      ),
+    );
+  }
   if (resolved.command === 'project.create') {
     const input = await readCommandRequest(
       options,
@@ -1229,6 +1311,21 @@ const execute = async () => {
           repository,
           String(options['project-id']),
           { mode: options.mode, sourceVersion: options['source-version'] },
+          parseExpectedRevision(options['expected-revision']),
+        ),
+        [],
+        '1.0.0',
+      ),
+    );
+
+  if (resolved.command === 'cost.delete')
+    return withWorkspaceRepository(options, (repository) =>
+      success(
+        'MutationResult',
+        deleteCostVersion(
+          repository,
+          String(options['project-id']),
+          String(options.version),
           parseExpectedRevision(options['expected-revision']),
         ),
         [],
@@ -1278,8 +1375,6 @@ const execute = async () => {
       'project.update',
       'cost.get',
       'cost.update',
-      'masterdata.get',
-      'masterdata.update',
       'cpq.get',
       'cpq.update',
       'quote.get',
@@ -2072,6 +2167,16 @@ const execute = async () => {
       resolved.command,
     )
   ) {
+    if (
+      resolved.command === 'cost.export' &&
+      options.format &&
+      !['full', 'simple'].includes(options.format)
+    )
+      throw new CliFault(
+        'INVALID_EXPORT_FORMAT',
+        '--format must be full or simple.',
+        EXIT.USAGE,
+      );
     const { snapshot, warnings } = await readValidCostSnapshot(options);
     if (resolved.command === 'cost.validate') {
       return success(
@@ -2165,9 +2270,15 @@ const execute = async () => {
     let sheets;
     try {
       // ExcelJS and the exporter stay off the startup path for non-export calls.
-      const { buildCostWorkbookBytes } =
-        await import('../features/cost/export-workbook.ts');
-      bytes = await buildCostWorkbookBytes(snapshot);
+      if (options.format === 'simple') {
+        const { buildSimpleCostWorkbookBytes } =
+          await import('../features/cost/export-simple-workbook.ts');
+        bytes = await buildSimpleCostWorkbookBytes(snapshot);
+      } else {
+        const { buildCostWorkbookBytes } =
+          await import('../features/cost/export-workbook.ts');
+        bytes = await buildCostWorkbookBytes(snapshot);
+      }
       sheets = await readWorkbookSheetNames(bytes);
     } catch (error) {
       throw new CliFault(

@@ -36,8 +36,11 @@ created from a locked version and can change its allowance, effort and captured
 rates independently; the source version and its historical totals stay intact.
 
 Each version captures RE Type rates, MD/month, hours/MD and HQ designation.
-Editing the master catalogue leaves existing version snapshots unchanged.
-**Apply Master Rates** refreshes only the selected version. Cost exports reject
+Editing the global master catalogue leaves every existing version snapshot
+unchanged, including Draft. A blank new version captures current global rates;
+a clone retains the source rates. **Apply Master Rates** explicitly captures
+current global resources for only the selected unlocked version. The rates are
+SGD/MD; the platform has no independent FX conversion engine. Cost exports reject
 stale supplied labour amounts instead of exporting a contradictory calculation.
 
 ## Money normalization
@@ -98,3 +101,7 @@ Parent rows are always calculated and cannot be entered directly.
   be posted again to those leaves.
 - Export validation warns when non-house labour and subcontract values coexist;
   the future contract model will enforce this using contract-line IDs.
+
+## Other service cost (2.3.4.2)
+
+New blank costs default to 1% of 2.3.1 Labour Cost: in-house labour + non-in-house labour + HQ travel, excluding subcontract. Round the labour subtotal and the calculated charge to SGD cents. 2.3.1 remains an automatic subtotal. The optional `manualCosts.otherServiceRate` is a fraction (0.01 = 1%); when absent, `otherService` is the saved manual amount. Historical snapshots are not backfilled. Clones retain their source mode. Editing the 2.3.4.2 amount switches to manual; Use 1% restores automatic calculation. Cost totals, dimension residuals, pricing and both workbook exports use the shared statement calculation.

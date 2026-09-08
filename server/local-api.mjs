@@ -6,6 +6,11 @@ import { openReminderService } from './reminder-service.mjs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { GlobalMasterDataConflictError } from './global-master-data.mjs';
+import {
+  createProject,
+  applyProjectMasterData,
+} from './workspace-resources.mjs';
 
 import {
   LOCAL_API_VERSION,
@@ -42,7 +47,7 @@ const ALLOWED_ORIGINS = new Set([
 
 const commonHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, If-Match',
-  'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, OPTIONS',
   'Cache-Control': 'no-store',
   'Content-Type': 'application/json; charset=utf-8',
 };
@@ -104,6 +109,110 @@ const route = async (request, response) => {
       ok: true,
       data: repository.list(),
     });
+    return;
+  }
+  if (request.method === 'POST' && url.pathname === '/api/local/projects') {
+    const body = await readJson(request);
+    if (
+      body?.apiVersion !== LOCAL_API_VERSION ||
+      body?.kind !== 'ProjectCreateRequest' ||
+      !body.project ||
+      !['id', 'name', 'client'].every(
+        (key) =>
+          typeof body.project[key] === 'string' && body.project[key].trim(),
+      ) ||
+      (body.project.reviewOwner !== undefined &&
+        typeof body.project.reviewOwner !== 'string') ||
+      Object.keys(body.project).some(
+        (key) => !['id', 'name', 'client', 'reviewOwner'].includes(key),
+      )
+    )
+      throw new TypeError('Invalid ProjectCreateRequest envelope.');
+    createProject(repository, body.project);
+    const record = repository.get(body.project.id);
+    respond(201, {
+      apiVersion: LOCAL_API_VERSION,
+      kind: 'WorkspaceRecord',
+      ok: true,
+      data: record,
+    });
+    return;
+  }
+  const applyMasterMatch = url.pathname.match(
+    /^\/api\/local\/projects\/([^/]+)\/apply-masterdata$/,
+  );
+  if (applyMasterMatch && request.method === 'POST') {
+    const body = await readJson(request);
+    if (
+      body?.apiVersion !== LOCAL_API_VERSION ||
+      body?.kind !== 'ApplyMasterDataRequest' ||
+      typeof body.tab !== 'string' ||
+      !Number.isSafeInteger(body.expectedRevision) ||
+      body.expectedRevision < 1
+    )
+      throw new TypeError('Invalid ApplyMasterDataRequest envelope.');
+    const projectId = decodeURIComponent(applyMasterMatch[1]);
+    applyProjectMasterData(
+      repository,
+      projectId,
+      body.tab,
+      body.expectedRevision,
+    );
+    const record = repository.get(projectId);
+    respond(200, {
+      apiVersion: LOCAL_API_VERSION,
+      kind: 'WorkspaceRecord',
+      ok: true,
+      data: record,
+    });
+    return;
+  }
+  const masterMatch = url.pathname.match(/^\/api\/local\/masterdata\/([^/]+)$/);
+  if (masterMatch) {
+    const tab = decodeURIComponent(masterMatch[1]);
+    let record;
+    if (request.method === 'GET') {
+      const options = Object.fromEntries(url.searchParams);
+      if (
+        Object.keys(options).some(
+          (key) => !['id', 'query', 'limit', 'offset'].includes(key),
+        )
+      )
+        throw new TypeError('Unsupported master-data query parameter.');
+      record = repository.globalMasterData.get(tab, options);
+    } else if (request.method === 'PUT') {
+      const body = await readJson(request);
+      if (
+        body?.apiVersion !== LOCAL_API_VERSION ||
+        body?.kind !== 'GlobalMasterDataUpdateRequest' ||
+        !Number.isSafeInteger(body.expectedRevision) ||
+        body.expectedRevision < 1
+      )
+        throw new TypeError('Invalid GlobalMasterDataUpdateRequest envelope.');
+      record = repository.globalMasterData.update(
+        tab,
+        body.changes,
+        body.expectedRevision,
+      );
+    } else {
+      respond(405, {
+        apiVersion: LOCAL_API_VERSION,
+        kind: 'LocalError',
+        ok: false,
+        error: { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' },
+      });
+      return;
+    }
+    respond(
+      200,
+      {
+        apiVersion: LOCAL_API_VERSION,
+        kind: 'GlobalMasterDataRecord',
+        ok: true,
+        data: record,
+      },
+      { ETag: `"${record.revision}"` },
+    );
     return;
   }
   if (url.pathname === '/api/local/reminders' && request.method === 'GET') {
@@ -215,7 +324,9 @@ const route = async (request, response) => {
 
 const server = createServer((request, response) => {
   route(request, response).catch((error) => {
-    const conflict = error instanceof RepositoryConflictError;
+    const conflict =
+      error instanceof RepositoryConflictError ||
+      error instanceof GlobalMasterDataConflictError;
     const origin = request.headers.origin;
     send(
       response,

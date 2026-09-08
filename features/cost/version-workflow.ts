@@ -23,6 +23,7 @@ type Gate = {
 export type WorkflowWorkspace = VersionWorkflowSnapshot & {
   activeVersion: string;
   costVersions: CostVersionSnapshot[];
+  deletedCostVersions?: import('./version-deletion.ts').DeletedCostVersions;
   selectedStep?: number;
   workflowVersion?: string;
   versionWorkflows?: Record<string, VersionWorkflowSnapshot>;
@@ -264,9 +265,11 @@ export function reconcileVersionWorkflows<T extends WorkflowWorkspace>(
   w.versionWorkflows = clone(old.versionWorkflows!);
   w.legacyWorkflowArchive = clone(old.legacyWorkflowArchive || {});
   const newRound = newDraftRound(old, w);
+  const removedRound =
+    !knownVersion(w, round) && !!w.deletedCostVersions?.[round];
   // A caller may already have projected the new cycle. Never write that
   // DTRB projection over the outgoing version's actual review history.
-  if (!newRound || next.workflowVersion !== newRound)
+  if (!removedRound && (!newRound || next.workflowVersion !== newRound))
     w.versionWorkflows[round] = snapshot(w);
   for (const version of w.costVersions) {
     if (!w.versionWorkflows[version.code])
@@ -276,6 +279,7 @@ export function reconcileVersionWorkflows<T extends WorkflowWorkspace>(
     w.workflowVersion = newRound;
     w.versionWorkflows[newRound] = freshCycle(w);
   }
+  if (removedRound) w.workflowVersion = highestVersion(w)!.code;
   const oldGates = old.reviewGates || [];
   const incomingGates = w.reviewGates || [];
   w.reviewGates = incomingGates.map((g) => {

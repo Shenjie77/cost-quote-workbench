@@ -8,6 +8,10 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
+  initializeGlobalMasterData,
+  makeGlobalMasterDataStore,
+} from './global-master-data.mjs';
+import {
   commercialBasisKey,
   emptySsr,
   assertSsrTransition,
@@ -15,6 +19,7 @@ import {
   isApproved,
 } from '../features/ssr/domain.ts';
 import { normalizeDigestDate } from '../features/agent/digest-domain.ts';
+import { assertCostVersionDeletionTransition } from '../features/cost/version-deletion.ts';
 import {
   assertVersionWorkflowTransition,
   reconcileVersionWorkflows,
@@ -240,6 +245,9 @@ export const openWorkspaceRepository = (databasePath) => {
     }
   }
 
+  initializeGlobalMasterData(db);
+  const globalMasterData = makeGlobalMasterDataStore(db);
+
   const selectWorkspace = db.prepare(
     `SELECT project_id, schema_version, revision, payload_json,
             payload_sha256, updated_at
@@ -270,6 +278,7 @@ export const openWorkspaceRepository = (databasePath) => {
   return {
     databasePath,
     schemaVersion: LOCAL_DATABASE_SCHEMA_VERSION,
+    globalMasterData,
 
     get(projectId) {
       if (this.isDeleted(projectId)) return null;
@@ -421,8 +430,21 @@ export const openWorkspaceRepository = (databasePath) => {
           );
         }
         const previous = current ? JSON.parse(current.payload_json) : null;
+        let deletedVersion = false;
         try {
-          assertVersionWorkflowTransition(previous, document);
+          deletedVersion = assertCostVersionDeletionTransition(
+            previous,
+            document,
+          );
+        } catch (error) {
+          throw new WorkspaceValidationError(
+            error.message,
+            '/deletedCostVersions',
+          );
+        }
+        try {
+          if (!deletedVersion)
+            assertVersionWorkflowTransition(previous, document);
         } catch (error) {
           throw new WorkspaceValidationError(error.message, '/workflowVersion');
         }

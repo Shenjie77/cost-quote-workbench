@@ -448,6 +448,32 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
   const versionCodes = new Set(
     workspace.costVersions.map((version) => version.code),
   );
+  const archivedVersions = Object.entries(workspace.deletedCostVersions || {});
+  const allVersionCodes = new Set([
+    ...versionCodes,
+    ...archivedVersions.map(([code]) => code),
+  ]);
+  for (const [code, entry] of archivedVersions) {
+    if (
+      versionCodes.has(code) ||
+      entry.version.code !== code ||
+      entry.version.state !== 'Suspended'
+    )
+      throw new WorkspaceValidationError(
+        'Deleted costs must retain a distinct Suspended version snapshot.',
+        `/deletedCostVersions/${code}`,
+      );
+    if (
+      entry.workflow.currentWorkflowStepCode &&
+      !entry.workflow.processSteps.some(
+        (s) => s.code === entry.workflow.currentWorkflowStepCode,
+      )
+    )
+      throw new WorkspaceValidationError(
+        'Deleted cost workflow must retain a valid node.',
+        `/deletedCostVersions/${code}/workflow`,
+      );
+  }
   if (!versionCodes.has(workspace.activeVersion))
     throw new WorkspaceValidationError(
       'Active version must exist in costVersions.',
@@ -515,7 +541,10 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
     active.resourceTypes || workspace.resourceTypes,
     '/costRows',
   );
-  workspace.costVersions.forEach((version, index) => {
+  [
+    ...workspace.costVersions,
+    ...archivedVersions.map(([, entry]) => entry.version),
+  ].forEach((version, index) => {
     const resources = version.resourceTypes || workspace.resourceTypes;
     requireUnique(resources, 'id', `/costVersions/${index}/resourceTypes`);
     requireUnique(resources, 'code', `/costVersions/${index}/resourceTypes`);
@@ -526,7 +555,7 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
     );
     if (
       version.sourceVersion &&
-      (!versionCodes.has(version.sourceVersion) ||
+      (!allVersionCodes.has(version.sourceVersion) ||
         version.sourceVersion === version.code)
     )
       throw new WorkspaceValidationError(
@@ -553,7 +582,7 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
   })) {
     for (const [code, round] of Object.entries(rounds || {})) {
       if (
-        !versionCodes.has(code) ||
+        !allVersionCodes.has(code) ||
         (round.currentWorkflowStepCode &&
           !round.processSteps.some(
             (s) => s.code === round.currentWorkflowStepCode,
@@ -571,7 +600,7 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
     }
   }
   for (const gate of workspace.reviewGates) {
-    if (gate.costVersion && !versionCodes.has(gate.costVersion))
+    if (gate.costVersion && !allVersionCodes.has(gate.costVersion))
       throw new WorkspaceValidationError(
         'Review must reference an existing cost version.',
         '/reviewGates',

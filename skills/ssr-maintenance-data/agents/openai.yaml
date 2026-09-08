@@ -1,4 +1,4 @@
 interface:
   display_name: "SSR · 维保数据维护"
-  short_description: "SSR · 维保数据维护：独立处理指定项目的业务记录，通过细分 CLI 读写并核对结果。"
-  default_prompt: "使用 $ssr-maintenance-data 导入或修正指定项目的客户设备维保历史参考数据。"
+  short_description: "维护全局设备、客户和服务条件维保参考库，保留历史报价快照。"
+  default_prompt: "使用 $ssr-maintenance-data 根据附件维护全局设备及客户维保历史参考数据。"

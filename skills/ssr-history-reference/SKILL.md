@@ -5,7 +5,7 @@ description: 查找相似 Scope 的历史服务总成本，或按设备/客户�
 
 # SSR · 历史成本参考
 
-在包含 `cli/cost-cli.mjs` 的仓库根目录运行 `npm run --silent cost-cli -- ...`；下文 `cost-cli` 是此前缀的简称。项目号已知时直接读取目标资源；未知才用 `project list`。主数据也是项目级，不能默认更新全部项目。
+在包含 `cli/cost-cli.mjs` 的仓库根目录运行 `npm run --silent cost-cli -- ...`；下文 `cost-cli` 是此前缀的简称。服务历史用跨项目 history search，维保历史用全局 maintenance 页签；两者都不以 project list/get 为前置。只有需要查看某个候选项目的具体版本时才窄读该项目。
 
 集合读取按需用 `--id`、`--query`、`--limit`、`--offset`，跟随 `nextOffset`，分页期间 revision 变化须重读。只返回需要的字段和条目，不用 `workspace get/save` 做常规操作。字段不明时查本文指定的本地 schema 定义；接口不符时再查 `system capabilities`。
 
@@ -19,6 +19,6 @@ cost-cli history search --scope "实际简短 Scope" --client "可选客户"
 
 按用户要求，历史成本展示只使用结果的最终总成本；不要拆基础成本/3% allowance，不再加3%。缺少可比范围时说明参考限制，不机械套价。
 
-维保历史使用 `masterdata get --project-id ID --tab maintenance --query MODEL`，再按真实型号规范化精确匹配和客户/SLA/站点/期限筛选。同设备不同客户分别比较，保留报价日期、结果与来源。单位年价采用平台的 unitAnnualMaintenanceQuote/Cost 领域函数，不能把缺数量/期限当作零价。
+维保历史跨客户检索全局参考库，使用 `masterdata get --tab maintenance --query MODEL`，无需项目号，再按真实型号规范化精确匹配和客户/SLA/站点/期限筛选。同设备不同客户分别比较，保留报价日期、结果与来源。单位年价采用平台的 unitAnnualMaintenanceQuote/Cost 领域函数，不能把缺数量/期限当作零价。
 
 只读任务不写项目状态、历史记录、BOQ 参考选择或报价。返回可复用的候选和差异说明，用户需要采用时再进入相应成本或维保业务。

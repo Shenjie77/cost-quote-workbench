@@ -106,11 +106,13 @@ export type ManualCostInputs = {
   settlement: number;
   carFee: number;
   otherService: number;
+  /** Absent preserves a saved manual amount; present applies this fraction to 2.3.1. */
+  otherServiceRate?: number;
   riskContingency: number;
 };
 
 /**
- * The project owns an editable master catalogue. Each cost version captures
+ * Global Master Data supplies future projects. Each cost version captures
  * its own resource definitions, MD rates and conversion factors; refreshing a
  * catalogue does not change a version until Apply Master Rates is selected.
  */
@@ -121,6 +123,8 @@ export type ManualCostInputs = {
 export type CostVersionState = 'Draft' | 'Suspended' | 'Confirmed';
 
 export type CostVersionSnapshot = {
+  /** Revision explicitly used when capturing global personnel rates. */
+  masterDataRevision?: number;
   code: string;
   state: CostVersionState;
   createdAt: string;
@@ -376,7 +380,6 @@ export const getCostStatementValues = (
   const nonInHouseLabour = roundMoney(manual.nonInHouseLabour);
   const settlement = roundMoney(manual.settlement);
   const carFee = roundMoney(manual.carFee);
-  const otherServiceCost = roundMoney(manual.otherService);
   const riskContingency = roundMoney(manual.riskContingency);
   const normalizedTravelCost = roundMoney(travelCost);
   const inHouseLabour = roundMoney(
@@ -402,6 +405,7 @@ export const getCostStatementValues = (
   const labour = roundMoney(
     inHouseLabour + nonInHouseLabour + normalizedTravelCost,
   );
+  const otherServiceCost = getOtherServiceCost(labour, manual);
   const otherService = roundMoney(carFee + otherServiceCost);
   const service = roundMoney(labour + subcontract + settlement + otherService);
   const sales = roundMoney(equipment + period + service);
@@ -417,6 +421,17 @@ export const getCostStatementValues = (
     sales,
     totalWithRisk: roundMoney(sales + riskContingency),
   };
+};
+
+export const getOtherServiceCost = (labour: number, manual: ManualCostInputs) =>
+  roundMoney(manual.otherServiceRate === undefined
+    ? manual.otherService
+    : labour * manual.otherServiceRate);
+
+export const overrideOtherServiceCost = (manual: ManualCostInputs, amount: number): ManualCostInputs => {
+  const updated = { ...manual, otherService: Math.max(0, Number.isFinite(amount) ? amount : 0) };
+  delete updated.otherServiceRate;
+  return updated;
 };
 
 /**
@@ -583,8 +598,10 @@ export const buildCostStatementRows = (
       zh: '其他服务成本_其他',
       level: 2,
       mode: 'manual',
-      amount: roundMoney(manualCosts.otherService),
-      source: 'Manual input / 手动录入',
+      amount: getOtherServiceCost(values.labour, manualCosts),
+      source: manualCosts.otherServiceRate === undefined
+        ? 'Manual input / 手动录入'
+        : `2.3.1 × ${manualCosts.otherServiceRate * 100}% / 人力成本比例，可手动修改`,
       manualKey: 'otherService',
     },
     {

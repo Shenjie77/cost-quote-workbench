@@ -35,6 +35,8 @@ export const LOCAL_API_VERSION = 'cost-workbench/local-v1' as const;
 export const WORKSPACE_SCHEMA_VERSION = '1.0.0' as const;
 
 export type WorkbenchWorkspace = {
+  /** Global catalogue revisions explicitly captured by this project. */
+  masterDataRevisions?: Record<string, number>;
   /** Current delivery-review round; opening a historical cost does not change it. */
   workflowVersion?: string;
   legacyWorkflowArchive?: Record<
@@ -54,6 +56,8 @@ export type WorkbenchWorkspace = {
     }
   >;
   costVersionLocks?: import('../cost/cost-lock').CostVersionLocks;
+  /** Removed suspended versions remain immutable provenance for review and copy history. */
+  deletedCostVersions?: import('../cost/version-deletion').DeletedCostVersions;
   /** Legacy project lock, migrated to costVersionLocks on load. */
   costLock?: import('../cost/cost-lock').CostLock;
   cpq?: CpqWorkspace;

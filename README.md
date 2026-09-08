@@ -4,7 +4,7 @@ Local-first personal workbench for project delivery review, cost construction,
 pricing, quote output, review follow-up, reusable master data, and maintenance
 price history.
 
-Current release: [v0.6.0 · Version-owned cost locks and DRB workflows](docs/releases/v0.6.0.md).
+Current release: [v0.7.0 · Global Master Data and cost version tools](docs/releases/v0.7.0.md).
 
 The product UI is English-first with compact Chinese helper labels. It runs on
 the company computer and is designed to give both the user and an internal
@@ -40,10 +40,12 @@ costs directly, without another allowance layer. Master rates and mandays stay u
 Use the [18 business Skills](docs/business-skills.md) directly for project setup, master data, costing, CPQ, maintenance, quotation and workflow updates. `cost-workbench` is the lightweight cross-business router.
 
 For routine Skill work, use [narrow resource commands](skills/cost-workbench/references/resources.md):
-project metadata, individual cost versions/rows, all eight Masterdata tabs, CPQ
-catalog/draft/selections, SSR, quotations and BOQ. Paginated reads and compact
+project metadata, individual cost versions/rows, nine global Master Data tabs,
+project CPQ drafts/selections, SSR, quotations and BOQ. Global maintenance needs
+no project ID or workspace read and has an independent revision per tab. Paginated reads and compact
 mutation receipts avoid sending a full workspace through the agent context.
-SQLite still saves a validated, atomic project document internally. Database
+Project operations save a validated, atomic project document internally; global
+maintenance saves only its own tab and never rewrites existing projects. Database
 migration runs once per schema release instead of scanning every project on
 each CLI call.
 
@@ -92,7 +94,7 @@ npm run --silent cost-cli -- system capabilities --pretty
 npm run --silent cost-cli -- schema list --pretty
 npm run --silent cost-cli -- project list --pretty
 npm run --silent cost-cli -- cost get --project-id ID --version V1 --section summary
-npm run --silent cost-cli -- masterdata get --project-id ID --tab resources --limit 20
+npm run --silent cost-cli -- masterdata get --tab resources --limit 20
 npm run --silent cost-cli -- digest generate --pretty
 npm run --silent cost-cli -- cost validate --input tests/fixtures/cost-request.valid.json --pretty
 npm run --silent cost-cli -- cost calculate --input tests/fixtures/cost-request.valid.json --pretty
@@ -157,8 +159,24 @@ current module boundaries, corrected failure modes, and remaining limitations.
 Master Data includes a reusable **Assumptions** library and customer-specific
 **Quote Templates** with editable T&C. Quote output can reference matching
 assumptions and preserves the exported clauses in history. Catalogs are
-project-owned and can be explicitly copied from other saved projects. See the
+global defaults for future projects. Existing projects retain detached copies;
+updating Master Data does not alter Drafts or historical costs/quotes. See the
 [quote catalog guide and CLI field contract](docs/quote-catalog.md).
 
 Each cost version keeps its own RE Type rates. Use **Apply Master Rates** in
-Cost Input to explicitly refresh the selected version after editing Master Data.
+the cost page’s Calculation Basis tile to explicitly capture current global rates
+for a selected unlocked Draft. New projects and blank versions capture current defaults; cloned
+versions keep their source rates. See [global data and project snapshots](docs/global-master-data.md).
+
+
+RE Types expose editable Category, Pool and Level independently of their code.
+The cost page has a Version Status tile, and unlocked Suspended versions can be
+removed from the working list while retaining immutable history and at least one
+remaining version. Deleted version numbers are never reused.
+
+For a page-shaped five-sheet cost report, use **Simple Export** or
+`cost export --project-id ID --version Vn --format simple --output Cost.xlsx`.
+The existing full nine-sheet export remains available. New blank costs default
+account 2.3.4.2 to 1% of account 2.3.1 Labour Cost; enter a manual amount to override
+it, or use the 1% button to restore automatic calculation. Historical saved values
+and cloned calculation modes remain intact.

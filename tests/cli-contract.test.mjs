@@ -454,3 +454,24 @@ test('export returns the actual nine-sheet workbook manifest', () => {
     rmSync(temporaryDirectory, { recursive: true, force: true });
   }
 });
+
+
+test('simple cost export is a five-sheet business workbook and validates format before I/O', () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'cost-simple-cli-'));
+  try {
+    const output = path.join(directory, 'simple.xlsx');
+    const result = runCli(['cost', 'export', '--format', 'simple', '--input', '-', '--output', output], {
+      input: JSON.stringify(makeCostRequest()),
+    });
+    assert.equal(result.status, 0, JSON.stringify(result.response));
+    assert.equal(result.response.data.sheets.length, 5);
+    assert.deepEqual(result.response.data.sheets, ['Cost Detail', 'Summary Scope', 'Summary BU', 'Summary RE Type', 'Cost Statement']);
+    assert.equal(result.response.data.artifact.path, output);
+    assert.ok(readFileSync(output).byteLength > 5000);
+    const invalid = runCli(['cost', 'export', '--format', 'unknown', '--project-id', 'MISSING', '--db', path.join(directory, 'missing.sqlite'), '--output', output]);
+    assert.equal(invalid.status, 2);
+    assert.equal(invalid.response.error.code, 'INVALID_EXPORT_FORMAT');
+    const unrelated = runCli(['cost', 'validate', '--format', 'simple', '--input', '-'], { input: JSON.stringify(makeCostRequest()) });
+    assert.equal(unrelated.status, 2);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

@@ -4,7 +4,7 @@ Run from the repository root with `npm run --silent cost-cli -- ...`; this docum
 
 ## Discovery and legacy workspace backups
 
-Use [narrow resources](resources.md) for routine updates. Complete workspace reads/saves below are for backups, initial creation from a supplied complete record, and deliberate bulk migration. They are not prerequisites for imports or CPQ.
+Use [narrow resources](resources.md) for routine updates. Complete workspace reads/saves below are for backups, initial creation from a supplied complete record, and deliberate bulk migration. They are not prerequisites for imports or CPQ. Global master-data maintenance uses `masterdata get/update --tab TAB` without any project read. Each tab has its own revision; existing project/version snapshots remain unchanged.
 
 ```
 cost-cli system capabilities
@@ -96,7 +96,7 @@ Do not add `--overwrite` merely to suppress a conflict; choose a new output name
 
 ## CPQ
 
-Use `cpq get/update --section catalog|draft|selections`; see [narrow resources](resources.md). Codes must come from company catalog input; do not invent company codes. Draft includes `brief`, `costVersion`, `targetCost`, `targetBasis`, `tolerance`, `rounding`, `allocationBasis`, and selections `{code,quantity,locked,weight,reason}`. Equipment is never adjustable. For unlocked services, quantity is a reference, not the final result. Positive weights express budget proportions.
+Maintain the global directory with `masterdata get/update --tab cpq-catalog`. Read a project's captured directory with `cpq get --project-id ID --section catalog`; it is read-only. Use `cpq get/update --section draft|selections` for that project's configuration; see [narrow resources](resources.md). Codes must come from company catalog input; do not invent company codes. Draft includes `brief`, `costVersion`, `targetCost`, `targetBasis`, `tolerance`, `rounding`, `allocationBasis`, and selections `{code,quantity,locked,weight,reason}`. Equipment is never adjustable. For unlocked services, quantity is a reference, not the final result. Positive weights express budget proportions.
 
 ```
 cost-cli cpq match --project-id ID --scope "brief scope"
@@ -137,7 +137,7 @@ Dates use Asia/Singapore. Scan writes only the reminder inbox, not workspace rev
 
 ## Maintenance
 
-`maintenance validate --input history.json` only validates a `MaintenancePriceRequest`. Persist accepted records with `masterdata update --tab maintenance`. Compare exact normalized equipment model; inspect each customer's SLA, term, date, outcome and source. Formula: record amount × 12 / coverageMonths / quantity. Invalid denominator = unavailable.
+`maintenance validate --input history.json` only validates a `MaintenancePriceRequest`. Persist accepted records in the global library with `masterdata update --tab maintenance` and its tab revision; no project ID. BOQ pricing reads the project snapshot via `boq get --section references`. Explicit adoption of current global data uses `project apply-masterdata --tab maintenance` with a project ID and project revision. Compare exact normalized equipment model; inspect each customer's SLA, term, date, outcome and source. Formula: record amount × 12 / coverageMonths / quantity. Invalid denominator = unavailable.
 
 Use `boq get/update --section rows|settings` or BOQ import for coverageMonths and rows with actual model/quantity, selected referenceId, SLA/site, unitAnnualQuote (cents), basis and source. Imported rows retain original model/quantity when later edited.
 

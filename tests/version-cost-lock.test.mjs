@@ -378,16 +378,15 @@ test('target-version reads, updates and master-rate application remain available
   const oldRate = before.resourceTypes.find(
     (r) => r.id === resourceId,
   ).mandayRate;
-  updateResource(
-    repo,
-    ID,
-    'masterdata',
-    { tab: 'resources' },
+  const beforeMasterUpdate = repo.get(ID);
+  repo.globalMasterData.update(
+    'resources',
     { upsert: [{ id: resourceId, mandayRate: oldRate * 2 }] },
-    2,
+    1,
   );
-  assert.throws(() => applyMasterRates(repo, ID, 'V1', 3), /锁定/);
-  const applied = applyMasterRates(repo, ID, 'V2', 3);
+  assert.deepEqual(repo.get(ID), beforeMasterUpdate);
+  assert.throws(() => applyMasterRates(repo, ID, 'V1', 2), /锁定/);
+  const applied = applyMasterRates(repo, ID, 'V2', 2);
   assert.equal(applied.costLockReason, null);
   const after = repo.get(ID).workspace;
   assert.deepEqual(after.costVersions[0], before.costVersions[0]);

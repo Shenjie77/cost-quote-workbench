@@ -80,11 +80,25 @@ test('project create is a narrow create-only operation with empty business input
       new Date().toISOString().slice(0, 10),
     );
     assert.deepEqual(w.rateSettings.annualUplifts, [0, 0, 0, 0, 0]);
-    assert.ok(Object.values(w.manualCosts).every((v) => v === 0));
+    assert.equal(w.manualCosts.otherServiceRate, 0.01);
+    assert.ok(Object.entries(w.manualCosts).filter(([key]) => key !== 'otherServiceRate').every(([, value]) => value === 0));
     assert.ok(Object.values(w.travelSettings).every((v) => v === 0));
-    assert.deepEqual(w.subcontractItems, []);
-    assert.deepEqual(w.supplementalCostItems, []);
-    assert.deepEqual(w.maintenancePriceRecords, []);
+    assert.deepEqual(
+      w.subcontractItems,
+      repo.globalMasterData.get('subcontract').items,
+    );
+    assert.deepEqual(
+      w.supplementalCostItems,
+      repo.globalMasterData.get('supplemental').items,
+    );
+    assert.deepEqual(
+      w.maintenancePriceRecords,
+      repo.globalMasterData.get('maintenance').items,
+    );
+    assert.equal(
+      w.costVersions[0].masterDataRevision,
+      repo.globalMasterData.get('resources').revision,
+    );
   });
   const request = envelope('project.create', {
     project: { id: 'SKILL-PROJECT', name: 'Replacement', client: 'Other' },
@@ -180,6 +194,14 @@ test('cost create selects each new Draft and starts its own workflow while retai
     );
     assert.deepEqual(w.versionWorkflows.V1, before.versionWorkflows.V1);
   });
+  inspect((repo) => {
+    const master = repo.globalMasterData.get('resources');
+    repo.globalMasterData.update(
+      'resources',
+      { upsert: [{ id: master.items[0].id, mandayRate: 3200 }] },
+      master.revision,
+    );
+  });
   const blank = run([
     'cost',
     'create',
@@ -224,12 +246,20 @@ test('cost create selects each new Draft and starts its own workflow while retai
     assert.deepEqual(v2.costRows, before.costVersions[0].costRows);
     assert.deepEqual(v2.resourceTypes, before.costVersions[0].resourceTypes);
     assert.deepEqual(v2.manualCosts, before.costVersions[0].manualCosts);
-    assert.deepEqual(v3.resourceTypes, before.resourceTypes);
+    assert.deepEqual(
+      v3.resourceTypes,
+      repo.globalMasterData.get('resources').items,
+    );
+    assert.equal(
+      v3.masterDataRevision,
+      repo.globalMasterData.get('resources').revision,
+    );
     assert.deepEqual(v3.costRows, []);
     assert.equal(v3.sourceVersion, null);
     assert.equal(v3.rateSettings.tdStart, '');
     assert.equal(v3.rateSettings.localArpAllowanceEnabled, false);
-    assert.ok(Object.values(v3.manualCosts).every((v) => v === 0));
+    assert.equal(v3.manualCosts.otherServiceRate, 0.01);
+    assert.ok(Object.entries(v3.manualCosts).filter(([key]) => key !== 'otherServiceRate').every(([, value]) => value === 0));
   });
 });
 

@@ -11,13 +11,6 @@ import { Plus, Save, Search, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Table,
   TableBody,
   TableCell,
@@ -32,7 +25,6 @@ import { StatusBadge } from '@/components/workbench/status-badge';
 import {
   getResourceRateConversions,
   roundMoney,
-  type CostInputRow,
   type ResourceType,
 } from '@/features/cost/domain';
 import {
@@ -41,12 +33,10 @@ import {
   type SupplementalCostItem,
 } from '@/features/master-data/domain';
 import type { SubcontractItem } from '@/features/master-data/types';
-import { workflowStateLabels } from '@/features/projects/workflow-constants';
+import type { CatalogItem } from '@/features/cpq/domain';
+import { GlobalCpqCatalog } from './global-cpq-catalog';
 import type {
-  Project,
-  ProjectStatus,
   ProjectStatusDefinition,
-  WorkflowState,
   WorkflowStep,
 } from '@/features/projects/types';
 import { formatSgd } from '@/lib/formatters';
@@ -58,20 +48,23 @@ import {
   AssumptionLibraryView,
   QuoteTemplatesView,
 } from './quote-catalog-view';
-import { QuoteCatalogImport } from './quote-catalog-import';
-import type { ReviewGate } from '@/features/reviews/types';
 import {
   masterDataTabs,
   isMasterDataTab,
   type MasterDataTab,
 } from './navigation';
+import {
+  createResourceType,
+  editResourceType,
+  resourceClassificationIssue,
+  resourceLevels,
+  resourcePools,
+} from './resource-editing';
 
 type Props = {
-  costLockReason?: string | null;
+  editingDisabled?: boolean;
   activeTab: MasterDataTab;
   onTabChange: (tab: MasterDataTab) => void;
-  onOpenQuote: () => void;
-  reviewGates: ReviewGate[];
   onSave: () => Promise<boolean>;
   resourceTypes: ResourceType[];
   setResourceTypes: React.Dispatch<React.SetStateAction<ResourceType[]>>;
@@ -91,53 +84,19 @@ type Props = {
   >;
   quoteTemplates: QuoteTemplate[];
   setQuoteTemplates: React.Dispatch<React.SetStateAction<QuoteTemplate[]>>;
-  selectedQuoteTemplateId: string;
-  setSelectedQuoteTemplateId: React.Dispatch<React.SetStateAction<string>>;
-  project: Pick<Project, 'id' | 'name' | 'client'>;
-  /** Includes every saved cost version so an in-use RE Type cannot be removed. */
-  costRows: CostInputRow[];
-  currentWorkflowStepCode: string;
-  setCurrentWorkflowStepCode: React.Dispatch<React.SetStateAction<string>>;
-  setSelectedStep: React.Dispatch<React.SetStateAction<number>>;
   processSteps: WorkflowStep[];
   setProcessSteps: React.Dispatch<React.SetStateAction<WorkflowStep[]>>;
-  projectStatus: ProjectStatus;
-  setProjectStatus: React.Dispatch<React.SetStateAction<ProjectStatus>>;
   projectStatusDefinitions: ProjectStatusDefinition[];
   setProjectStatusDefinitions: React.Dispatch<
     React.SetStateAction<ProjectStatusDefinition[]>
   >;
+  catalog: CatalogItem[];
+  setCatalog: React.Dispatch<React.SetStateAction<CatalogItem[]>>;
   announce: (message: string) => void;
 };
 
 const denseInput =
   'h-8 min-w-20 rounded-none border-0 bg-transparent px-2 text-[11px] shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-white focus-visible:ring-1';
-
-/**
- * Canonical internal RE Types. When a user deletes one and later selects Add,
- * the first missing governed combination is restored before a custom type is
- * created. This keeps the fixed HQ/Local/ARP model easy to repair.
- */
-const canonicalResourceTypes = [
-  ['HQ', 'L1'],
-  ['HQ', 'L2'],
-  ['HQ', 'L3'],
-  ['HQ', 'L4'],
-  ['LOCAL', 'L1'],
-  ['LOCAL', 'L2'],
-  ['LOCAL', 'L3'],
-  ['LOCAL', 'L4'],
-  ['ARP', 'L0'],
-  ['ARP', 'L1'],
-  ['ARP', 'L2'],
-  ['ARP', 'L3'],
-  ['ARP', 'L4'],
-] as const satisfies ReadonlyArray<
-  readonly [
-    NonNullable<ResourceType['pool']>,
-    NonNullable<ResourceType['level']>,
-  ]
->;
 
 /** Browser-generated IDs remain unique after rows are deleted and re-added. */
 const newRecordId = (prefix: string) =>
@@ -176,12 +135,119 @@ function EditCell({
   );
 }
 
+/** Classification is visible and editable; dependent fields save atomically. */
+export function ResourceIdentityCells({
+  row,
+  onChange,
+}: {
+  row: ResourceType;
+  onChange: <K extends keyof ResourceType>(
+    key: K,
+    value: ResourceType[K],
+  ) => void;
+}) {
+  const internal = row.category === 'internal';
+  const issue = resourceClassificationIssue(row);
+  return (
+    <>
+      <TableCell className="font-semibold">
+        <EditCell
+          value={row.code}
+          ariaLabel={`${row.code} code`}
+          onChange={(value) => onChange('code', value)}
+        />
+      </TableCell>
+      <TableCell>
+        <EditCell
+          value={row.name}
+          ariaLabel={`${row.code} name`}
+          onChange={(value) => onChange('name', value)}
+        />
+      </TableCell>
+      <TableCell>
+        <select
+          className={`${denseInput} min-w-36`}
+          value={row.category}
+          aria-label={`${row.code} category`}
+          onChange={(event) =>
+            onChange('category', event.target.value as ResourceType['category'])
+          }
+        >
+          {!['internal', 'subcontract'].includes(row.category) && (
+            <option value={row.category} disabled>
+              Select / 请选择
+            </option>
+          )}
+          <option value="internal">Internal / 自有</option>
+          <option value="subcontract">Subcontract / 分包</option>
+        </select>
+        {issue && (
+          <p role="alert" className="max-w-60 px-2 text-[10px] text-red-700">
+            {issue}
+          </p>
+        )}
+      </TableCell>
+      <TableCell>
+        <select
+          className={denseInput}
+          value={row.pool ?? ''}
+          disabled={!internal}
+          aria-label={`${row.code} pool`}
+          onChange={(event) =>
+            onChange('pool', event.target.value as ResourceType['pool'])
+          }
+        >
+          {!resourcePools.some((pool) => pool === row.pool) && (
+            <option value={row.pool ?? ''} disabled>
+              {row.pool
+                ? `${row.pool} / 无效`
+                : internal
+                  ? 'Select / 请选择'
+                  : '—'}
+            </option>
+          )}
+          {resourcePools.map((pool) => (
+            <option key={pool} value={pool}>
+              {pool}
+            </option>
+          ))}
+        </select>
+      </TableCell>
+      <TableCell>
+        <select
+          className={denseInput}
+          value={row.level ?? ''}
+          disabled={!internal}
+          aria-label={`${row.code} level`}
+          onChange={(event) =>
+            onChange('level', event.target.value as ResourceType['level'])
+          }
+        >
+          {!resourceLevels.some((level) => level === row.level) && (
+            <option value={row.level ?? ''} disabled>
+              {row.level
+                ? `${row.level} / 无效`
+                : internal
+                  ? 'Select / 请选择'
+                  : '—'}
+            </option>
+          )}
+          {resourceLevels.map((level) => (
+            <option key={level} value={level}>
+              {level}
+            </option>
+          ))}
+        </select>
+      </TableCell>
+    </>
+  );
+}
+
 export function MasterDataView(props: Props) {
   const {
-    costLockReason = null,
+    editingDisabled = false,
     activeTab,
     onTabChange,
-    onOpenQuote,
     resourceTypes,
     setResourceTypes,
     subcontractItems,
@@ -194,25 +260,18 @@ export function MasterDataView(props: Props) {
     setAssumptionLibrary,
     quoteTemplates,
     setQuoteTemplates,
-    selectedQuoteTemplateId,
-    setSelectedQuoteTemplateId,
-    project,
-    costRows,
-    currentWorkflowStepCode,
-    setCurrentWorkflowStepCode,
-    setSelectedStep,
     processSteps,
     setProcessSteps,
-    projectStatus,
-    setProjectStatus,
     projectStatusDefinitions,
     setProjectStatusDefinitions,
     announce,
-    reviewGates,
     onSave,
+    catalog,
+    setCatalog,
   } = props;
   const [query, setQuery] = useState('');
   const tabCounts: Record<MasterDataTab, number> = {
+    'cpq-catalog': catalog.length,
     resources: resourceTypes.length,
     subcontract: subcontractItems.length,
     supplemental: supplementalCostItems.length,
@@ -233,7 +292,9 @@ export function MasterDataView(props: Props) {
     value: ResourceType[K],
   ) =>
     setResourceTypes((rows) =>
-      rows.map((row) => (row.id === id ? { ...row, [key]: value } : row)),
+      rows.map((row) =>
+        row.id === id ? editResourceType(row, key, value) : row,
+      ),
     );
   const updateSubcontract = <K extends keyof SubcontractItem>(
     id: string,
@@ -259,7 +320,7 @@ export function MasterDataView(props: Props) {
     setMaintenancePriceRecords((rows) =>
       rows.map((row) => (row.id === id ? { ...row, [key]: value } : row)),
     );
-  /** Updates one project-specific workflow node without changing its code. */
+  /** Edits a reusable workflow definition, never project progress. */
   const updateProcessStep = <K extends keyof WorkflowStep>(
     code: string,
     key: K,
@@ -269,18 +330,15 @@ export function MasterDataView(props: Props) {
       rows.map((row) => (row.code === code ? { ...row, [key]: value } : row)),
     );
 
-  /** Keeps the presentation tone synchronized with the selected state. */
-  const updateProcessState = (code: string, state: WorkflowState) =>
-    setProcessSteps((rows) =>
-      rows.map((row) =>
-        row.code === code
-          ? { ...row, state, tone: workflowStateLabels[state].tone }
-          : row,
-      ),
-    );
-
   const resources = resourceTypes.filter((row) =>
-    matches(row.code, row.name, row.pool, row.level),
+    matches(
+      row.code,
+      row.name,
+      row.category,
+      row.category === 'internal' ? '自有' : '分包',
+      row.pool,
+      row.level,
+    ),
   );
   const subcontract = subcontractItems.filter((row) =>
     matches(row.code, row.item, row.bu, row.supplier),
@@ -298,7 +356,7 @@ export function MasterDataView(props: Props) {
     matches(row.code, row.name, row.nameZh, row.active),
   );
 
-  /** Adds a project-specific workflow stage with schema-valid starter data. */
+  /** Adds a reusable workflow stage with schema-valid starter data. */
   const addWorkflowStep = () => {
     setQuery('');
     const code = `CUSTOM-STAGE-${newCodeSuffix()}`;
@@ -315,8 +373,8 @@ export function MasterDataView(props: Props) {
           owner: 'Me',
           state: 'not_started',
           tone: 'gray',
-          date: 'Not set',
-          dateZh: '未设置',
+          date: '',
+          dateZh: '',
           detail: '',
           detailZh: '',
           input: '',
@@ -325,41 +383,14 @@ export function MasterDataView(props: Props) {
         },
       ];
     });
-    if (!currentWorkflowStepCode) {
-      setCurrentWorkflowStepCode(code);
-      setSelectedStep(0);
-    }
     announce('Workflow stage added. / 已新增流程节点。');
   };
 
-  /** Deletes a workflow node and moves the current pointer when necessary. */
+  /** Removing a global definition leaves project snapshots unchanged. */
   const deleteWorkflowStep = (step: WorkflowStep) => {
-    const linked = reviewGates.filter(
-      (review) => review.workflowStepCode === step.code,
-    );
-    if (linked.length) {
-      announce(
-        `This node is used by ${linked.length} review(s). Reassign their workflow first. / 请先调整关联评审的流程节点。`,
-      );
-      return;
-    }
     if (!confirmDelete(`${step.no} · ${step.name}`)) return;
-    const remaining = processSteps.filter((item) => item.code !== step.code);
-    const nextCurrentCode =
-      currentWorkflowStepCode === step.code
-        ? remaining[0]?.code || ''
-        : currentWorkflowStepCode;
-    setProcessSteps(remaining);
-    setCurrentWorkflowStepCode(nextCurrentCode);
-    setSelectedStep(
-      Math.max(
-        0,
-        remaining.findIndex((item) => item.code === nextCurrentCode),
-      ),
-    );
-    announce(
-      `Workflow stage ${step.no} deleted. / 已删除流程节点 ${step.no}。`,
-    );
+    setProcessSteps((rows) => rows.filter((item) => item.code !== step.code));
+    announce('Global workflow definition removed / 已移除全局流程定义。');
   };
 
   /** Updates a display field without changing the stable Agent/CLI status code. */
@@ -374,7 +405,7 @@ export function MasterDataView(props: Props) {
       rows.map((row) => (row.code === code ? { ...row, [key]: value } : row)),
     );
 
-  /** Adds a schema-valid status option to this project's status dictionary. */
+  /** Adds a reusable status definition for future projects. */
   const addProjectStatusDefinition = () => {
     setQuery('');
     const code = `CUSTOM-STATUS-${newCodeSuffix()}`;
@@ -402,71 +433,24 @@ export function MasterDataView(props: Props) {
     const remaining = projectStatusDefinitions.filter(
       (item) => item.code !== status.code,
     );
-    if (projectStatus === status.code) {
-      setProjectStatus(
-        remaining.find((item) => item.active)?.code || remaining[0].code,
-      );
-    }
     setProjectStatusDefinitions(remaining);
     announce(
       `Project status ${status.name} deleted. / 已删除项目状态 ${status.nameZh || status.name}。`,
     );
   };
 
-  /**
-   * Restores a missing canonical RE Type first. If the canonical set is
-   * complete, a valid custom/subcontract RE Type is added instead.
-   */
+  /** The user chooses each new resource's classification explicitly. */
   const addResource = () => {
     setQuery('');
-    setResourceTypes((rows) => {
-      const codes = new Set(rows.map((row) => row.code.toUpperCase()));
-      const missing = canonicalResourceTypes.find(
-        ([pool, level]) => !codes.has(`${pool}-${level}`),
-      );
-      const effectiveFrom = `${new Date().getFullYear()}-01-01`;
-      if (missing) {
-        const [pool, level] = missing;
-        return [
-          ...rows,
-          {
-            id: newRecordId('rt'),
-            code: `${pool}-${level}`,
-            name: `${pool === 'LOCAL' ? 'Local' : pool} ${level}`,
-            category: 'internal',
-            pool,
-            level,
-            mandayRate: 0,
-            mandaysPerMonth: 21.75,
-            hoursPerManday: 8,
-            hqTravel: pool === 'HQ',
-            effectiveFrom,
-            effectiveTo: '',
-            active: true,
-          },
-        ];
-      }
-      const suffix = newCodeSuffix();
-      return [
-        ...rows,
-        {
-          id: newRecordId('rt'),
-          code: `CUSTOM-${suffix}`,
-          name: 'Custom RE Type',
-          category: 'subcontract',
-          pool: null,
-          level: null,
-          mandayRate: 0,
-          mandaysPerMonth: 21.75,
-          hoursPerManday: 8,
-          hqTravel: false,
-          effectiveFrom,
-          effectiveTo: '',
-          active: true,
-        },
-      ];
-    });
-    announce('RE Type added. / 已新增 RE Type。');
+    const row = createResourceType(
+      newRecordId('rt'),
+      newCodeSuffix(),
+      `${new Date().getFullYear()}-01-01`,
+    );
+    setResourceTypes((rows) => [...rows, row]);
+    announce(
+      'RE Type added: select Category, Pool and Level. / 已新增 RE Type，可设置种类、Pool 和 Level。',
+    );
   };
 
   /** Adds a fully valid row so SQLite autosave never receives blank required fields. */
@@ -647,17 +631,8 @@ export function MasterDataView(props: Props) {
     }
   };
 
-  /** Removes an unreferenced RE Type without invalidating any cost version. */
+  /** Existing projects retain their own RE Type snapshots after removal. */
   const deleteResource = (row: ResourceType) => {
-    const usageCount = costRows.filter(
-      (costRow) => costRow.reTypeId === row.id,
-    ).length;
-    if (usageCount > 0) {
-      announce(
-        `Delete blocked: ${row.name} is used by ${usageCount} cost row(s). / 删除已阻止：该 RE Type 仍被 ${usageCount} 条成本明细使用。`,
-      );
-      return;
-    }
     if (resourceTypes.length <= 1) {
       announce(
         'Delete blocked: at least one RE Type is required. / 删除已阻止：至少需要保留一个 RE Type。',
@@ -687,29 +662,25 @@ export function MasterDataView(props: Props) {
           index="01"
           title="Master Data"
           titleZh="基础数据管理"
-          description="Maintain reference data and customer templates here; select and use them in Pricing & Quote."
-          descriptionZh="此处统一维护基础数据与客户模板；报价页负责选择、引用与输出。"
+          description="Global reference data for future projects. Existing project and cost-version snapshots stay unchanged."
+          descriptionZh="全局主数据供未来项目使用；维护不读取项目，已有项目及成本版本保留采用时的数据快照。"
           action={
-            <Button size="sm" variant="outline" onClick={onOpenQuote}>
-              Open Quote{' '}
-              <span className="text-[10px] opacity-60">返回报价</span>
+            <Button
+              size="sm"
+              disabled={editingDisabled}
+              onClick={async () => {
+                if (await onSave())
+                  announce('Global master data saved / 全局主数据已保存。');
+              }}
+            >
+              <Save /> Save this tab / 保存当前页签
             </Button>
           }
         />
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-muted/20 px-3 py-2 text-xs">
-          <span className="font-medium">
-            Current project / 当前项目：{project.name}
-          </span>
-          <span className="financial-numeral text-muted-foreground">
-            {project.id}
-          </span>
-          <span className="text-muted-foreground">
-            Client / 客户：{project.client}
-          </span>
-          <span className="text-muted-foreground">
-            Project-owned · 按项目保存，非全局共享
-          </span>
-        </div>
+        <p className="border-t bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          Global / 全局共享 · 新项目取得独立副本。已有 Draft
+          也不会自动更新汇率；如需采用新汇率，请在目标成本版本明确应用。
+        </p>
       </section>
       <section className="min-w-0 overflow-hidden border border-border bg-card">
         <Tabs
@@ -760,921 +731,857 @@ export function MasterDataView(props: Props) {
               </TabsList>
             </div>
           </div>
-          <TabsContent value="workflow" className="mt-0">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-              <span>
-                Editing {project.id} · {project.name} / 编辑项目可选流程节点
-              </span>
-              <div className="flex items-center gap-2">
-                <StatusBadge tone="blue">
-                  <BiInline en="Project specific" zh="按项目独立保存" />
-                </StatusBadge>
-                <Button
-                  size="sm"
-                  className="h-7 text-[10px]"
-                  onClick={addWorkflowStep}
-                >
-                  <Plus />
-                  Add row / 新增
-                </Button>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <Table className="min-w-[1240px] text-[11px]">
-                <TableHeader>
-                  <TableRow className="bg-[#f2f0ea] hover:bg-[#f2f0ea]">
-                    <TableHead className="w-16">No.</TableHead>
-                    <TableHead className="w-52">Code / 系统编码</TableHead>
-                    <TableHead>Stage Name / 英文名称</TableHead>
-                    <TableHead>中文名称</TableHead>
-                    <TableHead className="w-36">Owner / 负责人</TableHead>
-                    <TableHead className="w-44">State / 状态</TableHead>
-                    <TableHead className="w-24 text-center">
-                      Required / 必须
-                    </TableHead>
-                    <TableHead className="w-16 text-center">
-                      Action / 操作
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {workflow.map((step) => (
-                    <TableRow
-                      key={step.code}
-                      className={
-                        step.code === currentWorkflowStepCode
-                          ? 'h-9 bg-[#edf4f3]'
-                          : 'h-9'
-                      }
-                    >
-                      <TableCell className="financial-numeral font-semibold">
-                        {step.no}
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-[10px] text-muted-foreground">
-                          {step.code}
-                        </code>
-                        {step.code === currentWorkflowStepCode ? (
-                          <span className="ml-2">
-                            <StatusBadge tone="blue">
-                              Current / 当前
-                            </StatusBadge>
-                          </span>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={step.name}
-                          ariaLabel={`${step.code} English name`}
-                          onChange={(value) =>
-                            updateProcessStep(step.code, 'name', value)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={step.nameZh}
-                          ariaLabel={`${step.code} Chinese name`}
-                          onChange={(value) =>
-                            updateProcessStep(step.code, 'nameZh', value)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={step.owner}
-                          ariaLabel={`${step.code} owner`}
-                          onChange={(value) =>
-                            updateProcessStep(step.code, 'owner', value)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={step.state}
-                          onValueChange={(value) => {
-                            if (value) {
-                              updateProcessState(
-                                step.code,
-                                value as WorkflowState,
-                              );
-                            }
-                          }}
-                        >
-                          <SelectTrigger
-                            size="sm"
-                            className="h-8 w-full rounded-none border-0 bg-transparent text-[10px] shadow-none focus-visible:bg-white"
-                            aria-label={`${step.code} state`}
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(
-                              Object.keys(
-                                workflowStateLabels,
-                              ) as WorkflowState[]
-                            ).map((state) => (
-                              <SelectItem key={state} value={state}>
-                                <BiInline
-                                  en={workflowStateLabels[state].en}
-                                  zh={workflowStateLabels[state].zh}
-                                />
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateProcessStep(
-                              step.code,
-                              'required',
-                              !step.required,
-                            )
-                          }
-                        >
-                          <StatusBadge tone={step.required ? 'amber' : 'gray'}>
-                            <BiInline
-                              en={step.required ? 'Required' : 'Optional'}
-                              zh={step.required ? '必须' : '可选'}
-                            />
-                          </StatusBadge>
-                        </button>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <DeleteRowButton
-                          label={`${step.no} · ${step.name}`}
-                          onDelete={() => deleteWorkflowStep(step)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-              Rows can be added or deleted. Names, owner, state, and required
-              flag are editable; the system code stays stable for CLI and Agent
-              operations. /
-              可新增或删除节点；名称、负责人、状态和必须标记可编辑，系统编码保持稳定。
-            </p>
-          </TabsContent>
-          <TabsContent value="status" className="mt-0">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-              <span>
-                Editing {project.id} · {project.name} / 编辑项目状态选项
-              </span>
-              <div className="flex items-center gap-2">
-                <StatusBadge tone="blue">
-                  <BiInline en="Project specific" zh="按项目独立保存" />
-                </StatusBadge>
-                <Button
-                  size="sm"
-                  className="h-7 text-[10px]"
-                  onClick={addProjectStatusDefinition}
-                >
-                  <Plus />
-                  Add row / 新增
-                </Button>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <Table className="min-w-[820px] text-[11px]">
-                <TableHeader>
-                  <TableRow className="bg-[#f2f0ea] hover:bg-[#f2f0ea]">
-                    <TableHead className="w-60">Code / 系统编码</TableHead>
-                    <TableHead>Status Name / 英文名称</TableHead>
-                    <TableHead>中文名称</TableHead>
-                    <TableHead className="w-28">Available / 可选</TableHead>
-                    <TableHead className="w-20 text-center">
-                      Action / 操作
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {statuses.map((status) => (
-                    <TableRow
-                      key={status.code}
-                      className={
-                        status.code === projectStatus
-                          ? 'h-9 bg-[#edf4f3]'
-                          : 'h-9'
-                      }
-                    >
-                      <TableCell>
-                        <code className="text-[10px] text-muted-foreground">
-                          {status.code}
-                        </code>
-                        {status.code === projectStatus ? (
-                          <span className="ml-2">
-                            <StatusBadge tone="blue">
-                              Current / 当前
-                            </StatusBadge>
-                          </span>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={status.name}
-                          ariaLabel={`${status.code} English status name`}
-                          onChange={(value) =>
-                            updateProjectStatusDefinition(
-                              status.code,
-                              'name',
-                              value,
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={status.nameZh}
-                          ariaLabel={`${status.code} Chinese status name`}
-                          onChange={(value) =>
-                            updateProjectStatusDefinition(
-                              status.code,
-                              'nameZh',
-                              value,
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateProjectStatusDefinition(
-                              status.code,
-                              'active',
-                              !status.active,
-                            )
-                          }
-                        >
-                          <StatusBadge tone={status.active ? 'green' : 'gray'}>
-                            {status.active ? 'Active' : 'Inactive'}
-                          </StatusBadge>
-                        </button>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <DeleteRowButton
-                          label={`${status.code} · ${status.name}`}
-                          onDelete={() => deleteProjectStatusDefinition(status)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-              English and Chinese names are editable. The code stays stable for
-              CLI and Agent operations; inactive options are hidden from new
-              selections. /
-              中英文名称可编辑，系统编码保持稳定；停用状态不再供新选择。
-            </p>
-          </TabsContent>
-          <TabsContent value="resources" className="mt-0">
-            {costLockReason && (
-              <output className="block border-b bg-amber-50 p-3 text-sm text-amber-900">
-                {costLockReason}{' '}
-                主数据汇率仍可更新；已锁定的成本保留原汇率，不会随主数据变更。
-              </output>
-            )}
-            <div className="min-w-0">
-              <div className="flex items-center justify-between border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-                <span>HQ L1–L4 · Local L1–L4 · ARP L0–L4 · SGD/MD</span>
+          <fieldset disabled={editingDisabled} className="min-w-0 border-0 p-0">
+            <TabsContent value="cpq-catalog" className="mt-0">
+              <GlobalCpqCatalog
+                items={catalog}
+                setItems={setCatalog}
+                query={query}
+              />
+            </TabsContent>
+            <TabsContent value="workflow" className="mt-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                <span>Default workflow definitions / 默认流程模板定义</span>
                 <div className="flex items-center gap-2">
+                  <StatusBadge tone="blue">
+                    <BiInline en="Global defaults" zh="全局默认值" />
+                  </StatusBadge>
                   <Button
                     size="sm"
-                    variant="outline"
                     className="h-7 text-[10px]"
-                    onClick={addResource}
+                    onClick={addWorkflowStep}
                   >
                     <Plus />
                     Add row / 新增
                   </Button>
-                  <Button
-                    size="sm"
-                    className="h-7 text-[10px]"
-                    onClick={async () =>
-                      announce(
-                        (await onSave())
-                          ? costLockReason
-                            ? 'Master rates saved; locked costs are unchanged. / 主数据汇率已保存，已锁定成本保持不变。'
-                            : 'RE Type catalogue saved. Apply Master Rates in Cost to use changes. / 主数据已保存，可在成本页应用汇率。'
-                          : 'Save failed; edits retained / 保存失败，修改已保留',
-                      )
-                    }
-                  >
-                    <Save />
-                    Save rates
-                  </Button>
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <Table className="min-w-[1320px] text-[11px]">
+                <Table className="min-w-[1240px] text-[11px]">
                   <TableHeader>
-                    <TableRow className="bg-[#f2f0ea]">
-                      {[
-                        'Code / 编码',
-                        'Name / 名称',
-                        'Pool',
-                        'Level',
-                        'MD Rate / 人天汇率',
-                        'MD / MM',
-                        'Hour / MD',
-                        'MM Rate / 人月',
-                        'Hour Rate / 人时',
-                        'Effective From',
-                        'Effective To',
-                        'Status',
-                        'Action / 操作',
-                      ].map((label) => (
-                        <TableHead
-                          key={label}
-                          className="h-9 whitespace-nowrap px-2 text-[10px]"
-                        >
-                          {label}
-                        </TableHead>
-                      ))}
+                    <TableRow className="bg-[#f2f0ea] hover:bg-[#f2f0ea]">
+                      <TableHead className="w-16">No.</TableHead>
+                      <TableHead className="w-52">Code / 系统编码</TableHead>
+                      <TableHead>Stage Name / 英文名称</TableHead>
+                      <TableHead>中文名称</TableHead>
+                      <TableHead className="w-36">Owner / 负责人</TableHead>
+                      <TableHead className="w-64">
+                        Requirements / 输入要求
+                      </TableHead>
+                      <TableHead className="w-24 text-center">
+                        Required / 必须
+                      </TableHead>
+                      <TableHead className="w-16 text-center">
+                        Action / 操作
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {resources.map((row) => {
-                      const rate = getResourceRateConversions(row);
-                      return (
-                        <TableRow key={row.id} className="h-9">
-                          <TableCell className="font-semibold">
-                            {row.code}
-                          </TableCell>
-                          <TableCell>
-                            <EditCell
-                              value={row.name}
-                              ariaLabel={`${row.code} name`}
-                              onChange={(v) =>
-                                updateResource(row.id, 'name', v)
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>{row.pool ?? '—'}</TableCell>
-                          <TableCell>{row.level ?? '—'}</TableCell>
-                          <TableCell>
-                            <EditCell
-                              type="number"
-                              value={row.mandayRate}
-                              ariaLabel={`${row.code} manday rate`}
-                              onChange={(v) =>
-                                updateResource(
-                                  row.id,
-                                  'mandayRate',
-                                  Math.max(0, Number(v) || 0),
-                                )
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <EditCell
-                              type="number"
-                              value={row.mandaysPerMonth}
-                              ariaLabel={`${row.code} MD per month`}
-                              onChange={(v) =>
-                                updateResource(
-                                  row.id,
-                                  'mandaysPerMonth',
-                                  Math.max(0.01, Number(v) || 0.01),
-                                )
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <EditCell
-                              type="number"
-                              value={row.hoursPerManday}
-                              ariaLabel={`${row.code} hours per MD`}
-                              onChange={(v) =>
-                                updateResource(
-                                  row.id,
-                                  'hoursPerManday',
-                                  Math.max(0.01, Number(v) || 0.01),
-                                )
-                              }
-                            />
-                          </TableCell>
-                          <TableCell className="financial-numeral">
-                            {formatSgd(rate.perMonth)}
-                          </TableCell>
-                          <TableCell className="financial-numeral">
-                            {formatSgd(rate.perHour)}
-                          </TableCell>
-                          <TableCell>
-                            <EditCell
-                              type="date"
-                              value={row.effectiveFrom}
-                              ariaLabel={`${row.code} effective from`}
-                              onChange={(v) =>
-                                updateResource(row.id, 'effectiveFrom', v)
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <EditCell
-                              type="date"
-                              value={row.effectiveTo}
-                              ariaLabel={`${row.code} effective to`}
-                              onChange={(v) =>
-                                updateResource(row.id, 'effectiveTo', v)
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateResource(row.id, 'active', !row.active)
-                              }
+                    {workflow.map((step) => (
+                      <TableRow key={step.code} className="h-9">
+                        <TableCell className="financial-numeral font-semibold">
+                          {step.no}
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-[10px] text-muted-foreground">
+                            {step.code}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={step.name}
+                            ariaLabel={`${step.code} English name`}
+                            onChange={(value) =>
+                              updateProcessStep(step.code, 'name', value)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={step.nameZh}
+                            ariaLabel={`${step.code} Chinese name`}
+                            onChange={(value) =>
+                              updateProcessStep(step.code, 'nameZh', value)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={step.owner}
+                            ariaLabel={`${step.code} owner`}
+                            onChange={(value) =>
+                              updateProcessStep(step.code, 'owner', value)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={step.detail}
+                            ariaLabel={`${step.code} requirements`}
+                            onChange={(value) =>
+                              updateProcessStep(step.code, 'detail', value)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateProcessStep(
+                                step.code,
+                                'required',
+                                !step.required,
+                              )
+                            }
+                          >
+                            <StatusBadge
+                              tone={step.required ? 'amber' : 'gray'}
                             >
-                              <StatusBadge tone={row.active ? 'green' : 'gray'}>
-                                {row.active ? 'Active' : 'Inactive'}
-                              </StatusBadge>
-                            </button>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <DeleteRowButton
-                              label={`${row.code} · ${row.name}`}
-                              onDelete={() => deleteResource(row)}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                              <BiInline
+                                en={step.required ? 'Required' : 'Optional'}
+                                zh={step.required ? '必须' : '可选'}
+                              />
+                            </StatusBadge>
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <DeleteRowButton
+                            label={`${step.no} · ${step.name}`}
+                            onDelete={() => deleteWorkflowStep(step)}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
               <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-                MM rate = MD rate × MD/MM. Hour rate = MD rate ÷ Hour/MD. HQ
-                rows automatically enable travel. / 人月、人时汇率自动换算。
+                Defines names, default owners and input requirements for future
+                projects. /
+                仅维护未来项目的节点名称、默认负责人和输入要求；实际项目进度请在流程与评审中更新。
               </p>
-            </div>
-          </TabsContent>
-          <TabsContent value="subcontract" className="mt-0">
-            <TableToolbar count={subcontract.length} onAdd={addSubcontract} />
-            <div className="overflow-x-auto">
-              <Table className="min-w-[900px]">
-                <TableHeader>
-                  <TableRow className="bg-[#f2f0ea]">
-                    {[
-                      'Code',
-                      'Item / 条目',
-                      'BU',
-                      'Supplier / 供应商',
-                      'Pricing Basis / 计价依据',
-                      'Currency',
-                      'Status',
-                      'Action / 操作',
-                    ].map((h) => (
-                      <TableHead key={h}>{h}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {subcontract.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>
-                        <EditCell
-                          value={row.code}
-                          ariaLabel="Subcontract code"
-                          onChange={(v) => updateSubcontract(row.id, 'code', v)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.item}
-                          ariaLabel="Subcontract item"
-                          onChange={(v) => updateSubcontract(row.id, 'item', v)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.bu}
-                          ariaLabel="Subcontract BU"
-                          onChange={(v) => updateSubcontract(row.id, 'bu', v)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.supplier}
-                          ariaLabel="Supplier"
-                          onChange={(v) =>
-                            updateSubcontract(row.id, 'supplier', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.pricingBasis}
-                          ariaLabel="Pricing basis"
-                          onChange={(v) =>
-                            updateSubcontract(row.id, 'pricingBasis', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>{row.currency}</TableCell>
-                      <TableCell>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateSubcontract(row.id, 'active', !row.active)
-                          }
-                        >
-                          <StatusBadge tone={row.active ? 'green' : 'gray'}>
-                            {row.active ? 'Active' : 'Inactive'}
-                          </StatusBadge>
-                        </button>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <DeleteRowButton
-                          label={`${row.code} · ${row.item}`}
-                          onDelete={() =>
-                            deleteUnreferencedRow(
-                              `${row.code} · ${row.item}`,
-                              () =>
-                                setSubcontractItems((rows) =>
-                                  rows.filter((item) => item.id !== row.id),
-                                ),
-                              `Subcontract item ${row.code} deleted. / 已删除分包条目 ${row.code}。`,
-                            )
-                          }
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
-          <TabsContent value="supplemental" className="mt-0">
-            <TableToolbar count={supplemental.length} onAdd={addSupplemental} />
-            <div className="overflow-x-auto">
-              <Table className="min-w-[900px]">
-                <TableHeader>
-                  <TableRow className="bg-[#f2f0ea]">
-                    {[
-                      'Code',
-                      'Name / 名称',
-                      'Statement',
-                      'Default SGD',
-                      'Owner',
-                      'Source',
-                      'Status',
-                      'Action / 操作',
-                    ].map((h) => (
-                      <TableHead key={h}>{h}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {supplemental.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>
-                        <EditCell
-                          value={row.code}
-                          ariaLabel="Supplemental code"
-                          onChange={(v) =>
-                            updateSupplemental(row.id, 'code', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.name}
-                          ariaLabel="Supplemental name"
-                          onChange={(v) =>
-                            updateSupplemental(row.id, 'name', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.statementCode}
-                          ariaLabel="Statement code"
-                          onChange={(v) =>
-                            updateSupplemental(row.id, 'statementCode', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          type="number"
-                          value={row.defaultAmount}
-                          ariaLabel="Default amount"
-                          onChange={(v) =>
-                            updateSupplemental(
-                              row.id,
-                              'defaultAmount',
-                              roundMoney(Number(v) || 0),
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.owner}
-                          ariaLabel="Owner"
-                          onChange={(v) =>
-                            updateSupplemental(row.id, 'owner', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.sourceNote}
-                          ariaLabel="Source"
-                          onChange={(v) =>
-                            updateSupplemental(row.id, 'sourceNote', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateSupplemental(row.id, 'active', !row.active)
-                          }
-                        >
-                          <StatusBadge tone={row.active ? 'green' : 'gray'}>
-                            {row.active ? 'Active' : 'Inactive'}
-                          </StatusBadge>
-                        </button>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <DeleteRowButton
-                          label={`${row.code} · ${row.name}`}
-                          onDelete={() =>
-                            deleteUnreferencedRow(
-                              `${row.code} · ${row.name}`,
-                              () =>
-                                setSupplementalCostItems((rows) =>
-                                  rows.filter((item) => item.id !== row.id),
-                                ),
-                              `Supplemental cost ${row.code} deleted. / 已删除补充成本 ${row.code}。`,
-                            )
-                          }
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
-          <TabsContent value="maintenance" className="mt-0">
-            <div className="flex items-center justify-between border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
-              <span>{maintenance.length} records / 条记录</span>
-              <div className="flex gap-2">
-                <input
-                  ref={maintenanceImportRef}
-                  type="file"
-                  accept=".json,.xlsx"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void importMaintenance(file);
-                    event.target.value = '';
-                  }}
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-[10px]"
-                  onClick={() => maintenanceImportRef.current?.click()}
-                >
-                  <Upload /> Import JSON/XLSX / 导入
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-7 text-[10px]"
-                  onClick={addMaintenance}
-                >
-                  <Plus /> Add row / 新增
-                </Button>
+            </TabsContent>
+            <TabsContent value="status" className="mt-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                <span>Default status definitions / 默认项目状态字典</span>
+                <div className="flex items-center gap-2">
+                  <StatusBadge tone="blue">
+                    <BiInline en="Global defaults" zh="全局默认值" />
+                  </StatusBadge>
+                  <Button
+                    size="sm"
+                    className="h-7 text-[10px]"
+                    onClick={addProjectStatusDefinition}
+                  >
+                    <Plus />
+                    Add row / 新增
+                  </Button>
+                </div>
               </div>
-            </div>
-            <div className="overflow-x-auto">
-              <Table className="min-w-[1400px]">
-                <TableHeader>
-                  <TableRow className="bg-[#f2f0ea]">
-                    {[
-                      'Client',
-                      'Service',
-                      'Product / Model',
-                      'Service Level',
-                      'Site',
-                      'Months',
-                      'Qty',
-                      'Cost',
-                      'Quoted',
-                      'Unit / Year',
-                      'Quote Date',
-                      'Outcome',
-                      'Source',
-                      'Action / 操作',
-                    ].map((h) => (
-                      <TableHead key={h}>{h}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {maintenance.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>
-                        <EditCell
-                          value={row.client}
-                          ariaLabel="Client"
-                          onChange={(v) =>
-                            updateMaintenance(row.id, 'client', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.service}
-                          ariaLabel="Service"
-                          onChange={(v) =>
-                            updateMaintenance(row.id, 'service', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.productModel}
-                          ariaLabel="Product model"
-                          onChange={(v) =>
-                            updateMaintenance(row.id, 'productModel', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.serviceLevel}
-                          ariaLabel="Service level"
-                          onChange={(v) =>
-                            updateMaintenance(row.id, 'serviceLevel', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.site}
-                          ariaLabel="Site"
-                          onChange={(v) => updateMaintenance(row.id, 'site', v)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          type="number"
-                          value={row.coverageMonths}
-                          ariaLabel="Coverage months"
-                          onChange={(v) =>
-                            updateMaintenance(
-                              row.id,
-                              'coverageMonths',
-                              Math.max(0, Number(v) || 0),
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          type="number"
-                          value={row.quantity}
-                          ariaLabel="Quantity"
-                          onChange={(v) =>
-                            updateMaintenance(
-                              row.id,
-                              'quantity',
-                              Math.max(0, Number(v) || 0),
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          type="number"
-                          value={row.costAmount}
-                          ariaLabel="Cost amount"
-                          onChange={(v) =>
-                            updateMaintenance(
-                              row.id,
-                              'costAmount',
-                              roundMoney(Number(v) || 0),
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          type="number"
-                          value={row.quotedAmount}
-                          ariaLabel="Quoted amount"
-                          onChange={(v) =>
-                            updateMaintenance(
-                              row.id,
-                              'quotedAmount',
-                              roundMoney(Number(v) || 0),
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="financial-numeral">
-                        {unitAnnualMaintenanceQuote(row) === null
-                          ? '不可比较'
-                          : formatSgd(unitAnnualMaintenanceQuote(row)!)}
-                      </TableCell>
-                      <TableCell>
-                        <EditCell
-                          type="date"
-                          value={row.quoteDate}
-                          ariaLabel="Quote date"
-                          onChange={(v) =>
-                            updateMaintenance(row.id, 'quoteDate', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>{row.outcome}</TableCell>
-                      <TableCell>
-                        <EditCell
-                          value={row.source}
-                          ariaLabel="Source"
-                          onChange={(v) =>
-                            updateMaintenance(row.id, 'source', v)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <DeleteRowButton
-                          label={`${row.client} · ${row.service}`}
-                          onDelete={() =>
-                            deleteUnreferencedRow(
-                              `${row.client} · ${row.service}`,
-                              () =>
-                                setMaintenancePriceRecords((rows) =>
-                                  rows.filter((item) => item.id !== row.id),
-                                ),
-                              `Maintenance history deleted. / 已删除维保历史记录。`,
-                            )
-                          }
-                        />
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[820px] text-[11px]">
+                  <TableHeader>
+                    <TableRow className="bg-[#f2f0ea] hover:bg-[#f2f0ea]">
+                      <TableHead className="w-60">Code / 系统编码</TableHead>
+                      <TableHead>Status Name / 英文名称</TableHead>
+                      <TableHead>中文名称</TableHead>
+                      <TableHead className="w-28">Available / 可选</TableHead>
+                      <TableHead className="w-20 text-center">
+                        Action / 操作
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
-          <TabsContent value="assumptions" className="mt-0">
-            <QuoteCatalogImport
-              key={project.id}
-              projectId={project.id}
-              announce={announce}
-              onImport={(library, templates) => {
-                setAssumptionLibrary((rows) => [...rows, ...library]);
-                setQuoteTemplates((rows) => [...rows, ...templates]);
-              }}
-            />
-            <AssumptionLibraryView
-              library={assumptionLibrary}
-              setLibrary={setAssumptionLibrary}
-              templates={quoteTemplates}
-              setTemplates={setQuoteTemplates}
-              query={query}
-              client={project.client}
-              announce={announce}
-            />
-          </TabsContent>
-          <TabsContent value="quote-templates" className="mt-0">
-            <QuoteCatalogImport
-              key={project.id}
-              projectId={project.id}
-              announce={announce}
-              onImport={(library, templates) => {
-                setAssumptionLibrary((rows) => [...rows, ...library]);
-                setQuoteTemplates((rows) => [...rows, ...templates]);
-              }}
-            />
-            <QuoteTemplatesView
-              key={project.id}
-              templates={quoteTemplates}
-              setTemplates={setQuoteTemplates}
-              library={assumptionLibrary}
-              query={query}
-              client={project.client}
-              selectedId={selectedQuoteTemplateId}
-              setSelectedId={setSelectedQuoteTemplateId}
-              announce={announce}
-            />
-          </TabsContent>
+                  </TableHeader>
+                  <TableBody>
+                    {statuses.map((status) => (
+                      <TableRow key={status.code} className="h-9">
+                        <TableCell>
+                          <code className="text-[10px] text-muted-foreground">
+                            {status.code}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={status.name}
+                            ariaLabel={`${status.code} English status name`}
+                            onChange={(value) =>
+                              updateProjectStatusDefinition(
+                                status.code,
+                                'name',
+                                value,
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={status.nameZh}
+                            ariaLabel={`${status.code} Chinese status name`}
+                            onChange={(value) =>
+                              updateProjectStatusDefinition(
+                                status.code,
+                                'nameZh',
+                                value,
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateProjectStatusDefinition(
+                                status.code,
+                                'active',
+                                !status.active,
+                              )
+                            }
+                          >
+                            <StatusBadge
+                              tone={status.active ? 'green' : 'gray'}
+                            >
+                              {status.active ? 'Active' : 'Inactive'}
+                            </StatusBadge>
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <DeleteRowButton
+                            label={`${status.code} · ${status.name}`}
+                            onDelete={() =>
+                              deleteProjectStatusDefinition(status)
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                English and Chinese names are editable. The code stays stable
+                for CLI and Agent operations; inactive options are hidden from
+                new selections. /
+                中英文名称可编辑，系统编码保持稳定；停用状态不再供新选择。
+              </p>
+            </TabsContent>
+            <TabsContent value="resources" className="mt-0">
+              <div className="min-w-0">
+                <div className="flex items-center justify-between border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                  <span>
+                    Internal / 自有 · Subcontract / 分包 · LOCAL / ARP / HQ ·
+                    L0–L4 · SGD/MD
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[10px]"
+                      onClick={addResource}
+                    >
+                      <Plus />
+                      Add row / 新增
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-[10px]"
+                      onClick={async () =>
+                        announce(
+                          (await onSave())
+                            ? 'Global RE Types saved. Existing costs are unchanged. / 全局资源费率已保存，已有成本不变。'
+                            : 'Save failed; edits retained / 保存失败，修改已保留',
+                        )
+                      }
+                    >
+                      <Save />
+                      Save rates
+                    </Button>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[1480px] text-[11px]">
+                    <TableHeader>
+                      <TableRow className="bg-[#f2f0ea]">
+                        {[
+                          'Code / 编码',
+                          'Name / 名称',
+                          'Category / 种类',
+                          'Pool',
+                          'Level',
+                          'MD Rate / 人天汇率',
+                          'MD / MM',
+                          'Hour / MD',
+                          'MM Rate / 人月',
+                          'Hour Rate / 人时',
+                          'Effective From',
+                          'Effective To',
+                          'Status',
+                          'Action / 操作',
+                        ].map((label) => (
+                          <TableHead
+                            key={label}
+                            className="h-9 whitespace-nowrap px-2 text-[10px]"
+                          >
+                            {label}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {resources.map((row) => {
+                        const rate = getResourceRateConversions(row);
+                        return (
+                          <TableRow key={row.id} className="h-9">
+                            <ResourceIdentityCells
+                              row={row}
+                              onChange={(key, value) =>
+                                updateResource(row.id, key, value)
+                              }
+                            />
+                            <TableCell>
+                              <EditCell
+                                type="number"
+                                value={row.mandayRate}
+                                ariaLabel={`${row.code} manday rate`}
+                                onChange={(v) =>
+                                  updateResource(
+                                    row.id,
+                                    'mandayRate',
+                                    Math.max(0, Number(v) || 0),
+                                  )
+                                }
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <EditCell
+                                type="number"
+                                value={row.mandaysPerMonth}
+                                ariaLabel={`${row.code} MD per month`}
+                                onChange={(v) =>
+                                  updateResource(
+                                    row.id,
+                                    'mandaysPerMonth',
+                                    Math.max(0.01, Number(v) || 0.01),
+                                  )
+                                }
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <EditCell
+                                type="number"
+                                value={row.hoursPerManday}
+                                ariaLabel={`${row.code} hours per MD`}
+                                onChange={(v) =>
+                                  updateResource(
+                                    row.id,
+                                    'hoursPerManday',
+                                    Math.max(0.01, Number(v) || 0.01),
+                                  )
+                                }
+                              />
+                            </TableCell>
+                            <TableCell className="financial-numeral">
+                              {formatSgd(rate.perMonth)}
+                            </TableCell>
+                            <TableCell className="financial-numeral">
+                              {formatSgd(rate.perHour)}
+                            </TableCell>
+                            <TableCell>
+                              <EditCell
+                                type="date"
+                                value={row.effectiveFrom}
+                                ariaLabel={`${row.code} effective from`}
+                                onChange={(v) =>
+                                  updateResource(row.id, 'effectiveFrom', v)
+                                }
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <EditCell
+                                type="date"
+                                value={row.effectiveTo}
+                                ariaLabel={`${row.code} effective to`}
+                                onChange={(v) =>
+                                  updateResource(row.id, 'effectiveTo', v)
+                                }
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateResource(row.id, 'active', !row.active)
+                                }
+                              >
+                                <StatusBadge
+                                  tone={row.active ? 'green' : 'gray'}
+                                >
+                                  {row.active ? 'Active' : 'Inactive'}
+                                </StatusBadge>
+                              </button>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <DeleteRowButton
+                                label={`${row.code} · ${row.name}`}
+                                onDelete={() => deleteResource(row)}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                  MM rate = MD rate × MD/MM. Hour rate = MD rate ÷ Hour/MD. HQ
+                  rows automatically enable travel. Classification changes keep
+                  the code unchanged. / 人月、人时汇率自动换算；自有人员可选择
+                  Pool 和 Level，HQ 自动启用差旅；分包不使用人员 Pool 和
+                  Level。修改分类不会改写编码。
+                </p>
+              </div>
+            </TabsContent>
+            <TabsContent value="subcontract" className="mt-0">
+              <TableToolbar count={subcontract.length} onAdd={addSubcontract} />
+              <div className="overflow-x-auto">
+                <Table className="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow className="bg-[#f2f0ea]">
+                      {[
+                        'Code',
+                        'Item / 条目',
+                        'BU',
+                        'Supplier / 供应商',
+                        'Pricing Basis / 计价依据',
+                        'Currency',
+                        'Status',
+                        'Action / 操作',
+                      ].map((h) => (
+                        <TableHead key={h}>{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {subcontract.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>
+                          <EditCell
+                            value={row.code}
+                            ariaLabel="Subcontract code"
+                            onChange={(v) =>
+                              updateSubcontract(row.id, 'code', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.item}
+                            ariaLabel="Subcontract item"
+                            onChange={(v) =>
+                              updateSubcontract(row.id, 'item', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.bu}
+                            ariaLabel="Subcontract BU"
+                            onChange={(v) => updateSubcontract(row.id, 'bu', v)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.supplier}
+                            ariaLabel="Supplier"
+                            onChange={(v) =>
+                              updateSubcontract(row.id, 'supplier', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.pricingBasis}
+                            ariaLabel="Pricing basis"
+                            onChange={(v) =>
+                              updateSubcontract(row.id, 'pricingBasis', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>{row.currency}</TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateSubcontract(row.id, 'active', !row.active)
+                            }
+                          >
+                            <StatusBadge tone={row.active ? 'green' : 'gray'}>
+                              {row.active ? 'Active' : 'Inactive'}
+                            </StatusBadge>
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <DeleteRowButton
+                            label={`${row.code} · ${row.item}`}
+                            onDelete={() =>
+                              deleteUnreferencedRow(
+                                `${row.code} · ${row.item}`,
+                                () =>
+                                  setSubcontractItems((rows) =>
+                                    rows.filter((item) => item.id !== row.id),
+                                  ),
+                                `Subcontract item ${row.code} deleted. / 已删除分包条目 ${row.code}。`,
+                              )
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+            <TabsContent value="supplemental" className="mt-0">
+              <TableToolbar
+                count={supplemental.length}
+                onAdd={addSupplemental}
+              />
+              <div className="overflow-x-auto">
+                <Table className="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow className="bg-[#f2f0ea]">
+                      {[
+                        'Code',
+                        'Name / 名称',
+                        'Statement',
+                        'Default SGD',
+                        'Owner',
+                        'Source',
+                        'Status',
+                        'Action / 操作',
+                      ].map((h) => (
+                        <TableHead key={h}>{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {supplemental.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>
+                          <EditCell
+                            value={row.code}
+                            ariaLabel="Supplemental code"
+                            onChange={(v) =>
+                              updateSupplemental(row.id, 'code', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.name}
+                            ariaLabel="Supplemental name"
+                            onChange={(v) =>
+                              updateSupplemental(row.id, 'name', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.statementCode}
+                            ariaLabel="Statement code"
+                            onChange={(v) =>
+                              updateSupplemental(row.id, 'statementCode', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            type="number"
+                            value={row.defaultAmount}
+                            ariaLabel="Default amount"
+                            onChange={(v) =>
+                              updateSupplemental(
+                                row.id,
+                                'defaultAmount',
+                                roundMoney(Number(v) || 0),
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.owner}
+                            ariaLabel="Owner"
+                            onChange={(v) =>
+                              updateSupplemental(row.id, 'owner', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.sourceNote}
+                            ariaLabel="Source"
+                            onChange={(v) =>
+                              updateSupplemental(row.id, 'sourceNote', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateSupplemental(row.id, 'active', !row.active)
+                            }
+                          >
+                            <StatusBadge tone={row.active ? 'green' : 'gray'}>
+                              {row.active ? 'Active' : 'Inactive'}
+                            </StatusBadge>
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <DeleteRowButton
+                            label={`${row.code} · ${row.name}`}
+                            onDelete={() =>
+                              deleteUnreferencedRow(
+                                `${row.code} · ${row.name}`,
+                                () =>
+                                  setSupplementalCostItems((rows) =>
+                                    rows.filter((item) => item.id !== row.id),
+                                  ),
+                                `Supplemental cost ${row.code} deleted. / 已删除补充成本 ${row.code}。`,
+                              )
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+            <TabsContent value="maintenance" className="mt-0">
+              <div className="flex items-center justify-between border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                <span>{maintenance.length} records / 条记录</span>
+                <div className="flex gap-2">
+                  <input
+                    ref={maintenanceImportRef}
+                    type="file"
+                    accept=".json,.xlsx"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void importMaintenance(file);
+                      event.target.value = '';
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[10px]"
+                    onClick={() => maintenanceImportRef.current?.click()}
+                  >
+                    <Upload /> Import JSON/XLSX / 导入
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-[10px]"
+                    onClick={addMaintenance}
+                  >
+                    <Plus /> Add row / 新增
+                  </Button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[1400px]">
+                  <TableHeader>
+                    <TableRow className="bg-[#f2f0ea]">
+                      {[
+                        'Client',
+                        'Service',
+                        'Product / Model',
+                        'Service Level',
+                        'Site',
+                        'Months',
+                        'Qty',
+                        'Cost',
+                        'Quoted',
+                        'Unit / Year',
+                        'Quote Date',
+                        'Outcome',
+                        'Source',
+                        'Action / 操作',
+                      ].map((h) => (
+                        <TableHead key={h}>{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {maintenance.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>
+                          <EditCell
+                            value={row.client}
+                            ariaLabel="Client"
+                            onChange={(v) =>
+                              updateMaintenance(row.id, 'client', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.service}
+                            ariaLabel="Service"
+                            onChange={(v) =>
+                              updateMaintenance(row.id, 'service', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.productModel}
+                            ariaLabel="Product model"
+                            onChange={(v) =>
+                              updateMaintenance(row.id, 'productModel', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.serviceLevel}
+                            ariaLabel="Service level"
+                            onChange={(v) =>
+                              updateMaintenance(row.id, 'serviceLevel', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.site}
+                            ariaLabel="Site"
+                            onChange={(v) =>
+                              updateMaintenance(row.id, 'site', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            type="number"
+                            value={row.coverageMonths}
+                            ariaLabel="Coverage months"
+                            onChange={(v) =>
+                              updateMaintenance(
+                                row.id,
+                                'coverageMonths',
+                                Math.max(0, Number(v) || 0),
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            type="number"
+                            value={row.quantity}
+                            ariaLabel="Quantity"
+                            onChange={(v) =>
+                              updateMaintenance(
+                                row.id,
+                                'quantity',
+                                Math.max(0, Number(v) || 0),
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            type="number"
+                            value={row.costAmount}
+                            ariaLabel="Cost amount"
+                            onChange={(v) =>
+                              updateMaintenance(
+                                row.id,
+                                'costAmount',
+                                roundMoney(Number(v) || 0),
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            type="number"
+                            value={row.quotedAmount}
+                            ariaLabel="Quoted amount"
+                            onChange={(v) =>
+                              updateMaintenance(
+                                row.id,
+                                'quotedAmount',
+                                roundMoney(Number(v) || 0),
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell className="financial-numeral">
+                          {unitAnnualMaintenanceQuote(row) === null
+                            ? '不可比较'
+                            : formatSgd(unitAnnualMaintenanceQuote(row)!)}
+                        </TableCell>
+                        <TableCell>
+                          <EditCell
+                            type="date"
+                            value={row.quoteDate}
+                            ariaLabel="Quote date"
+                            onChange={(v) =>
+                              updateMaintenance(row.id, 'quoteDate', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>{row.outcome}</TableCell>
+                        <TableCell>
+                          <EditCell
+                            value={row.source}
+                            ariaLabel="Source"
+                            onChange={(v) =>
+                              updateMaintenance(row.id, 'source', v)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <DeleteRowButton
+                            label={`${row.client} · ${row.service}`}
+                            onDelete={() =>
+                              deleteUnreferencedRow(
+                                `${row.client} · ${row.service}`,
+                                () =>
+                                  setMaintenancePriceRecords((rows) =>
+                                    rows.filter((item) => item.id !== row.id),
+                                  ),
+                                `Maintenance history deleted. / 已删除维保历史记录。`,
+                              )
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+            <TabsContent value="assumptions" className="mt-0">
+              <AssumptionLibraryView
+                library={assumptionLibrary}
+                setLibrary={setAssumptionLibrary}
+                templates={quoteTemplates}
+                query={query}
+                announce={announce}
+              />
+            </TabsContent>
+            <TabsContent value="quote-templates" className="mt-0">
+              <QuoteTemplatesView
+                templates={quoteTemplates}
+                setTemplates={setQuoteTemplates}
+                library={assumptionLibrary}
+                query={query}
+                announce={announce}
+              />
+            </TabsContent>
+          </fieldset>
         </Tabs>
       </section>
     </div>

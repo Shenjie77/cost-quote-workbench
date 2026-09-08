@@ -43,7 +43,7 @@ test('legacy cost correction archives the exact original and runs only once', ()
     const db = new DatabaseSync(dbPath);
     db.prepare('UPDATE workspace_snapshots SET payload_json = ?').run(original);
     // Simulate a database from before the one-time current schema migration.
-    db.prepare('DELETE FROM schema_migrations WHERE version = 5').run();
+    db.prepare('DELETE FROM schema_migrations WHERE version = 6').run();
     db.close();
     repository = openWorkspaceRepository(dbPath);
     const migrated = repository.get(old.project.id);

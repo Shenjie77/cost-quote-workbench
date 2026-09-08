@@ -5,7 +5,7 @@ description: 更新指定 SSR 成本版本的 TD/PM 人天、分包、年度假�
 
 # SSR · 成本更新
 
-在包含 `cli/cost-cli.mjs` 的仓库根目录运行 `npm run --silent cost-cli -- ...`；下文 `cost-cli` 是此前缀的简称。项目号已知时直接读取目标资源；未知才用 `project list`。主数据也是项目级，不能默认更新全部项目。
+在包含 `cli/cost-cli.mjs` 的仓库根目录运行 `npm run --silent cost-cli -- ...`；下文 `cost-cli` 是此前缀的简称。项目号已知时直接读取目标资源；未知才用 `project list`。项目成本和业务配置使用已捕获的数据快照；维护全局主数据不读取或更新项目。
 
 集合读取按需用 `--id`、`--query`、`--limit`、`--offset`，跟随 `nextOffset`，分页期间 revision 变化须重读。只返回需要的字段和条目，不用 `workspace get/save` 做常规操作。字段不明时查本文指定的本地 schema 定义；接口不符时再查 `system capabilities`。
 
@@ -30,6 +30,10 @@ cost-cli cost update --project-id ID --version V1 --section rows --input change.
 
 `--section settings` 使用 set，字段：`rateSettings/travelSettings/travelUplift/manualCosts/state`。先设置 TD 开始日期；Y1 从该年份起算。打开 `rateSettings.localArpAllowanceEnabled:true` 后，LOCAL/ARP 每年 Cost 已含 3%，Summary/历史/报价/Excel 直接汇总；不要增加 allowance 行或修改主数据费率、人天。关闭则从原始投入与费率重算。HQ、分包、差旅不加该 3%。
 
-`--section travel` 是额外差旅明细；HQ 差旅由 travelSettings 与 HQ 人天计算。避免同一分包/费用重复入账。更新主数据 RE 费率不会重算成本；用户明确要求且指定目标版本未锁定时，才用 `cost apply-rates --project-id ID --version V1 --expected-revision R`；它只更新该版本捕获的费率和计算金额，旧锁版保持不变。
+`--section travel` 是额外差旅明细；HQ 差旅由 travelSettings 与 HQ 人天计算。避免同一分包/费用重复入账。更新主数据 RE 费率不会重算成本；用户明确要求且指定目标版本未锁定时，才用 `cost apply-rates --project-id ID --version V1 --expected-revision R`；它显式从最新全局 resources 捕获费率，只更新该版本的费率快照和计算金额，旧锁版保持不变。
 
 Excel 输入时读取 [TD/PM 导入](references/import.md)。只改数值时不加载导入说明。完成后窄读目标条目/summary，并 `cost validate --project-id ID --version V1`；按任务需要 calculate 或输出文件。
+
+Cost Statement 2.3.1 继续自动汇总自有人力、非自有人力和 HQ 差旅。2.3.4.2 新空白成本默认按该合计的 1% 计算（分包不计入基数），对应 `manualCosts.otherServiceRate:0.01`。仅设置 `{"set":{"manualCosts":{"otherService":123.45}}}` 会切换为手动金额；设置 `{"set":{"manualCosts":{"otherServiceRate":0.01}}}` 恢复自动。比例是 0–1 小数；不能把 1 写成 1%。旧版本未保存比例字段时沿用原手工金额，克隆保持原模式，不主动改历史金额。
+
+用户要求删除暂停的垃圾版本时，先窄读 `cost get --project-id ID --section versions`，确认指定版本为 Suspended、未锁定且项目至少还有一个其他版本，再运行 `cost delete --project-id ID --version Vn --expected-revision R`。不要通过 workspace.save 删除条目或清理评审证据。操作从工作列表移除版本、保留不可变历史快照，版本号不复用。可用 `cost get --project-id ID --section deleted-versions` 查看已删除目录，或 `--section archive --version Vn` 只读追溯完整快照。

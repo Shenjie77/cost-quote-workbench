@@ -6,12 +6,13 @@ import {
   isMasterDataTab,
 } from '../features/master-data/navigation.ts';
 
-test('one maintenance surface retains all eight independent data tabs', () => {
+test('one maintenance surface retains all nine independent global data tabs', () => {
   const keys = masterDataTabs.map((tab) => tab.value);
-  assert.equal(keys.length, 8);
+  assert.equal(keys.length, 9);
   assert.equal(new Set(keys).size, keys.length);
   assert.deepEqual([...keys].sort(), [
     'assumptions',
+    'cpq-catalog',
     'maintenance',
     'quote-templates',
     'resources',

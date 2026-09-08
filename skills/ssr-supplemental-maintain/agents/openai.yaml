@@ -1,4 +1,4 @@
 interface:
   display_name: "SSR · 补充成本主数据维护"
-  short_description: "SSR · 补充成本主数据维护：独立处理指定项目的业务记录，通过细分 CLI 读写并核对结果。"
-  default_prompt: "使用 $ssr-supplemental-maintain 更新指定项目的补充成本参考条目及默认金额。"
+  short_description: "维护全局物流、车辆和补充服务参考成本，供未来项目编制使用。"
+  default_prompt: "使用 $ssr-supplemental-maintain 更新全局补充成本目录中的物流、车辆及其他服务参考条目。"

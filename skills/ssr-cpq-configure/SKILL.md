@@ -5,15 +5,19 @@ description: 根据简短 TD Scope 推荐已有 CPQ 条目，经用户选定后�
 
 # SSR · CPQ 配置匹配
 
-在包含 `cli/cost-cli.mjs` 的仓库根目录运行 `npm run --silent cost-cli -- ...`；下文 `cost-cli` 是此前缀的简称。项目号已知时直接读取目标资源；未知才用 `project list`。主数据也是项目级，不能默认更新全部项目。
+在包含 `cli/cost-cli.mjs` 的仓库根目录运行 `npm run --silent cost-cli -- ...`；下文 `cost-cli` 是此前缀的简称。项目号已知时直接读取目标资源；未知才用 `project list`。项目成本和业务配置使用已捕获的数据快照；维护全局主数据不读取或更新项目。
 
 集合读取按需用 `--id`、`--query`、`--limit`、`--offset`，跟随 `nextOffset`，分页期间 revision 变化须重读。只返回需要的字段和条目，不用 `workspace get/save` 做常规操作。字段不明时查本文指定的本地 schema 定义；接口不符时再查 `system capabilities`。
 
 写入使用最新返回的 `--expected-revision R`，冲突后重读目标资源再重施原意。局部修改仅发送变更字段；新增记录必须字段完整；不把缺失记录视为删除。核对返回 revision 和变更条目，不把预览或校验当成已保存。
 
-先读 `cpq get --project-id ID`，按需 `cost get --project-id ID --version Vn --section summary`。保留原始短 Scope，不要求 TD 编造详细分解。用 `cpq match --project-id ID --scope "简短描述"` 与按 query 的 catalog 读取，依真实目录解释候选，词面分数不等于匹配置信度。
+先读 `cpq get --project-id ID`，按需 `cost get --project-id ID --version Vn --section summary`。保留原始短 Scope，不要求 TD 编造详细分解。用 `cpq match --project-id ID --scope "简短描述"` 与按 query 的 `cpq get --project-id ID --section catalog` 读取，依本项目捕获目录解释候选，词面分数不等于匹配置信度。
+
+全局目录维护另用 CPQ 数据维护 skill，不会改变本项目可用目录。用户明确要求本项目采用最新目录时，先按需读 `masterdata get --tab cpq-catalog`，再 `project apply-masterdata --project-id ID --tab cpq-catalog --expected-revision R`。这是项目快照写入，使用项目 revision；应用后需重新核对已选条目、确认及求解结果。旧归档不变；旧 `cpq update --section catalog` 不可写。
 
 先列候选编码、Scope、匹配理由和待确认条件。用户已有选择授权时继续；否则等待用户选择再保存/确认，不替用户作 confirmer。缺真实设备数量不能倒推金额凑数。
+
+`project apply-masterdata` 仅允许当前 activeVersion 为未锁定 Draft 的项目；指定成本版本费率则用 `cost apply-rates --version`。若当前版本已定稿，先按用户的新一轮估算意图建立新 Draft，保持原版与历史归档不变。
 
 写入文件使用以下信封，`CHANGES` 替换为本业务的变更对象，`requestId` 每次操作取唯一值：
 ```json

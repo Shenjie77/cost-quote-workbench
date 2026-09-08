@@ -1,4 +1,4 @@
 interface:
   display_name: "SSR · CPQ 数据维护"
-  short_description: "SSR · CPQ 数据维护：独立处理指定项目的业务记录，通过细分 CLI 读写并核对结果。"
-  default_prompt: "使用 $ssr-cpq-catalog 根据公司目录更新指定项目的 CPQ 编码、Scope、单价和数量规则。"
+  short_description: "维护全局公司 CPQ 编码、Scope、单价和数量规则，不改已有配置。"
+  default_prompt: "使用 $ssr-cpq-catalog 根据公司目录更新全局 CPQ 编码、Scope、单价和数量规则。"

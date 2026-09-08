@@ -45,7 +45,12 @@ absolute file path and SHA-256 so an Agent can detect a changed contract.
 For normal edits, use the [narrow resource contract](../skills/cost-workbench/references/resources.md)
 (`project`, `cost`, `masterdata`, `cpq`, `quote`, `ssr`, `boq` get/update).
 Reads are filtered/paginated; updates merge named rows or fields with revision
-checks. Project delete/restore is recoverable. Explicit user cost confirmation
+checks. Global `masterdata get/update --tab TAB` needs no project ID and returns
+a separate revision per tab. Use the global result kinds `GlobalMasterDataResult`
+and `GlobalMasterDataMutationResult`; never supply a project revision for them.
+Nine global tabs include CPQ catalog. Actual project workflow/status/reviews use
+`project get/update --section workflow|status|reviews`, not global masterdata.
+See [the global data contract](global-master-data.md). Project delete/restore is recoverable. Explicit user cost confirmation
 locks only that version. DRB entry, submission and completion require that cost
 version to be Confirmed first; Confirmed is not DRB approval. Cost edits and imports check the named
 `--version`, defaulting to activeVersion when omitted; `cost apply-rates` requires
@@ -54,9 +59,12 @@ an explicit version. Version listings include each version's `costLockReason`.
 workflow structure/progress; project and mutation receipts expose workflowVersion.
 Locked versions remain readable, and
 new blank or cloned Drafts may be created and edited independently.
-`masterdata update --tab resources` remains available to refresh the catalogue;
-captured rates and cost amounts stay unchanged until explicitly applied to an
-unlocked target. Existing mutators support `--compact`;
+`masterdata update --tab resources` refreshes only the global catalogue; every
+existing project/version, including Draft, keeps its captured data. New projects
+and blank versions capture current global defaults/rates; clones retain source
+rates. Only explicit `cost apply-rates --version` replaces an unlocked target
+version's rates. Supported project reference tabs use `project apply-masterdata`
+with the project revision; historical archives remain unchanged. Existing mutators support `--compact`;
 legacy workspace get/save remains for backups and deliberate bulk work.
 
 Cost validate/calculate/export additionally accept `--project-id ID [--version V1] [--db FILE]`
@@ -246,8 +254,9 @@ The workspace also carries the fields used by Project List and project tabs:
   round, retaining old version costs, progress and submissions. Do not manually
   append snapshots or write workflow metadata through workspace saves.
 - Each version stores its own `resourceTypes` rate/conversion snapshot. Updating
-  the project-level catalogue does not reprice old versions. To apply new rates,
-  copy the catalogue into the selected version's `resourceTypes` explicitly.
+  the global catalogue does not reprice any existing version, including Draft.
+  To apply new rates, use `cost apply-rates --project-id ID --version Vn` with the
+  project revision for the unlocked target; do not rewrite resourceTypes manually.
   Use the selected version's snapshot when building a `CostSnapshotRequest`.
 - Top-level cost editors are authoritative for the active version on
   `workspace save`; the repository recalculates internal annual costs and mirrors
@@ -303,7 +312,9 @@ incorrect `bucket` value.
 
 ### Resource Type and rate
 
-Resource Type (`resourceTypes`) is the single personnel and rate master:
+Global `masterdata --tab resources` is the personnel/rate source; each cost
+version's `resourceTypes` is its detached snapshot. `mandayRate` is SGD/MD, not
+a currency exchange rate; no independent FX engine is implemented. The fields are:
 
 - supported canonical internal codes are `HQ-L1..L4`, `LOCAL-L1..L4`, and
   `ARP-L0..L4`; unused canonical rows may be removed and later restored;
@@ -316,16 +327,18 @@ Resource Type (`resourceTypes`) is the single personnel and rate master:
 - subcontract uses `pool: null`, `level: null`, `mandayRate: 0`, and does not
   trigger HQ travel.
 
-The Master Data arrays `processSteps`, `projectStatusDefinitions`,
-`resourceTypes`, `subcontractItems`, `supplementalCostItems`, and
-`maintenancePriceRecords`, plus `quoteTemplates`, support create and delete
-through an atomic `workspace save`. Codes/IDs must be unique within their
-array. Deleting the
-current status requires assigning another status in the same atomic save, and
-at least one status must remain. Never delete a `resourceTypes` row while any
-current or historical cost version references its `id`, and keep at least one
-RE Type because the workspace and cost-export schemas require a non-empty rate
-master. The web UI enforces these protections before deletion.
+Global catalogs support create/update/delete through `masterdata update --tab TAB`
+with that tab's independent revision. IDs/codes are stable unique keys; only
+explicit removal deletes a record. Ordinary existing entries may use partial
+upserts; new entries and unresolved migration conflicts require full records.
+Keep global quote-template default assumption references valid.
+
+Project catalog arrays remain captured reference data. Read them through narrow
+project/quote/BOQ/CPQ sections; adopt newer global reference data only with an
+explicit `project apply-masterdata` for a supported tab. An existing cost version
+retains its own resource IDs/rates even if the global source changes. Project
+workflow/status/review edits remain project-owned and revision checked; all
+cost-confirmation and version-review guards still apply.
 
 ## 7. Calculation and money rules
 

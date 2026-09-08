@@ -12,6 +12,7 @@ import {
 } from './contracts.ts';
 import {
   getCostStatementValues,
+  getOtherServiceCost,
   getHQTravelSummary,
   getY1Year,
   calculatedYearCost,
@@ -306,15 +307,6 @@ export const validateCostExportSnapshot = (
       );
     }
     if (resource.category === 'internal') {
-      const expectedCode = `${resource.pool}-${resource.level}`;
-      if (normalizedCode !== expectedCode) {
-        add(
-          'error',
-          'RESOURCE_TYPE_CODE_MISMATCH',
-          `${path}/code`,
-          `Internal RE Type code must be ${expectedCode}.`,
-        );
-      }
       if (resource.hqTravel !== (resource.pool === 'HQ')) {
         add(
           'error',
@@ -582,6 +574,10 @@ export const validateCostExportSnapshot = (
     }
   });
   Object.entries(snapshot.manualCosts).forEach(([field, value]) => {
+    if (field === 'otherServiceRate') {
+      if (typeof value !== 'number' || !finiteInRange(value, 0, 1)) add('error', 'INVALID_OTHER_SERVICE_RATE', '/manualCosts/otherServiceRate', 'Other service rate must be a finite fraction between 0 and 1.');
+      return;
+    }
     if (!finiteInRange(value, 0, COST_LIMITS.money)) {
       add(
         'error',
@@ -648,7 +644,7 @@ export const validateCostExportSnapshot = (
     snapshot.manualCosts.nonInHouseLabour +
     snapshot.manualCosts.settlement +
     snapshot.manualCosts.carFee +
-    snapshot.manualCosts.otherService;
+    getOtherServiceCost(statement.labour, snapshot.manualCosts);
   if (manualSalesCost + travel.totalCost > 0) {
     add(
       'warning',

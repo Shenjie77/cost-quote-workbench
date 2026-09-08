@@ -43,6 +43,7 @@ import {
   getCostVersionLocks,
   type CostLock,
 } from '../cost/cost-lock';
+import { costVersionDeletionReason, deleteSuspendedCostVersion, nextCostVersionCode } from '../cost/version-deletion';
 import { ProjectBootstrap } from './project-bootstrap';
 import { runVersionTransition } from '../cost/version-transition';
 import {
@@ -118,7 +119,17 @@ import {
   type SupplementalCostItem,
 } from '@/features/master-data/domain';
 import type { SubcontractItem } from '@/features/master-data/types';
-import { MasterDataView } from '@/features/master-data/master-data-view';
+import { GlobalMasterDataPage } from '@/features/master-data/global-master-data-page';
+import {
+  useGlobalMasterData,
+  type GlobalMasterDataStore,
+} from '@/features/master-data/use-global-master-data';
+import {
+  createProjectFromGlobalMasterData,
+  getGlobalMasterData,
+  applyGlobalProjectCatalog,
+} from '@/features/master-data/global-client';
+import { captureResourceRates } from '@/features/master-data/capture';
 import type {
   MasterDataTab,
   QuoteMasterDataTab,
@@ -176,12 +187,38 @@ type PendingCostConfirmation = {
 };
 
 export function WorkbenchApp() {
+  const globalMasterData = useGlobalMasterData();
+  const [masterDataOnly, setMasterDataOnly] = useState(false);
+  const [masterDataTab, setMasterDataTab] =
+    useState<MasterDataTab>('resources');
+  const [globalNotice, setGlobalNotice] = useState('');
+  if (masterDataOnly)
+    return (
+      <main className="min-h-screen space-y-4 bg-background p-6">
+        <Button variant="outline" onClick={() => setMasterDataOnly(false)}>
+          Project List / 项目列表
+        </Button>
+        {globalNotice && (
+          <output className="block text-sm">{globalNotice}</output>
+        )}
+        <GlobalMasterDataPage
+          store={globalMasterData}
+          activeTab={masterDataTab}
+          onTabChange={setMasterDataTab}
+          announce={setGlobalNotice}
+        />
+      </main>
+    );
   return (
     <ProjectBootstrap
+      onOpenMasterData={() => setMasterDataOnly(true)}
       renderSession={(initialProjects, onEmpty) => (
         <ProjectSessionApp
           initialProjects={initialProjects}
           onEmpty={onEmpty}
+          globalMasterData={globalMasterData}
+          masterDataTab={masterDataTab}
+          setMasterDataTab={setMasterDataTab}
         />
       )}
     />
@@ -191,20 +228,26 @@ export function WorkbenchApp() {
 function ProjectSessionApp({
   initialProjects,
   onEmpty,
+  globalMasterData,
+  masterDataTab,
+  setMasterDataTab,
 }: {
   initialProjects: Project[];
   onEmpty: () => void;
+  globalMasterData: GlobalMasterDataStore;
+  masterDataTab: MasterDataTab;
+  setMasterDataTab: (tab: MasterDataTab) => void;
 }) {
-  // Maintenance selection belongs to the UI session, not the project document.
-  const [masterDataTab, setMasterDataTab] =
-    useState<MasterDataTab>('resources');
   const [projectList, setProjectList] = useState<Project[]>(initialProjects);
+  const [masterDataRevisions, setMasterDataRevisions] =
+    useState<WorkbenchWorkspace['masterDataRevisions']>();
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [editTarget, setEditTarget] = useState<Project | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [costVersionLocks, setCostVersionLocks] = useState<
     Record<string, CostLock>
   >({});
+  const [deletedCostVersions, setDeletedCostVersions] = useState<WorkbenchWorkspace['deletedCostVersions']>();
   const switchingRef = useRef(false);
   const [workflowVersion, setWorkflowVersion] = useState('V3');
   const [versionWorkflows, setVersionWorkflows] = useState<
@@ -349,6 +392,7 @@ function ProjectSessionApp({
     setWorkflowVersion(workspace.workflowVersion || workspace.activeVersion);
     setVersionWorkflows(workspace.versionWorkflows || {});
     setLegacyWorkflowArchive(workspace.legacyWorkflowArchive || {});
+    setDeletedCostVersions(workspace.deletedCostVersions);
     setCostVersionLocks(getCostVersionLocks(workspace));
     // Detail data is authoritative even if the parallel portfolio request is
     // delayed or unavailable (e.g. a project renamed through the CLI).
@@ -434,6 +478,7 @@ function ProjectSessionApp({
       workspace.quoteAssumptions || structuredClone(initialQuoteAssumptions),
     );
     setQuoteHistory(workspace.quoteHistory || []);
+    setMasterDataRevisions(workspace.masterDataRevisions);
     setCpq(workspace.cpq || emptyCpq());
     setSsr(workspace.ssr || emptySsr());
     setMaintenanceBoq(workspace.maintenanceBoq || emptyMaintenance());
@@ -473,6 +518,8 @@ function ProjectSessionApp({
   const workspace = useMemo<WorkbenchWorkspace>(
     () => ({
       schemaVersion: WORKSPACE_SCHEMA_VERSION,
+      ...(masterDataRevisions ? { masterDataRevisions } : {}),
+      ...(deletedCostVersions ? { deletedCostVersions } : {}),
       costVersionLocks,
       workflowVersion,
       versionWorkflows,
@@ -516,6 +563,8 @@ function ProjectSessionApp({
       },
     }),
     [
+      masterDataRevisions,
+      deletedCostVersions,
       costVersionLocks,
       workflowVersion,
       versionWorkflows,
@@ -589,6 +638,8 @@ function ProjectSessionApp({
         ...current,
         ...saved.legacyWorkflowArchive,
       }));
+      setDeletedCostVersions((current) => saved.deletedCostVersions
+        ? { ...current, ...saved.deletedCostVersions } : current);
       setWorkflowVersion((current) =>
         current === (submitted.workflowVersion || submitted.activeVersion)
           ? saved.workflowVersion || current
@@ -629,7 +680,9 @@ function ProjectSessionApp({
   /** Explicit lifecycle changes pause edits and adopt the server's canonical document. */
   const persistCanonicalChange = async (
     projectId: string,
-    transform: (document: WorkbenchWorkspace) => WorkbenchWorkspace,
+    transform: (
+      document: WorkbenchWorkspace,
+    ) => WorkbenchWorkspace | Promise<WorkbenchWorkspace>,
     successMessage: string,
   ) => {
     if (!isReady || switchingRef.current) return false;
@@ -644,7 +697,7 @@ function ProjectSessionApp({
         if (!record) throw new Error('项目已不存在，请刷新列表。');
         const next = reconcileVersionWorkflows(
           record.workspace,
-          transform(record.workspace),
+          await transform(record.workspace),
         );
         const saved = await saveLocalWorkspaceDocument(next, record.revision);
         if (active) {
@@ -681,6 +734,45 @@ function ProjectSessionApp({
         setNotice(message);
         setConfirmationError(message);
       },
+    });
+  };
+
+  const applyCpqCatalogFromGlobal = async () => {
+    if (!isReady || switchingRef.current) return;
+    const projectId = activeProjectId;
+    const versionCode = activeVersion;
+    if (
+      !window.confirm(
+        `${activeProject.name} · ${versionCode}：采用当前全局 CPQ 目录？未归档的匹配确认和计算结果将清除，原归档保持不变。`,
+      )
+    )
+      return;
+    await runVersionTransition({
+      busy: versionTransitionRef,
+      setBusy: setVersionTransitioning,
+      flushAndPause: pauseSaving,
+      resume: resumeSaving,
+      commit: async () => {
+        const record = await getLocalWorkspace(projectId);
+        if (!record || record.workspace.activeVersion !== versionCode)
+          throw new Error('当前成本版本已变化，请重新发起应用目录。');
+        const saved = await applyGlobalProjectCatalog(
+          projectId,
+          'cpq-catalog',
+          record.revision,
+        );
+        adoptSavedRecord(saved);
+        hydrateWorkspace(saved.workspace);
+        setNotice(
+          '已明确采用全局 CPQ 目录，请重新确认条目并计算；历史归档保持不变。',
+        );
+      },
+      onFailure: (error) =>
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : '应用目录失败，项目数据保持不变。',
+        ),
     });
   };
 
@@ -765,32 +857,6 @@ function ProjectSessionApp({
         );
       },
     });
-
-  const setWorkflowStepsWithConfirmation: React.Dispatch<
-    React.SetStateAction<WorkflowStep[]>
-  > = (change) => {
-    const next = typeof change === 'function' ? change(processSteps) : change;
-    const startingDrb = next.some(
-      (step) =>
-        isDrbStep(step) &&
-        step.state !== 'not_started' &&
-        processSteps.find((old) => old.code === step.code)?.state !==
-          step.state,
-    );
-    const version = synchronizedVersions.find(
-      (v) => v.code === workflowVersion,
-    );
-    if (startingDrb && version?.state !== 'Confirmed') {
-      void requestCostConfirmation(
-        workspace,
-        workflowVersion,
-        '继续更新本版 DRB 流程',
-        (confirmed) => ({ ...confirmed, processSteps: next }),
-      );
-      return;
-    }
-    setProcessSteps(next);
-  };
 
   /** Downloads a restore-ready v2 request without sending local data away. */
   const downloadWorkspaceBackup = () => {
@@ -1039,12 +1105,7 @@ function ProjectSessionApp({
         const source = fresh.costVersions.find(
           (v) => v.code === fresh.activeVersion,
         )!;
-        const nextNumber =
-          Math.max(
-            0,
-            ...fresh.costVersions.map((v) => Number(v.code.replace(/^V/, ''))),
-          ) + 1;
-        const nextCode = `V${nextNumber}`;
+        const nextCode = nextCostVersionCode(fresh);
         const nextVersion = createCostVersion(
           nextCode,
           'Draft',
@@ -1324,8 +1385,8 @@ function ProjectSessionApp({
     try {
       if (!(await saveNow()))
         throw new Error('Save current project before creating another.');
-      const blank = createBlankWorkspace(project, 'input_preparation');
-      await saveLocalWorkspaceDocument(blank, null);
+      const created = await createProjectFromGlobalMasterData(project);
+      const blank = created.workspace;
       const outgoing = portfolioProjects.find(
         (item) => item.id === activeProjectId,
       );
@@ -1452,7 +1513,7 @@ function ProjectSessionApp({
     setNotice('');
   };
 
-  /** Quote links land directly in the single maintenance surface, same project. */
+  /** Quote links open the independent global maintenance surface. */
   const openQuoteMasterData = (tab: QuoteMasterDataTab) => {
     setMasterDataTab(tab);
     navigate('master-data');
@@ -1532,6 +1593,14 @@ function ProjectSessionApp({
       <CostView
         lockedReason={lockedReason}
         versionLockReasons={versionLockReasons}
+        versionDeletionReasons={Object.fromEntries(synchronizedVersions.map((version) => [version.code, costVersionDeletionReason(workspace, version.code) || '']))}
+        onDeleteVersion={(code) => {
+          if (!isReady || versionTransitionRef.current) return;
+          const reason = costVersionDeletionReason(workspace, code);
+          if (reason) { setNotice(reason); return; }
+          if (!window.confirm(`删除成本 ${code}（Suspended）？它将从版本列表移除，历史快照和评审记录仍会保留。`)) return;
+          void persistCanonicalChange(activeProjectId, (fresh) => deleteSuspendedCostVersion(fresh, code), `成本 ${code} 已删除，历史记录已保留。`);
+        }}
         key={`${activeProject.id}:${activeVersion}`}
         activeVersion={activeVersion}
         versions={synchronizedVersions}
@@ -1545,14 +1614,32 @@ function ProjectSessionApp({
         setRateSettings={guardCostEdit(setRateSettings)}
         resourceTypes={versionResourceTypes}
         onApplyMasterRates={() => {
-          if (versionTransitionRef.current) return;
-          if (lockedReason) {
-            setNotice(lockedReason);
-            return;
-          }
-          setVersionResourceTypes(structuredClone(resourceTypes));
-          setNotice(
-            'Master rates applied to this version; costs recalculated. / 本版本已应用当前汇率并重算。',
+          const projectId = activeProjectId;
+          const versionCode = activeVersion;
+          void persistCanonicalChange(
+            projectId,
+            async (fresh) => {
+              const reason = costLockReason(fresh, versionCode);
+              if (reason) throw new Error(reason);
+              const version = fresh.costVersions.find(
+                (item) => item.code === versionCode,
+              );
+              if (!version || version.state !== 'Draft')
+                throw new Error('只能为指定 Draft 成本版本明确应用全局费率。');
+              const globalRates =
+                await getGlobalMasterData<ResourceType>('resources');
+              const updated = captureResourceRates(version, globalRates);
+              return {
+                ...fresh,
+                costVersions: fresh.costVersions.map((item) =>
+                  item.code === versionCode ? updated : item,
+                ),
+                ...(fresh.activeVersion === versionCode
+                  ? { costRows: updated.costRows }
+                  : {}),
+              };
+            },
+            `${versionCode} 已明确应用全局资源费率并重算；其他成本版本保持不变。`,
           );
         }}
         travelSettings={travelSettings}
@@ -1609,6 +1696,18 @@ function ProjectSessionApp({
       <CpqView
         key={activeProject.id}
         value={cpq}
+        catalogRevision={masterDataRevisions?.['cpq-catalog']}
+        onApplyCatalog={applyCpqCatalogFromGlobal}
+        catalogApplyDisabled={
+          !!lockedReason ||
+          synchronizedVersions.find((item) => item.code === activeVersion)
+            ?.state !== 'Draft' ||
+          isVersionTransitioning
+        }
+        onOpenCatalog={() => {
+          setMasterDataTab('cpq-catalog');
+          navigate('master-data');
+        }}
         onChange={setCpq}
         baseline={synchronizedVersions.find(
           (version) => version.code === activeVersion,
@@ -1620,39 +1719,10 @@ function ProjectSessionApp({
     );
   else if (activeView === 'master-data')
     content = (
-      <MasterDataView
-        key={activeProject.id}
+      <GlobalMasterDataPage
+        store={globalMasterData}
         activeTab={masterDataTab}
         onTabChange={setMasterDataTab}
-        onOpenQuote={() => navigate('quote')}
-        reviewGates={reviewGates}
-        onSave={saveNow}
-        project={activeProject}
-        costRows={synchronizedVersions.flatMap((version) => version.costRows)}
-        currentWorkflowStepCode={currentWorkflowStepCode}
-        setCurrentWorkflowStepCode={setCurrentWorkflowStepCode}
-        setSelectedStep={setSelectedStep}
-        processSteps={processSteps}
-        setProcessSteps={setWorkflowStepsWithConfirmation}
-        projectStatus={projectStatus}
-        setProjectStatus={setProjectStatus}
-        projectStatusDefinitions={projectStatusDefinitions}
-        setProjectStatusDefinitions={setProjectStatusDefinitions}
-        resourceTypes={resourceTypes}
-        setResourceTypes={setResourceTypes}
-        costLockReason={lockedReason}
-        subcontractItems={subcontractItems}
-        setSubcontractItems={setSubcontractItems}
-        supplementalCostItems={supplementalCostItems}
-        setSupplementalCostItems={setSupplementalCostItems}
-        maintenancePriceRecords={maintenancePriceRecords}
-        setMaintenancePriceRecords={setMaintenancePriceRecords}
-        assumptionLibrary={assumptionLibrary}
-        quoteTemplates={quoteTemplates}
-        setAssumptionLibrary={setAssumptionLibrary}
-        setQuoteTemplates={setQuoteTemplates}
-        selectedQuoteTemplateId={selectedQuoteTemplateId}
-        setSelectedQuoteTemplateId={setSelectedQuoteTemplateId}
         announce={setNotice}
       />
     );
@@ -1844,7 +1914,7 @@ function ProjectSessionApp({
                       : 'text-[#8197a3]')
                   }
                 >
-                  基础数据 · Rates, assumptions & templates
+                  全局主数据 · Rates, CPQ & templates
                 </span>
               </span>
               <span className="text-[8px]">Live</span>
@@ -2001,93 +2071,104 @@ function ProjectSessionApp({
           ) : null}
         </header>
         <div className="relative z-0 isolate mx-auto w-full max-w-[1780px] px-4 py-5 sm:px-6 xl:px-8 xl:py-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-              <Badge
-                variant="outline"
-                className={
-                  'h-5 ' +
-                  (persistenceStatus.phase === 'saved'
-                    ? 'border-[#9fb9aa] bg-[#edf5ef] text-[#377054]'
-                    : persistenceStatus.phase === 'offline' ||
-                        persistenceStatus.phase === 'error' ||
-                        persistenceStatus.phase === 'conflict'
-                      ? 'border-[#d0b787] bg-[#f8f0e2] text-[#8d5b12]'
-                      : 'border-[#9eb9ba] bg-[#edf4f3] text-[#2e6f77]')
-                }
-              >
-                {persistenceStatus.phase === 'saved' ? (
-                  <Check className="mr-1 size-3" />
-                ) : persistenceStatus.phase === 'offline' ||
-                  persistenceStatus.phase === 'error' ||
-                  persistenceStatus.phase === 'conflict' ? (
-                  <WifiOff className="mr-1 size-3" />
-                ) : (
-                  <LoaderCircle className="mr-1 size-3 animate-spin" />
-                )}
-                Local SQLite <span className="ml-1 text-[8px]">本地数据库</span>
-              </Badge>
-              <span
-                className="max-w-[760px] truncate"
-                title={persistenceStatus.message}
-              >
-                {persistenceStatus.message}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-[9px]"
-                onClick={() => (isReady ? void saveNow() : retryLoad())}
-                disabled={persistenceStatus.phase === 'saving'}
-              >
-                <Save className="size-3" /> Save{' '}
-                <span className="text-[8px]">保存</span>
-              </Button>
-              {['conflict', 'error', 'offline'].includes(
-                persistenceStatus.phase,
-              ) && (
-                <Button
+          {activeView !== 'master-data' && (
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                <Badge
                   variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    downloadWorkspaceBackup();
-                    onEmpty();
-                  }}
+                  className={
+                    'h-5 ' +
+                    (persistenceStatus.phase === 'saved'
+                      ? 'border-[#9fb9aa] bg-[#edf5ef] text-[#377054]'
+                      : persistenceStatus.phase === 'offline' ||
+                          persistenceStatus.phase === 'error' ||
+                          persistenceStatus.phase === 'conflict'
+                        ? 'border-[#d0b787] bg-[#f8f0e2] text-[#8d5b12]'
+                        : 'border-[#9eb9ba] bg-[#edf4f3] text-[#2e6f77]')
+                  }
                 >
-                  备份并重载项目列表
-                </Button>
-              )}
-              {activeView === 'cost' ? (
+                  {persistenceStatus.phase === 'saved' ? (
+                    <Check className="mr-1 size-3" />
+                  ) : persistenceStatus.phase === 'offline' ||
+                    persistenceStatus.phase === 'error' ||
+                    persistenceStatus.phase === 'conflict' ? (
+                    <WifiOff className="mr-1 size-3" />
+                  ) : (
+                    <LoaderCircle className="mr-1 size-3 animate-spin" />
+                  )}
+                  Local SQLite{' '}
+                  <span className="ml-1 text-[8px]">本地数据库</span>
+                </Badge>
+                <span
+                  className="max-w-[760px] truncate"
+                  title={persistenceStatus.message}
+                >
+                  {persistenceStatus.message}
+                </span>
                 <Button
+                  variant="ghost"
                   size="sm"
                   className="h-6 px-2 text-[9px]"
-                  onClick={createNewCostVersion}
-                  disabled={!isReady || isVersionTransitioning}
+                  onClick={() => (isReady ? void saveNow() : retryLoad())}
+                  disabled={persistenceStatus.phase === 'saving'}
                 >
-                  <Plus className="size-3" /> New Version{' '}
-                  <span className="text-[8px] opacity-60">创建版本</span>
+                  <Save className="size-3" /> Save{' '}
+                  <span className="text-[8px]">保存</span>
                 </Button>
-              ) : null}
+                {['conflict', 'error', 'offline'].includes(
+                  persistenceStatus.phase,
+                ) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      downloadWorkspaceBackup();
+                      onEmpty();
+                    }}
+                  >
+                    备份并重载项目列表
+                  </Button>
+                )}
+                {activeView === 'cost' ? (
+                  <Button
+                    size="sm"
+                    className="h-6 px-2 text-[9px]"
+                    onClick={createNewCostVersion}
+                    disabled={!isReady || isVersionTransitioning}
+                  >
+                    <Plus className="size-3" /> New Version{' '}
+                    <span className="text-[8px] opacity-60">创建版本</span>
+                  </Button>
+                ) : null}
+              </div>
+              <span className="financial-numeral hidden text-[10px] text-muted-foreground sm:block">
+                {displayDate}
+              </span>
             </div>
-            <span className="financial-numeral hidden text-[10px] text-muted-foreground sm:block">
-              {displayDate}
-            </span>
-          </div>
+          )}
           <div
-            inert={!isReady || isVersionTransitioning}
-            aria-busy={!isReady || isVersionTransitioning}
+            inert={
+              activeView !== 'master-data' &&
+              (!isReady || isVersionTransitioning)
+            }
+            aria-busy={
+              activeView !== 'master-data' &&
+              (!isReady || isVersionTransitioning)
+            }
           >
-            <ReminderInbox
-              onOpen={(projectId, view) => {
-                const project = portfolioProjects.find(
-                  (p) => p.id === projectId,
-                );
-                if (project)
-                  void selectProject(project).then((ok) => {
-                    if (ok) setActiveView(view);
-                  });
-              }}
-            />
+            {activeView !== 'master-data' && (
+              <ReminderInbox
+                onOpen={(projectId, view) => {
+                  const project = portfolioProjects.find(
+                    (p) => p.id === projectId,
+                  );
+                  if (project)
+                    void selectProject(project).then((ok) => {
+                      if (ok) setActiveView(view);
+                    });
+                }}
+              />
+            )}
             {content}
           </div>
         </div>

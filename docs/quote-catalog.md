@@ -2,41 +2,39 @@
 
 ## User workflow
 
-Master Data is the only catalog maintenance page; the former Templates & Settings
-alias has been removed. Quote's **Manage templates** and **Manage library** buttons
-open the respective Master Data tab directly without changing project. Use
-**Open Quote / 返回报价** to return. The current project/client and project-owned
-scope are visible above all eight Master Data tabs. **Add for this quote** only
-adds a quotation-specific assumption, never a reusable library entry.
+Master Data maintains the global assumption library and customer template defaults
+for future projects. It has no selected project. Each tab saves with its own
+revision; use **Save** on the tab after edits. Quote's Manage buttons open the
+corresponding global page. Maintaining it does not change the current project.
 
 1. **Master Data → Assumptions**: create reusable assumptions with name,
    category, client, body, optional translation and active flag. Body may be
-   Chinese or English. Existing project assumptions seed the library once
-   during upgrade; their original quote text stays untouched.
-2. **Master Data → Quote Templates**: create, duplicate or edit templates.
-   Set customer, title, validity, payment terms, multiline **Terms & Conditions**
-   and default library assumptions. Multiple templates may serve one customer.
-3. **Pricing & Quote → Quotation Template** at the top of the page: choose a
-   matching template by name, then click **Apply Template / 引用模板**. Customer
-   templates appear before common ones. Choosing from the dropdown alone does
-   not change the preview or export; the **Applied** line identifies the template
-   currently in use. Applying updates the selection and appends eligible defaults.
-   Reapply the same template to fill missing defaults without overwriting edits.
-4. **Quote Assumptions → Reference library**: search name, category or content
-   and reference individual entries. Edit/exclude/delete the copied rows freely.
-5. Confirm the cost version and resolve validation errors, then generate XLSX.
-   The workbook includes selected T&C and included assumptions. Long terms use
-   more rows/pages rather than forced single-page scaling. In Quotation History,
-   expand **Saved T&C & assumptions** to inspect the original text snapshot.
+   Chinese or English; preserve supplied legal and business text.
+2. **Master Data → Quote Templates**: maintain customer, title, validity,
+   payment terms, multiline Terms & Conditions and default global assumption IDs.
+   Multiple templates may serve one customer. Keep referenced assumptions valid.
+3. A new project captures the global catalog. Existing projects keep their
+   adopted catalog until the user explicitly applies a newer global snapshot.
+   Reference data is not changed just by opening or returning to Quote.
+4. **Pricing & Quote → Quotation Template**: choose a template from this
+   project's captured catalog, then use **Apply Template**. Choosing a dropdown
+   item alone is not application. Applying selects the template and appends
+   eligible default assumptions without replacing user-edited copies.
+5. **Quote Assumptions → Reference library** references entries from the
+   project's captured library. **Add for this quote** creates a quotation-specific
+   row, never a global library entry. Edit/exclude/delete copied rows freely.
+6. Confirm the cost version and resolve validation errors, then generate XLSX.
+   The workbook uses the adopted T&C and included assumptions. Quotation History
+   retains original template and clause snapshots; no current global values are
+   substituted into historical output.
 
 ## Scope and safety rules
 
-- Catalogs are **project-owned**, not globally shared. **Copy catalog** in either
-  Master Data tab copies assumptions and templates from another saved local
-  project. New IDs are assigned and default links remapped; destination records
-  are never overwritten and the source is not changed. Subsequent edits are
-  independent. Repeating a copy creates another set of records. Save source
-  changes before copying.
+- Global catalogs are independent sources for future projects. New projects
+  receive detached snapshots. Global updates do not alter any existing project,
+  including Draft. Explicit `project apply-masterdata` can capture newer
+  assumptions/templates for a project; recheck current quotation and review
+  validity afterward. Archived quotations retain their original terms.
 - `clientPattern` is a trimmed, case-insensitive **exact customer name**.
   `*` alone means all customers. No regex, partial match or wildcard expressions:
   `Acme` does not match `Acme Other`. Inactive/mismatched templates cannot
@@ -48,10 +46,11 @@ adds a quotation-specific assumption, never a reusable library entry.
 - References are **copies, not live links**. Repeated references do not duplicate
   the same source or identical bilingual text (ignoring case/edge whitespace).
   Edited/excluded rows are not reset. Remove an existing copy to reference anew.
-- Deleting a library row removes its template default links, not quoted copies
-  or historical text. At least one template must remain. Deleting the selected
-  template selects an applicable survivor when possible, but does not append
-  defaults until an explicit **Apply Template** action.
+- Before deleting a global library row, remove its global template default links
+  and save those templates first. The related global tabs have separate
+  revisions. Project copies and historical text are not deleted. Keep at least
+  one valid template for future project creation; changing a global selection
+  does not select or apply a template for any existing quotation.
 - Old/manual history may lack text snapshots: never reconstruct historical
   clauses from today's template. Snapshots preserve content, not an XLSX binary,
   digital signature or immutable legal ledger.
@@ -107,29 +106,40 @@ live catalog references; old/manual records may omit them.
 
 ## Agent read-modify-save procedure
 
-Prefer [narrow resource updates](../skills/cost-workbench/references/resources.md):
-read `masterdata get --project-id ID --tab assumptions|quote-templates` and
-`quote get --project-id ID --section settings|assumptions`, then send only changed
-rows with the corresponding `update` command and exact revision. Read only the
-next relevant section after a conflict. Before removing a referenced library
-record, update template defaults first, then remove the record using the new
-revision; quote/history copies remain independent.
+Global maintenance uses `masterdata get/update --tab assumptions|quote-templates`
+without a project ID and with the selected tab's revision. Normal existing rows
+allow partial upserts; new entries and migration conflicts require complete
+records. When deleting a referenced assumption, first update global template
+defaults with the template tab revision, then delete the assumption with the
+assumptions tab revision. Existing project/history copies stay independent.
 
-For an intentional atomic edit spanning multiple sections, the legacy
-`workspace get/save` request remains available. Preserve unrelated fields,
-archives and inactive versions, and never use it to rewrite a locked cost version. New Drafts may be created from locked versions, but existing approval snapshots do not transfer to the new estimate.
+Quotation preparation reads `quote get --project-id ID --section templates|library`
+for adopted catalogs, and `--section settings|assumptions` for current output
+choices. Update only the current quote settings or copied assumption rows with
+`quote update` and the project revision. Do not fetch the latest global catalog
+as a substitute for the project's captured values.
 
-Use existing CLI commands; no generated Skill or model invocation is needed.
-Customer quotation XLSX is currently generated in the browser; `cost export`
-creates the internal cost workbook, not a customer quotation. Templates control
-content and terms in the built-in layout, not arbitrary uploaded Excel layouts.
+Explicit adoption uses `project apply-masterdata --project-id ID --tab TAB`
+with the project revision and an unlocked active Draft. Supported tabs include
+assumptions and quote-templates;
+apply assumptions first when required by template default references. Check the
+new project revision after each step. Adopting new current commercial inputs may
+invalidate previous reviews; old quote-history snapshots remain unchanged.
+
+Use [narrow resource commands](../skills/cost-workbench/references/resources.md)
+for daily work. A deliberate project workspace backup remains available, but it
+is not a global catalog maintenance interface. Standard customer output is
+available through `quote export`; `cost export` produces the internal workbook.
+Catalog templates control terms/content in the built-in layout. Arbitrary company
+Excel layouts use the separate template-mapping export workflow.
 
 ## Module map and tests
 
 - `features/quote/types.ts`: persisted contracts and library migration seed.
-- `features/quote/catalog-domain.ts`: matching, idempotent copies, cross-project IDs.
+- `features/quote/catalog-domain.ts`: matching and independent, idempotent quote-row copies.
 - `features/master-data/quote-catalog-view.tsx`: assumption/template editors.
-- `features/master-data/quote-catalog-import.tsx`: explicit local-project copying.
+- `features/master-data/global-master-data-page.tsx`: global tab editing and conflict resolution.
+- `server/global-master-data.mjs`: tab revisions, reference validation and migration provenance.
 - `features/quote/assumption-picker.tsx`: eligible library search/reference UI.
 - `features/quote/template-picker.tsx`: always-visible named template selection
   and explicit application; pending selection stays local to the current page.

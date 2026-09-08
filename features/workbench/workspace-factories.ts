@@ -122,8 +122,12 @@ export const createCostVersion = (
     travelUplift: number;
     manualCosts: ManualCostInputs;
     resourceTypes?: ResourceType[];
+    masterDataRevision?: number;
   },
 ): CostVersionSnapshot => ({
+  ...(inputs.masterDataRevision === undefined
+    ? {}
+    : { masterDataRevision: inputs.masterDataRevision }),
   code,
   state,
   sourceVersion,

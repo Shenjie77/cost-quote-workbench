@@ -16,7 +16,6 @@ import {
 import type { CostVersionSnapshot } from '../cost/domain';
 import {
   archiveCpq,
-  assertCatalog,
   calculationKey,
   confirmMapping,
   mappingKey,
@@ -27,21 +26,6 @@ import {
 } from './domain';
 import { downloadCpqArchive } from './export-workbook';
 
-const blankItem = (): CatalogItem => ({
-  code: '',
-  scope: '',
-  unit: '',
-  unitCost: 0,
-  kind: 'service',
-  adjustable: true,
-  active: true,
-  step: 1,
-  minQty: 1,
-  maxQty: 10000,
-  referenceQty: 0,
-  tags: '',
-  revision: '1',
-});
 const money = (n: number) =>
   n.toLocaleString('en-SG', {
     minimumFractionDigits: 2,
@@ -53,6 +37,10 @@ export function CpqView({
   baseline,
   totalCost,
   proposalNumber = '',
+  onOpenCatalog,
+  onApplyCatalog,
+  catalogRevision,
+  catalogApplyDisabled,
   announce,
 }: {
   value: CpqWorkspace;
@@ -60,9 +48,12 @@ export function CpqView({
   baseline: CostVersionSnapshot;
   totalCost: number;
   proposalNumber?: string;
+  onOpenCatalog?: () => void;
+  onApplyCatalog?: () => void;
+  catalogRevision?: number;
+  catalogApplyDisabled?: boolean;
   announce: (message: string) => void;
 }) {
-  const [item, setItem] = useState<CatalogItem>(blankItem);
   const [showCatalog, setShowCatalog] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [confirmer, setConfirmer] = useState('SSR');
@@ -96,15 +87,6 @@ export function CpqView({
   } catch {
     /* Missing selected entries are shown in the selection table. */
   }
-  const upsert = () =>
-    run(() => {
-      const next = value.catalog.some((row) => row.code === item.code)
-        ? value.catalog.map((row) => (row.code === item.code ? item : row))
-        : [...value.catalog, item];
-      assertCatalog(next);
-      onChange({ ...value, catalog: structuredClone(next) });
-      setItem(blankItem());
-    });
   const toggle = (catalog: CatalogItem, checked: boolean, reason: string) => {
     update({
       selections: checked
@@ -143,128 +125,63 @@ export function CpqView({
       </div>
       {showCatalog && (
         <section className="space-y-3 rounded-xl border bg-card p-4">
-          <h3 className="font-semibold">CPQ Catalog / 编码、范围与单位成本</h3>
-          <div className="grid gap-3 md:grid-cols-4">
-            <label>
-              Code / 编码
-              <Input
-                value={item.code}
-                onChange={(e) => setItem({ ...item, code: e.target.value })}
-              />
-            </label>
-            <label>
-              Unit / 单位
-              <Input
-                value={item.unit}
-                onChange={(e) => setItem({ ...item, unit: e.target.value })}
-                placeholder="台 / 服务单位 / 人天"
-              />
-            </label>
-            <label>
-              Unit cost / 单位成本
-              <Input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={item.unitCost}
-                onChange={(e) =>
-                  setItem({ ...item, unitCost: Number(e.target.value) })
-                }
-              />
-            </label>
-            <label>
-              Revision / 目录版本
-              <Input
-                value={item.revision}
-                onChange={(e) => setItem({ ...item, revision: e.target.value })}
-              />
-            </label>
-            <label className="md:col-span-4">
-              Scope / 范围
-              <Textarea
-                value={item.scope}
-                onChange={(e) => setItem({ ...item, scope: e.target.value })}
-              />
-            </label>
-            <label className="flex items-center gap-2">
-              <Checkbox
-                checked={item.kind === 'equipment'}
-                onCheckedChange={(v) =>
-                  setItem({
-                    ...item,
-                    kind: v ? 'equipment' : 'service',
-                    adjustable: !v,
-                  })
-                }
-              />
-              Equipment quantity / 设备数量
-            </label>
-            <label className="flex items-center gap-2">
-              <Checkbox
-                disabled={item.kind === 'equipment'}
-                checked={item.adjustable}
-                onCheckedChange={(v) =>
-                  setItem({ ...item, adjustable: Boolean(v) })
-                }
-              />
-              Adjustable / 允许调量
-            </label>
-            <label className="flex items-center gap-2">
-              <Checkbox
-                checked={item.active}
-                onCheckedChange={(v) =>
-                  setItem({ ...item, active: Boolean(v) })
-                }
-              />
-              Active / 有效
-            </label>
-            <label>
-              Tags / 检索关键词
-              <Input
-                value={item.tags}
-                onChange={(e) => setItem({ ...item, tags: e.target.value })}
-              />
-            </label>
-            {(['step', 'minQty', 'maxQty', 'referenceQty'] as const).map(
-              (key, i) => (
-                <label key={key}>
-                  {
-                    [
-                      'Step / 步长',
-                      'Min / 下限',
-                      'Max / 上限',
-                      'Reference qty / 参考数量',
-                    ][i]
-                  }
-                  <Input
-                    type="number"
-                    step="0.0001"
-                    value={item[key]}
-                    onChange={(e) =>
-                      setItem({ ...item, [key]: Number(e.target.value) })
-                    }
-                  />
-                </label>
-              ),
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-semibold">
+              Captured CPQ catalog / 项目采用的 CPQ 目录快照
+            </h3>
+            {onOpenCatalog && (
+              <Button variant="outline" onClick={onOpenCatalog}>
+                Maintain global catalog / 维护全局目录
+              </Button>
             )}
           </div>
-          <div className="flex gap-2">
-            <Button onClick={upsert}>Save item / 保存条目</Button>
-            <Button variant="ghost" onClick={() => setItem(blankItem())}>
-              Clear / 清空
+          <p className="text-xs text-muted-foreground">
+            当前配置使用本项目保存的目录
+            {catalogRevision === undefined
+              ? ''
+              : `（全局来源版本 r${catalogRevision}）`}
+            ；全局维护不会自动改变该目录、配置数量或归档结果。
+          </p>
+          {onApplyCatalog && (
+            <Button
+              variant="outline"
+              disabled={catalogApplyDisabled}
+              onClick={onApplyCatalog}
+            >
+              Apply global catalog to this draft / 将全局目录应用到本草稿
             </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {value.catalog.map((row) => (
-              <Button
-                key={row.code}
-                size="sm"
-                variant="outline"
-                onClick={() => setItem(structuredClone(row))}
-              >
-                {row.code} · {row.active ? row.unit : 'Inactive'}
-              </Button>
-            ))}
+          )}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {[
+                    'Code / 编码',
+                    'Scope / 范围',
+                    'Unit',
+                    'Unit cost',
+                    'Kind',
+                    'Adjustable',
+                    'Revision',
+                  ].map((label) => (
+                    <TableHead key={label}>{label}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {value.catalog.map((row) => (
+                  <TableRow key={row.code}>
+                    <TableCell>{row.code}</TableCell>
+                    <TableCell>{row.scope}</TableCell>
+                    <TableCell>{row.unit}</TableCell>
+                    <TableCell>{money(row.unitCost)}</TableCell>
+                    <TableCell>{row.kind}</TableCell>
+                    <TableCell>{row.adjustable ? 'Yes' : 'No'}</TableCell>
+                    <TableCell>{row.revision}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </section>
       )}

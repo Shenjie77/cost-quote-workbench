@@ -33,6 +33,8 @@ import { formatSgd } from '@/lib/formatters';
 export function CostView({
   lockedReason = null,
   versionLockReasons = {},
+  versionDeletionReasons = {},
+  onDeleteVersion,
   activeVersion,
   versions,
   onSelectVersion,
@@ -58,6 +60,8 @@ export function CostView({
 }: {
   lockedReason?: string | null;
   versionLockReasons?: Record<string, string>;
+  versionDeletionReasons?: Record<string, string>;
+  onDeleteVersion?: (version: string) => void;
   activeVersion: string;
   versions: CostVersionSnapshot[];
   onSelectVersion: (version: string) => void;
@@ -143,7 +147,7 @@ export function CostView({
       ).totalWithRisk,
     );
   };
-  const { isExporting, exportWorkbook } = useCostWorkbookExport({
+  const { isExporting, exportWorkbook, exportSimpleWorkbook } = useCostWorkbookExport({
     enabled: Boolean(version),
     announce,
     createSnapshot: () =>
@@ -178,7 +182,7 @@ export function CostView({
         </output>
       ) : null}
       <section className="border border-border bg-card">
-        <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-4 md:divide-y-0">
+        <div className="grid grid-cols-2 divide-x divide-y divide-border lg:grid-cols-5 lg:divide-y-0">
           <div className="px-3 py-2.5">
             <BiText
               en="Version Total"
@@ -241,6 +245,43 @@ export function CostView({
               {representativeRate?.mandaysPerMonth || 0} days / person-month ·{' '}
               {representativeRate?.mandaysPerMonth || 0} 天/人月
             </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2 h-auto whitespace-normal py-1 text-[10px]"
+              disabled={!!lockedReason || version?.state !== 'Draft'}
+              title={lockedReason || (version?.state !== 'Draft' ? '仅草稿版本可应用最新主数据' : '将全局 Master Data 的人员费率应用到当前草稿并重新计算成本')}
+              onClick={() => {
+                if (!lockedReason && version?.state === 'Draft') onApplyMasterRates();
+              }}
+            >
+              Apply Master Rates · 应用最新主数据
+            </Button>
+          </div>
+          <div className="px-3 py-2.5">
+            <BiText en="Version Status" zh="版本状态" className="text-[10px] text-muted-foreground" />
+            <select
+              aria-label="Current version status / 当前版本状态"
+              className="mt-2 w-full rounded border border-border bg-card px-2 py-1.5 text-[11px] disabled:opacity-60"
+              value={version?.state || 'Draft'}
+              disabled={!version || version.state === 'Confirmed'}
+              onChange={(event) => {
+                const state = event.target.value as CostVersionState;
+                if (version && version.state !== 'Confirmed' && (!lockedReason || state === 'Confirmed')) onUpdateVersionState(activeVersion, state);
+              }}
+            >
+              <option value="Draft" disabled={!!lockedReason}>Draft · 草稿</option>
+              <option value="Suspended" disabled={!!lockedReason}>Suspended · 暂停</option>
+              <option value="Confirmed">Confirmed · 已定稿</option>
+            </select>
+            <p className="mt-1 text-[9px] text-muted-foreground">Cost {activeVersion} · 定稿后锁定本版成本</p>
+            {version?.state === 'Suspended' && onDeleteVersion ? (
+              <Button size="sm" variant="ghost" className="mt-1 h-6 text-[10px] text-red-700"
+                disabled={!!versionDeletionReasons[activeVersion]} title={versionDeletionReasons[activeVersion] || '删除当前暂停版本，保留历史记录'}
+                onClick={() => onDeleteVersion(activeVersion)}>
+                Delete · 删除版本
+              </Button>
+            ) : null}
           </div>
         </div>
       </section>
@@ -266,12 +307,17 @@ export function CostView({
             </Button>
           ))}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="hidden text-[9px] text-muted-foreground sm:inline">
             Selected: Cost {activeVersion} / 当前选择成本 {activeVersion}
           </span>
+          <Button size="sm" onClick={exportSimpleWorkbook} disabled={isExporting}
+            title="按页面格式导出成本详表、多维汇总及成本报表">
+            <Download />Simple Export <span className="text-[9px] opacity-60">简易导出</span>
+          </Button>
           <Button
             size="sm"
+            variant="outline"
             onClick={exportWorkbook}
             disabled={isExporting}
             title="Export Cost Detail and summaries in one workbook"
@@ -284,21 +330,6 @@ export function CostView({
       </div>
       {costView === 'input' ? (
         <fieldset disabled={!!lockedReason} className="min-w-0 space-y-4">
-          <div className="flex items-center justify-end gap-3">
-            <span className="text-xs text-muted-foreground">
-              Version rates · 版本独立汇率
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                if (!lockedReason) onApplyMasterRates();
-              }}
-            >
-              Apply Master Rates{' '}
-              <span className="text-xs opacity-60">应用当前主数据汇率</span>
-            </Button>
-          </div>
           <RateAssumptions
             settings={rateSettings}
             setSettings={writeIfUnlocked(setRateSettings)}
@@ -342,6 +373,8 @@ export function CostView({
       ) : null}
       {costView === 'compare' ? (
         <VersionComparisonView
+          deletionReasons={versionDeletionReasons}
+          onDeleteVersion={onDeleteVersion}
           lockReasons={versionLockReasons}
           versions={versions}
           activeVersion={activeVersion}

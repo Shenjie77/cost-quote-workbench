@@ -1,6 +1,6 @@
 # SSR 业务 Skill
 
-按 SSR 的项目、主数据、成本、CPQ、维保、商业报价、流程评审和历史参考模块拆分。每个入口可独立调用，只读本次业务需要的项目、版本或页签。`cost-workbench` 保留为跨业务协调入口，不会预先加载所有说明。
+按 SSR 的项目、主数据、成本、CPQ、维保、商业报价、流程评审和历史参考模块拆分。每个入口可独立调用，只读本次业务需要的全局页签或项目/版本。全局主数据维护不需要选项目，也不读取项目列表。`cost-workbench` 保留为跨业务协调入口，不会预先加载所有说明。
 
 | 模块 | 工作事项 | 直接调用 |
 | --- | --- | --- |
@@ -31,22 +31,23 @@
 
 - `使用 $ssr-cost-create，为项目 PRJ-XXXX 从 V2 复制一个新成本草稿。`
 - `使用 $ssr-cost-update，根据附件更新项目 PRJ-XXXX 的 V3 人天成本。`
-- `使用 $ssr-retype-maintain，把项目 PRJ-XXXX 的 LOCAL-L1 人天费率改为 650 SGD，仅更新主数据。`（金额为示例）
-- `使用 $ssr-cpq-catalog，根据附件维护项目 PRJ-XXXX 的 CPQ 编码、Scope 和成本。`
+- `使用 $ssr-retype-maintain，把全局 LOCAL-L1 人天费率改为 650 SGD，仅更新主数据。`（金额为示例）
+- `使用 $ssr-cpq-catalog，根据附件维护全局 CPQ 编码、Scope 和成本。`
 - `使用 $ssr-cpq-configure，根据我的简短 Scope 推荐条目，待我确认后计算数量。`
-- `使用 $ssr-maintenance-data，补充项目 PRJ-XXXX 的客户设备维保参考记录。`
+- `使用 $ssr-maintenance-data，补充全局客户设备维保参考记录。`
 - `使用 $ssr-quote-export，导出项目 PRJ-XXXX 当前版本的客户报价 Excel。`
-- `使用 $ssr-quote-template，把项目 PRJ-XXXX 的指定客户模板有效期更新为 30 天，并采用我提供的 T&C。`
+- `使用 $ssr-quote-template，把全局库中指定客户模板有效期更新为 30 天，并采用我提供的 T&C。`
 - `使用 $ssr-workflow-update，项目 PRJ-XXXX 的 V3 已由我确认定稿，请核对成本后将本版流程推进到 DRB，等待 PM 评审。`
 
 ## 模块边界
 
-- 主数据目前按项目保存。RE、分包、补充成本、维保参考、假设和模板维护不等于应用到当前成本或报价。
+- 主数据独立全局保存。RE、分包、补充成本、维保参考、假设、模板、CPQ 和流程默认模板用 `masterdata get/update --tab TAB`，不带项目号；每个页签有独立 revision。全局维护不会改动任何已有项目，包括 Draft。
+- 新项目/空白成本版本捕获创建时的全局数据；复制版本保留源版本快照。历史查看与导出继续使用原费率及采用的条款。只有用户明确要求应用时，才用指定版本的 `cost apply-rates` 或支持页签的 `project apply-masterdata`；详见[全局主数据与项目快照](global-master-data.md)。
 - 成本新建创建独立 Draft，版本号自动生成，并自动选为 activeVersion 与 workflowVersion，开始本版 DTRB 轮次。后续成本修改、导入和标准成本导出显式指定返回版本。历史记录保留；切旧版查看不改变工作轮次。新项目需要真实项目号、名称、客户。
 - 成本更新只改指定未锁定版本。用户明确确认本版为 Confirmed 才定稿并锁对应版本；原版汇总可查看，允许从锁版创建可编辑新 Draft。`cost get --section versions` 返回每个版本的锁原因，修改/导入/应用费率均显式指定目标版本。RE 主数据仍可更新。3% 开关在 Cost Input，LOCAL/ARP 年度 Cost 已含金额，其他汇总不重复加算。
 - CPQ 数据维护只改目录；CPQ 配置负责推荐、用户选定、求解及归档。固定设备数量不得为凑金额调整。
 - 维保数据维护负责历史参考库；维保报价负责真实 BOQ、选价和草稿输出。
-- 流程更新负责 workflowVersion 的当前节点、实际进度和评审证据。流程配置负责节点/状态定义，保留实际进度。每版独立 DTRB → DRB；成本必须先经用户确认成为 Confirmed，才能进入、提交或完成 DRB。不能把 Draft 直接靠 DRB 状态锁死；Confirmed 也不代表 DRB approved。SSR 提交显式使用 `--version Vn`，省略时跟随工作轮次；旧版审批不适用于新版。可用 `cost get --project-id ID --version Vn --section workflow` 查看本版或历史流程；workflowVersion/versionWorkflows 由平台维护，不能手改。
+- 流程更新负责 workflowVersion 的当前节点、实际进度和评审证据。流程配置负责未来项目的全局节点/状态默认模板；当前项目节点进度通过 `project update --section workflow`，实际评审检查点通过 `--section reviews`。每版独立 DTRB → DRB；成本必须先经用户确认成为 Confirmed，才能进入、提交或完成 DRB。不能把 Draft 直接靠 DRB 状态锁死；Confirmed 也不代表 DRB approved。SSR 提交显式使用 `--version Vn`，省略时跟随工作轮次；旧版审批不适用于新版。可用 `cost get --project-id ID --version Vn --section workflow` 查看本版或历史流程；workflowVersion/versionWorkflows 由平台维护，不能手改。
 - 报价编制负责定价及当前报价假设；报价模板更新负责 Master Data 的客户模板库；报价导出单独生成客户文件。
 - 商业报价和公司模板当前使用 activeVersion；不能把模板映射版本当成本版本。报价文件不包含内部成本/费率/毛利。
 
@@ -56,4 +57,4 @@
 
 在本项目任务中输入 `$ssr-` 选择对应业务。当前已打开任务的技能列表若尚未刷新，重新打开项目任务后再选择。也可明确指定本仓库中的 `skills/具体名称/SKILL.md`。
 
-单项 skill 不要求每次读取全量 workspace、全部项目、完整能力列表或所有 schema；已知项目就直接读取目标资源，只在字段/接口不明时查相关定义。SQLite 内部仍按项目完整校验和原子保存，Agent 只接收细分结果。
+单项 skill 不要求每次读取全量 workspace、全部项目、完整能力列表或所有 schema；已知项目就直接读取目标资源，只在字段/接口不明时查相关定义。项目业务内部按项目完整校验和原子保存；全局维护只校验并保存目标页签，不读取项目 workspace。Agent 只接收细分结果。

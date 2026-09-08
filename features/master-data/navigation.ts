@@ -1,5 +1,6 @@
 /** Single maintenance surface: tab IDs are UI state, not persisted business data. */
 export const masterDataTabs = [
+  { value: 'cpq-catalog', label: 'CPQ Catalog', labelZh: 'CPQ 目录' },
   { value: 'resources', label: 'RE Types', labelZh: '资源与费率' },
   { value: 'subcontract', label: 'Subcontract', labelZh: '分包' },
   { value: 'supplemental', label: 'Supplemental', labelZh: '补充成本' },

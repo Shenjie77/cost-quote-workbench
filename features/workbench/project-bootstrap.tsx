@@ -3,11 +3,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  listLocalWorkspaces,
-  saveLocalWorkspaceDocument,
-} from './workspace-client';
-import { createBlankWorkspace, projectRecord } from './workspace-factories';
+import { listLocalWorkspaces } from './workspace-client';
+import { projectRecord } from './workspace-factories';
+import { createProjectFromGlobalMasterData } from '@/features/master-data/global-client';
 import type { Project } from '../projects/types';
 import type { LocalWorkspaceIndexItem } from './workspace-types';
 
@@ -37,8 +35,10 @@ export const projectFromIndex = (item: LocalWorkspaceIndexItem): Project => ({
 /** Persisted index is authoritative. Empty/deleted databases never seed demo projects. */
 export function ProjectBootstrap({
   renderSession,
+  onOpenMasterData,
 }: {
   renderSession: (projects: Project[], onEmpty: () => void) => ReactNode;
+  onOpenMasterData?: () => void;
 }) {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [error, setError] = useState('');
@@ -77,10 +77,7 @@ export function ProjectBootstrap({
         name.trim(),
         client.trim(),
       );
-      await saveLocalWorkspaceDocument(
-        createBlankWorkspace(project, 'input_preparation'),
-        null,
-      );
+      await createProjectFromGlobalMasterData(project);
       setProjects([project]);
       setError('');
     } catch (e) {
@@ -93,6 +90,11 @@ export function ProjectBootstrap({
     <main className="min-h-screen bg-background p-8">
       <section className="mx-auto max-w-lg space-y-4 rounded-xl border bg-card p-6">
         <h1 className="text-xl font-semibold">Cost & Quote Workbench</h1>
+        {onOpenMasterData && (
+          <Button variant="outline" onClick={onOpenMasterData}>
+            Global Master Data / 全局主数据
+          </Button>
+        )}
         {error && (
           <p role="alert" className="text-sm text-destructive">
             {error}

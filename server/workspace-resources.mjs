@@ -4,8 +4,18 @@ import {
   mappingKey,
   calculationKey,
 } from '../features/cpq/domain.ts';
+import {
+  assertMasterCapture,
+  captureGlobalMasterData,
+  capturedMasterFields,
+  captureResourceRates,
+} from '../features/master-data/capture.ts';
 import { emptySsr } from '../features/ssr/domain.ts';
 import { emptyMaintenance } from '../features/maintenance/domain.ts';
+import {
+  deleteSuspendedCostVersion,
+  nextCostVersionCode,
+} from '../features/cost/version-deletion.ts';
 import {
   costLockReason,
   getCostVersionLocks,
@@ -144,6 +154,26 @@ export const mutationReceipt = (record, command, subjectId, version) => {
 
 function locate(w, module, options) {
   const section = options.section;
+  if (module === 'project' && section && section !== 'settings') {
+    const fields = {
+      workflow: ['processSteps', 'code'],
+      status: ['projectStatusDefinitions', 'code'],
+      reviews: ['reviewGates', 'id'],
+      subcontract: ['subcontractItems', 'id'],
+      supplemental: ['supplementalCostItems', 'id'],
+    };
+    const target = fields[section];
+    if (!target)
+      fail(
+        'Project sections: settings, workflow, status, reviews, subcontract, supplemental',
+      );
+    return {
+      parent: w,
+      field: target[0],
+      key: target[1],
+      readonly: ['subcontract', 'supplemental'].includes(section),
+    };
+  }
   if (module === 'project')
     return {
       object: {
@@ -155,15 +185,34 @@ function locate(w, module, options) {
       },
       fields: ['name', 'client', 'projectStatus', 'currentWorkflowStepCode'],
     };
-  if (module === 'masterdata') {
-    const tab = Object.hasOwn(MASTER_TABS, options.tab)
-      ? MASTER_TABS[options.tab]
-      : null;
-    if (!tab)
-      fail(`--tab must be one of: ${Object.keys(MASTER_TABS).join(', ')}`);
-    return { parent: w, field: tab[0], key: tab[1] };
-  }
+  if (module === 'masterdata')
+    fail(
+      'Master Data is global. Use masterdata get/update --tab TAB without a project ID.',
+    );
   if (module === 'cost') {
+    if (section === 'deleted-versions')
+      return {
+        items: Object.values(w.deletedCostVersions || {}).map((entry) => ({
+          ...pick(entry.version, [
+            'code',
+            'state',
+            'createdAt',
+            'sourceVersion',
+          ]),
+          removedAt: entry.removedAt,
+        })),
+        key: 'code',
+        readonly: true,
+      };
+    if (section === 'archive') {
+      const version = options.version;
+      const entry = w.deletedCostVersions?.[version];
+      if (!entry)
+        throw new RepositoryNotFoundError(
+          'Deleted cost version archive not found.',
+        );
+      return { object: entry, fields: [], version, readonly: true };
+    }
     if (section === 'versions') {
       const locks = getCostVersionLocks(w);
       return {
@@ -227,7 +276,7 @@ function locate(w, module, options) {
   if (module === 'cpq') {
     w.cpq ||= emptyCpq();
     if (section === 'catalog')
-      return { parent: w.cpq, field: 'catalog', key: 'code' };
+      return { parent: w.cpq, field: 'catalog', key: 'code', readonly: true };
     if (section === 'selections')
       return { parent: w.cpq.draft, field: 'selections', key: 'code' };
     if (!section || section === 'draft')
@@ -248,6 +297,15 @@ function locate(w, module, options) {
     fail('CPQ sections: catalog, draft, selections, archives');
   }
   if (module === 'quote') {
+    if (section === 'templates')
+      return { parent: w, field: 'quoteTemplates', key: 'id', readonly: true };
+    if (section === 'library')
+      return {
+        parent: w,
+        field: 'assumptionLibrary',
+        key: 'id',
+        readonly: true,
+      };
     if (!section || section === 'settings')
       return {
         object: {
@@ -260,7 +318,7 @@ function locate(w, module, options) {
       return { parent: w, field: 'quoteAssumptions', key: 'id' };
     if (section === 'history')
       return { parent: w, field: 'quoteHistory', key: 'id', readonly: true };
-    fail('Quote sections: settings, assumptions, history');
+    fail('Quote sections: settings, assumptions, templates, library, history');
   }
   if (module === 'ssr') {
     w.ssr ||= emptySsr();
@@ -273,6 +331,13 @@ function locate(w, module, options) {
     fail('SSR sections: settings, bid-responses, submissions');
   }
   if (module === 'boq') {
+    if (section === 'references')
+      return {
+        parent: w,
+        field: 'maintenancePriceRecords',
+        key: 'id',
+        readonly: true,
+      };
     w.maintenanceBoq ||= emptyMaintenance();
     if (section === 'settings')
       return {
@@ -296,7 +361,7 @@ function locate(w, module, options) {
         key: 'id',
         readonly: true,
       };
-    fail('BOQ sections: rows, settings, archives');
+    fail('BOQ sections: rows, settings, references, archives');
   }
   fail(`Unknown resource: ${module}`);
 }
@@ -465,6 +530,15 @@ export function updateResource(
         !Array.isArray(value)
           ? { ...old, ...value }
           : value;
+      if (
+        module === 'cost' &&
+        key === 'manualCosts' &&
+        value &&
+        typeof value === 'object' &&
+        Object.hasOwn(value, 'otherService') &&
+        !Object.hasOwn(value, 'otherServiceRate')
+      )
+        delete target.object.manualCosts.otherServiceRate;
     }
     if (module === 'project') {
       Object.assign(w.project, pick(target.object, ['name', 'client']));
@@ -542,7 +616,14 @@ export function applyMasterRates(repository, id, version, revision) {
   if (locked) fail(locked);
   const v = record.workspace.costVersions.find((v) => v.code === version);
   if (!v) throw new RepositoryNotFoundError('Cost version not found.');
-  v.resourceTypes = structuredClone(record.workspace.resourceTypes);
+  if (v.state !== 'Draft')
+    fail('Only an editable Draft can explicitly apply global personnel rates.');
+  const master = checkedMaster(repository, 'resources');
+  try {
+    Object.assign(v, captureResourceRates(v, master));
+  } catch (error) {
+    fail(error.message);
+  }
   syncVersion(record.workspace, version);
   return {
     ...mutationReceipt(
@@ -581,6 +662,7 @@ const blankCostInputs = (resourceTypes) => {
       settlement: 0,
       carFee: 0,
       otherService: 0,
+      otherServiceRate: 0.01,
       riskContingency: 0,
     },
   };
@@ -588,15 +670,26 @@ const blankCostInputs = (resourceTypes) => {
 
 /** Create-only, including for deleted IDs: recovery is always explicit. */
 export function createProject(repository, project) {
-  const w = createBlankWorkspace(
-    projectRecord(project.id, project.name, project.client),
-    'input_preparation',
-  );
+  let w;
+  try {
+    w = captureGlobalMasterData(
+      createBlankWorkspace(
+        projectRecord(project.id, project.name, project.client),
+        'input_preparation',
+      ),
+      repository.globalMasterData.all(),
+    );
+  } catch (error) {
+    fail(error.message);
+  }
+  if (project.reviewOwner)
+    w.processSteps = w.processSteps.map((step) => ({
+      ...step,
+      owner: project.reviewOwner,
+    }));
   Object.assign(w, blankCostInputs(w.resourceTypes));
   w.costVersions = [createCostVersion('V1', 'Draft', null, w)];
-  w.subcontractItems = [];
-  w.supplementalCostItems = [];
-  w.maintenancePriceRecords = [];
+  w.costVersions[0].masterDataRevision = w.masterDataRevisions.resources;
   const saved = repository.save(project.id, w, null);
   return { ...mutationReceipt(saved, ''), resource: 'project', version: 'V1' };
 }
@@ -620,15 +713,17 @@ export function createCostDraft(repository, id, options, revision) {
       : null;
   if (options.mode === 'clone' && !source)
     throw new RepositoryNotFoundError('Source cost version not found.');
-  const next =
-    Math.max(...w.costVersions.map((v) => Number(v.code.slice(1)))) + 1;
-  if (!Number.isSafeInteger(next)) fail('Cost version number is too large.');
+  const next = nextCostVersionCode(w);
+  const master = source ? null : checkedMaster(repository, 'resources');
   const version = createCostVersion(
-    `V${next}`,
+    next,
     'Draft',
     source?.code || null,
-    source || blankCostInputs(w.resourceTypes),
+    source || blankCostInputs(master.items),
   );
+  if (master) version.masterDataRevision = master.revision;
+  else if (source.masterDataRevision)
+    version.masterDataRevision = source.masterDataRevision;
   w.costVersions.push(version);
   w.activeVersion = version.code;
   syncVersion(w, version.code);
@@ -642,5 +737,136 @@ export function createCostDraft(repository, id, options, revision) {
     resource: 'cost',
     section: 'versions',
     version: version.code,
+  };
+}
+
+/** Remove a suspended version from the working list while retaining its immutable history. */
+export function deleteCostVersion(repository, id, version, revision) {
+  const record = requireRecord(repository, id);
+  if (record.revision !== revision)
+    throw new RepositoryConflictError(
+      'Project changed. Read this resource again.',
+      record.revision,
+    );
+  if (!record.workspace.costVersions.some((v) => v.code === version))
+    throw new RepositoryNotFoundError(
+      'Cost version not found or already deleted.',
+    );
+  let next;
+  try {
+    next = deleteSuspendedCostVersion(record.workspace, version);
+  } catch (error) {
+    fail(error.message);
+  }
+  const saved = repository.save(id, next, revision);
+  return {
+    ...mutationReceipt(saved, '', undefined, saved.workspace.activeVersion),
+    resource: 'cost',
+    section: 'versions',
+    version,
+    deleted: true,
+    removedIds: [version],
+  };
+}
+
+/** Explicitly apply a shared catalogue; normal master-data writes never visit projects. */
+function checkedMaster(repository, tab) {
+  try {
+    return assertMasterCapture(
+      repository.globalMasterData.get(tab, { limit: 10000 }),
+    );
+  } catch (error) {
+    fail(error.message);
+  }
+}
+
+export function applyProjectMasterData(repository, id, tab, revision) {
+  if (
+    ![
+      'subcontract',
+      'supplemental',
+      'maintenance',
+      'assumptions',
+      'quote-templates',
+      'cpq-catalog',
+    ].includes(tab)
+  )
+    fail(
+      'Apply catalog tabs: subcontract, supplemental, maintenance, assumptions, quote-templates, cpq-catalog. Personnel rates require cost apply-rates --version; workflow templates only seed new projects.',
+    );
+  const record = requireRecord(repository, id);
+  if (record.revision !== revision)
+    throw new RepositoryConflictError(
+      'Project changed. Read its revision again.',
+      record.revision,
+    );
+  const active = record.workspace.costVersions.find(
+    (v) => v.code === record.workspace.activeVersion,
+  );
+  const locked = costLockReason(
+    record.workspace,
+    record.workspace.activeVersion,
+  );
+  if (locked) fail(locked);
+  if (active?.state !== 'Draft')
+    fail('Create or select an editable Draft before applying global catalogs.');
+  const master = checkedMaster(repository, tab);
+  const w = record.workspace;
+  if (tab === 'cpq-catalog') {
+    w.cpq ||= emptyCpq();
+    if (w.cpq.draft.costVersion && w.cpq.draft.costVersion !== w.activeVersion)
+      fail(
+        `CPQ draft uses ${w.cpq.draft.costVersion}. Select the active Draft ${w.activeVersion} in CPQ before applying the global catalog.`,
+      );
+    w.cpq.catalog = structuredClone(master.items);
+    delete w.cpq.draft.confirmation;
+    delete w.cpq.draft.result;
+  } else if (tab === 'assumptions') {
+    // Old templates remain usable until the user explicitly adopts new ones.
+    const referenced = new Set(
+      w.quoteTemplates.flatMap((template) => template.defaultAssumptionIds),
+    );
+    const incoming = new Set(master.items.map((item) => item.id));
+    w.assumptionLibrary = [
+      ...structuredClone(master.items),
+      ...w.assumptionLibrary.filter(
+        (item) => referenced.has(item.id) && !incoming.has(item.id),
+      ),
+    ];
+  } else if (tab === 'quote-templates') {
+    const required = new Set(
+      master.items.flatMap((template) => template.defaultAssumptionIds),
+    );
+    const oldSelected = w.quoteTemplates.find(
+      (template) => template.id === w.selectedQuoteTemplateId,
+    );
+    const templates = structuredClone(master.items);
+    if (
+      oldSelected &&
+      !templates.some((template) => template.id === oldSelected.id)
+    )
+      templates.push(oldSelected);
+    const library = new Map(w.assumptionLibrary.map((item) => [item.id, item]));
+    if (required.size) {
+      const assumptions = checkedMaster(repository, 'assumptions');
+      for (const item of assumptions.items)
+        if (required.has(item.id)) library.set(item.id, structuredClone(item));
+      w.masterDataRevisions = {
+        ...w.masterDataRevisions,
+        assumptions: assumptions.revision,
+      };
+    }
+    w.quoteTemplates = templates;
+    w.assumptionLibrary = [...library.values()];
+  } else {
+    w[capturedMasterFields[tab]] = structuredClone(master.items);
+  }
+  w.masterDataRevisions = { ...w.masterDataRevisions, [tab]: master.revision };
+  const saved = repository.save(id, w, revision);
+  return {
+    ...mutationReceipt(saved, ''),
+    resource: 'project',
+    section: tab,
+    masterDataRevision: master.revision,
   };
 }

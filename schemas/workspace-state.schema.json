@@ -192,11 +192,18 @@
     "maintenanceBoq": {
       "$ref": "#/$defs/maintenanceWorkspace"
     },
-    "workflowVersion": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
-    "legacyWorkflowArchive": { "$ref": "#/properties/versionWorkflows" },
+    "workflowVersion": {
+      "type": "string",
+      "pattern": "^V[1-9][0-9]*$"
+    },
+    "legacyWorkflowArchive": {
+      "$ref": "#/properties/versionWorkflows"
+    },
     "versionWorkflows": {
       "type": "object",
-      "propertyNames": { "pattern": "^V[1-9][0-9]*$" },
+      "propertyNames": {
+        "pattern": "^V[1-9][0-9]*$"
+      },
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
@@ -206,21 +213,31 @@
           "projectStatus"
         ],
         "properties": {
-          "currentWorkflowStepCode": { "$ref": "#/$defs/text" },
+          "currentWorkflowStepCode": {
+            "$ref": "#/$defs/text"
+          },
           "processSteps": {
             "type": "array",
             "minItems": 0,
             "maxItems": 1000,
-            "items": { "$ref": "#/$defs/workflowStep" }
+            "items": {
+              "$ref": "#/$defs/workflowStep"
+            }
           },
-          "projectStatus": { "$ref": "#/$defs/identifier" }
+          "projectStatus": {
+            "$ref": "#/$defs/identifier"
+          }
         }
       }
     },
     "costVersionLocks": {
       "type": "object",
-      "propertyNames": { "pattern": "^V[1-9][0-9]*$" },
-      "additionalProperties": { "$ref": "#/properties/costLock" }
+      "propertyNames": {
+        "pattern": "^V[1-9][0-9]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/properties/costLock"
+      }
     },
     "costLock": {
       "type": "object",
@@ -234,6 +251,36 @@
         "lockedAt": {
           "type": "string",
           "minLength": 1
+        }
+      }
+    },
+    "masterDataRevisions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "deletedCostVersions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^V[1-9][0-9]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["version", "workflow", "removedAt"],
+        "properties": {
+          "version": {
+            "$ref": "#/$defs/costVersion"
+          },
+          "workflow": {
+            "$ref": "#/properties/versionWorkflows/additionalProperties"
+          },
+          "removedAt": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          }
         }
       }
     }
@@ -338,6 +385,10 @@
         },
         "manualCosts": {
           "$ref": "https://local.cost-workbench/schemas/cost-export/2.0.0#/$defs/manualCosts"
+        },
+        "masterDataRevision": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
@@ -653,7 +704,10 @@
         "followUps"
       ],
       "properties": {
-        "costVersion": { "type": "string", "pattern": "^V[1-9][0-9]*$" },
+        "costVersion": {
+          "type": "string",
+          "pattern": "^V[1-9][0-9]*$"
+        },
         "id": {
           "$ref": "#/$defs/identifier"
         },

@@ -26,11 +26,18 @@ atomic JSON workspace per project with:
 - platform-managed workflowVersion and versionWorkflows for current and historical
   version review rounds, independent of which cost version is being viewed;
 - cost rows, rate/travel assumptions, and manual costs;
-- consolidated RE Type/rate, subcontract, supplemental-cost, and maintenance master
-  data;
+- captured RE Type/rate, subcontract, supplemental-cost, and maintenance
+  reference data;
 - review gates with follow-up history;
-- quote templates, assumptions, pricing, and quote-history snapshots;
+- captured quote templates/library, selected assumptions, pricing, and quote history;
 - update timestamp.
+
+Global Master Data is separate from workspace snapshots. Its nine tabs have
+independent revisions and preserve migration conflict sources. Updating a tab
+does not read or save a project. New projects and blank cost versions capture
+current defaults/rates; cloned versions retain their source snapshots. All
+existing Drafts and historical records remain unchanged unless a supported
+explicit project/version adoption is requested. See [data boundaries](global-master-data.md).
 
 The schema is defined in `db/schema.ts`. Initialization uses idempotent,
 single-statement migrations and enables foreign keys, WAL, busy timeout, and
@@ -68,7 +75,18 @@ return to DTRB; their previous progress is preserved in `legacyWorkflowArchive`
 when it belongs to that same version. Cost snapshots and actual company review
 evidence remain unchanged. New DRB actions require explicit cost confirmation.
 
-Agent writes use the same rule:
+Database schema 6 adds `master_data_tabs` for current global tab payloads,
+`master_data_revisions` for prior tab revisions, and `master_data_metadata` for
+the one-time initialization marker. Initialization gathers existing project
+references once without rewriting project payloads or revisions. Same-key
+conflicts retain their variants and source project/revision; unresolved data
+must be explicitly resolved before it can be adopted into a new project/version.
+Normal master-data operations do not scan old workspaces.
+
+Agent project writes use the same project revision rule. Global tab writes use
+that tab's revision instead, with `masterdata get/update --tab TAB` and no project
+ID. The following whole-workspace commands are for deliberate backups/restores,
+not normal master-data maintenance:
 
 ```bash
 npm run --silent cost-cli -- workspace get \
