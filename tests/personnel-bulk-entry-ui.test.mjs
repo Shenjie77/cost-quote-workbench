@@ -45,6 +45,7 @@ const {
   PersonnelBulkEntryForm,
   confirmPersonnelBulkPreview,
   personnelBulkInputKey,
+  personnelBulkMDTemplate,
 } = await import('../features/cost/components/personnel-bulk-entry-dialog.tsx');
 const { parsePersonnelBulkEntry } =
   await import('../features/cost/personnel-bulk-entry.ts');
@@ -109,6 +110,69 @@ const formProps = (extra = {}) => ({
   ...extra,
 });
 
+test('MD format selector and copyable templates are staged and never append or replace pasted content', () => {
+  let changed,
+    copied = '',
+    writes = 0,
+    confirms = 0;
+  const tree = PersonnelBulkEntryForm(
+    formProps({
+      onOptionsChange: (value) => {
+        changed = value;
+      },
+      onCopyTemplate: (value) => {
+        copied = value;
+      },
+      onTextChange: () => writes++,
+      onConfirm: () => confirms++,
+    }),
+  );
+  button(tree, 'Copy template').props.onClick();
+  assert.equal(copied, personnelBulkMDTemplate());
+  assert.equal(writes, 0);
+  assert.equal(confirms, 0);
+  const selector = walk(tree).find(
+    (node) => node.props['aria-label'] === 'Bulk input format',
+  );
+  selector.props.onChange({ target: { value: 'scope-md' } });
+  assert.equal(changed.defaultMode, 'mandays');
+  assert.equal(changed.hasHeader, false);
+  assert.equal(changed.inputFormat, 'scope-md');
+  const fixed = PersonnelBulkEntryForm(formProps({ options: changed }));
+  assert.equal(
+    walk(fixed).find(
+      (node) => node.props['aria-label'] === 'Bulk first row contains headers',
+    ).props.disabled,
+    true,
+  );
+  assert.equal(
+    walk(fixed).find((node) => node.props['aria-label'] === 'Bulk default BU')
+      .props.disabled,
+    false,
+  );
+  for (const inputFormat of ['auto', 'scope-md', 'group-scope-md']) {
+    const preview = parsePersonnelBulkEntry(
+      personnelBulkMDTemplate(inputFormat),
+      {
+        ...options,
+        inputFormat,
+        defaultBU: 'Chosen BU',
+        defaultRETypeId: 'rt-local-l1',
+        resources,
+        rates,
+      },
+    );
+    assert.equal(preview.canConfirm, true, JSON.stringify(preview));
+    assert.deepEqual(
+      preview.rows.map((row) => row.years[0].mandays),
+      [1, 3],
+    );
+  }
+  const markup = renderToStaticMarkup(tree);
+  assert.doesNotMatch(markup, /\bPersonnel\b|\bPersonal\b/i);
+  assert.match(markup, /1 MD, 3days/);
+});
+
 test('Bulk preview shows Group separately and changing its fill-down option invalidates the reviewed input', () => {
   const groupedText =
     'Group\tScope\tBU\tRE Type\tMD\nBranch A\tDeployment\tNetwork\tLOCAL-L1\t2\n\tDesign\tNetwork\tLOCAL-L1\t1';
@@ -162,7 +226,7 @@ test('typing and Preview never append rows; only a current valid Confirm invokes
   });
   const tree = PersonnelBulkEntryForm(props);
   walk(tree)
-    .find((node) => node.props['aria-label'] === 'Bulk personnel table')
+    .find((node) => node.props['aria-label'] === 'Bulk cost table')
     .props.onChange({ target: { value: text } });
   assert.equal(edited, text);
   button(tree, 'Preview').props.onClick();
@@ -222,7 +286,7 @@ test('invalid or stale previews remain visible but cannot confirm; mapping and R
     }),
   );
   assert.match(html, /Generate a new preview/);
-  assert.match(html, /Batch personnel cost/);
+  assert.match(html, /Batch cost/);
   assert.match(html, /1,545.00/);
 });
 
@@ -355,7 +419,7 @@ test('oversized paste retains an invalid-size sentinel instead of silently trunc
     }),
   );
   const field = walk(tree).find(
-    (node) => node.props['aria-label'] === 'Bulk personnel table',
+    (node) => node.props['aria-label'] === 'Bulk cost table',
   );
   assert.equal(field.props.maxLength, undefined);
   field.props.onChange({ target: { value: text + ' '.repeat(1_000_010) } });

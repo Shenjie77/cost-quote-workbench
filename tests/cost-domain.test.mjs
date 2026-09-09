@@ -71,7 +71,7 @@ test('internal annual cost uses sites × MD/site × RE rate × uplift', () => {
   );
 });
 
-test('RE Type summary and unallocated statement costs reconcile', () => {
+test('RE Type summary and named statement costs reconcile', () => {
   const snapshot = makeCostSnapshot();
   snapshot.manualCosts.inlandLogistics = 5.001;
   const statement = getCostStatementValues(
@@ -92,7 +92,7 @@ test('RE Type summary and unallocated statement costs reconcile', () => {
     statement.sales,
   );
   assert.equal(
-    summary.some((item) => item.key === '__NON_RESOURCE__'),
+    summary.some((item) => item.key === '__STATEMENT__:2.2.1'),
     true,
   );
 });

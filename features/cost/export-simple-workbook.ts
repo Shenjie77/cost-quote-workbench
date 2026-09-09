@@ -6,6 +6,8 @@ import {
   YEAR_BUCKETS,
   buildCostStatementRows,
   buildReconciledCostDimensionSummary,
+  buildSubcontractScopeSummary,
+  getCostSummaryStatementCode,
   getActualYears,
   getHQTravelSummary,
   getLabourRateFactors,
@@ -418,13 +420,13 @@ function addPersonnelDetail(
     workbook,
     snapshot,
     'Cost Detail',
-    'Personnel Cost Detail',
+    'Cost Detail',
     columns.length,
     headerRows,
   );
   const actualYears = getActualYears(snapshot.rateSettings);
   sheet.mergeCells(3, 1, 3, columns.length);
-  const viewNote = `Personnel view: ${layout.grouped ? 'Grouped' : 'Ungrouped'} · ${layout.yearIndex === 'all' ? 'All years' : `${YEAR_BUCKETS[layout.yearIndex]} · ${actualYears[layout.yearIndex] ?? 'Set dates'}`}. Total columns, summaries and Cost Statement cover all years.`;
+  const viewNote = `Cost view: ${layout.grouped ? 'Grouped' : 'Ungrouped'} · ${layout.yearIndex === 'all' ? 'All years' : `${YEAR_BUCKETS[layout.yearIndex]} · ${actualYears[layout.yearIndex] ?? 'Set dates'}`}. Total columns, summaries and Cost Statement cover all years.`;
   sheet.getCell('A3').value = viewNote;
   sheet.getCell('A3').font = {
     name: 'Arial',
@@ -640,8 +642,20 @@ const addBreakdown = (
   name: string,
   title: string,
   travelCost: number,
+  subcontractOnly = false,
 ) => {
   const sheet = addSheet(workbook, snapshot, name, title, 5);
+  sheet.mergeCells(3, 1, 3, 5);
+  sheet.getCell('A3').value = subcontractOnly
+    ? 'Cost Statement 2.3.2 · Subcontract BOQ and preserved legacy packages · All years'
+    : 'Total Cost with Risk · All years · Project-level costs reference Cost Statement accounts';
+  sheet.getCell('A3').font = {
+    name: 'Arial',
+    size: 9,
+    color: { argb: COLORS.muted },
+  };
+  sheet.getCell('A3').alignment = { wrapText: true, vertical: 'middle' };
+  sheet.getRow(3).height = 28;
   const header = styleRow(sheet, HEADER_ROW, 5, {
     fill: COLORS.secondary,
     bold: true,
@@ -661,26 +675,35 @@ const addBreakdown = (
   sheet.getColumn(3).numFmt = `${QUANTITY}" MD"`;
   sheet.getColumn(4).numFmt = MONEY;
   sheet.getColumn(5).numFmt = '0.0%';
-  const items = buildReconciledCostDimensionSummary(
+  const statementRows = buildCostStatementRows(
     snapshot.costRows,
-    dimension,
     snapshot.resourceTypes,
     travelCost,
     snapshot.manualCosts,
     snapshot.subcontractCost,
   );
+  const items = subcontractOnly
+    ? buildSubcontractScopeSummary(
+        snapshot.costRows,
+        snapshot.resourceTypes,
+        snapshot.subcontractCost,
+      )
+    : buildReconciledCostDimensionSummary(
+        snapshot.costRows,
+        dimension,
+        snapshot.resourceTypes,
+        travelCost,
+        snapshot.manualCosts,
+        snapshot.subcontractCost,
+        { includeRisk: true },
+      );
   const totalMandays = items.reduce((sum, item) => sum + item.mandays, 0);
   const maxCost = Math.max(1, ...items.map((item) => item.cost));
   items.forEach((item, index) => {
     const rowNumber = HEADER_ROW + 1 + index;
-    const labelZh =
-      item.key === '__UNALLOCATED__'
-        ? '待分摊项目成本'
-        : item.key === '__NON_RESOURCE__'
-          ? '非人员待分摊成本'
-          : item.key === '__NOT_APPLICABLE__'
-            ? '分包/非人员成本'
-            : '';
+    const labelZh = statementRows.find(
+      (row) => row.code === getCostSummaryStatementCode(item.key),
+    )?.zh;
     const label = labelZh ? `${item.label} / ${labelZh}` : item.label;
     const row = styleRow(sheet, rowNumber, 5, {
       height: textRowHeight([[label, 44]], 42),
@@ -724,7 +747,9 @@ const addBreakdown = (
     bold: true,
   });
   setRowValues(total, [
-    'Total / 合计',
+    subcontractOnly
+      ? '2.3.2 · Subcontract Cost / 合作成本'
+      : 'Total Cost with Risk / 含风险总成本',
     null,
     roundQuantity(totalMandays),
     roundMoney(items.reduce((sum, item) => sum + item.cost, 0)),
@@ -865,6 +890,15 @@ export const buildSimpleCostWorkbookBytes = async (
     'Summary RE Type',
     'RE Type & Level / 资源类型与级别汇总',
     travel.totalCost,
+  );
+  addBreakdown(
+    workbook,
+    snapshot,
+    'scope',
+    'Summary Subcon',
+    'Subcontract Cost / 合作成本汇总',
+    travel.totalCost,
+    true,
   );
   addStatement(workbook, snapshot, travel.totalCost);
   const buffer = await workbook.xlsx.writeBuffer();

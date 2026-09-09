@@ -33,7 +33,7 @@ const exportFixture = async (snapshot = makeCostSnapshot()) => ({
 const values = (row, columns) =>
   Array.from({ length: columns }, (_, index) => row.getCell(index + 1).value);
 
-test('simple export serializes only five visible business tables and Cost Input columns', async () => {
+test('simple export serializes visible business tables and Cost Input columns', async () => {
   const snapshot = makeCostSnapshot();
   snapshot.costRows[0].source = {
     fileName: 'PRIVATE-SOURCE-FILE.xlsx',
@@ -53,6 +53,7 @@ test('simple export serializes only five visible business tables and Cost Input 
       'Summary Scope',
       'Summary BU',
       'Summary RE Type',
+      'Summary Subcon',
       'Cost Statement',
     ],
   );
@@ -123,7 +124,7 @@ test('simple export serializes only five visible business tables and Cost Input 
   );
 });
 
-test('simple dimensional sheets match page sorting, percentages, mandays and Sales Cost', async () => {
+test('simple dimensional sheets match page sorting, percentages, mandays and Total Cost with Risk', async () => {
   const { workbook, snapshot } = await exportFixture();
   const travel = getHQTravelSummary(
     snapshot.costRows,
@@ -148,6 +149,8 @@ test('simple dimensional sheets match page sorting, percentages, mandays and Sal
       snapshot.resourceTypes,
       travel.totalCost,
       snapshot.manualCosts,
+      snapshot.subcontractCost,
+      { includeRisk: true },
     );
     assert.equal(sheet.columnCount, 5);
     assert.deepEqual(values(sheet.getRow(4), 5), [
@@ -169,7 +172,10 @@ test('simple dimensional sheets match page sorting, percentages, mandays and Sal
       assert.equal(row.getCell(5).value, item.shareRatio);
       assert.equal(row.getCell(5).numFmt, '0.0%');
     });
-    assert.equal(sheet.getCell(sheet.rowCount, 4).value, statement.sales);
+    assert.equal(
+      sheet.getCell(sheet.rowCount, 4).value,
+      statement.totalWithRisk,
+    );
     assert.equal(sheet.getCell(sheet.rowCount, 5).value, 1);
     assert.equal(sheet.conditionalFormattings.length, items.length);
     assert.equal(sheet.conditionalFormattings[0].rules[0].type, 'dataBar');
@@ -257,7 +263,10 @@ test('simple statement and dimensions use shared automatic one-percent service-c
   );
   for (const name of ['Summary Scope', 'Summary BU', 'Summary RE Type']) {
     const summary = workbook.getWorksheet(name);
-    assert.equal(summary.getCell(summary.rowCount, 4).value, statement.sales);
+    assert.equal(
+      summary.getCell(summary.rowCount, 4).value,
+      statement.totalWithRisk,
+    );
   }
 });
 

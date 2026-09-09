@@ -341,6 +341,15 @@ function ProjectSessionApp({
   const versionTransitionRef = useRef(false);
   const [isVersionTransitioning, setVersionTransitioning] = useState(false);
   const quoteExportingRef = useRef(false);
+  const costConfigurationSaveRef = useRef<(() => Promise<boolean>) | null>(
+    null,
+  );
+  const registerCostConfigurationSave = useCallback(
+    (handler: (() => Promise<boolean>) | null) => {
+      costConfigurationSaveRef.current = handler;
+    },
+    [],
+  );
   const [quoteExporting, setQuoteExporting] = useState(false);
   /** Protect the output/history pair when users navigate during Excel generation. */
   useEffect(() => {
@@ -2114,6 +2123,12 @@ function ProjectSessionApp({
   else if (activeView === 'cost')
     content = (
       <CostView
+        onSave={() =>
+          isReady && !switchingRef.current && !versionTransitionRef.current
+            ? saveNow()
+            : Promise.resolve(false)
+        }
+        onRegisterSave={registerCostConfigurationSave}
         proposalNumber={ssr.proposalNumber}
         onProposalNumberChange={(proposalNumber) =>
           setSsr((current) => ({ ...current, proposalNumber }))
@@ -2458,11 +2473,9 @@ function ProjectSessionApp({
               ME
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold">
-                Personal Quote Workspace
-              </p>
+              <p className="truncate text-xs font-semibold">Quote Workspace</p>
               <p className="mt-0.5 text-[8px] text-[#8197a3]">
-                个人报价工作区 · Local SQLite / 本地数据库
+                报价工作区 · Local SQLite / 本地数据库
               </p>
             </div>
             <button
@@ -2616,7 +2629,14 @@ function ProjectSessionApp({
                   variant="ghost"
                   size="sm"
                   className="h-6 px-2 text-[9px]"
-                  onClick={() => (isReady ? void saveNow() : retryLoad())}
+                  onClick={() =>
+                    !isReady
+                      ? retryLoad()
+                      : activeView === 'cost' &&
+                          costConfigurationSaveRef.current
+                        ? void costConfigurationSaveRef.current()
+                        : void saveNow()
+                  }
                   disabled={persistenceStatus.phase === 'saving'}
                 >
                   <Save className="size-3" /> Save{' '}

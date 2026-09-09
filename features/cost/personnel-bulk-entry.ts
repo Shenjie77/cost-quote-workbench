@@ -20,6 +20,7 @@ export const PERSONNEL_BULK_LIMITS = {
   columns: 40,
 } as const;
 export type PersonnelBulkMode = 'sites' | 'mandays';
+export type PersonnelBulkInputFormat = 'auto' | 'scope-md' | 'group-scope-md';
 export type PersonnelBulkColumnTarget =
   | 'groupName'
   | 'scope'
@@ -39,6 +40,7 @@ export type PersonnelBulkOptions = {
   rates: RateSettings;
   defaultMode: PersonnelBulkMode;
   defaultYear: number;
+  inputFormat?: PersonnelBulkInputFormat;
   defaultBU?: string;
   defaultRETypeId?: string;
   hasHeader?: boolean;
@@ -156,7 +158,15 @@ for (const [target, names] of Object.entries({
     'Scope / 工作范围',
     'Scope / 范围',
   ],
-  bu: ['bu', 'business unit', '业务单元', '事业部', '部门', 'BU / 业务单元'],
+  bu: [
+    'bu',
+    'business unit',
+    '业务单元',
+    '业务部',
+    '事业部',
+    '部门',
+    'BU / 业务单元',
+  ],
   reType: [
     're type',
     'retype',
@@ -189,6 +199,9 @@ for (const [target, names] of Object.entries({
     'md',
     'mandays',
     'man days',
+    'man day',
+    'man-day',
+    'man-days',
     'direct md',
     '人天',
     '人天数',
@@ -197,17 +210,48 @@ for (const [target, names] of Object.entries({
 }))
   for (const name of names)
     aliases[normalize(name)] = target as PersonnelBulkColumnTarget;
+/** Interpret Markdown styling on headers only; business cells retain their original text. */
+const plainHeader = (value: string) =>
+  value
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/(`+)([^`]+)\1/g, '$2')
+    .trim();
+const headerAlias = (value: string): PersonnelBulkColumnTarget | undefined => {
+  value = plainHeader(value);
+  const exact = aliases[normalize(value)];
+  if (exact) return exact;
+  const parts = value
+    .split(/[/|()（）\n]+/)
+    .map((part) => normalize(part))
+    .filter(Boolean);
+  const targets = parts.map((part) => aliases[part]);
+  return targets.length > 1 &&
+    targets.every((target) => target && target === targets[0])
+    ? targets[0]
+    : undefined;
+};
 export const isPersonnelBulkCostColumn = (value: string) =>
   /(?:^|[^a-z])(?:costs?|prices?|amounts?|rates?|sgd)(?:$|[^a-z])|费用|成本|金额|单价|费率/i.test(
-    value.replace(/([a-z])([A-Z])/g, '$1 $2'),
+    plainHeader(value).replace(/([a-z])([A-Z])/g, '$1 $2'),
   );
 const totalLabel = (value: string) =>
-  /^(?:total|subtotal|grandtotal|合计|小计|总计)$/i.test(normalize(value));
+  /^(?:total|subtotal|grandtotal|合计|小计|总计)(?:md|mandays|人天|cost|成本)?$/i.test(
+    normalize(value),
+  ) ||
+  (value.split(/[/|()（）]+/).filter((part) => part.trim()).length > 1 &&
+    value
+      .split(/[/|()（）]+/)
+      .filter((part) => part.trim())
+      .every((part) =>
+        /^(?:total|subtotal|grandtotal|合计|小计|总计)$/i.test(normalize(part)),
+      ));
 
 function detectColumn(
   header: string,
   rates: RateSettings,
 ): { target: PersonnelBulkColumnTarget; issue?: string } {
+  header = plainHeader(header);
   if (isPersonnelBulkCostColumn(header)) return { target: 'ignore' };
   const key = normalize(header);
   const matches = [
@@ -217,29 +261,36 @@ function detectColumn(
         /(?:[Yy]\s*([1-5])(?!\d)|(?<!\d)((?:19|20|21|22)\d{2})(?!\d))/g,
       ),
   ];
-  if (matches.length > 1)
+  const actualYears = getActualYears(rates);
+  const indices = matches.map((match) =>
+    match[1] ? Number(match[1]) - 1 : actualYears.indexOf(Number(match[2])),
+  );
+  if (
+    matches.length > 1 &&
+    (indices.some((index) => index < 0) || new Set(indices).size !== 1)
+  )
     return {
       target: 'unmapped',
       issue: `Ambiguous year header “${header}”. Choose one year in the column mapping.`,
     };
-  if (matches.length === 1) {
-    const match = matches[0];
-    const index = match[1]
-      ? Number(match[1]) - 1
-      : getActualYears(rates).indexOf(Number(match[2]));
+  if (matches.length) {
+    const index = indices[0];
     if (index < 0)
       return {
         target: 'unmapped',
         issue: `Calendar year “${header}” is outside this version's Y1–Y5. Set delivery dates or map its year explicitly.`,
       };
-    const rest = normalize(header.replace(match[0], ''));
-    const type = aliases[rest];
+    const restText = matches
+      .reduce((rest, year) => rest.replace(year[0], ''), header)
+      .replace(/^[\s·:：/|()（）-]*年?[\s·:：/|()（）-]*/, '');
+    const rest = normalize(restText);
+    const type = headerAlias(restText);
     if (!rest || rest === '年') return { target: `quantity:${index}` };
     if (type === 'sites' || type === 'mandays')
       return { target: `${type}:${index}` };
     return { target: 'unmapped' };
   }
-  return { target: aliases[key] || 'unmapped' };
+  return { target: aliases[key] || headerAlias(header) || 'unmapped' };
 }
 
 type MatrixRow = { sourceRow: number; cells: string[] };
@@ -254,7 +305,36 @@ function readMatrix(text: string): {
       issues: ['Paste at most 1,000,000 characters per batch.'],
       notices: [],
     };
-  const value = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  let value = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const notices: string[] = [];
+  let lineOffset = 0;
+  const sourceLines = value.split('\n');
+  const firstLine = sourceLines.findIndex((line) => line.trim());
+  const fence =
+    firstLine < 0
+      ? null
+      : /^(`{3,}|~{3,})(?:markdown|md)?\s*$/i.exec(
+          sourceLines[firstLine].trim(),
+        );
+  if (fence) {
+    const lastLine = sourceLines.findLastIndex((line) => line.trim());
+    const closing = sourceLines[lastLine].trim();
+    if (
+      lastLine === firstLine ||
+      closing.length < fence[1].length ||
+      !Array.from(closing).every((char) => char === fence[1][0])
+    )
+      return {
+        rows: [],
+        issues: [
+          'Markdown code fence is not closed. Paste the complete table and its closing fence.',
+        ],
+        notices: [],
+      };
+    value = sourceLines.slice(firstLine + 1, lastLine).join('\n');
+    lineOffset = firstLine + 1;
+    notices.push('Markdown code fence removed; table contents retained.');
+  }
   const first = value.split('\n').find((line) => line.trim()) || '';
   const delimiter = first.includes('\t')
     ? '\t'
@@ -267,13 +347,12 @@ function readMatrix(text: string): {
           : ',';
   const records: MatrixRow[] = [];
   const issues: string[] = [];
-  const notices: string[] = [];
   let cells: string[] = [],
     cell = '',
     quoted = false,
     afterQuote = false,
-    line = 1,
-    startLine = 1;
+    line = 1 + lineOffset,
+    startLine = 1 + lineOffset;
   const addRow = () => {
     cells.push(cell.trim());
     if (delimiter === '|') {
@@ -326,7 +405,7 @@ function readMatrix(text: string): {
       addRow();
       line++;
       startLine = line;
-      if (records.length > PERSONNEL_BULK_LIMITS.rows + 1)
+      if (records.length > PERSONNEL_BULK_LIMITS.rows + 2)
         return {
           rows: [],
           issues: ['Paste at most 1,000 data rows per batch.'],
@@ -348,17 +427,21 @@ function readMatrix(text: string): {
   }
   if (quoted) issues.push(`Row ${startLine}: quotation marks are not closed.`);
   addRow();
-  if (records.length > PERSONNEL_BULK_LIMITS.rows + 1)
+  if (records.length > PERSONNEL_BULK_LIMITS.rows + 2)
     issues.push('Paste at most 1,000 data rows per batch.');
   return { rows: records, issues, notices };
 }
 
 function quantity(value: string, integer: boolean): number | null {
-  const text = value.trim().replace(/[\u00a0\u202f]/g, '');
+  let text = value.normalize('NFKC').trim();
   if (!text) return 0;
-  const normalized = /^\+?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(text)
-    ? text.replace(/,/g, '')
-    : text;
+  if (!integer)
+    text = text.replace(/\s*(?:md|man[\s-]?days?|days?|人天|天)$/i, '').trim();
+  const normalized =
+    /^\+?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(text) ||
+    /^\+?\d{1,3}(?: \d{3})+(?:\.\d+)?$/.test(text)
+      ? text.replace(/[, ]/g, '')
+      : text;
   if (!/^\+?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(normalized))
     return null;
   const result = Number(normalized);
@@ -373,10 +456,56 @@ const modeValue = (value: string): PersonnelBulkMode | null => {
   const key = normalize(value);
   if (['sites', 'site', 'persite', '站点', '站点模式', '按站点'].includes(key))
     return 'sites';
-  if (['md', 'mandays', 'directmd', '人天', '直接人天', '按人天'].includes(key))
+  if (
+    [
+      'md',
+      'manday',
+      'mandays',
+      'directmd',
+      '人天',
+      '直接人天',
+      '按人天',
+    ].includes(key)
+  )
     return 'mandays';
   return null;
 };
+
+/** Flatten only an unambiguous Excel year-header row plus its recognized field labels. */
+function tieredHeaders(
+  rows: MatrixRow[],
+  rates: RateSettings,
+): string[] | null {
+  if (rows.length < 2) return null;
+  const [upper, lower] = rows;
+  const width = Math.max(upper.cells.length, lower.cells.length);
+  const headers: string[] = [];
+  let year = '',
+    annual = 0;
+  for (let index = 0; index < width; index++) {
+    const top = plainHeader(upper.cells[index] || '');
+    const bottom = plainHeader(lower.cells[index] || '');
+    const topTarget = detectColumn(top, rates).target;
+    if (/^quantity:[0-4]$/.test(topTarget)) year = top;
+    else if (top) year = '';
+    if (year) {
+      const target = detectColumn(bottom, rates).target;
+      if (!bottom || !['sites', 'mandays', 'ignore'].includes(target))
+        return null;
+      headers.push(`${year} ${bottom}`);
+      annual++;
+    } else {
+      const topAlias = headerAlias(top),
+        bottomAlias = headerAlias(bottom);
+      if (top && bottom && (!topAlias || topAlias !== bottomAlias)) return null;
+      const label = top || bottom;
+      if (label && !headerAlias(label) && !isPersonnelBulkCostColumn(label))
+        return null;
+      headers.push(label);
+    }
+  }
+  return annual ? headers : null;
+}
 const targetAllowed = (target: string) =>
   [
     'groupName',
@@ -410,7 +539,7 @@ export function parsePersonnelBulkEntry(
     totalMandays: 0,
   };
   if (!text.trim()) {
-    preview.issues.push('Paste or type a personnel table first.');
+    preview.issues.push('Paste or type a cost table first.');
     return preview;
   }
   if (
@@ -427,19 +556,53 @@ export function parsePersonnelBulkEntry(
   if (parsed.issues.length) return preview;
   if (!parsed.rows.length) {
     preview.issues.push(
-      'No personnel table cells were found. Paste a header and at least one data row.',
+      'No table cells were found. Paste a header and at least one data row.',
     );
     return preview;
   }
-  const hasHeader = options.hasHeader !== false;
-  const header = hasHeader
-    ? parsed.rows[0].cells
-    : parsed.rows[0].cells.map((_, index) => `Column ${index + 1}`);
+  const format = options.inputFormat || 'auto';
+  if (!['auto', 'scope-md', 'group-scope-md'].includes(format)) {
+    preview.issues.push('Choose a supported input format.');
+    return preview;
+  }
+  const preset: PersonnelBulkColumnTarget[] | null =
+    format === 'scope-md'
+      ? ['scope', 'mandays']
+      : format === 'group-scope-md'
+        ? ['groupName', 'scope', 'mandays']
+        : null;
+  const hasHeader = !preset && options.hasHeader !== false;
+  const combinedHeader = hasHeader
+    ? tieredHeaders(parsed.rows, options.rates)
+    : null;
+  const header =
+    combinedHeader ||
+    (hasHeader
+      ? parsed.rows[0].cells
+      : preset
+        ? preset.map((target) =>
+            target === 'mandays'
+              ? 'MD'
+              : target === 'groupName'
+                ? 'Group'
+                : 'Scope',
+          )
+        : parsed.rows[0].cells.map((_, index) => `Column ${index + 1}`));
+  if (combinedHeader)
+    preview.notices.push(
+      `Rows ${parsed.rows[0].sourceRow}–${parsed.rows[1].sourceRow}: two-row year headers combined; review the column mapping.`,
+    );
+  if (preset)
+    preview.notices.push(
+      `Fixed ${preset.length}-column MD format: ${header.join(' / ')}. Values use ${YEAR_BUCKETS[options.defaultYear]}; choose BU and RE Type defaults.`,
+    );
   if (header.length > PERSONNEL_BULK_LIMITS.columns) {
     preview.issues.push('Use at most 40 columns per batch.');
     return preview;
   }
-  const data = hasHeader ? parsed.rows.slice(1) : parsed.rows;
+  const data = hasHeader
+    ? parsed.rows.slice(combinedHeader ? 2 : 1)
+    : parsed.rows;
   if (data.length > PERSONNEL_BULK_LIMITS.rows) {
     preview.issues.push('Paste at most 1,000 data rows per batch.');
     return preview;
@@ -448,7 +611,9 @@ export function parsePersonnelBulkEntry(
   preview.columns = header.map((name, index) => {
     const detected = hasHeader
       ? detectColumn(name, options.rates)
-      : { target: 'unmapped' as const };
+      : {
+          target: preset?.[index] || ('unmapped' as PersonnelBulkColumnTarget),
+        };
     // Financial columns can never be repurposed as effort by an accidental mapping.
     const target =
       hasHeader && isPersonnelBulkCostColumn(name)
@@ -496,7 +661,7 @@ export function parsePersonnelBulkEntry(
   );
   if (!effortColumns.length)
     preview.issues.push(
-      'Map at least one Sites or MD column. Cost-only amounts cannot create personnel effort.',
+      'Map at least one Sites or MD column. Cost-only amounts cannot create effort.',
     );
   const column = (target: string) =>
     columns.find((item) => item.target === target)?.index;
@@ -508,6 +673,18 @@ export function parsePersonnelBulkEntry(
   let previousGroup = '';
   for (const record of data) {
     const rowIssues: string[] = [];
+    if (
+      hasHeader &&
+      record.cells.length === header.length &&
+      record.cells.every(
+        (cell, index) => normalize(cell) === normalize(header[index]),
+      )
+    ) {
+      preview.notices.push(
+        `Row ${record.sourceRow}: repeated header row skipped.`,
+      );
+      continue;
+    }
     if (record.cells.slice(header.length).some((value) => value.trim()))
       rowIssues.push('This row has extra cells beyond the mapped columns.');
     let scope = get(record, 'scope');
@@ -710,7 +887,7 @@ export function parsePersonnelBulkEntry(
     preview.entries.push(entry);
   }
   if (!preview.entries.length)
-    preview.issues.push('No personnel data rows were found.');
+    preview.issues.push('No cost input rows were found.');
   preview.totalCost = roundMoney(
     preview.rows.reduce((sum, row) => sum + totalRowCost(row), 0),
   );

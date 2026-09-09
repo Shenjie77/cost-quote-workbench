@@ -25,6 +25,7 @@ import {
   personnelBulkBasisFingerprint,
   type PersonnelBulkColumnTarget,
   type PersonnelBulkMode,
+  type PersonnelBulkInputFormat,
   type PersonnelBulkOptions,
   type PersonnelBulkPreview,
 } from '../personnel-bulk-entry';
@@ -32,6 +33,7 @@ import {
 type EntryOptions = Pick<
   PersonnelBulkOptions,
   | 'defaultMode'
+  | 'inputFormat'
   | 'defaultYear'
   | 'defaultBU'
   | 'defaultRETypeId'
@@ -44,7 +46,7 @@ type EntryOptions = Pick<
 export type PersonnelBulkEntryDialogProps = {
   resources: ResourceType[];
   rates: RateSettings;
-  defaultMode: PersonnelBulkMode;
+  defaultMode?: PersonnelBulkMode;
   defaultYear: number;
   locked?: boolean;
   onClose: () => void;
@@ -79,6 +81,15 @@ const mappingOptions: { value: PersonnelBulkColumnTarget; label: string }[] = [
     { value: `mandays:${index}` as const, label: `${year} · MD` },
   ]),
 ];
+
+export function personnelBulkMDTemplate(
+  format: PersonnelBulkInputFormat = 'auto',
+) {
+  if (format === 'scope-md') return 'Installation\t1\nTesting\t3';
+  if (format === 'group-scope-md')
+    return 'Site A\tInstallation\t1\nSite A\tTesting\t3';
+  return 'Group\tScope\tMD\nSite A\tInstallation\t1\nSite A\tTesting\t3';
+}
 
 /** Text/options and current version basis must still match the explicitly generated preview. */
 export function personnelBulkInputKey(
@@ -157,6 +168,7 @@ export function PersonnelBulkEntryForm({
   onPreview,
   onConfirm,
   onClose,
+  onCopyTemplate,
 }: {
   text: string;
   options: EntryOptions;
@@ -172,6 +184,7 @@ export function PersonnelBulkEntryForm({
   onPreview: () => void;
   onConfirm: () => void;
   onClose: () => void;
+  onCopyTemplate?: (text: string) => void;
 }) {
   const update = (change: Partial<EntryOptions>) => {
     if (!locked) onOptionsChange({ ...options, ...change });
@@ -182,19 +195,72 @@ export function PersonnelBulkEntryForm({
   const actualYears = getActualYears(rates);
   const pageCount = Math.max(1, Math.ceil((preview?.entries.length || 0) / 50));
   const safePage = Math.min(page, pageCount - 1);
+  const format = options.inputFormat || 'auto';
+  const template = personnelBulkMDTemplate(format);
   return (
     <>
       <div className="space-y-3">
+        <div className="grid gap-2 rounded-md border border-border bg-[#f5f7f5] p-3 sm:grid-cols-[220px_1fr]">
+          <label className="grid content-start gap-1 text-[11px] font-medium">
+            Input format
+            <select
+              aria-label="Bulk input format"
+              className={selectClass}
+              value={format}
+              disabled={locked}
+              onChange={(event) =>
+                update({
+                  inputFormat: event.target.value as PersonnelBulkInputFormat,
+                  defaultMode: 'mandays',
+                  hasHeader: event.target.value === 'auto',
+                  mapping: {},
+                  reTypeOverrides: {},
+                })
+              }
+            >
+              <option value="auto">Auto-detect headers</option>
+              <option value="scope-md">Scope + MD · no header</option>
+              <option value="group-scope-md">
+                Group + Scope + MD · no header
+              </option>
+            </select>
+            <span className="font-normal text-muted-foreground">
+              MD means total man-days. Choose the default BU, RE Type and year
+              below when missing from the table.
+            </span>
+          </label>
+          <div className="grid gap-1">
+            <div className="flex items-center justify-between gap-2 text-[11px] font-medium">
+              <span>MD template · tab-separated</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 text-[11px]"
+                disabled={locked}
+                onClick={() => {
+                  if (!locked) onCopyTemplate?.(template);
+                }}
+              >
+                Copy template
+              </Button>
+            </div>
+            <textarea
+              aria-label="MD template"
+              readOnly
+              value={template}
+              className="h-20 w-full resize-none rounded border border-border bg-white px-2 py-1 font-mono text-[11px]"
+            />
+          </div>
+        </div>
         <label className="grid gap-1.5 text-xs font-medium">
           Paste or type a table
           <textarea
-            aria-label="Bulk personnel table"
+            aria-label="Bulk cost table"
             className="h-36 w-full resize-y rounded-md border border-border bg-white px-3 py-2 font-mono text-xs font-normal leading-5 outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
             value={text}
             disabled={locked}
-            placeholder={
-              'Scope\tBU\tRE Type\tMD/Site\tY1 Sites\tY2 Sites\nRouter rollout\tNetwork\tLOCAL-L2\t2\t10\t5'
-            }
+            placeholder={template}
             onChange={(event) => {
               // Keep an over-limit sentinel so an oversized paste can never become a valid truncated batch.
               if (!locked)
@@ -209,8 +275,10 @@ export function PersonnelBulkEntryForm({
         </label>
         <p className="text-[11px] text-muted-foreground">
           Excel paste, quoted CSV and Markdown tables · up to 1,000 rows. Scope,
-          BU, RE Type and annual effort are recognized locally. Costs are
-          recalculated from this version&apos;s rates and allowance.
+          Group, BU, RE Type and annual effort are recognized locally. Use MD,
+          Y1 MD–Y5 MD or calendar-year MD headings. Values such as 1 MD, 3days
+          and 3天 are accepted in MD columns. Costs are recalculated from this
+          version&apos;s rates and allowance.
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <label className="grid gap-1 text-[11px] font-medium">
@@ -249,9 +317,10 @@ export function PersonnelBulkEntryForm({
             <select
               aria-label="Bulk default input mode"
               className={selectClass}
-              disabled={locked}
-              value={options.defaultMode}
+              disabled={locked || format !== 'auto'}
+              value={format === 'auto' ? options.defaultMode : 'mandays'}
               onChange={(event) =>
+                format === 'auto' &&
                 update({ defaultMode: event.target.value as PersonnelBulkMode })
               }
             >
@@ -284,15 +353,16 @@ export function PersonnelBulkEntryForm({
             <input
               type="checkbox"
               aria-label="Bulk first row contains headers"
-              checked={options.hasHeader !== false}
-              disabled={locked}
-              onChange={(event) =>
+              checked={format === 'auto' && options.hasHeader !== false}
+              disabled={locked || format !== 'auto'}
+              onChange={(event) => {
+                if (format !== 'auto') return;
                 update({
                   hasHeader: event.target.checked,
                   mapping: {},
                   reTypeOverrides: {},
-                })
-              }
+                });
+              }}
             />
             First row contains headers
           </label>
@@ -415,13 +485,12 @@ export function PersonnelBulkEntryForm({
             )}
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="font-semibold">
-                {preview.entries.length} personnel rows ·{' '}
+                {preview.entries.length} rows ·{' '}
                 {preview.entries.filter((entry) => entry.issues.length).length}{' '}
                 to correct
               </span>
               <span>
-                Batch personnel cost:{' '}
-                <strong>SGD {money(preview.totalCost)}</strong>
+                Batch cost: <strong>SGD {money(preview.totalCost)}</strong>
                 {!preview.canConfirm && ' · valid rows only'}
               </span>
             </div>
@@ -601,7 +670,8 @@ export function PersonnelBulkEntryForm({
 export function PersonnelBulkEntryDialog(props: PersonnelBulkEntryDialogProps) {
   const [text, setText] = useState('');
   const [options, setOptions] = useState<EntryOptions>({
-    defaultMode: props.defaultMode,
+    defaultMode: props.defaultMode ?? 'mandays',
+    inputFormat: 'auto',
     defaultYear: props.defaultYear,
     defaultBU: '',
     defaultRETypeId: '',
@@ -667,7 +737,7 @@ export function PersonnelBulkEntryDialog(props: PersonnelBulkEntryDialogProps) {
     >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[1040px]">
         <DialogHeader>
-          <DialogTitle>Bulk Personnel Entry</DialogTitle>
+          <DialogTitle>Bulk Entry</DialogTitle>
           <DialogDescription>
             Paste a table, review the recognized rows, then confirm to append
             them to this cost version. Existing rows stay in place.
@@ -688,13 +758,25 @@ export function PersonnelBulkEntryDialog(props: PersonnelBulkEntryDialogProps) {
             setText(value);
             setOptions((current) => ({
               ...current,
-              mapping: {},
               reTypeOverrides: {},
             }));
           }}
           onPreview={generatePreview}
           onConfirm={confirm}
           onClose={props.onClose}
+          onCopyTemplate={async (template) => {
+            if (props.locked) return;
+            try {
+              await navigator.clipboard.writeText(template);
+              props.announce(
+                'MD template copied. Fill in the table and paste it above.',
+              );
+            } catch {
+              props.announce(
+                'Select and copy the MD template text, then paste your completed table above.',
+              );
+            }
+          }}
         />
       </DialogContent>
     </Dialog>

@@ -4,7 +4,7 @@ Local-first personal workbench for project delivery review, cost construction,
 pricing, quote output, review follow-up, reusable master data, and maintenance
 price history.
 
-Current release: [v0.9.0 · Custom personnel groups, table-layout export and project hold](docs/releases/v0.9.0.md).
+Current release: [v0.10.0 · Saved cost views, MD table entry and account summaries](docs/releases/v0.10.0.md).
 
 The product UI is English-first with compact Chinese helper labels. It runs on
 the company computer and is designed to give both the user and an internal
@@ -47,19 +47,25 @@ original versions. Company approvals are recorded as actual progress in the
 project workflow; quote export checks confirmed cost and valid quotation inputs
 without requiring a duplicate local SSR approval chain.
 
-Personnel Input is a compact editable grid with All/Y1–Y5 views and a toolbar
+Cost Input is a compact editable grid with All/Y1–Y5 views and a toolbar
 Mode selector for Sites or Direct MD; it has no separate search bar. The
 **Groups** toggle beside Mode displays custom group headings, independent of
 Scope. Edit the Group column or rename a group heading; move rows with the
 Action arrows or drag handle, including between groups. Group names and row
 order are stored with the cost version and can also be updated through CLI.
-**Columns** controls visibility and left/right order as local browser preferences.
+**Columns** controls visibility and left/right order. Use **Save** to retain the
+year, group visibility and columns in this browser for the current project and
+cost version; the same action flushes cost inputs, allowance and travel settings.
 **Simple Export** follows those columns plus the selected grouping and year view
 in Cost Detail; its summaries retain full five-year totals. **Full Export** keeps
-the standard workbook layout.
+the standard workbook layout. **Cost Statement** opens first in Summary; named
+statement accounts replace the generic unassigned cost bucket, and **Subcon**
+reconciles its breakdown to 2.3.2. UI and Simple Export summaries include Risk.
 **Bulk Entry** opens a local table-paste preview: recognize
 Chinese/English columns, resolve RE Types and annual quantities, then confirm
-to append rows. Costs use the selected version's captured rates and allowance;
+to append rows. Fixed **Scope + MD** and **Group + Scope + MD** formats support
+short tables without headers, with BU, RE Type and year selected as defaults.
+Costs use the selected version's captured rates and allowance;
 pasted prices are not imported. See the [personnel entry guide](docs/personnel-entry.md).
 An optional
 3% allowance applies to all internal personnel in selected **LOCAL, ARP, HQ or

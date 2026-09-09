@@ -551,7 +551,7 @@ test('locked grid blocks inline writers while keeping year views available', () 
     locked: true,
   });
   assert.match(html, /Locked · View only/);
-  assert.doesNotMatch(html, /Search personnel rows/);
+  assert.doesNotMatch(html, /Search cost rows/);
   assert.doesNotMatch(
     html.match(/<button[^>]*>All Years<\/button>/)?.[0] || '',
     /\sdisabled(?:=|\s|>)/,
@@ -855,8 +855,8 @@ test('row up/down and drag/drop express position and target Group without writin
     onMoveRow: (value) => moves.push(value),
   });
   const nodes = walk(PersonnelLinesTable(props));
-  input(props, 'Move personnel row LLD down').props.onClick();
-  input(props, 'Move personnel row INSTALL up').props.onClick();
+  input(props, 'Move cost row LLD down').props.onClick();
+  input(props, 'Move cost row INSTALL up').props.onClick();
   assert.deepEqual(moves.slice(0, 2), [
     {
       rowId: 'LLD',
@@ -877,7 +877,7 @@ test('row up/down and drag/drop express position and target Group without writin
     setData: (key, value) => payload.set(key, value),
     getData: (key) => payload.get(key) || '',
   };
-  input(props, 'Drag personnel row HLD').props.onDragStart({
+  input(props, 'Drag cost row HLD').props.onDragStart({
     dataTransfer,
     preventDefault: noop,
   });
@@ -916,8 +916,8 @@ test('row up/down and drag/drop express position and target Group without writin
   assert.equal(personnelDropPosition(115, 100, 32), 'before');
   assert.equal(personnelDropPosition(116, 100, 32), 'after');
   const locked = { ...props, locked: true };
-  input(locked, 'Move personnel row LLD down').props.onClick();
-  input(locked, 'Drag personnel row HLD').props.onDragStart({
+  input(locked, 'Move cost row LLD down').props.onClick();
+  input(locked, 'Drag cost row HLD').props.onDragStart({
     dataTransfer,
     preventDefault: noop,
   });
@@ -943,8 +943,8 @@ test('flat row moves preserve existing Group assignments and drag feedback marks
     grouped: false,
     onMoveRow: (value) => moves.push(value),
   });
-  input(props, 'Move personnel row A down').props.onClick();
-  input(props, 'Move personnel row B up').props.onClick();
+  input(props, 'Move cost row A down').props.onClick();
+  input(props, 'Move cost row B up').props.onClick();
   const attributes = new Map();
   const event = {
     dataTransfer: {

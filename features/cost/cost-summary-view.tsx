@@ -11,8 +11,12 @@ import { BreakdownTable } from '@/features/cost/components/breakdown-table';
 import { CostStatementTable } from '@/features/cost/components/cost-statement-table';
 import {
   buildReconciledCostDimensionSummary,
+  buildCostStatementRows,
+  buildSubcontractScopeSummary,
+  getCostSummaryStatementCode,
   getCostStatementValues,
   totalRowMandays,
+  type CostDimensionSummary,
   type CostInputRow,
   type ManualCostInputs,
   type ResourceType,
@@ -60,8 +64,28 @@ export function CostSummaryView({
     ].filter(Boolean),
   ).size;
   const averageCost =
-    totalMandays > 0 ? statementValues.sales / totalMandays : 0;
+    totalMandays > 0 ? statementValues.totalWithRisk / totalMandays : 0;
   const palette = ['#173a52', '#2e6f77', '#a86432', '#81918b', '#657e98'];
+  const statementRows = buildCostStatementRows(
+    rows,
+    resourceTypes,
+    travelCost,
+    manualCosts,
+    subcontractCost,
+  );
+  const toBreakdown = (grouped: CostDimensionSummary[]): BreakdownItem[] =>
+    grouped.map((item, index) => ({
+      name: item.label,
+      nameZh:
+        statementRows.find(
+          (statement) =>
+            statement.code === getCostSummaryStatementCode(item.key),
+        )?.zh || '',
+      amount: item.cost,
+      mandays: item.mandays,
+      share: Number((item.shareRatio * 100).toFixed(1)),
+      color: palette[index % palette.length],
+    }));
   const makeBreakdown = (
     dimension: 'scope' | 'bu' | 'resourceType',
   ): BreakdownItem[] => {
@@ -72,45 +96,33 @@ export function CostSummaryView({
       travelCost,
       manualCosts,
       subcontractCost,
+      { includeRisk: true },
     );
-    return grouped
-      .map((item, index) => ({
-        name: item.label,
-        nameZh:
-          item.key === '__UNALLOCATED__'
-            ? '待分摊项目成本'
-            : item.key === '__NON_RESOURCE__'
-              ? '非人员待分摊成本'
-              : item.key === '__NOT_APPLICABLE__'
-                ? '分包/非人员成本'
-                : '',
-        amount: item.cost,
-        mandays: item.mandays,
-        share: Number((item.shareRatio * 100).toFixed(1)),
-        color: palette[index % palette.length],
-      }))
-      .sort((a, b) => b.amount - a.amount);
+    return toBreakdown(grouped);
   };
   const scopeBreakdown = makeBreakdown('scope');
   const buBreakdown = makeBreakdown('bu');
   const resourceBreakdown = makeBreakdown('resourceType');
+  const subcontractBreakdown = toBreakdown(
+    buildSubcontractScopeSummary(rows, resourceTypes, subcontractCost),
+  );
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
         <KpiCard
-          label="Sales Cost"
-          labelZh="销售成本"
-          value={formatSgd(statementValues.sales)}
-          note="Current cost lines and statement inputs"
-          noteZh="当前成本行与报表手工科目"
+          label="Total Cost with Risk"
+          labelZh="含风险总成本"
+          value={formatSgd(statementValues.totalWithRisk)}
+          note="Sales Cost + Risk Contingency"
+          noteZh="销售成本 + 风险准备金"
           icon={BarChart3}
         />
         <KpiCard
           label="Total Mandays"
           labelZh="总人天"
           value={`${totalMandays.toLocaleString('en-SG')} MD`}
-          note="Calculated from Sites × MD / Site"
-          noteZh="由站点数 × 单站人天自动计算"
+          note="Sites × MD / Site or Direct MD"
+          noteZh="站点数 × 单站人天或直接人天"
           icon={Clock3}
           tone="blue"
         />
@@ -118,8 +130,8 @@ export function CostSummaryView({
           label="Average Cost / MD"
           labelZh="平均人天成本"
           value={formatSgd(averageCost)}
-          note="Sales cost divided by total mandays"
-          noteZh="销售成本 ÷ 总人天"
+          note="Total cost with risk divided by mandays"
+          noteZh="含风险总成本 ÷ 总人天"
           icon={Gauge}
           tone="green"
         />
@@ -134,7 +146,7 @@ export function CostSummaryView({
         />
       </div>
       <section className="border border-border bg-card">
-        <Tabs defaultValue="scope">
+        <Tabs defaultValue="statement">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3">
             <div>
               <p className="text-[11px] font-semibold text-[#a86432]">02</p>
@@ -145,22 +157,23 @@ export function CostSummaryView({
                 </span>
               </h2>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                Dimensions show cost and mandays; Cost Statement follows the
-                reporting hierarchy. /
-                维度页展示成本与人天，成本报表按科目层级汇总。
+                Dimensions include risk and reference Cost Statement accounts;
+                Subcon shows the 2.3.2 breakdown. /
+                各维度含风险并引用报表科目；分包页对应 2.3.2。
               </p>
             </div>
             <TabsList variant="line">
+              <TabsTrigger value="statement">
+                Cost Statement{' '}
+                <span className="text-[9px] opacity-60">成本报表</span>
+              </TabsTrigger>
               <TabsTrigger value="scope">Scope</TabsTrigger>
               <TabsTrigger value="bu">BU</TabsTrigger>
               <TabsTrigger value="resource-type">
                 RE Type & Level{' '}
                 <span className="text-[9px] opacity-60">资源类型与级别</span>
               </TabsTrigger>
-              <TabsTrigger value="statement">
-                Cost Statement{' '}
-                <span className="text-[9px] opacity-60">成本报表</span>
-              </TabsTrigger>
+              <TabsTrigger value="subcontract">Subcon</TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="scope">
@@ -171,6 +184,29 @@ export function CostSummaryView({
           </TabsContent>
           <TabsContent value="resource-type">
             <BreakdownTable items={resourceBreakdown} />
+          </TabsContent>
+          <TabsContent value="subcontract">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3">
+              <div>
+                <p className="text-sm font-semibold">
+                  2.3.2 · Subcontract Cost
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  BOQ scopes and preserved legacy packages /
+                  分包条目及历史合作成本
+                </p>
+              </div>
+              <p className="text-lg font-semibold tabular-nums">
+                {formatSgd(statementValues.subcontract)}
+              </p>
+            </div>
+            {subcontractBreakdown.length ? (
+              <BreakdownTable items={subcontractBreakdown} />
+            ) : (
+              <p className="p-5 text-sm text-muted-foreground">
+                No subcontract costs in this version.
+              </p>
+            )}
           </TabsContent>
           <TabsContent value="statement">
             <CostStatementTable

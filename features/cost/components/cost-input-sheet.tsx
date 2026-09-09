@@ -137,7 +137,7 @@ export function CostInputSheet({
       inputMode === 'mixed' ? 'sites' : inputMode,
     );
     setAllRows((current) => [row, ...current]);
-    announce('Personnel row added at the top. Edit its cells directly.');
+    announce('Cost row added at the top. Edit its cells directly.');
   };
 
   const changeMode = (mode: 'sites' | 'mandays') => {
@@ -150,7 +150,7 @@ export function CostInputSheet({
     if (
       plan.clearedMandays > 0 &&
       !window.confirm(
-        `Switch ${plan.affectedCount} personnel row(s) to Sites? This clears ${plan.clearedMandays.toLocaleString('en-SG', { maximumFractionDigits: 4 })} MD across Y1–Y5. Enter the actual site counts and MD per Site.`,
+        `Switch ${plan.affectedCount} cost row(s) to Sites? This clears ${plan.clearedMandays.toLocaleString('en-SG', { maximumFractionDigits: 4 })} MD across Y1–Y5. Enter the actual site counts and MD per Site.`,
       )
     )
       return;
@@ -165,7 +165,7 @@ export function CostInputSheet({
         if (next === null) {
           queueMicrotask(() =>
             announce(
-              'Personnel effort changed. Review the latest rows and try the mode switch again.',
+              'Cost effort changed. Review the latest rows and try the mode switch again.',
             ),
           );
           return current;
@@ -180,7 +180,7 @@ export function CostInputSheet({
     <section className="min-w-0 overflow-hidden border border-border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-sm font-semibold">Personnel Input</h2>
+          <h2 className="text-sm font-semibold">Cost Input</h2>
           {locked ? (
             <StatusBadge tone="gray">Locked · View only</StatusBadge>
           ) : (
@@ -211,15 +211,13 @@ export function CostInputSheet({
             onClick={openNew}
           >
             <Plus className="size-3" />
-            Add Personnel
+            Add Row
           </Button>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-px border-b border-border bg-border min-[480px]:grid-cols-3">
         <div className="bg-[#f7f5f0] px-3 py-2">
-          <p className="text-[10px] text-muted-foreground">
-            Personnel Cost · All Years
-          </p>
+          <p className="text-[10px] text-muted-foreground">Cost · All Years</p>
           <p className="mt-0.5 text-base font-semibold tabular-nums">
             {formatSgd(totalCost)}
           </p>
@@ -258,7 +256,7 @@ export function CostInputSheet({
         <div className="flex min-w-max items-center gap-3">
           <div
             className="flex shrink-0 gap-0.5"
-            aria-label="Personnel delivery year"
+            aria-label="Cost delivery year"
           >
             {[
               ...YEAR_BUCKETS.map((bucket, index) => ({
@@ -282,7 +280,7 @@ export function CostInputSheet({
           </div>
           <fieldset
             className="flex shrink-0 items-center gap-1.5 border-l border-border pl-3"
-            aria-label="Personnel input mode"
+            aria-label="Cost input mode"
           >
             <span className="text-[11px] text-muted-foreground">Mode</span>
             <div className="flex gap-0.5 rounded-md border border-border bg-card p-0.5">
@@ -300,7 +298,7 @@ export function CostInputSheet({
                   className="h-6 px-2 text-[11px]"
                   aria-pressed={inputMode === mode}
                   disabled={locked}
-                  title={`Set all personnel rows to ${label}`}
+                  title={`Set all cost rows to ${label}`}
                   onClick={() => changeMode(mode)}
                 >
                   {label}
@@ -394,7 +392,7 @@ export function CostInputSheet({
         <PersonnelBulkEntryDialog
           resources={resources}
           rates={rateSettings}
-          defaultMode={inputMode === 'mixed' ? 'sites' : inputMode}
+          defaultMode="mandays"
           defaultYear={yearIndex === 'all' ? 0 : yearIndex}
           locked={locked}
           onClose={() => setShowBulkEntry(false)}
@@ -417,7 +415,7 @@ export function CostInputSheet({
             }
             setAllRows((current) => [...current, ...newRows]);
             setShowBulkEntry(false);
-            announce(`${newRows.length} personnel rows added.`);
+            announce(`${newRows.length} cost rows added.`);
             return true;
           }}
         />

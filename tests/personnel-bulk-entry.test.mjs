@@ -30,6 +30,213 @@ const errors = (preview) =>
     '\n',
   );
 
+test('Fenced Markdown tables recognize decorated headers without rewriting business text or numeric cells', () => {
+  for (const fence of ['```markdown', '```md', '```', '~~~markdown']) {
+    const closing = fence.startsWith('~') ? '~~~' : '```';
+    const text = `${fence}\n| **Group** | __Scope__ | \`BU\` | **\`RE Type\`** | **Y1** \`MD\` | \`Cost\` |\n| --- | :--- | --- | --- | ---: | ---: |\n| **North** | \`Deploy router\` | Network | LOCAL-L1 | 2 MD | 9999 |\n${closing}`;
+    const preview = parsePersonnelBulkEntry(text, options());
+    assert.equal(preview.canConfirm, true, `${fence}: ${errors(preview)}`);
+    assert.equal(preview.rows[0].groupName, '**North**');
+    assert.equal(preview.rows[0].scope, '`Deploy router`');
+    assert.equal(preview.rows[0].years[0].mandays, 2);
+    assert.equal(preview.entries[0].sourceRow, 4);
+    assert.match(preview.notices.join('\n'), /Markdown code fence removed/);
+    assert.match(preview.notices.join('\n'), /Markdown separator ignored/);
+    assert.match(preview.notices.join('\n'), /Cost.*ignored/);
+  }
+  const invalidNumber = parsePersonnelBulkEntry(
+    '| **Scope** | **MD** |\n| --- | --- |\n| Work | `2 MD` |',
+    options({ defaultBU: 'BU', defaultRETypeId: 'rt-local-l1' }),
+  );
+  assert.equal(
+    invalidNumber.canConfirm,
+    false,
+    'Formatting removal must never rewrite numeric business values.',
+  );
+  const unclosed = parsePersonnelBulkEntry(
+    '```md\n| Scope | MD |\n| Work | 2 |',
+    options({ defaultBU: 'BU', defaultRETypeId: 'rt-local-l1' }),
+  );
+  assert.equal(unclosed.canConfirm, false);
+  assert.match(errors(unclosed), /fence is not closed/);
+  const financial = parsePersonnelBulkEntry(
+    '| **Scope** | **Co**st |\n| Work | 999 |',
+    options({
+      defaultBU: 'BU',
+      defaultRETypeId: 'rt-local-l1',
+      mapping: { 1: 'mandays' },
+    }),
+  );
+  assert.equal(financial.columns[1].target, 'ignore');
+  assert.equal(financial.canConfirm, false);
+});
+
+test('MD headers and explicit unit values recognize English, Chinese, bilingual labels and safe thousands', () => {
+  for (const heading of [
+    'MD',
+    'Man-days',
+    'Man day',
+    '人天',
+    'MD / 人天',
+    'Man-days（人天）',
+  ]) {
+    const preview = parsePersonnelBulkEntry(
+      `Scope / 工作范围\tBU / 业务单元\tRE Type / 资源类型\t${heading}\nSupport\tBU\tLOCAL-L1\t1 MD\nInstall\tBU\tLOCAL-L1\t3days\nTest\tBU\tLOCAL-L1\t3天\nMigration\tBU\tLOCAL-L1\t1,000.5 man-days\nPlan\tBU\tLOCAL-L1\t1\u202f000 人天`,
+      options(),
+    );
+    assert.equal(preview.canConfirm, true, `${heading}: ${errors(preview)}`);
+    assert.deepEqual(
+      preview.rows.map((row) => row.years[0].mandays),
+      [1, 3, 3, 1000.5, 1000],
+    );
+    assert.ok(preview.rows.every((row) => row.inputMode === 'mandays'));
+  }
+  const annual = parsePersonnelBulkEntry(
+    'Scope\tY1 MD / 人天\t2027年 Man-day\nWork\t1 MD\t2.5 days',
+    options({ defaultBU: 'BU', defaultRETypeId: 'rt-local-l1' }),
+  );
+  assert.equal(annual.canConfirm, true, errors(annual));
+  assert.deepEqual(
+    annual.rows[0].years.map((year) => year.mandays),
+    [1, 2.5, 0, 0, 0],
+  );
+  const paired = parsePersonnelBulkEntry(
+    'Scope\tY1 · 2026 MD\tY2 (2027) 人天\nWork\t1\t2',
+    options({ defaultBU: 'BU', defaultRETypeId: 'rt-local-l1' }),
+  );
+  assert.equal(paired.canConfirm, true, errors(paired));
+  assert.deepEqual(
+    paired.rows[0].years.map((year) => year.mandays),
+    [1, 2, 0, 0, 0],
+  );
+  for (const heading of ['Y1 · 2027 MD', 'Y1 · 2035 MD', 'Y1 Y2 MD']) {
+    const ambiguous = parsePersonnelBulkEntry(
+      `Scope\t${heading}\nWork\t2`,
+      options({ defaultBU: 'BU', defaultRETypeId: 'rt-local-l1' }),
+    );
+    assert.equal(ambiguous.canConfirm, false);
+    assert.match(errors(ambiguous), /Ambiguous year header/);
+  }
+  for (const amount of [
+    'MD',
+    '3 SGD',
+    '$3',
+    '1,20 MD',
+    '1 2 days',
+    '-1天',
+    '1 MD/site',
+    '1 month',
+  ]) {
+    const invalid = parsePersonnelBulkEntry(
+      `Scope\tMD\nWork\t${amount}`,
+      options({ defaultBU: 'BU', defaultRETypeId: 'rt-local-l1' }),
+    );
+    assert.equal(invalid.canConfirm, false, amount);
+  }
+  const sites = parsePersonnelBulkEntry(
+    'Scope\tMD/Site\tSites\nWork\t1 MD\t3days',
+    options({ defaultBU: 'BU', defaultRETypeId: 'rt-local-l1' }),
+  );
+  assert.equal(
+    sites.canConfirm,
+    false,
+    'A day unit cannot silently become a site count.',
+  );
+});
+
+test('Fixed headerless MD formats preserve every row and require explicit BU/RE defaults', () => {
+  const missing = parsePersonnelBulkEntry(
+    'Installation\t1 MD\nTesting\t3days',
+    options({ inputFormat: 'scope-md' }),
+  );
+  assert.equal(missing.canConfirm, false);
+  assert.match(errors(missing), /BU is required/);
+  assert.match(errors(missing), /Select an active internal RE Type/);
+  const fixed = parsePersonnelBulkEntry(
+    'Installation\t1 MD\nTesting\t3days',
+    options({
+      inputFormat: 'scope-md',
+      defaultYear: 2,
+      defaultBU: 'Chosen BU',
+      defaultRETypeId: 'rt-hq-l1',
+    }),
+  );
+  assert.equal(fixed.canConfirm, true, errors(fixed));
+  assert.equal(fixed.rows.length, 2);
+  assert.deepEqual(
+    fixed.rows.map((row) => row.years[2].mandays),
+    [1, 3],
+  );
+  assert.match(fixed.notices.join('\n'), /Fixed 2-column MD format/);
+  const grouped = parsePersonnelBulkEntry(
+    'North\tInstall\t2\n\tTest\t3',
+    options({
+      inputFormat: 'group-scope-md',
+      defaultBU: 'BU',
+      defaultRETypeId: 'rt-local-l1',
+      fillDownGroup: true,
+    }),
+  );
+  assert.equal(grouped.canConfirm, true, errors(grouped));
+  assert.deepEqual(
+    grouped.rows.map((row) => [row.groupName, row.scope]),
+    [
+      ['North', 'Install'],
+      ['North', 'Test'],
+    ],
+  );
+  const extra = parsePersonnelBulkEntry(
+    'Install\t2\t999',
+    options({
+      inputFormat: 'scope-md',
+      defaultBU: 'BU',
+      defaultRETypeId: 'rt-local-l1',
+    }),
+  );
+  assert.equal(extra.canConfirm, false);
+  assert.match(errors(extra), /extra cells/);
+  const mapped = parsePersonnelBulkEntry(
+    '2\tInstall',
+    options({
+      inputFormat: 'scope-md',
+      defaultBU: 'BU',
+      defaultRETypeId: 'rt-local-l1',
+      mapping: { 0: 'mandays:4', 1: 'scope' },
+    }),
+  );
+  assert.equal(mapped.canConfirm, true, errors(mapped));
+  assert.equal(mapped.rows[0].years[4].mandays, 2);
+});
+
+test('Two-tier Excel annual headings are flattened safely while cost leaves, repeated headers and totals are reported', () => {
+  const text =
+    'Group\tScope\tBU\tRE Type\tY1\t\tY2\t\n\t\t\t\tMD\tCost\tMan day / 人天\tCost\nNorth\tDeploy\tBU\tLOCAL-L1\t1 MD\t9999\t3days\t8888\n\tTotal / 合计\t\t\t1\t9999\t3\t8888';
+  const preview = parsePersonnelBulkEntry(text, options());
+  assert.equal(preview.canConfirm, true, errors(preview));
+  assert.equal(preview.rows.length, 1);
+  assert.deepEqual(
+    preview.rows[0].years.map((year) => year.mandays),
+    [1, 3, 0, 0, 0],
+  );
+  assert.equal(preview.entries[0].sourceRow, 3);
+  assert.match(preview.notices.join('\n'), /two-row year headers combined/);
+  assert.match(preview.notices.join('\n'), /Y1 Cost.*ignored/);
+  assert.match(preview.notices.join('\n'), /summary row.*skipped/);
+  const repeated = parsePersonnelBulkEntry(
+    'Scope\tBU\tRE Type\tMD\nDeploy\tBU\tLOCAL-L1\t2\nScope\tBU\tRE Type\tMD\nTest\tBU\tLOCAL-L1\t3',
+    options(),
+  );
+  assert.equal(repeated.canConfirm, true, errors(repeated));
+  assert.equal(repeated.rows.length, 2);
+  assert.match(repeated.notices.join('\n'), /repeated header row skipped/);
+  const ambiguous = parsePersonnelBulkEntry(
+    'Scope\tBU\tRE Type\tY1\t\n\t\t\tEffort?\tCost\nWork\tBU\tLOCAL-L1\t2\t999',
+    options(),
+  );
+  assert.equal(ambiguous.canConfirm, false);
+  assert.doesNotMatch(ambiguous.notices.join('\n'), /headers combined/);
+});
+
 test('Group aliases produce independent optional grouping labels without changing Scope or calculated cost', () => {
   const base = 'Scope\tBU\tRE Type\tMD\nDeployment\tNetwork\tLOCAL-L1\t2';
   const ungrouped = parsePersonnelBulkEntry(base, options());
@@ -373,7 +580,7 @@ test('headerless and simple spaced tables can be mapped explicitly without dropp
 test('bounded input fails clearly and basis changes when version rates or allowance change', () => {
   const emptyCells = parsePersonnelBulkEntry('|||', options());
   assert.equal(emptyCells.canConfirm, false);
-  assert.match(errors(emptyCells), /No personnel table cells/);
+  assert.match(errors(emptyCells), /No table cells/);
   const tooLong = parsePersonnelBulkEntry(
     'x'.repeat(PERSONNEL_BULK_LIMITS.characters + 1),
     options(),

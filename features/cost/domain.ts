@@ -811,17 +811,22 @@ export const buildCostDimensionSummary = (
   const groups = new Map<string, Omit<CostDimensionSummary, 'shareRatio'>>();
   for (const row of rows) {
     const resourceType = resourceTypes.find((item) => item.id === row.reTypeId);
+    const subcontract = resourceType?.category === 'subcontract';
     const key =
       dimension === 'scope'
         ? row.scope.trim() || 'UNSPECIFIED'
         : dimension === 'bu'
           ? row.bu.trim() || 'UNSPECIFIED'
-          : resourceType?.id || 'UNMAPPED';
+          : subcontract
+            ? '__SUBCONTRACT__'
+            : resourceType?.id || 'UNMAPPED';
     const label =
       dimension === 'resourceType'
-        ? resourceType
-          ? `${resourceType.code} · ${resourceType.name}`
-          : 'UNMAPPED · Unmapped Resource Type'
+        ? subcontract
+          ? '2.3.2 · Subcontract Cost'
+          : resourceType
+            ? `${resourceType.code} · ${resourceType.name}`
+            : 'UNMAPPED · Unmapped Resource Type'
         : key;
     const current = groups.get(key) ?? {
       key,
@@ -846,7 +851,7 @@ export const buildCostDimensionSummary = (
           : '__SUBCONTRACT__';
     const current = groups.get(key) ?? {
       key,
-      label: dimension === 'resourceType' ? 'Subcontract' : key,
+      label: dimension === 'resourceType' ? '2.3.2 · Subcontract Cost' : key,
       sites: 0,
       mandays: 0,
       cost: 0,
@@ -868,11 +873,26 @@ export const buildCostDimensionSummary = (
     .sort((a, b) => b.cost - a.cost || a.label.localeCompare(b.label));
 };
 
-/**
- * Adds project-level HQ travel and manual statement costs as one explicit
- * non-resource/unallocated line. UI, CLI, and Excel call this same function so
- * their dimensional totals always reconcile to Sales Cost.
- */
+/** The non-overlapping statement accounts added to each reporting dimension. */
+const SUMMARY_STATEMENT_CODES = [
+  '2.1.2',
+  '2.2.1',
+  '2.3.1.2',
+  '2.3.1.3',
+  '2.3.3',
+  '2.3.4',
+  '15',
+] as const;
+
+/** Presentation can resolve bilingual labels without adding fields to CLI summaries. */
+export const getCostSummaryStatementCode = (key: string) =>
+  key === '__SUBCONTRACT__'
+    ? '2.3.2'
+    : key.startsWith('__STATEMENT__:')
+      ? key.slice('__STATEMENT__:'.length)
+      : undefined;
+
+/** Named statement subtotals preserve their children exactly once; risk is opt-in. */
 export const buildReconciledCostDimensionSummary = (
   rows: CostInputRow[],
   dimension: CostDimension,
@@ -880,6 +900,7 @@ export const buildReconciledCostDimensionSummary = (
   travelCost: number,
   manualCosts: ManualCostInputs,
   subcontractCost?: SubcontractCost,
+  options: { includeRisk?: boolean } = {},
 ): CostDimensionSummary[] => {
   const items = buildCostDimensionSummary(
     rows,
@@ -887,26 +908,23 @@ export const buildReconciledCostDimensionSummary = (
     resourceTypes,
     subcontractCost,
   ).map(({ shareRatio: _shareRatio, ...item }) => item);
-  const statementValues = getCostStatementValues(
+  const statementRows = buildCostStatementRows(
     rows,
     resourceTypes,
     travelCost,
     manualCosts,
     subcontractCost,
   );
-  const allocatedCost = roundMoney(
-    rows.reduce((sum, row) => sum + totalRowCost(row), 0) +
-      calculateSubcontractCost(subcontractCost).total,
-  );
-  const unallocatedCost = roundMoney(statementValues.sales - allocatedCost);
-  if (unallocatedCost > 0) {
+  for (const code of SUMMARY_STATEMENT_CODES) {
+    if (code === '15' && !options.includeRisk) continue;
+    const statement = statementRows.find((row) => row.code === code)!;
+    if (statement.amount <= 0) continue;
     items.push({
-      key:
-        dimension === 'resourceType' ? '__NON_RESOURCE__' : '__UNALLOCATED__',
-      label: dimension === 'resourceType' ? 'Non-resource cost' : 'UNALLOCATED',
+      key: `__STATEMENT__:${code}`,
+      label: `${code} · ${statement.en}`,
       sites: 0,
       mandays: 0,
-      cost: unallocatedCost,
+      cost: statement.amount,
       allocationStatus: 'UNALLOCATED',
       resourceCategory: 'unmapped',
     });
@@ -919,3 +937,20 @@ export const buildReconciledCostDimensionSummary = (
     }))
     .sort((a, b) => b.cost - a.cost || a.label.localeCompare(b.label));
 };
+
+/** Subcon-only business scopes, including preserved legacy packages and BOQ leaves. */
+export const buildSubcontractScopeSummary = (
+  rows: CostInputRow[],
+  resourceTypes: ResourceType[],
+  subcontractCost?: SubcontractCost,
+): CostDimensionSummary[] =>
+  buildCostDimensionSummary(
+    rows.filter(
+      (row) =>
+        resourceTypes.find((resource) => resource.id === row.reTypeId)
+          ?.category === 'subcontract',
+    ),
+    'scope',
+    resourceTypes,
+    subcontractCost,
+  );

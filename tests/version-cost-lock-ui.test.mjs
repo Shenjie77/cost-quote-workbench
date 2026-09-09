@@ -106,16 +106,17 @@ const walk = (node) => {
   return [node, ...walk(node.props.children)];
 };
 
-test('locked cost keeps Scope, BU, RE and statement tabs available', () => {
+test('locked cost keeps Scope, BU, RE, statement and Subcon tabs available', () => {
   const markup = renderToStaticMarkup(React.createElement(CostView, costProps));
   const tabs =
     markup.match(/<button[^>]*data-slot="tabs-trigger"[^>]*>/g) || [];
-  assert.equal(tabs.length, 4);
+  assert.equal(tabs.length, 5);
   for (const tab of tabs)
     assert.doesNotMatch(tab, / disabled(?:[ =])|aria-disabled="true"/);
   assert.doesNotMatch(markup, /<fieldset[^>]*disabled/);
   assert.match(markup, /Scope/);
   assert.match(markup, /RE Type &amp; Level/);
+  assert.match(markup, /Subcon/);
 });
 
 test('locked statement disables only money inputs and refuses write callbacks', () => {

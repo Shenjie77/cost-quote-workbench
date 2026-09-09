@@ -38,7 +38,7 @@ export function PersonnelColumnSettingsPanel({
     (id) => id !== 'action' && id !== 'check',
   );
   return (
-    <div className="space-y-2" aria-label="Personnel column settings">
+    <div className="space-y-2" aria-label="Cost column settings">
       <p className="text-[11px] leading-4 text-muted-foreground">
         List order matches the table from left to right. Each year field can
         move independently.
@@ -114,7 +114,7 @@ export function PersonnelColumnSettingsPanel({
       <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
         <span className="text-[10px] text-muted-foreground">
           {storageAvailable
-            ? 'Saved in this browser only.'
+            ? 'Use Save to keep this version’s layout in this browser.'
             : 'Browser storage unavailable; preferences apply to this view.'}
         </span>
         <Button
@@ -153,7 +153,7 @@ export function PersonnelColumnSettings(props: PersonnelColumnSettingsProps) {
         Columns
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[min(360px,90vw)]">
-        <PopoverTitle>Personnel Columns</PopoverTitle>
+        <PopoverTitle>Cost Columns</PopoverTitle>
         <PopoverDescription className="text-[11px]">
           Show, hide or reorder columns. Simple Export follows this layout.
         </PopoverDescription>

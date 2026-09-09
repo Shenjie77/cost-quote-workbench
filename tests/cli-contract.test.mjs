@@ -462,7 +462,7 @@ test('export returns the actual nine-sheet workbook manifest', () => {
   }
 });
 
-test('simple cost export is a five-sheet business workbook and validates format before I/O', () => {
+test('simple cost export includes the Subcon summary and validates format before I/O', () => {
   const directory = mkdtempSync(path.join(tmpdir(), 'cost-simple-cli-'));
   try {
     const output = path.join(directory, 'simple.xlsx');
@@ -482,12 +482,13 @@ test('simple cost export is a five-sheet business workbook and validates format 
       },
     );
     assert.equal(result.status, 0, JSON.stringify(result.response));
-    assert.equal(result.response.data.sheets.length, 5);
+    assert.equal(result.response.data.sheets.length, 6);
     assert.deepEqual(result.response.data.sheets, [
       'Cost Detail',
       'Summary Scope',
       'Summary BU',
       'Summary RE Type',
+      'Summary Subcon',
       'Cost Statement',
     ]);
     assert.equal(result.response.data.artifact.path, output);

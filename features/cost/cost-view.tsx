@@ -1,6 +1,7 @@
 /** Cost workspace composition: versions, inputs, summaries, comparison, and export. */
 
-import { Download } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Download, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { AdditionalTravelTable } from '@/features/cost/components/additional-travel-table';
@@ -51,6 +52,8 @@ export function CostView({
   rows,
   setRows,
   canEditCost,
+  onSave,
+  onRegisterSave,
   subcontractCost,
   onSubcontractCostChange,
   subcontractCatalog = [],
@@ -85,6 +88,8 @@ export function CostView({
   rows: CostInputRow[];
   setRows: React.Dispatch<React.SetStateAction<CostInputRow[]>>;
   canEditCost?: () => boolean;
+  onSave?: () => Promise<boolean>;
+  onRegisterSave?: (handler: (() => Promise<boolean>) | null) => void;
   subcontractCost?: SubcontractCost;
   onSubcontractCostChange?: (value: SubcontractCost) => void;
   subcontractCatalog?: SubcontractItem[];
@@ -106,7 +111,46 @@ export function CostView({
   onProposalNumberChange?: (value: string) => void;
   announce: (message: string) => void;
 }) {
-  const personnelTableView = usePersonnelTableView();
+  const personnelTableView = usePersonnelTableView(
+    `${project.id}:${activeVersion}`,
+  );
+  const saveInFlight = useRef(false);
+  const [isSavingConfiguration, setSavingConfiguration] = useState(false);
+  const saveConfiguration = useCallback(async () => {
+    if (!personnelTableView.ready || saveInFlight.current) return false;
+    saveInFlight.current = true;
+    setSavingConfiguration(true);
+    try {
+      if (onSave && !(await onSave())) {
+        announce(
+          'Cost was not saved. Resolve the save status or conflict and try again.',
+        );
+        return false;
+      }
+      if (!personnelTableView.saveView()) {
+        announce(
+          'Cost data is saved, but this browser could not save the display configuration.',
+        );
+        return false;
+      }
+      announce(
+        'Cost and view configuration saved. Refresh will restore the selected year, groups and columns.',
+      );
+      return true;
+    } catch (error) {
+      announce(
+        `Save failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      return false;
+    } finally {
+      saveInFlight.current = false;
+      setSavingConfiguration(false);
+    }
+  }, [announce, onSave, personnelTableView]);
+  useEffect(() => {
+    onRegisterSave?.(saveConfiguration);
+    return () => onRegisterSave?.(null);
+  }, [onRegisterSave, saveConfiguration]);
   // Browsing remains available; only cost writers are guarded by this version's lock.
   const writeIfUnlocked =
     <T,>(setter: (value: T) => void) =>
@@ -410,6 +454,21 @@ export function CostView({
             ))}
           </fieldset>
           <div className="flex shrink-0 items-center gap-1.5 border-l border-border pl-2">
+            {personnelTableView.isViewDirty && (
+              <span className="text-[10px] text-amber-700">View not saved</span>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="px-2 text-[11px]"
+              onClick={() => void saveConfiguration()}
+              disabled={isSavingConfiguration || !personnelTableView.ready}
+              aria-label="Save cost configuration"
+              title="Save cost inputs, allowance and travel settings, plus this version's year, grouping and column layout."
+            >
+              <Save />
+              {isSavingConfiguration ? 'Saving…' : 'Save'}
+            </Button>
             <Button
               size="sm"
               className="px-2 text-[11px]"

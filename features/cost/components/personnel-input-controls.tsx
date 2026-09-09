@@ -651,7 +651,7 @@ export function PersonnelLinesTable({
             type="button"
             draggable={!locked && !!onMoveRow}
             disabled={locked || !onMoveRow}
-            aria-label={`Drag personnel row ${row.id}`}
+            aria-label={`Drag cost row ${row.id}`}
             title="Drag above/below a row or onto a group header"
             className="flex h-6 w-5 cursor-grab items-center justify-center rounded text-muted-foreground hover:bg-muted disabled:cursor-default disabled:opacity-40"
             onDragStart={(event) => {
@@ -670,7 +670,7 @@ export function PersonnelLinesTable({
             size="icon-sm"
             className="h-6 w-5"
             disabled={locked || !onMoveRow || !up}
-            aria-label={`Move personnel row ${row.id} up`}
+            aria-label={`Move cost row ${row.id} up`}
             onClick={() => {
               if (up)
                 move({
@@ -690,7 +690,7 @@ export function PersonnelLinesTable({
             size="icon-sm"
             className="h-6 w-5"
             disabled={locked || !onMoveRow || !down}
-            aria-label={`Move personnel row ${row.id} down`}
+            aria-label={`Move cost row ${row.id} down`}
             onClick={() => {
               if (down)
                 move({
@@ -741,8 +741,8 @@ export function PersonnelLinesTable({
       }}
     >
       <caption className="sr-only">
-        Inline personnel cost grid. Edit Group, Scope, BU, RE Type and annual
-        effort directly.
+        Inline cost grid. Edit Group, Scope, BU, RE Type and annual effort
+        directly.
       </caption>
       <TableHeader>
         <TableRow className="h-8 bg-[#e9e6de]">
@@ -938,7 +938,7 @@ export function PersonnelLinesTable({
               colSpan={columns.length}
               className="p-4 text-center text-muted-foreground"
             >
-              No personnel rows. Add Personnel to begin.
+              No cost rows. Add Row to begin.
             </TableCell>
           </TableRow>
         )}

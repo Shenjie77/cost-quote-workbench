@@ -1,6 +1,6 @@
-# Personnel entry
+# Cost entry
 
-Open **Cost Workspace → Cost Input → Personnel Input**. The compact grid keeps
+Open **Cost Workspace → Cost Input**. The compact grid keeps
 the Y1–Y5 / All Years selector and the Sites / Direct MD mode buttons.
 
 **Groups**, beside Mode, shows a heading and row count for each custom group.
@@ -23,15 +23,25 @@ amounts, Scope descriptions and import-source records are preserved.
 
 **Columns** lets you show/hide fields and move them left/right, including each
 year's Sites, MD and Cost. **Action** stays pinned at the right while scrolling. The Y1–Y5 /
-All Years selection still filters the year columns. Preferences are saved in
-this browser and apply across projects; **Reset**
-restores the default layout. Group view, year selection and column preferences
+All Years selection still filters the year columns. Use the cost toolbar's
+**Save** or the workspace's top **Save** while in Costing to save both costs and
+the current view. The selected year, group visibility and column visibility/order
+are saved in this browser separately for each project and cost version, and
+restored after refresh. **View not saved** marks layout edits awaiting Save.
+Existing global column preferences are used only as initial defaults.
+**Reset** restores the default columns; use **Save** to retain the reset.
+Group view, year selection and column preferences
 remain available on locked versions; changing group names or row order requires
 an editable Draft.
 
+The 3% allowance Pool selection, HQ Travel option, quantities, group names and
+row order are cost-version data saved in the local database. Save flushes these
+changes before saving the view. A failed cost save or conflict is reported and
+must be resolved; saving a view does not unlock a cost version.
+
 ## Export the current table
 
-**Simple Export** uses the current Personnel Input layout for its **Cost Detail**
+**Simple Export** uses the current Cost Input layout for its **Cost Detail**
 sheet: Group headings when enabled, row order, visible columns in their chosen
 order, and the selected Y1–Y5 / All Years view. These settings remain available
 when switching between Input Sheet and Summary. Group names are also included
@@ -49,11 +59,27 @@ the selected year blocks Simple Export until a data column is shown.
 layouts; the browser's display preferences do not alter those paths. Exporting
 never changes the saved costs, and remains available for locked versions.
 
+## Summaries
+
+**Cost Statement** is the first and default summary tab. Scope, BU and RE Type
+summaries use named statement accounts for amounts without an input-row dimension:
+Logistics, external labour, Travel, Settlement, EHS and Risk. Parent subtotals are
+included once, so their children are not counted twice. **Subcon** shows the
+breakdown of legacy subcontract rows and structured BOQ costs, reconciled to
+statement account **2.3.2**.
+
+UI and Simple Export summaries (including CLI simple export) include Risk and
+reconcile to Total Cost with Risk. Simple Export also includes **Summary Subcon**.
+Full Export keeps its existing Sales Cost audit/reconciliation sheets, and the
+CLI calculate summaries retain their Sales Cost basis.
+
 ## Paste several rows
 
 1. Choose **Bulk Entry** beside Groups.
-2. Paste a table copied from Excel or type a table with headers. Common Chinese
-   and English headers are recognized; review the detected column mappings.
+2. Choose **Auto-detect headers**, **Scope + MD · no header**, or
+   **Group + Scope + MD · no header**. Paste a table copied from Excel, or use
+   **Copy template**. Common Chinese and English headers are recognized;
+   review the detected column mappings.
 3. Check Group, Scope, BU, RE Type, mode, MD/Site and annual quantities. Select defaults
    for omitted BU/RE Type fields and resolve unmatched or ambiguous resources.
 4. Review the calculated preview, then confirm to append the rows to the
@@ -66,6 +92,26 @@ Group	Scope	BU	RE Type	MD/Site	Y1 Sites	Y2 Sites
 Deployment	Router rollout	Networks	YOUR_RE_CODE	2	10	5
 Support	Remote support	Services	YOUR_RE_CODE	0.5	4	4
 ```
+
+For a short TD description, choose **Group + Scope + MD · no header** and paste:
+
+```text
+Network Design & Planning	HLD design	1 MD
+Network Design & Planning	LLD design	3days
+Network Design & Planning	Network planning	3天
+```
+
+Choose the default BU, RE Type and delivery year before previewing. The two
+fixed formats use Direct MD and do not require a header. **Scope + MD** uses
+only the last two columns of the example. The general format defaults to Direct
+MD and also supports Man-day/Man-days/人天 headings, paired year labels such as
+`Y1 · 2026`, and supported two-row Excel year headers. Ambiguous years and invalid
+effort values require correction instead of silently importing them.
+
+Markdown tables can include alignment separators, a complete Markdown code
+fence, and bold or backtick-wrapped headers. Business descriptions are preserved;
+formatting around numeric values is not treated as a number. An unclosed fence
+must be corrected before confirmation.
 
 Use an actual active personnel RE Type code, ID or name from the cost version.
 If more than one resource matches, select the intended record in the preview.

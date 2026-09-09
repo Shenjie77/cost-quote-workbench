@@ -10,6 +10,7 @@ import {
 import {
   getCostStatementValues,
   buildReconciledCostDimensionSummary,
+  totalRowMandays,
   buildCostStatementRows,
   roundMoney,
 } from '../features/cost/domain.ts';
@@ -241,11 +242,19 @@ test('legacy subcontract amounts remain unchanged and structured costs reconcile
     if (dimension === 'resourceType') {
       assert.equal(
         groups.find((row) => row.key === '__SUBCONTRACT__').cost,
-        216050,
+        updated.subcontract,
       );
       assert.equal(
         groups.find((row) => row.key === '__SUBCONTRACT__').mandays,
-        0,
+        legacy.costRows
+          .filter((row) =>
+            legacy.resourceTypes.some(
+              (resource) =>
+                resource.id === row.reTypeId &&
+                resource.category === 'subcontract',
+            ),
+          )
+          .reduce((sum, row) => sum + totalRowMandays(row), 0),
       );
     }
   }
