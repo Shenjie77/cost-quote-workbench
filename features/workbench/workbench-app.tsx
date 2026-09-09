@@ -16,7 +16,6 @@ import {
 import {
   Bell,
   Check,
-  CircleAlert,
   Database,
   LoaderCircle,
   Menu,
@@ -191,6 +190,11 @@ import {
 } from '@/features/quote/types';
 import type { ReviewGate } from '@/features/reviews/types';
 import { DetailSheet } from '@/features/workbench/detail-sheet';
+import { OperationNotice, useOperationNotice } from './operation-notice';
+import {
+  resolveNewProjectId,
+  type NewProjectInput,
+} from '@/features/workbench/project-creation';
 import { navItems, viewTitles } from '@/features/workbench/navigation';
 import {
   WORKSPACE_SCHEMA_VERSION,
@@ -214,16 +218,17 @@ export function WorkbenchApp() {
   const [masterDataOnly, setMasterDataOnly] = useState(false);
   const [masterDataTab, setMasterDataTab] =
     useState<MasterDataTab>('resources');
-  const [globalNotice, setGlobalNotice] = useState('');
+  const [globalNotice, setGlobalNotice] = useOperationNotice();
   if (masterDataOnly)
     return (
       <main className="min-h-screen space-y-4 bg-background p-6">
         <Button variant="outline" onClick={() => setMasterDataOnly(false)}>
           Project List / 项目列表
         </Button>
-        {globalNotice && (
-          <output className="block text-sm">{globalNotice}</output>
-        )}
+        <OperationNotice
+          message={globalNotice}
+          onDismiss={() => setGlobalNotice('')}
+        />
         <GlobalMasterDataPage
           store={globalMasterData}
           activeTab={masterDataTab}
@@ -269,6 +274,8 @@ function ProjectSessionApp({
     useState<number>();
   const [workflowMode, setWorkflowMode] =
     useState<WorkbenchWorkspace['workflowMode']>();
+  const [workflowHold, setWorkflowHold] =
+    useState<WorkbenchWorkspace['workflowHold']>();
   const [workflowUpdates, setWorkflowUpdates] =
     useState<WorkbenchWorkspace['workflowUpdates']>();
   const [workflowTarget, setWorkflowTarget] = useState<{
@@ -445,7 +452,7 @@ function ProjectSessionApp({
   const [cpq, setCpq] = useState<CpqWorkspace>(emptyCpq);
   const [panel, setPanel] = useState<PanelState>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useOperationNotice();
   const [searchQuery, setSearchQuery] = useState('');
   const publishedWorkflow = usePublishedWorkflow(
     activeView === 'overview',
@@ -473,6 +480,7 @@ function ProjectSessionApp({
     setWorkflowEngineVersion(workspace.workflowEngineVersion);
     setWorkflowTemplateRevision(workspace.workflowTemplateRevision);
     setWorkflowMode(workspace.workflowMode);
+    setWorkflowHold(workspace.workflowHold);
     setWorkflowUpdates(workspace.workflowUpdates);
     setVersionWorkflows(workspace.versionWorkflows || {});
     setLegacyWorkflowArchive(workspace.legacyWorkflowArchive || {});
@@ -617,6 +625,7 @@ function ProjectSessionApp({
         ? { workflowTemplateRevision }
         : {}),
       ...(workflowMode ? { workflowMode } : {}),
+      ...(workflowHold ? { workflowHold } : {}),
       ...(workflowUpdates ? { workflowUpdates } : {}),
       workflowVersion,
       versionWorkflows,
@@ -666,6 +675,7 @@ function ProjectSessionApp({
       workflowEngineVersion,
       workflowTemplateRevision,
       workflowMode,
+      workflowHold,
       workflowUpdates,
       costVersionLocks,
       workflowVersion,
@@ -738,6 +748,7 @@ function ProjectSessionApp({
       setWorkflowEngineVersion(saved.workflowEngineVersion);
       setWorkflowTemplateRevision(saved.workflowTemplateRevision);
       setWorkflowMode(saved.workflowMode);
+      setWorkflowHold(saved.workflowHold);
       setWorkflowUpdates(saved.workflowUpdates);
       setVersionWorkflows((current) => ({
         ...current,
@@ -803,6 +814,7 @@ function ProjectSessionApp({
               workflowEngineVersion: doc.workflowEngineVersion,
               workflowTemplateRevision: doc.workflowTemplateRevision,
               workflowMode: doc.workflowMode,
+              workflowHold: doc.workflowHold,
               workflowVersion: doc.workflowVersion,
               projectStatus: doc.projectStatus,
               currentWorkflowStepCode: doc.currentWorkflowStepCode,
@@ -899,7 +911,7 @@ function ProjectSessionApp({
     } catch {
       /* Existing connection status owns errors; the next refresh retries. */
     }
-  }, [activeProjectId, adoptRemoteIfClean, getLoadedRevision]);
+  }, [activeProjectId, adoptRemoteIfClean, getLoadedRevision, setNotice]);
   useEffect(() => {
     const refresh = () => {
       void refreshPortfolio();
@@ -952,6 +964,7 @@ function ProjectSessionApp({
                     workflowTemplateRevision:
                       saved.workspace.workflowTemplateRevision,
                     workflowMode: saved.workspace.workflowMode,
+                    workflowHold: saved.workspace.workflowHold,
                     workflowVersion: saved.workspace.workflowVersion,
                     currentWorkflowStepCode:
                       saved.workspace.currentWorkflowStepCode,
@@ -1044,7 +1057,7 @@ function ProjectSessionApp({
         return Promise.resolve(false);
       }
     },
-    [],
+    [setNotice],
   );
   const cancelCostConfirmation = () => {
     costConfirmation?.resolve(false);
@@ -1152,6 +1165,7 @@ function ProjectSessionApp({
               workflowEngineVersion,
               workflowTemplateRevision,
               workflowMode,
+              workflowHold,
               workflowVersion,
               statusDefinitions: projectStatusDefinitions,
               reviewGates,
@@ -1195,6 +1209,7 @@ function ProjectSessionApp({
       workflowEngineVersion,
       workflowTemplateRevision,
       workflowMode,
+      workflowHold,
       workflowVersion,
       activeProjectId,
       activeVersion,
@@ -1273,7 +1288,7 @@ function ProjectSessionApp({
           ),
       });
     },
-    [pauseSaving, resumeSaving],
+    [pauseSaving, resumeSaving, setNotice],
   );
 
   /** Loads a version's complete snapshot after the current version is safely persisted. */
@@ -1313,6 +1328,7 @@ function ProjectSessionApp({
       workspace,
       isReady,
       transitionCostVersion,
+      setNotice,
     ],
   );
 
@@ -1405,12 +1421,8 @@ function ProjectSessionApp({
   };
 
   /** Creates a persisted project by switching the autosave unit to a new ID. */
-  const createProject = async (input: {
-    name: string;
-    client: string;
-    owner: string;
-  }) => {
-    const id = `PRJ-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8)}`;
+  const createProject = async (input: NewProjectInput) => {
+    const id = resolveNewProjectId(input.id);
     const project = {
       ...projectRecord(id, input.name, input.client),
       reviewOwner: input.owner || 'Me',
@@ -1421,7 +1433,9 @@ function ProjectSessionApp({
       versionTransitionRef.current ||
       !isReady
     )
-      return;
+      throw new Error(
+        'Wait for the current project operation to finish before creating a project.',
+      );
     switchingRef.current = true;
     setProjectSwitching(true);
     try {
@@ -1441,7 +1455,7 @@ function ProjectSessionApp({
       setOpenProjectIds((current) => [...current, project.id]);
     } catch (e) {
       setNotice(e instanceof Error ? e.message : 'Create failed');
-      return;
+      throw e;
     } finally {
       switchingRef.current = false;
       setProjectSwitching(false);
@@ -1862,14 +1876,18 @@ function ProjectSessionApp({
                   ...current,
                   workspace: saved.workspace,
                   revision: saved.revision,
-                  focusNodeCode: action.nodeCode,
+                  focusNodeCode: action.nodeCode || current.focusNodeCode,
                 }
               : current,
           );
           setNotice(
-            saved.workspace.projectStatus === 'completed'
-              ? 'Quotation completed. Follow-up reminders for this round have stopped.'
-              : 'Workflow task and follow-up records updated.',
+            action.action === 'hold_project'
+              ? 'Project is on hold. Workflow monitoring and reminders are paused.'
+              : action.action === 'resume_project'
+                ? 'Project resumed. Workflow monitoring is active again.'
+                : saved.workspace.projectStatus === 'completed'
+                  ? 'Quotation completed. Follow-up reminders for this round have stopped.'
+                  : 'Workflow task and follow-up records updated.',
           );
         },
         onFailure: (error) => {
@@ -2136,6 +2154,12 @@ function ProjectSessionApp({
         setCostView={setCostView}
         rows={costRows}
         setRows={guardCostEdit(setCostRows)}
+        canEditCost={() =>
+          isReady &&
+          !switchingRef.current &&
+          !versionTransitionRef.current &&
+          !costLockReason(workspace, activeVersion)
+        }
         subcontractCost={subcontractCost}
         onSubcontractCostChange={guardCostEdit(setSubcontractCost)}
         subcontractCatalog={subcontractItems}
@@ -2645,6 +2669,7 @@ function ProjectSessionApp({
                   portfolioProjects.map((project) => [
                     project.id,
                     project.workflowVersion,
+                    project.workflowHold,
                     project.currentWorkflowStepCode,
                     project.workflowSteps?.map((step) => [
                       step.code,
@@ -2685,6 +2710,12 @@ function ProjectSessionApp({
                   project={workflowTarget.project}
                   workspace={workflowTarget.workspace}
                   onAction={handleWorkflowAction}
+                  announce={setNotice}
+                  onSetHold={(onHold) =>
+                    handleWorkflowAction({
+                      action: onHold ? 'hold_project' : 'resume_project',
+                    })
+                  }
                   onSaveReferences={(meta) => saveProjectWorkflow({}, meta)}
                   onBack={() => navigate(workflowReturnView.current)}
                   onRefresh={refreshWorkflowPage}
@@ -2725,22 +2756,7 @@ function ProjectSessionApp({
           </div>
         </div>
       </div>
-      {notice ? (
-        <output
-          aria-live="polite"
-          className="fixed bottom-5 left-1/2 z-[70] flex max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-3 border border-[#9eb9ba] bg-[#173a52] px-4 py-3 text-xs text-white shadow-xl"
-        >
-          <CircleAlert className="size-4 shrink-0 text-[#b9d7d5]" />
-          <span>{notice}</span>
-          <button
-            aria-label="Close notice"
-            onClick={() => setNotice('')}
-            className="ml-2 text-[#b9c9d0] hover:text-white"
-          >
-            <X className="size-3.5" />
-          </button>
-        </output>
-      ) : null}
+      <OperationNotice message={notice} onDismiss={() => setNotice('')} />
       {costConfirmation && (
         <CostConfirmationDialog
           open

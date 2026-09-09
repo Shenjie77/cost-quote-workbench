@@ -1,5 +1,5 @@
 /** Compact spreadsheet-style personnel entry. Mutations patch the latest raw inputs. */
-import { Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, GripVertical, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -24,8 +24,24 @@ import {
   type ResourceType,
 } from '../domain';
 import { isLegacySubcontractRow } from '../personnel-cost-rows';
+import {
+  defaultPersonnelColumns,
+  visiblePersonnelColumns,
+  getPersonnelColumnSpec,
+  type PersonnelColumnId,
+} from '../personnel-columns';
+import {
+  getPersonnelAnnualColumn as annualColumn,
+  getPersonnelAnnualColumnLabel,
+  getPersonnelHeaderSegments,
+  groupPersonnelRows,
+  resolvePersonnelTableColumns,
+  UNASSIGNED_PERSONNEL_GROUP,
+  type PersonnelTableLayout,
+} from '../personnel-table-layout';
+export { groupPersonnelRows } from '../personnel-table-layout';
 
-export type PersonnelYear = number | 'all';
+export type PersonnelYear = PersonnelTableLayout['yearIndex'];
 export type PersonnelMode = 'sites' | 'mandays';
 export type PersonnelModeChangePlan = {
   mode: PersonnelMode;
@@ -36,9 +52,23 @@ export type PersonnelModeChangePlan = {
   error?: string;
 };
 export type PersonnelPool = NonNullable<ResourceType['pool']>;
+type PersonnelDisplayEntry =
+  | { kind: 'group'; groupName: string; rowIds: string[] }
+  | { kind: 'row'; row: CostInputRow };
+export type PersonnelRowMove = {
+  rowId: string;
+  targetRowId?: string;
+  position: 'before' | 'after' | 'group-end';
+  groupName?: string;
+};
+export type PersonnelGroupRename = {
+  groupName: string;
+  nextGroupName: string;
+  rowIds: string[];
+};
 export const PERSONNEL_POOLS: PersonnelPool[] = ['LOCAL', 'ARP', 'HQ', 'OTHER'];
 export type PersonnelInputPatch =
-  | { field: 'scope' | 'bu' | 'reTypeId'; value: string }
+  | { field: 'groupName' | 'scope' | 'bu' | 'reTypeId'; value: string }
   | { field: 'mdPerSite'; value: number }
   | {
       field: 'year';
@@ -216,7 +246,11 @@ export function patchPersonnelRows(
   if (locked) return rows;
   return rows.map((row) => {
     if (row.id !== id || isLegacySubcontractRow(row, resources)) return row;
-    if (patch.field === 'scope' || patch.field === 'bu') {
+    if (
+      patch.field === 'scope' ||
+      patch.field === 'bu' ||
+      patch.field === 'groupName'
+    ) {
       if (patch.value.length > (patch.field === 'scope' ? 500 : 200))
         return row;
       return { ...row, [patch.field]: patch.value };
@@ -348,14 +382,46 @@ export function PersonnelNumberInput({
   );
 }
 
+const PERSONNEL_ROW_DRAG = 'application/x-ssr-personnel-row';
+const columnWidth = (id: PersonnelColumnId) => {
+  const annual = annualColumn(id);
+  if (annual)
+    return annual.field === 'sites'
+      ? 65
+      : annual.field === 'mandays'
+        ? 76
+        : 105;
+  return {
+    groupName: 160,
+    scope: 180,
+    bu: 72,
+    reType: 120,
+    mdPerSite: 64,
+    totalSites: 68,
+    totalMd: 75,
+    totalCost: 105,
+    check: 70,
+    action: 96,
+  }[id as Exclude<PersonnelColumnId, `Y${number}:${string}`>];
+};
+export const personnelDropPosition = (
+  clientY: number,
+  top: number,
+  height: number,
+) => (clientY < top + height / 2 ? ('before' as const) : ('after' as const));
+
 export function PersonnelLinesTable({
   rows,
   resources,
   rates,
   actualYears,
   yearIndex = 'all',
+  grouped = false,
+  columns: requestedColumns,
   onPatch,
   onDelete,
+  onMoveRow,
+  onRenameGroup,
   locked = false,
   announce,
 }: {
@@ -364,365 +430,568 @@ export function PersonnelLinesTable({
   rates: RateSettings;
   actualYears: (number | null)[];
   yearIndex?: PersonnelYear;
+  grouped?: boolean;
+  columns?: PersonnelColumnId[];
   onPatch: (id: string, patch: PersonnelInputPatch) => void;
   onDelete: (row: CostInputRow) => void;
+  onMoveRow?: (move: PersonnelRowMove) => void;
+  onRenameGroup?: (rename: PersonnelGroupRename) => void;
   locked?: boolean;
   announce: (message: string) => void;
 }) {
-  const years =
-    yearIndex === 'all' ? YEAR_BUCKETS.map((_, index) => index) : [yearIndex];
+  const columns = resolvePersonnelTableColumns(
+    requestedColumns || visiblePersonnelColumns(defaultPersonnelColumns()),
+    yearIndex,
+  );
+  const hasAnnual = columns.some((id) => annualColumn(id));
+  const segments = getPersonnelHeaderSegments(columns);
+  const entries: PersonnelDisplayEntry[] = grouped
+    ? groupPersonnelRows(rows).flatMap((group): PersonnelDisplayEntry[] => [
+        {
+          kind: 'group',
+          groupName: group.groupName,
+          rowIds: group.rows.map((row) => row.id),
+        },
+        ...group.rows.map((row) => ({ kind: 'row' as const, row })),
+      ])
+    : rows.map((row) => ({ kind: 'row', row }));
+  const displayedRows = entries.flatMap((entry) =>
+    entry.kind === 'row' ? [entry.row] : [],
+  );
   const update = (id: string, patch: PersonnelInputPatch) => {
     if (!locked) onPatch(id, patch);
   };
+  const move = (request: PersonnelRowMove) => {
+    if (!locked) onMoveRow?.(request);
+  };
+  const draggedRow = (event: React.DragEvent) => {
+    const id = event.dataTransfer.getData(PERSONNEL_ROW_DRAG);
+    return rows.some((row) => row.id === id) ? id : '';
+  };
+  const allowDrop = (event: React.DragEvent) => {
+    if (
+      !locked &&
+      onMoveRow &&
+      event.dataTransfer.types.includes(PERSONNEL_ROW_DRAG)
+    ) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      return true;
+    }
+    return false;
+  };
+  const textColumn = columns.find((id) =>
+    [
+      'groupName',
+      'scope',
+      'bu',
+      'reType',
+      'mdPerSite',
+      'check',
+      'action',
+    ].includes(id),
+  );
+  const renderRowCell = (row: CostInputRow, id: PersonnelColumnId) => {
+    const re = resources.find((resource) => resource.id === row.reTypeId);
+    const unknown = !re || re.category !== 'internal';
+    const mode = row.inputMode || 'sites';
+    const annual = annualColumn(id);
+    const width = columnWidth(id);
+    let content: React.ReactNode;
+    let className = cell;
+    if (id === 'groupName' || id === 'scope' || id === 'bu') {
+      className =
+        id === 'scope' && columns[0] === 'scope' ? scopeCell : inputCell;
+      const value = id === 'groupName' ? row.groupName || '' : row[id];
+      content = (
+        <div
+          style={{ width, maxWidth: width }}
+          className={
+            id === 'scope'
+              ? 'w-[180px] max-w-[180px]'
+              : id === 'bu'
+                ? 'w-[72px] max-w-[72px]'
+                : 'w-[160px] max-w-[160px]'
+          }
+        >
+          <Input
+            aria-label={
+              id === 'scope'
+                ? `Scope for row ${row.id}`
+                : `${id === 'groupName' ? 'Group' : 'BU'} for ${row.id}`
+            }
+            className={gridInput}
+            title={value}
+            value={value}
+            maxLength={id === 'scope' ? 500 : 200}
+            disabled={locked}
+            placeholder={
+              id === 'groupName'
+                ? 'Group name'
+                : id === 'scope'
+                  ? 'Scope'
+                  : 'BU'
+            }
+            onChange={(event) =>
+              update(row.id, { field: id, value: event.target.value })
+            }
+          />
+        </div>
+      );
+    } else if (id === 'reType') {
+      className = inputCell;
+      content = (
+        <div className="w-[120px] max-w-[120px]">
+          <select
+            aria-label={`RE Type for ${row.id}`}
+            className={gridSelect}
+            title={
+              re
+                ? `${re.code} · ${re.name} · ${re.pool}${!re.active ? ' · Inactive' : ''}`
+                : row.reTypeId
+            }
+            value={row.reTypeId}
+            disabled={locked}
+            onChange={(event) =>
+              update(row.id, { field: 'reTypeId', value: event.target.value })
+            }
+          >
+            {unknown && (
+              <option value={row.reTypeId}>
+                {row.reTypeId ? `Unknown: ${row.reTypeId}` : 'Select RE Type'}
+              </option>
+            )}
+            {resources
+              .filter(
+                (resource) =>
+                  resource.category === 'internal' &&
+                  (resource.active || resource.id === row.reTypeId),
+              )
+              .map((resource) => (
+                <option key={resource.id} value={resource.id}>
+                  {resource.name}
+                  {!resource.active ? ' · Inactive' : ''}
+                </option>
+              ))}
+          </select>
+        </div>
+      );
+    } else if (id === 'mdPerSite') {
+      className = inputCell;
+      content = (
+        <div className="w-[64px] max-w-[64px]">
+          {mode === 'sites' ? (
+            <PersonnelNumberInput
+              label={`Mandays per site for ${row.id}`}
+              value={row.mdPerSite}
+              locked={locked || unknown}
+              announce={announce}
+              onChange={(value) =>
+                update(row.id, { field: 'mdPerSite', value })
+              }
+            />
+          ) : (
+            <span className="block px-2 text-right text-muted-foreground">
+              —
+            </span>
+          )}
+        </div>
+      );
+    } else if (id === 'totalSites') content = number(totalRowSites(row));
+    else if (id === 'totalMd') content = number(totalRowMandays(row));
+    else if (id === 'totalCost') content = money(totalRowCost(row));
+    else if (annual) {
+      const { index, field } = annual;
+      if (
+        (field === 'sites' && mode === 'sites') ||
+        (field === 'mandays' && mode === 'mandays')
+      ) {
+        className = inputCell;
+        content = (
+          <PersonnelNumberInput
+            label={`${YEAR_BUCKETS[index]} ${field === 'sites' ? 'sites' : 'direct mandays'} for ${row.id}`}
+            value={row.years[index]?.[field] || 0}
+            integer={field === 'sites'}
+            locked={locked || unknown}
+            announce={announce}
+            onChange={(value) =>
+              update(row.id, { field: 'year', yearIndex: index, mode, value })
+            }
+          />
+        );
+      } else {
+        className = `${cell} bg-[#f5f7f5]`;
+        content =
+          field === 'sites'
+            ? '—'
+            : field === 'mandays'
+              ? number(yearRowMandays(row, index))
+              : money(row.years[index]?.cost || 0);
+      }
+    } else if (id === 'check') {
+      const issue = personnelRowIssue(row, resources, rates);
+      className = 'px-2 py-0 text-center';
+      content = (
+        <span
+          title={issue || 'Calculated'}
+          className={issue ? 'text-amber-800' : 'text-emerald-700'}
+        >
+          {issue ? 'Review' : 'OK'}
+        </span>
+      );
+    } else {
+      const position = displayedRows.findIndex((line) => line.id === row.id);
+      const up = displayedRows[position - 1],
+        down = displayedRows[position + 1];
+      className =
+        'sticky right-0 z-10 border-l border-border bg-card px-1 py-0 text-center';
+      content = (
+        <div className="flex h-8 items-center justify-center gap-0">
+          <button
+            type="button"
+            draggable={!locked && !!onMoveRow}
+            disabled={locked || !onMoveRow}
+            aria-label={`Drag personnel row ${row.id}`}
+            title="Drag above/below a row or onto a group header"
+            className="flex h-6 w-5 cursor-grab items-center justify-center rounded text-muted-foreground hover:bg-muted disabled:cursor-default disabled:opacity-40"
+            onDragStart={(event) => {
+              if (locked || !onMoveRow) {
+                event.preventDefault();
+                return;
+              }
+              event.dataTransfer.setData(PERSONNEL_ROW_DRAG, row.id);
+              event.dataTransfer.effectAllowed = 'move';
+            }}
+          >
+            <GripVertical className="size-3.5" />
+          </button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="h-6 w-5"
+            disabled={locked || !onMoveRow || !up}
+            aria-label={`Move personnel row ${row.id} up`}
+            onClick={() => {
+              if (up)
+                move({
+                  rowId: row.id,
+                  targetRowId: up.id,
+                  position: 'before',
+                  ...(grouped
+                    ? { groupName: (up.groupName || '').trim() }
+                    : {}),
+                });
+            }}
+          >
+            <ArrowUp className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="h-6 w-5"
+            disabled={locked || !onMoveRow || !down}
+            aria-label={`Move personnel row ${row.id} down`}
+            onClick={() => {
+              if (down)
+                move({
+                  rowId: row.id,
+                  targetRowId: down.id,
+                  position: 'after',
+                  ...(grouped
+                    ? { groupName: (down.groupName || '').trim() }
+                    : {}),
+                });
+            }}
+          >
+            <ArrowDown className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="h-6 w-5 text-destructive"
+            disabled={locked}
+            aria-label={`Delete cost row ${row.scope || row.id}`}
+            onClick={() => {
+              if (!locked) onDelete(row);
+            }}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      );
+    }
+    return (
+      <TableCell
+        key={id}
+        data-personnel-column={id}
+        style={{ width, minWidth: width, maxWidth: width }}
+        className={className}
+      >
+        {content}
+      </TableCell>
+    );
+  };
   return (
-    <Table className="w-max min-w-full text-[11px]">
+    <Table
+      className="w-max min-w-full text-[11px]"
+      onDragEnd={(event) => {
+        event.currentTarget
+          .querySelectorAll('[data-drop-position]')
+          .forEach((element) => element.removeAttribute('data-drop-position'));
+      }}
+    >
       <caption className="sr-only">
-        Inline personnel cost grid. Edit Scope, BU, RE Type and annual effort
-        directly.
+        Inline personnel cost grid. Edit Group, Scope, BU, RE Type and annual
+        effort directly.
       </caption>
       <TableHeader>
         <TableRow className="h-8 bg-[#e9e6de]">
-          <TableHead
-            rowSpan={2}
-            className="sticky left-0 z-20 w-[180px] min-w-[180px] border-r border-border bg-[#e9e6de] px-2"
-          >
-            Scope
-          </TableHead>
-          <TableHead
-            rowSpan={2}
-            className="w-[72px] min-w-[72px] max-w-[72px] border-r border-border px-2"
-          >
-            BU
-          </TableHead>
-          <TableHead
-            rowSpan={2}
-            className="w-[120px] min-w-[120px] max-w-[120px] border-r border-border px-2"
-          >
-            RE Type
-          </TableHead>
-          <TableHead
-            rowSpan={2}
-            className="w-[64px] min-w-[64px] max-w-[64px] border-r border-border px-2 text-right"
-          >
-            MD/Site
-          </TableHead>
-          <TableHead
-            rowSpan={2}
-            className="min-w-[68px] border-r border-border px-2 text-right"
-          >
-            Total Sites
-          </TableHead>
-          <TableHead
-            rowSpan={2}
-            className="min-w-[75px] border-r border-border px-2 text-right"
-          >
-            Total MD
-          </TableHead>
-          <TableHead
-            rowSpan={2}
-            className="min-w-[105px] border-r border-border px-2 text-right"
-          >
-            Total Cost
-          </TableHead>
-          {years.map((index) => (
-            <TableHead
-              key={index}
-              colSpan={3}
-              className="h-8 border-r border-border px-2 text-center"
-            >
-              {YEAR_BUCKETS[index]}{' '}
-              <span className="font-normal text-muted-foreground">
-                · {actualYears[index] ?? 'Set dates'}
-              </span>
-            </TableHead>
-          ))}
-          <TableHead rowSpan={2} className="min-w-[70px] px-2 text-center">
-            Check
-          </TableHead>
-          <TableHead rowSpan={2} className="min-w-[48px] px-1 text-center">
-            Action
-          </TableHead>
+          {segments.map((segment, segmentIndex) =>
+            segment.index === undefined ? (
+              <TableHead
+                key={`${segment.ids[0]}:${segmentIndex}`}
+                rowSpan={hasAnnual ? 2 : 1}
+                data-personnel-column={segment.ids[0]}
+                style={{
+                  width: columnWidth(segment.ids[0]),
+                  minWidth: columnWidth(segment.ids[0]),
+                  maxWidth: columnWidth(segment.ids[0]),
+                }}
+                className={`h-8 border-r border-border px-2 ${segment.ids[0] === 'action' ? 'sticky right-0 z-20 border-l bg-[#e9e6de]' : segment.ids[0] === 'scope' && columns[0] === 'scope' ? 'sticky left-0 z-20 bg-[#e9e6de]' : ''}`}
+              >
+                {getPersonnelColumnSpec(segment.ids[0])?.label}
+              </TableHead>
+            ) : (
+              <TableHead
+                key={`year:${segmentIndex}`}
+                colSpan={segment.ids.length}
+                className="h-8 border-r border-border px-2 text-center"
+              >
+                {YEAR_BUCKETS[segment.index]}{' '}
+                <span className="font-normal text-muted-foreground">
+                  · {actualYears[segment.index] ?? 'Set dates'}
+                </span>
+              </TableHead>
+            ),
+          )}
         </TableRow>
-        <TableRow className="h-7 bg-[#f2f0ea]">
-          {years.flatMap((index) => [
-            <TableHead
-              key={`sites-${index}`}
-              className="h-7 min-w-[65px] border-r border-border px-2 text-right"
-            >
-              Sites
-            </TableHead>,
-            <TableHead
-              key={`md-${index}`}
-              className="h-7 min-w-[76px] border-r border-border px-2 text-right"
-            >
-              Mandays
-            </TableHead>,
-            <TableHead
-              key={`cost-${index}`}
-              className="h-7 min-w-[105px] border-r border-border px-2 text-right"
-            >
-              Cost (SGD)
-            </TableHead>,
-          ])}
-        </TableRow>
+        {hasAnnual && (
+          <TableRow className="h-7 bg-[#f2f0ea]">
+            {columns
+              .filter((id) => annualColumn(id))
+              .map((id) => {
+                const annual = annualColumn(id)!;
+                return (
+                  <TableHead
+                    key={id}
+                    data-personnel-column={id}
+                    style={{ minWidth: columnWidth(id) }}
+                    className="h-7 border-r border-border px-2 text-right"
+                  >
+                    {getPersonnelAnnualColumnLabel(annual.field)}
+                  </TableHead>
+                );
+              })}
+          </TableRow>
+        )}
       </TableHeader>
       <TableBody>
-        {rows.map((row) => {
-          const re = resources.find((resource) => resource.id === row.reTypeId);
-          const unknown = !re || re.category !== 'internal';
-          const issue = personnelRowIssue(row, resources, rates);
-          const mode = row.inputMode || 'sites';
-          return (
-            <TableRow key={row.id} className="h-8">
-              <TableCell className={scopeCell}>
-                <div className="w-[180px] max-w-[180px]">
-                  <Input
-                    aria-label={`Scope for row ${row.id}`}
-                    className={gridInput}
-                    title={row.scope}
-                    value={row.scope}
-                    maxLength={500}
-                    disabled={locked}
-                    placeholder="Scope"
-                    onChange={(event) =>
-                      update(row.id, {
-                        field: 'scope',
-                        value: event.target.value,
-                      })
-                    }
-                  />
-                </div>
-              </TableCell>
-              <TableCell className={inputCell}>
-                <div className="w-[72px] max-w-[72px]">
-                  <Input
-                    aria-label={`BU for ${row.id}`}
-                    className={gridInput}
-                    value={row.bu}
-                    title={row.bu}
-                    maxLength={200}
-                    disabled={locked}
-                    placeholder="BU"
-                    onChange={(event) =>
-                      update(row.id, { field: 'bu', value: event.target.value })
-                    }
-                  />
-                </div>
-              </TableCell>
-              <TableCell className={inputCell}>
-                <div className="w-[120px] max-w-[120px]">
-                  <select
-                    aria-label={`RE Type for ${row.id}`}
-                    className={gridSelect}
-                    title={
-                      re
-                        ? `${re.code} · ${re.name} · ${re.pool}${!re.active ? ' · Inactive' : ''}`
-                        : row.reTypeId
-                    }
-                    value={row.reTypeId}
-                    disabled={locked}
-                    onChange={(event) =>
-                      update(row.id, {
-                        field: 'reTypeId',
-                        value: event.target.value,
-                      })
-                    }
+        {!hasAnnual && (
+          <TableRow>
+            <TableCell
+              colSpan={columns.length}
+              className="px-2 py-2 text-xs text-muted-foreground"
+            >
+              No columns selected for{' '}
+              {yearIndex === 'all' ? 'annual effort' : YEAR_BUCKETS[yearIndex]}.
+              Use Columns to show them.
+            </TableCell>
+          </TableRow>
+        )}
+        {entries.map((entry) => {
+          if (entry.kind === 'group') {
+            const title = entry.groupName || UNASSIGNED_PERSONNEL_GROUP;
+            return (
+              <TableRow
+                key={`group:${entry.groupName}`}
+                data-personnel-group={entry.groupName}
+                className="h-8 bg-[#e8efed] hover:bg-[#e8efed] data-[drop-position=group]:bg-[#bcd9cf]"
+                onDragOver={(event) => {
+                  if (allowDrop(event))
+                    event.currentTarget.setAttribute?.(
+                      'data-drop-position',
+                      'group',
+                    );
+                }}
+                onDragLeave={(event) =>
+                  event.currentTarget.removeAttribute('data-drop-position')
+                }
+                onDrop={(event) => {
+                  event.currentTarget.removeAttribute?.('data-drop-position');
+                  if (locked || !onMoveRow) return;
+                  const rowId = draggedRow(event);
+                  if (!rowId) return;
+                  event.preventDefault();
+                  move({
+                    rowId,
+                    position: 'group-end',
+                    groupName: entry.groupName,
+                  });
+                }}
+              >
+                <TableCell colSpan={columns.length} className="h-8 px-2 py-0">
+                  <form
+                    className="sticky left-2 inline-flex max-w-[440px] items-center gap-1.5"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (locked || !onRenameGroup) return;
+                      const value = (
+                        event.currentTarget.elements.namedItem(
+                          'groupName',
+                        ) as HTMLInputElement | null
+                      )?.value;
+                      if (value === undefined || value.trim().length > 200)
+                        return;
+                      onRenameGroup({
+                        groupName: entry.groupName,
+                        nextGroupName: value.trim(),
+                        rowIds: [...entry.rowIds],
+                      });
+                    }}
                   >
-                    {unknown && (
-                      <option value={row.reTypeId}>
-                        {row.reTypeId
-                          ? `Unknown: ${row.reTypeId}`
-                          : 'Select RE Type'}
-                      </option>
-                    )}
-                    {resources
-                      .filter(
-                        (resource) =>
-                          resource.category === 'internal' &&
-                          (resource.active || resource.id === row.reTypeId),
-                      )
-                      .map((resource) => (
-                        <option key={resource.id} value={resource.id}>
-                          {resource.name}
-                          {!resource.active ? ' · Inactive' : ''}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </TableCell>
-              <TableCell className={inputCell}>
-                <div className="w-[64px] max-w-[64px]">
-                  {mode === 'sites' ? (
-                    <PersonnelNumberInput
-                      label={`Mandays per site for ${row.id}`}
-                      value={row.mdPerSite}
-                      locked={locked || unknown}
-                      announce={announce}
-                      onChange={(value) =>
-                        update(row.id, { field: 'mdPerSite', value })
-                      }
+                    <Input
+                      name="groupName"
+                      aria-label={`Group name ${title}`}
+                      defaultValue={entry.groupName}
+                      placeholder="Unassigned Group"
+                      title={title}
+                      maxLength={200}
+                      disabled={locked || !onRenameGroup}
+                      className="h-7 w-[260px] rounded-sm border-transparent bg-transparent px-1 text-[11px] font-semibold text-[#315764] focus-visible:bg-white"
                     />
-                  ) : (
-                    <span className="block px-2 text-right text-muted-foreground">
-                      —
+                    <Button
+                      type="submit"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 gap-1 px-1 text-[10px]"
+                      disabled={locked || !onRenameGroup}
+                      aria-label={`Save group name ${title}`}
+                      title="Renaming to an existing group merges these rows into it."
+                    >
+                      <Save className="size-3" />
+                      Save / Merge
+                    </Button>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {entry.rowIds.length}{' '}
+                      {entry.rowIds.length === 1 ? 'row' : 'rows'}
                     </span>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell className={cell}>
-                {number(totalRowSites(row))}
-              </TableCell>
-              <TableCell className={cell}>
-                {number(totalRowMandays(row))}
-              </TableCell>
-              <TableCell className={`${cell} font-medium`}>
-                {money(totalRowCost(row))}
-              </TableCell>
-              {years.flatMap((index) => [
-                <TableCell key={`sites-${index}`} className={inputCell}>
-                  {mode === 'sites' ? (
-                    <PersonnelNumberInput
-                      label={`${YEAR_BUCKETS[index]} sites for ${row.id}`}
-                      value={row.years[index]?.sites || 0}
-                      integer
-                      locked={locked || unknown}
-                      announce={announce}
-                      onChange={(value) =>
-                        update(row.id, {
-                          field: 'year',
-                          yearIndex: index,
-                          mode,
-                          value,
-                        })
-                      }
-                    />
-                  ) : (
-                    <span className="block px-2 text-right text-muted-foreground">
-                      —
-                    </span>
-                  )}
-                </TableCell>,
-                <TableCell
-                  key={`md-${index}`}
-                  className={
-                    mode === 'mandays' ? inputCell : `${cell} bg-[#f5f7f5]`
-                  }
-                >
-                  {mode === 'mandays' ? (
-                    <PersonnelNumberInput
-                      label={`${YEAR_BUCKETS[index]} direct mandays for ${row.id}`}
-                      value={row.years[index]?.mandays || 0}
-                      locked={locked || unknown}
-                      announce={announce}
-                      onChange={(value) =>
-                        update(row.id, {
-                          field: 'year',
-                          yearIndex: index,
-                          mode,
-                          value,
-                        })
-                      }
-                    />
-                  ) : (
-                    number(yearRowMandays(row, index))
-                  )}
-                </TableCell>,
-                <TableCell
-                  key={`cost-${index}`}
-                  className={`${cell} bg-[#f5f7f5]`}
-                >
-                  {money(row.years[index]?.cost || 0)}
-                </TableCell>,
-              ])}
-              <TableCell className="px-2 py-0 text-center">
-                <span
-                  title={issue || 'Calculated'}
-                  className={issue ? 'text-amber-800' : 'text-emerald-700'}
-                >
-                  {issue ? 'Review' : 'OK'}
-                </span>
-              </TableCell>
-              <TableCell className="px-1 py-0 text-center">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={locked}
-                  aria-label={`Delete cost row ${row.scope || row.id}`}
-                  title="Delete row"
-                  onClick={() => {
-                    if (!locked) onDelete(row);
-                  }}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </TableCell>
+                  </form>
+                </TableCell>
+              </TableRow>
+            );
+          }
+          const row = entry.row;
+          return (
+            <TableRow
+              key={`row:${row.id}`}
+              data-personnel-row={row.id}
+              className="h-8 data-[drop-position=before]:border-t-2 data-[drop-position=before]:border-t-[#315764] data-[drop-position=after]:border-b-2 data-[drop-position=after]:border-b-[#315764]"
+              onDragOver={(event) => {
+                if (!allowDrop(event)) return;
+                const rect = event.currentTarget.getBoundingClientRect();
+                event.currentTarget.setAttribute?.(
+                  'data-drop-position',
+                  personnelDropPosition(event.clientY, rect.top, rect.height),
+                );
+              }}
+              onDragLeave={(event) =>
+                event.currentTarget.removeAttribute('data-drop-position')
+              }
+              onDrop={(event) => {
+                event.currentTarget.removeAttribute?.('data-drop-position');
+                if (locked || !onMoveRow) return;
+                const rowId = draggedRow(event);
+                if (!rowId || rowId === row.id) return;
+                event.preventDefault();
+                const rect = event.currentTarget.getBoundingClientRect();
+                move({
+                  rowId,
+                  targetRowId: row.id,
+                  position: personnelDropPosition(
+                    event.clientY,
+                    rect.top,
+                    rect.height,
+                  ),
+                  ...(grouped
+                    ? { groupName: (row.groupName || '').trim() }
+                    : {}),
+                });
+              }}
+            >
+              {columns.map((id) => renderRowCell(row, id))}
             </TableRow>
           );
         })}
         {!rows.length && (
           <TableRow>
             <TableCell
-              colSpan={9 + years.length * 3}
-              className="py-8 text-center text-muted-foreground"
+              colSpan={columns.length}
+              className="p-4 text-center text-muted-foreground"
             >
-              No matching personnel rows.
+              No personnel rows. Add Personnel to begin.
             </TableCell>
           </TableRow>
         )}
         {!!rows.length && (
           <TableRow className="bg-[#eeece6] font-semibold">
-            <TableCell className="sticky left-0 z-10 border-r border-border bg-[#eeece6] px-2">
-              Visible Total
-            </TableCell>
-            <TableCell
-              colSpan={3}
-              className="border-r border-border px-2 text-muted-foreground"
-            >
-              {rows.length} rows
-            </TableCell>
-            <TableCell className={cell}>
-              {number(rows.reduce((sum, row) => sum + totalRowSites(row), 0))}
-            </TableCell>
-            <TableCell className={cell}>
-              {number(rows.reduce((sum, row) => sum + totalRowMandays(row), 0))}
-            </TableCell>
-            <TableCell className={cell}>
-              {money(
-                roundMoney(
-                  rows.reduce((sum, row) => sum + totalRowCost(row), 0),
-                ),
-              )}
-            </TableCell>
-            {years.flatMap((index) => [
-              <TableCell key={`sites-${index}`} className={cell}>
-                {number(
-                  rows.reduce(
-                    (sum, row) => sum + (row.years[index]?.sites || 0),
-                    0,
-                  ),
-                )}
-              </TableCell>,
-              <TableCell key={`md-${index}`} className={cell}>
-                {number(
-                  rows.reduce(
-                    (sum, row) => sum + yearRowMandays(row, index),
-                    0,
-                  ),
-                )}
-              </TableCell>,
-              <TableCell key={`cost-${index}`} className={cell}>
-                {money(
+            {columns.map((id) => {
+              const annual = annualColumn(id);
+              let value: string =
+                id === textColumn ? `Visible Total · ${rows.length} rows` : '';
+              if (id === 'totalSites')
+                value = number(
+                  rows.reduce((sum, row) => sum + totalRowSites(row), 0),
+                );
+              else if (id === 'totalMd')
+                value = number(
+                  rows.reduce((sum, row) => sum + totalRowMandays(row), 0),
+                );
+              else if (id === 'totalCost')
+                value = money(
                   roundMoney(
-                    rows.reduce(
-                      (sum, row) => sum + (row.years[index]?.cost || 0),
-                      0,
-                    ),
+                    rows.reduce((sum, row) => sum + totalRowCost(row), 0),
                   ),
-                )}
-              </TableCell>,
-            ])}
-            <TableCell colSpan={2} />
+                );
+              else if (annual) {
+                const total = rows.reduce(
+                  (sum, row) =>
+                    sum +
+                    (annual.field === 'mandays'
+                      ? yearRowMandays(row, annual.index)
+                      : row.years[annual.index]?.[annual.field] || 0),
+                  0,
+                );
+                value =
+                  annual.field === 'cost'
+                    ? money(roundMoney(total))
+                    : number(total);
+              }
+              return (
+                <TableCell
+                  key={id}
+                  data-personnel-column={id}
+                  className={
+                    id === 'action'
+                      ? 'sticky right-0 z-10 border-l border-border bg-[#eeece6] px-1 py-0'
+                      : id === 'scope' && columns[0] === 'scope'
+                        ? 'sticky left-0 z-10 border-r border-border bg-[#eeece6] px-2 py-0'
+                        : cell
+                  }
+                >
+                  {value}
+                </TableCell>
+              );
+            })}
           </TableRow>
         )}
       </TableBody>

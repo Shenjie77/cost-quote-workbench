@@ -95,6 +95,118 @@ const revisionMap = (plan) =>
       .map((p) => [p.projectId, p.revision]),
   );
 
+test('twelve and fifteen workflow nodes publish, save and sync without losing later critical gates', () => {
+  const repo = openWorkspaceRepository(':memory:');
+  try {
+    initialize(repo, ['A', 'B']);
+    complete(repo, 'B', 'START', { application: 'P-B' });
+    complete(repo, 'B', 'LEGAL', { result: 'Approved' });
+    complete(repo, 'B', 'FINANCE');
+    complete(repo, 'B', 'DONE');
+    const completedProject = repo.get('B');
+    const costsBefore = structuredClone(payload(repo).costVersions);
+    const initialSteps = definitions();
+    const additions = Array.from({ length: 10 }, (_, index) => ({
+      ...initialSteps[1],
+      code: `EXTRA-${index + 1}`,
+      no: String(index + 5).padStart(2, '0'),
+      name:
+        index === 6
+          ? 'Late mandatory review'
+          : `Additional review ${index + 1}`,
+      nameZh: '',
+      required: index === 6,
+      autoSkip: index !== 6,
+      requiresConfirmedCost: index === 6,
+      requiredFields: index === 6 ? ['approval'] : [],
+    }));
+    const twelve = [
+      ...initialSteps.slice(0, -1),
+      ...additions.slice(0, 7),
+      { ...initialSteps.at(-1), no: '12' },
+    ];
+    let master = repo.globalMasterData.get('workflow');
+    const preview = repo.previewWorkflowPublication(twelve, master.revision);
+    assert.equal(
+      preview.projects.find((item) => item.projectId === 'A').steps.length,
+      12,
+    );
+    assert.equal(
+      preview.projects.find((item) => item.projectId === 'A').blockers.length,
+      0,
+    );
+    assert.equal(
+      preview.projects.find((item) => item.projectId === 'B').completed,
+      true,
+    );
+    repo.publishWorkflow(twelve, master.revision, revisionMap(preview));
+    assert.equal(payload(repo).processSteps.length, 12);
+    assert.deepEqual(repo.get('B'), completedProject);
+
+    // The compatibility/CLI save path must support the same expanded template.
+    master = repo.globalMasterData.get('workflow');
+    const saved = repo.globalMasterData.update(
+      'workflow',
+      { upsert: [...additions.slice(7), { code: 'DONE', no: '15' }] },
+      master.revision,
+    );
+    const expectedCodes = [
+      ...initialSteps.slice(0, -1).map((step) => step.code),
+      ...additions.map((step) => step.code),
+      'DONE',
+    ];
+    assert.equal(saved.items.length, 15);
+    assert.deepEqual(
+      saved.items.map((step) => step.code),
+      expectedCodes,
+    );
+    assert.deepEqual(
+      payload(repo).processSteps.map((step) => step.code),
+      expectedCodes,
+    );
+    assert.deepEqual(payload(repo).costVersions, costsBefore);
+    assert.deepEqual(repo.get('B'), completedProject);
+    createProject(repo, { id: 'C', name: 'After expansion', client: 'Client' });
+    assert.deepEqual(
+      payload(repo, 'C').processSteps.map((step) => step.code),
+      expectedCodes,
+    );
+    assert.equal(repo.workflowPlan('C').steps.length, 15);
+    assert.equal(repo.workflowPlan('C').templateRevision, saved.revision);
+
+    complete(repo, 'A', 'START', { application: 'P-A' });
+    complete(repo, 'A', 'LEGAL', { result: 'Approved' });
+    complete(repo, 'A', 'FINANCE');
+    assert.throws(() => complete(repo, 'A', 'DONE'), /Late mandatory review/);
+    assert.throws(
+      () => act(repo, 'A', { nodeCode: 'EXTRA-7', action: 'start' }),
+      /Confirm cost V1 first/,
+    );
+    const beforeConfirmation = repo.get('A');
+    beforeConfirmation.workspace.costVersions[0].state = 'Confirmed';
+    repo.save('A', beforeConfirmation.workspace, beforeConfirmation.revision);
+    assert.throws(() => complete(repo, 'A', 'EXTRA-7'), /approval/);
+    complete(repo, 'A', 'EXTRA-7', { approval: 'Verified' });
+    complete(repo, 'A', 'DONE');
+    assert.equal(repo.workflowPlan('A').completed, true);
+    assert.equal(payload(repo).selectedStep, 14);
+    assert.equal(payload(repo).versionWorkflows.V1.processSteps.length, 15);
+    assert.equal(
+      payload(repo).processSteps.find((step) => step.code === 'EXTRA-10').state,
+      'skipped',
+    );
+    assert.equal(
+      payload(repo).workflowUpdates.find(
+        (update) =>
+          update.nodeCode === 'EXTRA-7' && update.action === 'complete',
+      ).fields.approval,
+      'Verified',
+    );
+  } finally {
+    repo.close();
+  }
+});
+
 test('workflow-only actions and publication preserve stored historical amounts even when current formulas differ', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'workflow-frozen-cost-'));
   const file = path.join(dir, 'db.sqlite');

@@ -56,6 +56,8 @@ export type YearAllocation = {
 };
 
 export type CostInputRow = {
+  /** Optional personnel grouping label, independent of Scope. Empty/absent means Unassigned Group. */
+  groupName?: string;
   inputMode?: 'sites' | 'mandays';
   source?: {
     importedValues?: string;

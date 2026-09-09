@@ -170,6 +170,8 @@ export type ProjectWorkflowPageProps = {
   onBack: () => void;
   onRefresh: () => Promise<void>;
   onOpenCost: () => void;
+  onSetHold?: (onHold: boolean) => Promise<void>;
+  announce?: (message: string) => void;
   busy?: boolean;
   error?: string;
   focusNodeCode?: string;
@@ -185,6 +187,8 @@ export function ProjectWorkflowPage({
   onBack,
   onRefresh,
   onOpenCost,
+  onSetHold,
+  announce,
   busy = false,
   error = '',
   focusNodeCode,
@@ -200,7 +204,6 @@ export function ProjectWorkflowPage({
     useState<ProjectWorkflowMeta | null>(null);
   const [working, setWorking] = useState(false);
   const [localError, setLocalError] = useState('');
-  const [notice, setNotice] = useState('');
   const [advanceFrom, setAdvanceFrom] = useState('');
   if (focusNodeCode !== previousFocus) {
     setPreviousFocus(focusNodeCode);
@@ -215,6 +218,7 @@ export function ProjectWorkflowPage({
   }
   const phases = workflowPhaseGroups(workspace.processSteps);
   const complete = workflowComplete(workspace);
+  const onHold = Boolean(workspace.workflowHold);
   const visibleCode = selectWorkflowTask(workspace, selectedCode);
   const selected = workspace.processSteps.find(
     (step) => step.code === visibleCode,
@@ -245,10 +249,9 @@ export function ProjectWorkflowPage({
     onFocusNode?.(code);
   };
   const run = async (action: WorkflowAction) => {
-    if (disabled) return;
+    if (disabled || onHold) return;
     setWorking(true);
     setLocalError('');
-    setNotice('');
     try {
       const conflicts = workflowActionDraftConflicts(workspace, action, drafts);
       if (conflicts.length)
@@ -258,14 +261,14 @@ export function ProjectWorkflowPage({
       await onAction(action);
       setDrafts((previous) => {
         const next = { ...previous };
-        delete next[action.nodeCode];
+        if (action.nodeCode) delete next[action.nodeCode];
         return next;
       });
-      setNotice(
+      announce?.(
         action.action === 'complete' ? 'Step completed.' : 'Step updated.',
       );
       if (action.action === 'complete' || action.action === 'skip')
-        setAdvanceFrom(action.nodeCode);
+        setAdvanceFrom(action.nodeCode || '');
     } catch (cause) {
       setLocalError(
         cause instanceof Error ? cause.message : 'Unable to update this step.',
@@ -282,7 +285,7 @@ export function ProjectWorkflowPage({
     try {
       await onSaveReferences(references);
       setReferenceDraft(null);
-      setNotice('Project references saved.');
+      announce?.('Project references saved.');
     } catch (cause) {
       setLocalError(
         cause instanceof Error ? cause.message : 'Unable to save references.',
@@ -298,11 +301,33 @@ export function ProjectWorkflowPage({
     setLocalError('');
     try {
       await onRefresh();
-      setNotice('Workflow refreshed.');
+      announce?.('Workflow refreshed.');
     } catch (cause) {
       setLocalError(
         cause instanceof Error ? cause.message : 'Unable to refresh.',
       );
+    } finally {
+      setWorking(false);
+    }
+  };
+  const setHold = async (held: boolean) => {
+    if (disabled || !onSetHold || held === onHold) return;
+    setWorking(true);
+    setLocalError('');
+    try {
+      await onSetHold(held);
+      announce?.(
+        held
+          ? 'Project put on hold. Workflow monitoring is paused.'
+          : 'Project resumed. Workflow monitoring is active.',
+      );
+    } catch (cause) {
+      setLocalError(
+        cause instanceof Error
+          ? cause.message
+          : 'Unable to update project hold.',
+      );
+      throw cause;
     } finally {
       setWorking(false);
     }
@@ -324,16 +349,25 @@ export function ProjectWorkflowPage({
         onBack={onBack}
         onRefresh={refresh}
         onOpenCost={onOpenCost}
+        onHold={onHold}
+        holdDisabled={complete && !onHold}
+        onSetHold={onSetHold ? setHold : undefined}
       />
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <p
           className={
-            complete ? 'font-medium text-emerald-700' : 'text-muted-foreground'
+            onHold
+              ? 'font-medium text-amber-800'
+              : complete
+                ? 'font-medium text-emerald-700'
+                : 'text-muted-foreground'
           }
         >
-          {complete
-            ? 'Workflow complete. Reminders have stopped.'
-            : 'Select a step, record progress, then save or complete it.'}
+          {onHold
+            ? 'Project On Hold. Workflow monitoring and reminders are paused. Turn off the switch to resume with existing progress.'
+            : complete
+              ? 'Workflow complete. Reminders have stopped.'
+              : 'Select a step, record progress, then save or complete it.'}
         </p>
         <p
           className={
@@ -359,9 +393,6 @@ export function ProjectWorkflowPage({
         >
           {localError || error}
         </p>
-      )}
-      {notice && (
-        <output className="block text-xs text-[#2e6f77]">{notice}</output>
       )}
       <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
         <WorkflowTaskSelect
@@ -462,7 +493,8 @@ export function ProjectWorkflowPage({
                   phase.steps.some((step) => step.code === selected.code),
               )}
               complete={complete}
-              busy={disabled}
+              onHold={onHold}
+              busy={disabled || onHold}
             />
           ) : (
             <p className="rounded-xl border bg-card p-6 text-sm">
@@ -740,6 +772,7 @@ function WorkflowTaskEditor({
   canAdvance,
   parallel,
   complete,
+  onHold,
   busy,
 }: {
   step: WorkflowStep;
@@ -751,13 +784,14 @@ function WorkflowTaskEditor({
   canAdvance: boolean;
   parallel: boolean;
   complete: boolean;
+  onHold: boolean;
   busy: boolean;
 }) {
   const [moreAction, setMoreAction] = useState<
     'pause' | 'skip' | 'reopen' | null
   >(null);
   const done = isDone(step);
-  const urgency = workflowUrgency(step);
+  const urgency = onHold ? 'none' : workflowUrgency(step);
   return (
     <article className="overflow-hidden rounded-xl border bg-card">
       <div className="space-y-3 border-b bg-muted/15 p-5">
@@ -770,9 +804,11 @@ function WorkflowTaskEditor({
               {step.required ? 'Required Step' : 'Optional Step'} ·{' '}
               {step.slaDays || 3}{' '}
               {step.slaCalendar === 'calendar' ? 'Calendar' : 'Business'} Days ·{' '}
-              {step.reminderEnabled === false
-                ? 'Reminders Off'
-                : 'Reminders On'}
+              {onHold
+                ? 'Monitoring Paused'
+                : step.reminderEnabled === false
+                  ? 'Reminders Off'
+                  : 'Reminders On'}
             </p>
           </div>
           <span
@@ -787,7 +823,9 @@ function WorkflowTaskEditor({
             <dd className="mt-1">{timeLabel(step.startedAt)}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">SLA Due · Singapore</dt>
+            <dt className="text-muted-foreground">
+              {onHold ? 'SLA Due · Timing Paused' : 'SLA Due · Singapore'}
+            </dt>
             <dd
               className={`mt-1 ${urgency === 'urgent' ? 'font-semibold text-red-700' : ''}`}
             >

@@ -4,7 +4,7 @@ Local-first personal workbench for project delivery review, cost construction,
 pricing, quote output, review follow-up, reusable master data, and maintenance
 price history.
 
-Current release: [v0.8.0 · Configurable workflow, structured Subcon and personnel costing](docs/releases/v0.8.0.md).
+Current release: [v0.9.0 · Custom personnel groups, table-layout export and project hold](docs/releases/v0.9.0.md).
 
 The product UI is English-first with compact Chinese helper labels. It runs on
 the company computer and is designed to give both the user and an internal
@@ -19,11 +19,18 @@ changes are previewed and published to eligible open projects with revision chec
 while active deadlines and completed history are preserved by default.
 The dedicated Project Workflow page shares the cost page's project selection and
 keeps Proposal Number, iSales and CPQ links in a compact project header.
+Its **Project On Hold** switch pauses all workflow monitoring and reminders;
+Project List marks held projects **On Hold**. Resuming retains progress and
+adjusts active SLA deadlines for the pause. Workflow templates support more than
+10 steps, with the actual count and Add Step controls at both ends of the list.
 The [Skill operations reference](skills/cost-workbench/references/operations.md)
 includes column mappings, templates and CLI commands.
 
 Project List includes recoverable deletion. Deleted projects stay out of the UI,
 including after restart; snapshots can be recovered with `project restore`.
+Both new-project forms accept an optional Project ID (up to 80 characters).
+Leave it blank to generate one automatically; existing or deleted IDs cannot be
+reused, and the ID is immutable after creation.
 Costs must be explicitly confirmed by the user before their version can enter,
 submit or complete DRB. `Confirmed` makes that version's inputs immutable; it
 is cost finalization, not DRB approval. Draft costs remain editable and cannot
@@ -41,7 +48,20 @@ project workflow; quote export checks confirmed cost and valid quotation inputs
 without requiring a duplicate local SSR approval chain.
 
 Personnel Input is a compact editable grid with All/Y1–Y5 views and a toolbar
-Mode selector for Sites or Direct MD; it has no separate search bar. An optional
+Mode selector for Sites or Direct MD; it has no separate search bar. The
+**Groups** toggle beside Mode displays custom group headings, independent of
+Scope. Edit the Group column or rename a group heading; move rows with the
+Action arrows or drag handle, including between groups. Group names and row
+order are stored with the cost version and can also be updated through CLI.
+**Columns** controls visibility and left/right order as local browser preferences.
+**Simple Export** follows those columns plus the selected grouping and year view
+in Cost Detail; its summaries retain full five-year totals. **Full Export** keeps
+the standard workbook layout.
+**Bulk Entry** opens a local table-paste preview: recognize
+Chinese/English columns, resolve RE Types and annual quantities, then confirm
+to append rows. Costs use the selected version's captured rates and allowance;
+pasted prices are not imported. See the [personnel entry guide](docs/personnel-entry.md).
+An optional
 3% allowance applies to all internal personnel in selected **LOCAL, ARP, HQ or
 OTHER Pools**. HQ Travel has its own opt-in. Both default off in new blank cost
 versions; copied and historical versions retain their original settings. Each

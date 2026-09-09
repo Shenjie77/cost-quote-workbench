@@ -161,7 +161,12 @@ export function WorkflowTemplateEditor({
     <section>
       <div className="flex items-center justify-between gap-3 border-b bg-[#f8f7f3] px-4 py-3">
         <div>
-          <p className="text-sm font-semibold">Workflow Template</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold">Workflow Template</p>
+            <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              {steps.length} Steps · {phases.length} Phases
+            </span>
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">
             Configure steps, deadlines and requirements, then preview the impact
             before publishing.
@@ -345,6 +350,15 @@ export function WorkflowTemplateEditor({
             No matching steps.
           </p>
         )}
+      </div>
+      <div className="flex items-center justify-between gap-3 border-t bg-[#f8f7f3] px-4 py-3">
+        <p className="text-xs text-muted-foreground">
+          Add another step, then Preview &amp; Publish to sync projects.
+        </p>
+        <Button type="button" size="sm" disabled={disabled} onClick={create}>
+          <Plus />
+          Add Step
+        </Button>
       </div>
       {editing && (
         <Sheet

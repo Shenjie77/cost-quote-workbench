@@ -194,6 +194,51 @@ test('inserting a template node keeps the closing node last and every displayed 
   assert.equal(insertWorkflowTemplateStep([], added)[0].no, '01');
 });
 
+test('workflow editor adds and renders fifteen nodes with enabled entry points at both ends', () => {
+  const initial = steps();
+  let definitions = initial;
+  const original = structuredClone(initial);
+  for (let index = 1; index <= 11; index++)
+    definitions = insertWorkflowTemplateStep(
+      definitions,
+      makeStep(`extra-${index}`, `Additional Step ${index}`),
+    );
+  assert.equal(definitions.length, 15);
+  assert.equal(definitions.at(-1).code, 'hidden-finish-id');
+  assert.deepEqual(
+    definitions.map((step) => step.no),
+    Array.from({ length: 15 }, (_, index) =>
+      String(index + 1).padStart(2, '0'),
+    ),
+  );
+  assert.doesNotThrow(() => validateWorkflowTemplate(definitions));
+  assert.deepEqual(initial, original);
+  const render = (disabled = false, query = '') =>
+    renderToStaticMarkup(
+      React.createElement(WorkflowTemplateEditor, {
+        steps: definitions,
+        setSteps: noop,
+        announce: noop,
+        disabled,
+        query,
+      }),
+    );
+  const html = render();
+  assert.match(html, /15 Steps · 14 Phases/);
+  assert.equal((html.match(/aria-label="Edit /g) || []).length, 15);
+  const addButtons = (markup) =>
+    markup.match(
+      /<button\b[^>]*>(?:(?!<\/button>)[\s\S])*Add Step<\/button>/g,
+    ) || [];
+  assert.equal(addButtons(html).length, 2);
+  const isDisabled = (button) => /\sdisabled(?:=|[\s>])/.test(button);
+  assert.ok(addButtons(html).every((button) => !isDisabled(button)));
+  assert.ok(addButtons(render(true)).every(isDisabled));
+  const filtered = render(false, 'Additional Step 11');
+  assert.equal((filtered.match(/aria-label="Edit /g) || []).length, 1);
+  assert.match(filtered, /15 Steps · 14 Phases/);
+});
+
 test('phase movement preserves parallel groups while node arrows remain inside their group', () => {
   const original = steps();
   const before = structuredClone(original);

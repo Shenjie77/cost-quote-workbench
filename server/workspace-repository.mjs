@@ -172,6 +172,9 @@ const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
       ),
   ).length;
   return {
+    ...(workspace.workflowHold
+      ? { workflowHold: structuredClone(workspace.workflowHold) }
+      : {}),
     workflowEngineVersion: workspace.workflowEngineVersion,
     workflowTemplateRevision: workspace.workflowTemplateRevision,
     workflowMode: workspace.workflowMode,
@@ -484,6 +487,11 @@ export const openWorkspaceRepository = (databasePath) => {
           );
         }
         const previous = current ? JSON.parse(current.payload_json) : null;
+        if (!previous && document.workflowHold)
+          throw new WorkspaceValidationError(
+            'Project monitoring can only be paused through hold_project.',
+            '/workflowHold',
+          );
         preserveSubcontractSnapshots(previous, document, workspace);
         assertLegacySubcontractTransition(previous, document);
         if (internal.workflowMutation) {
@@ -492,6 +500,7 @@ export const openWorkspaceRepository = (databasePath) => {
               'Workflow actions require an existing project.',
             );
           const workflowFields = new Set([
+            'workflowHold',
             'workflowMode',
             'workflowEngineVersion',
             'workflowTemplateRevision',
@@ -518,6 +527,7 @@ export const openWorkspaceRepository = (databasePath) => {
 
         if (previous?.workflowEngineVersion === 1) {
           const protectedFields = [
+            'workflowHold',
             'processSteps',
             'currentWorkflowStepCode',
             'selectedStep',
@@ -536,6 +546,21 @@ export const openWorkspaceRepository = (databasePath) => {
           const removingRound = !document.costVersions.some(
             (v) => v.code === previous.workflowVersion,
           );
+          if (
+            !internal.workflowMutation &&
+            contentKey(document.workflowHold) !==
+              contentKey(previous.workflowHold)
+          ) {
+            if (newDraft) {
+              if (previous.workflowHold)
+                document.workflowHold = structuredClone(previous.workflowHold);
+              else delete document.workflowHold;
+            } else
+              throw new WorkspaceValidationError(
+                'Project monitoring is server-owned. Use hold_project or resume_project.',
+                '/workflowHold',
+              );
+          }
           for (const key of [
             'workflowEngineVersion',
             'workflowTemplateRevision',

@@ -15,8 +15,23 @@ import {
   totalRowMandays,
   totalRowSites,
   yearRowMandays,
+  type CostInputRow,
   type CostDimension,
 } from './domain.ts';
+import {
+  getPersonnelColumnSpec,
+  type PersonnelColumnId,
+} from './personnel-columns.ts';
+import {
+  getPersonnelAnnualColumn,
+  getPersonnelAnnualColumnLabel,
+  getPersonnelHeaderSegments,
+  groupPersonnelRows,
+  resolvePersonnelTableColumns,
+  UNASSIGNED_PERSONNEL_GROUP,
+  type PersonnelTableLayout,
+} from './personnel-table-layout.ts';
+import { isLegacySubcontractRow } from './personnel-cost-rows.ts';
 import { getCostWorkbookFileName } from './export-workbook.ts';
 import { validateCostExportSnapshot } from './validation.ts';
 
@@ -316,6 +331,307 @@ const addDetail = (workbook: Workbook, snapshot: CostExportSnapshot) => {
   sheet.pageSetup.paperSize = 8 as import('exceljs').PaperSize;
 };
 
+const personnelMoneyColumn = (id: PersonnelColumnId) =>
+  id === 'totalCost' || getPersonnelAnnualColumn(id)?.field === 'cost';
+const personnelTextColumn = (id: PersonnelColumnId) =>
+  ['groupName', 'scope', 'bu', 'reType'].includes(id);
+const personnelColumnWidth = (id: PersonnelColumnId) =>
+  id === 'scope'
+    ? 36
+    : id === 'groupName'
+      ? 26
+      : id === 'reType'
+        ? 28
+        : id === 'bu'
+          ? 22
+          : personnelMoneyColumn(id)
+            ? 20
+            : 16;
+
+function personnelValue(
+  input: CostInputRow,
+  id: PersonnelColumnId,
+  snapshot: CostExportSnapshot,
+): import('exceljs').CellValue {
+  if (id === 'groupName') return input.groupName?.trim() || '';
+  if (id === 'scope' || id === 'bu') return input[id];
+  if (id === 'reType')
+    return (
+      snapshot.resourceTypes.find((item) => item.id === input.reTypeId)?.name ||
+      ''
+    );
+  if (id === 'mdPerSite')
+    return input.inputMode === 'mandays' ? '—' : input.mdPerSite;
+  if (id === 'totalSites') return totalRowSites(input);
+  if (id === 'totalMd') return totalRowMandays(input);
+  if (id === 'totalCost') return totalRowCost(input);
+  const annual = getPersonnelAnnualColumn(id);
+  if (!annual) return null;
+  if (annual.field === 'sites')
+    return input.inputMode === 'mandays'
+      ? '—'
+      : Number(input.years[annual.index].sites);
+  if (annual.field === 'mandays') return yearRowMandays(input, annual.index);
+  return roundMoney(Number(input.years[annual.index].cost));
+}
+
+function personnelTotal(rows: CostInputRow[], id: PersonnelColumnId) {
+  const annual = getPersonnelAnnualColumn(id);
+  if (id === 'totalSites')
+    return roundQuantity(
+      rows.reduce((sum, row) => sum + totalRowSites(row), 0),
+    );
+  if (id === 'totalMd')
+    return roundQuantity(
+      rows.reduce((sum, row) => sum + totalRowMandays(row), 0),
+    );
+  if (id === 'totalCost')
+    return roundMoney(rows.reduce((sum, row) => sum + totalRowCost(row), 0));
+  if (annual) {
+    const value = rows.reduce(
+      (sum, row) =>
+        sum +
+        (annual.field === 'mandays'
+          ? yearRowMandays(row, annual.index)
+          : Number(row.years[annual.index][annual.field])),
+      0,
+    );
+    return annual.field === 'cost' ? roundMoney(value) : roundQuantity(value);
+  }
+  return null;
+}
+
+/** The browser's current personnel view, with the same grouping and visible column order. */
+function addPersonnelDetail(
+  workbook: Workbook,
+  snapshot: CostExportSnapshot,
+  layout: PersonnelTableLayout,
+  columns: PersonnelColumnId[],
+) {
+  const rows = snapshot.costRows.filter(
+    (row) => !isLegacySubcontractRow(row, snapshot.resourceTypes),
+  );
+  const segments = getPersonnelHeaderSegments(columns);
+  const hasAnnual = columns.some((id) => getPersonnelAnnualColumn(id));
+  const headerRows = hasAnnual ? 2 : 1;
+  const sheet = addSheet(
+    workbook,
+    snapshot,
+    'Cost Detail',
+    'Personnel Cost Detail',
+    columns.length,
+    headerRows,
+  );
+  const actualYears = getActualYears(snapshot.rateSettings);
+  sheet.mergeCells(3, 1, 3, columns.length);
+  const viewNote = `Personnel view: ${layout.grouped ? 'Grouped' : 'Ungrouped'} · ${layout.yearIndex === 'all' ? 'All years' : `${YEAR_BUCKETS[layout.yearIndex]} · ${actualYears[layout.yearIndex] ?? 'Set dates'}`}. Total columns, summaries and Cost Statement cover all years.`;
+  sheet.getCell('A3').value = viewNote;
+  sheet.getCell('A3').font = {
+    name: 'Arial',
+    size: 9,
+    color: { argb: COLORS.muted },
+  };
+  sheet.getCell('A3').alignment = { wrapText: true, vertical: 'middle' };
+  sheet.getRow(3).height = textRowHeight(
+    [
+      [
+        viewNote,
+        columns.reduce((sum, id) => sum + personnelColumnWidth(id), 0),
+      ],
+    ],
+    28,
+  );
+  styleRow(sheet, HEADER_ROW, columns.length, {
+    fill: COLORS.header,
+    bold: true,
+    height: 34,
+  });
+  if (hasAnnual)
+    styleRow(sheet, HEADER_ROW + 1, columns.length, {
+      fill: COLORS.secondary,
+      bold: true,
+      height: 28,
+    });
+  let firstColumn = 1;
+  for (const segment of segments) {
+    if (segment.index === undefined) {
+      if (hasAnnual)
+        sheet.mergeCells(HEADER_ROW, firstColumn, HEADER_ROW + 1, firstColumn);
+      sheet.getCell(HEADER_ROW, firstColumn).value = getPersonnelColumnSpec(
+        segment.ids[0],
+      ).label;
+    } else {
+      if (segment.ids.length > 1)
+        sheet.mergeCells(
+          HEADER_ROW,
+          firstColumn,
+          HEADER_ROW,
+          firstColumn + segment.ids.length - 1,
+        );
+      sheet.getCell(HEADER_ROW, firstColumn).value =
+        `${YEAR_BUCKETS[segment.index]} · ${actualYears[segment.index] ?? 'Set dates'}`;
+      sheet.getCell(HEADER_ROW, firstColumn).alignment = {
+        horizontal: 'center',
+        vertical: 'middle',
+      };
+      segment.ids.forEach((id, offset) => {
+        const field = getPersonnelAnnualColumn(id)!.field;
+        sheet.getCell(HEADER_ROW + 1, firstColumn + offset).value =
+          getPersonnelAnnualColumnLabel(field);
+      });
+    }
+    firstColumn += segment.ids.length;
+  }
+  columns.forEach((id, index) => {
+    sheet.getColumn(index + 1).width = personnelColumnWidth(id);
+    if (!personnelTextColumn(id))
+      sheet.getColumn(index + 1).numFmt = personnelMoneyColumn(id)
+        ? MONEY
+        : QUANTITY;
+  });
+  let rowNumber = HEADER_ROW + headerRows;
+  const writeInput = (input: CostInputRow) => {
+    const values = columns.map((id) => personnelValue(input, id, snapshot));
+    const row = styleRow(sheet, rowNumber++, columns.length, {
+      height: textRowHeight(
+        values.flatMap((value, index) =>
+          typeof value === 'string'
+            ? [
+                [value, personnelColumnWidth(columns[index])] as [
+                  string,
+                  number,
+                ],
+              ]
+            : [],
+        ),
+        32,
+      ),
+    });
+    setRowValues(row, values);
+    columns.forEach((id, index) => {
+      const cell = row.getCell(index + 1);
+      if (!personnelTextColumn(id)) {
+        if (typeof cell.value === 'number' && !personnelMoneyColumn(id))
+          cell.numFmt = quantityFormat(cell.value);
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      }
+    });
+  };
+  if (layout.grouped) {
+    for (const group of groupPersonnelRows(rows)) {
+      const title = group.groupName || UNASSIGNED_PERSONNEL_GROUP;
+      const groupRow = styleRow(sheet, rowNumber++, columns.length, {
+        fill: COLORS.subtotal,
+        bold: true,
+        height: textRowHeight(
+          [
+            [
+              title,
+              columns.reduce((sum, id) => sum + personnelColumnWidth(id), 0),
+            ],
+          ],
+          28,
+        ),
+      });
+      sheet.mergeCells(groupRow.number, 1, groupRow.number, columns.length);
+      groupRow.getCell(1).value =
+        `${title} · ${group.rows.length} ${group.rows.length === 1 ? 'row' : 'rows'}`;
+      group.rows.forEach(writeInput);
+    }
+  } else rows.forEach(writeInput);
+  const totals = styleRow(sheet, rowNumber, columns.length, {
+    fill: COLORS.header,
+    bold: true,
+    height: 34,
+  });
+  const textColumn = columns.find(
+    (id) => personnelTextColumn(id) || id === 'mdPerSite',
+  );
+  columns.forEach((id, index) => {
+    const value = personnelTotal(rows, id);
+    const cell = totals.getCell(index + 1);
+    cell.value =
+      value === null && id === textColumn
+        ? `Visible Total · ${rows.length} rows`
+        : value;
+    if (typeof value === 'number') {
+      cell.numFmt = personnelMoneyColumn(id) ? MONEY : quantityFormat(value);
+      cell.alignment = { horizontal: 'right', vertical: 'middle' };
+    }
+  });
+  sheet.views = [
+    {
+      showGridLines: false,
+      state: 'frozen',
+      ...(columns[0] === 'scope' ? { xSplit: 1 } : {}),
+      ySplit: HEADER_ROW + headerRows - 1,
+    },
+  ];
+  sheet.pageSetup.paperSize = 8 as import('exceljs').PaperSize;
+}
+
+/** Legacy package amounts are retained separately when exporting the personnel-only view. */
+function addLegacySubcontractDetail(
+  workbook: Workbook,
+  snapshot: CostExportSnapshot,
+) {
+  const rows = snapshot.costRows.filter((row) =>
+    isLegacySubcontractRow(row, snapshot.resourceTypes),
+  );
+  if (!rows.length) return;
+  const columns = 4 + YEAR_BUCKETS.length;
+  const sheet = addSheet(
+    workbook,
+    snapshot,
+    'Legacy Subcon',
+    'Legacy Subcontract Cost',
+    columns,
+  );
+  setRowValues(
+    styleRow(sheet, HEADER_ROW, columns, { fill: COLORS.header, bold: true }),
+    [
+      'Scope',
+      'BU',
+      'RE Type',
+      'Total Cost',
+      ...YEAR_BUCKETS.map((bucket) => `${bucket} Cost (SGD)`),
+    ],
+  );
+  [36, 24, 28, 20, ...YEAR_BUCKETS.map(() => 20)].forEach((width, index) => {
+    sheet.getColumn(index + 1).width = width;
+  });
+  rows.forEach((input, index) => {
+    const row = styleRow(sheet, HEADER_ROW + 1 + index, columns);
+    setRowValues(row, [
+      input.scope,
+      input.bu,
+      snapshot.resourceTypes.find((resource) => resource.id === input.reTypeId)
+        ?.name || '',
+      totalRowCost(input),
+      ...input.years.map((year) => roundMoney(Number(year.cost))),
+    ]);
+  });
+  setRowValues(
+    styleRow(sheet, HEADER_ROW + 1 + rows.length, columns, {
+      fill: COLORS.header,
+      bold: true,
+    }),
+    [
+      'Total',
+      null,
+      null,
+      roundMoney(rows.reduce((sum, row) => sum + totalRowCost(row), 0)),
+      ...YEAR_BUCKETS.map((_, index) =>
+        roundMoney(
+          rows.reduce((sum, row) => sum + Number(row.years[index].cost), 0),
+        ),
+      ),
+    ],
+  );
+  for (let column = 4; column <= columns; column++)
+    sheet.getColumn(column).numFmt = MONEY;
+}
+
 /** Same columns, descending order, labels and color bars as BreakdownTable. */
 const addBreakdown = (
   workbook: Workbook,
@@ -484,9 +800,23 @@ const addStatement = (
 /** Values are fixed to this version's snapshot, using the page's shared calculations. */
 export const buildSimpleCostWorkbookBytes = async (
   input: CostExportSnapshot,
+  requestedLayout?: PersonnelTableLayout,
 ) => {
   // Detach before the first asynchronous boundary, even for direct CLI callers.
   const snapshot = structuredClone(input);
+  const layout =
+    requestedLayout === undefined
+      ? undefined
+      : structuredClone(requestedLayout);
+  const columns = layout
+    ? resolvePersonnelTableColumns(layout.columns, layout.yearIndex).filter(
+        (id) => id !== 'check' && id !== 'action',
+      )
+    : undefined;
+  if (columns && !columns.length)
+    throw new Error(
+      'Select at least one visible business column before exporting the personnel view.',
+    );
   const blockingIssues = validateCostExportSnapshot(snapshot).filter(
     (issue) => issue.severity === 'error',
   );
@@ -507,7 +837,10 @@ export const buildSimpleCostWorkbookBytes = async (
     snapshot.resourceTypes,
     snapshot.travelSettings,
   );
-  addDetail(workbook, snapshot);
+  if (layout && columns) {
+    addPersonnelDetail(workbook, snapshot, layout, columns);
+    addLegacySubcontractDetail(workbook, snapshot);
+  } else addDetail(workbook, snapshot);
   addSubcontractWorkbookSheets(workbook, snapshot);
   addBreakdown(
     workbook,
@@ -544,9 +877,16 @@ export const getSimpleCostWorkbookFileName = (snapshot: CostExportSnapshot) =>
   getCostWorkbookFileName(snapshot).replace(/^Cost_/, 'Cost_Simple_');
 
 /** Browser download adapter; neither exporting nor opening a report updates costs. */
-export const downloadSimpleCostWorkbook = async (input: CostExportSnapshot) => {
+export const downloadSimpleCostWorkbook = async (
+  input: CostExportSnapshot,
+  requestedLayout?: PersonnelTableLayout,
+) => {
   const snapshot = structuredClone(input);
-  const bytes = await buildSimpleCostWorkbookBytes(snapshot);
+  const layout =
+    requestedLayout === undefined
+      ? undefined
+      : structuredClone(requestedLayout);
+  const bytes = await buildSimpleCostWorkbookBytes(snapshot, layout);
   const blob = new Blob([bytes.slice().buffer as ArrayBuffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });

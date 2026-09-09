@@ -96,6 +96,7 @@ export function OverviewView({
           client: project.client,
           projectStatus: project.projectStatus,
           workflowMode: project.workflowMode,
+          workflowHold: project.workflowHold,
           workflowEngineVersion: project.workflowEngineVersion,
           workflowTemplateRevision: project.workflowTemplateRevision,
           workflowVersion: project.workflowVersion,
@@ -128,6 +129,7 @@ export function OverviewView({
           value={String(
             projects.filter(
               (project) =>
+                !project.workflowHold &&
                 !isDigestProjectCompleted({
                   ...project,
                   projectId: project.id,

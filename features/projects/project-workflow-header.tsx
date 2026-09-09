@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ArrowLeft, ArrowUpRight, Pencil, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import type { Project } from './types';
 import type { ProjectWorkflowMeta } from './project-workflow-dialog';
 
@@ -230,6 +231,37 @@ export function ProjectWorkflowInfoFields({
   );
 }
 
+/** One project-wide monitoring switch; the caller persists the canonical workflow hold. */
+export function ProjectWorkflowHoldControl({
+  onHold,
+  onSetHold,
+  disabled = false,
+}: {
+  onHold: boolean;
+  onSetHold: (onHold: boolean) => Promise<void>;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      htmlFor="project-workflow-on-hold"
+      className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs ${onHold ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-border text-muted-foreground'}`}
+    >
+      <Switch
+        id="project-workflow-on-hold"
+        aria-label="Project On Hold"
+        size="sm"
+        checked={onHold}
+        disabled={disabled}
+        onCheckedChange={(checked) => {
+          if (!disabled && checked !== onHold)
+            void onSetHold(checked).catch(() => {});
+        }}
+      />
+      <span className="whitespace-nowrap font-medium">Project On Hold</span>
+    </label>
+  );
+}
+
 export type ProjectWorkflowHeaderProps = {
   project: Project;
   round: string;
@@ -245,6 +277,9 @@ export type ProjectWorkflowHeaderProps = {
   onBack: () => void;
   onRefresh: () => Promise<void> | void;
   onOpenCost: () => void;
+  onHold?: boolean;
+  holdDisabled?: boolean;
+  onSetHold?: (onHold: boolean) => Promise<void>;
 };
 
 export function ProjectWorkflowHeader({
@@ -261,6 +296,9 @@ export function ProjectWorkflowHeader({
   onBack,
   onRefresh,
   onOpenCost,
+  onHold = false,
+  holdDisabled = false,
+  onSetHold,
 }: ProjectWorkflowHeaderProps) {
   const [editing, setEditing] = useState(false);
   const [working, setWorking] = useState(false);
@@ -332,6 +370,13 @@ export function ProjectWorkflowHeader({
           {project.name || project.nameZh || project.id}
         </h2>
         <div className="ml-auto flex items-center gap-1">
+          {onSetHold && (
+            <ProjectWorkflowHoldControl
+              onHold={onHold}
+              onSetHold={onSetHold}
+              disabled={disabled || holdDisabled}
+            />
+          )}
           <Button
             variant="ghost"
             size="sm"

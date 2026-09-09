@@ -91,6 +91,7 @@ export function confirmReviewedCost(
 export function workflowConfirmationFingerprint(workspace: WorkbenchWorkspace) {
   return JSON.stringify({
     workflowVersion: workspace.workflowVersion,
+    workflowHold: workspace.workflowHold,
     processSteps: workspace.processSteps,
     currentWorkflowStepCode: workspace.currentWorkflowStepCode,
     reviewGates: workspace.reviewGates,

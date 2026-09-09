@@ -103,6 +103,7 @@ export function AgentView({
           workflowEngineVersion: project.workflowEngineVersion,
           workflowTemplateRevision: project.workflowTemplateRevision,
           workflowVersion: project.workflowVersion,
+          workflowHold: project.workflowHold,
           currentWorkflowStepCode: project.currentWorkflowStepCode,
           workflowSteps: project.workflowSteps,
         })),
@@ -296,9 +297,9 @@ export function AgentView({
               '期限内普通、最后一天马上处理、超期紧急',
             ],
             [
-              'Paused / Disabled',
-              'No active reminders',
-              '暂停或关闭提醒的节点不提示；到恢复跟进日时提醒安排恢复',
+              'Project On Hold',
+              'All project monitoring paused',
+              '项目挂起期间不监控；单个节点暂停仍按恢复跟进日期提醒',
             ],
             [
               'Quote completed',

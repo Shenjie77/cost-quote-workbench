@@ -65,6 +65,7 @@ export const initialProjectStatusDefinitions: ProjectStatusDefinition[] = [
 ];
 
 export type Project = {
+  workflowHold?: WorkflowHold;
   revision?: number;
   workflowEngineVersion?: 1;
   workflowTemplateRevision?: number;
@@ -115,6 +116,12 @@ export type Project = {
     severity: 'red' | 'amber';
     fingerprint: string;
   }[];
+};
+
+/** Project-owned monitoring pause; independent from cost-version and node states. */
+export type WorkflowHold = {
+  startedAt: string;
+  reason?: string;
 };
 
 export type WorkflowStep = {

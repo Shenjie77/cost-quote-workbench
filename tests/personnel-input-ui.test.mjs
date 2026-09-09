@@ -52,9 +52,17 @@ const {
   applyPersonnelModeChange,
   changePersonnelBasis,
   hasPartialLegacyAllowance,
+  groupPersonnelRows,
+  personnelDropPosition,
 } = await import('../features/cost/components/personnel-input-controls.tsx');
 const { CostInputSheet } =
   await import('../features/cost/components/cost-input-sheet.tsx');
+const { usePersonnelTableView } =
+  await import('../features/cost/use-personnel-table-view.ts');
+function StandaloneCostInputSheet(props) {
+  const tableView = usePersonnelTableView();
+  return React.createElement(CostInputSheet, { ...props, tableView });
+}
 const { initialResourceTypes } =
   await import('../features/master-data/demo-data.ts');
 const { initialRateSettings } = await import('../features/cost/demo-data.ts');
@@ -287,7 +295,14 @@ test('inline RE selection supports active internal types and preserves unknown o
 test('All Years keeps five inline allocations and new personnel immediately exposes editable cells', () => {
   const html = render(PersonnelLinesTable, tableProps(row()));
   assert.equal((html.match(/Y[1-5] sites for CI-1/g) || []).length, 5);
-  assert.match(html, /sticky left-0/);
+  assert.doesNotMatch(html, /sticky left-0/);
+  assert.match(
+    render(
+      PersonnelLinesTable,
+      tableProps(row(), { columns: ['scope', 'Y1:sites', 'action'] }),
+    ),
+    /sticky left-0/,
+  );
   assert.doesNotMatch(html, /sticky left-\[/);
   const fresh = blankPersonnelRow('CI-NEW', resources);
   const rendered = render(PersonnelLinesTable, tableProps(fresh));
@@ -299,6 +314,28 @@ test('All Years keeps five inline allocations and new personnel immediately expo
     resources.find((resource) => resource.id === fresh.reTypeId).category,
     'internal',
   );
+});
+
+test('Action stays last and pinned to the right across header, rows and totals', () => {
+  for (const yearIndex of ['all', 0]) {
+    const nodes = walk(PersonnelLinesTable(tableProps(row(), { yearIndex })));
+    const actions = nodes.filter(
+      (node) => node.props['data-personnel-column'] === 'action',
+    );
+    assert.equal(actions.length, 3);
+    for (const action of actions) {
+      assert.match(action.props.className, /sticky right-0/);
+      assert.match(action.props.className, /border-l/);
+      assert.match(action.props.className, /bg-/);
+    }
+    const body = nodes.find(
+      (node) => node.props['data-personnel-row'] === 'CI-1',
+    );
+    assert.equal(
+      body.props.children.at(-1).props['data-personnel-column'],
+      'action',
+    );
+  }
 });
 
 test('mode projection recognizes mixed historical rows without converting them', () => {
@@ -503,7 +540,7 @@ test('locked grid blocks inline writers while keeping year views available', () 
     ),
     [original],
   );
-  const html = render(CostInputSheet, {
+  const html = render(StandaloneCostInputSheet, {
     rows: [original],
     setRows: noop,
     rateSettings: rates,
@@ -551,5 +588,393 @@ test('allowance uses exactly four Pool checkboxes and leaves historical individu
   assert.equal(
     hasPartialLegacyAllowance({ ...historical, allowancePools: [] }, resources),
     false,
+  );
+});
+
+test('independent Group names contain different Scopes and preserve first-seen group and row ordering', () => {
+  const rows = [
+    row({
+      id: 'CI-A1',
+      scope: 'HLD',
+      groupName: '  Network Design & Planning  ',
+    }),
+    row({ id: 'CI-B1', scope: 'HLD', groupName: 'Implementation' }),
+    row({ id: 'CI-A2', scope: 'LLD', groupName: 'Network Design & Planning' }),
+    row({ id: 'CI-EMPTY1', scope: 'Network planning' }),
+    row({ id: 'CI-CASE', scope: '', groupName: 'implementation' }),
+    row({
+      id: 'CI-B2',
+      scope: 'Router installation',
+      groupName: ' Implementation\n',
+    }),
+    row({ id: 'CI-EMPTY2', scope: 'HLD', groupName: '  ' }),
+  ];
+  const before = structuredClone(rows);
+  const groups = groupPersonnelRows(rows);
+  assert.deepEqual(
+    groups.map((group) => group.groupName),
+    ['Network Design & Planning', 'Implementation', '', 'implementation'],
+  );
+  assert.deepEqual(
+    groups.map((group) => group.rows.map((line) => line.id)),
+    [
+      ['CI-A1', 'CI-A2'],
+      ['CI-B1', 'CI-B2'],
+      ['CI-EMPTY1', 'CI-EMPTY2'],
+      ['CI-CASE'],
+    ],
+  );
+  const props = tableProps(rows[0], { rows, grouped: true });
+  const html = render(PersonnelLinesTable, props);
+  assert.deepEqual(
+    [...html.matchAll(/aria-label="Scope for row ([^"]+)"/g)].map(
+      (match) => match[1],
+    ),
+    ['CI-A1', 'CI-A2', 'CI-B1', 'CI-B2', 'CI-EMPTY1', 'CI-EMPTY2', 'CI-CASE'],
+  );
+  assert.match(html, /Unassigned Group/);
+  assert.equal((html.match(/data-personnel-group=/g) || []).length, 4);
+  const flat = render(PersonnelLinesTable, { ...props, grouped: false });
+  assert.doesNotMatch(flat, /data-personnel-group=/);
+  assert.deepEqual(
+    [...flat.matchAll(/aria-label="Scope for row ([^"]+)"/g)].map(
+      (match) => match[1],
+    ),
+    rows.map((line) => line.id),
+  );
+  assert.deepEqual(rows, before);
+});
+
+test('group headers contain no amount rows and totals remain aligned under focused, reordered and hidden columns', () => {
+  const rows = [
+    row({ id: 'A1', groupName: 'Design', scope: 'HLD' }),
+    row({ id: 'B1', groupName: 'Build' }),
+    row({ id: 'A2', groupName: 'Design', scope: 'LLD' }),
+  ];
+  for (const yearIndex of [2, 'all']) {
+    const props = tableProps(rows[0], { rows, yearIndex });
+    const grouped = walk(PersonnelLinesTable({ ...props, grouped: true }));
+    const flat = walk(PersonnelLinesTable(props));
+    const headers = grouped.filter((node) =>
+      Object.hasOwn(node.props, 'data-personnel-group'),
+    );
+    assert.equal(headers.length, 2);
+    for (const header of headers) {
+      assert.equal(
+        header.props.children.props.colSpan,
+        yearIndex === 'all' ? 25 : 13,
+      );
+      assert.equal(
+        walk(header).filter((node) => node.type === PersonnelNumberInput)
+          .length,
+        0,
+      );
+    }
+    const footer = (nodes) =>
+      nodes.find(
+        (node) => node.props.className === 'bg-[#eeece6] font-semibold',
+      );
+    assert.equal(
+      renderToStaticMarkup(footer(grouped)),
+      renderToStaticMarkup(footer(flat)),
+    );
+    assert.equal(
+      grouped.filter((node) =>
+        node.props['aria-label']?.startsWith('Scope for row '),
+      ).length,
+      rows.length,
+    );
+  }
+  const columns = [
+    'scope',
+    'Y2:cost',
+    'bu',
+    'Y1:sites',
+    'Y1:cost',
+    'Y2:mandays',
+    'totalCost',
+    'action',
+  ];
+  const props = tableProps(rows[0], { rows, columns, grouped: true });
+  const nodes = walk(PersonnelLinesTable(props));
+  const firstRow = nodes.find(
+    (node) => node.props['data-personnel-row'] === 'A1',
+  );
+  assert.deepEqual(
+    firstRow.props.children.map((node) => node.props['data-personnel-column']),
+    columns,
+  );
+  const yearHeads = nodes.filter(
+    (node) =>
+      node.props.colSpan && node.props.className?.includes('text-center'),
+  );
+  assert.deepEqual(
+    yearHeads.map((node) => node.props.colSpan),
+    [1, 2, 1],
+  );
+  const html = render(PersonnelLinesTable, props);
+  assert.match(html, /Y1 sites for A1/);
+  assert.doesNotMatch(html, /Y2 sites for A1|Y1 direct mandays|Group for A1/);
+  const focused = walk(PersonnelLinesTable({ ...props, yearIndex: 1 }));
+  assert.deepEqual(
+    focused
+      .find((node) => node.props['data-personnel-row'] === 'A1')
+      .props.children.map((node) => node.props['data-personnel-column']),
+    ['scope', 'Y2:cost', 'bu', 'Y2:mandays', 'totalCost', 'action'],
+  );
+  assert.equal(
+    focused.find((node) => Object.hasOwn(node.props, 'data-personnel-group'))
+      .props.children.props.colSpan,
+    6,
+  );
+  const noAnnual = render(PersonnelLinesTable, { ...props, yearIndex: 4 });
+  assert.match(noAnnual, /No columns selected for Y5/);
+  assert.doesNotMatch(noAnnual, /Y5 sites|Y5 direct mandays/);
+});
+
+test('Scope edits never regroup rows, Group edits preserve Scope and provenance, and delete uses stable row IDs', () => {
+  let current = [
+    row({ id: 'CI-A1', groupName: 'Design', scope: 'HLD' }),
+    row({ id: 'CI-B1', groupName: 'Build' }),
+    row({ id: 'CI-A2', groupName: 'Design', scope: 'LLD' }),
+  ];
+  const deleted = [];
+  const props = () =>
+    tableProps(current[0], {
+      rows: current,
+      grouped: true,
+      onPatch: (id, patch) => {
+        current = patchPersonnelRows(current, id, patch, resources, rates);
+      },
+      onDelete: (line) => deleted.push(line.id),
+    });
+  input(props(), 'Scope for row CI-A2').props.onChange({
+    target: { value: 'Network planning' },
+  });
+  assert.deepEqual(
+    groupPersonnelRows(current).map((group) =>
+      group.rows.map((line) => line.id),
+    ),
+    [['CI-A1', 'CI-A2'], ['CI-B1']],
+  );
+  const effort = structuredClone(current[2].years);
+  input(props(), 'Group for CI-A2').props.onChange({
+    target: { value: 'Build' },
+  });
+  assert.deepEqual(
+    groupPersonnelRows(current).map((group) =>
+      group.rows.map((line) => line.id),
+    ),
+    [['CI-A1'], ['CI-B1', 'CI-A2']],
+  );
+  assert.equal(current[2].scope, 'Network planning');
+  assert.deepEqual(current[2].years, effort);
+  input(props(), 'Group for CI-A2').props.onChange({
+    target: { value: 'Network ' },
+  });
+  assert.equal(current[2].groupName, 'Network ');
+  const rowNode = walk(PersonnelLinesTable(props())).find(
+    (node) => node.key === 'row:CI-A2',
+  );
+  walk(rowNode)
+    .find((node) => node.props['aria-label']?.startsWith('Delete cost row'))
+    .props.onClick();
+  assert.deepEqual(deleted, ['CI-A2']);
+  const before = structuredClone(current);
+  const locked = {
+    ...props(),
+    locked: true,
+    onPatch: () => assert.fail('Locked rows must not write'),
+  };
+  input(locked, 'Group for CI-A1').props.onChange({
+    target: { value: 'Blocked' },
+  });
+  input(locked, 'Scope for row CI-A1').props.onChange({
+    target: { value: 'Blocked' },
+  });
+  assert.deepEqual(current, before);
+});
+
+test('group rename commits explicitly with captured membership, including merge and blank-group names', () => {
+  const rows = [
+    row({ id: 'HLD', groupName: 'Design', scope: 'HLD' }),
+    row({ id: 'LLD', groupName: 'Design', scope: 'LLD' }),
+    row({ id: 'INSTALL', groupName: 'Build' }),
+  ];
+  const updates = [];
+  const props = tableProps(rows[0], {
+    rows,
+    grouped: true,
+    onRenameGroup: (value) => updates.push(value),
+  });
+  const nodes = walk(PersonnelLinesTable(props));
+  const header = nodes.find(
+    (node) => node.props['data-personnel-group'] === 'Design',
+  );
+  const field = walk(header).find(
+    (node) => node.props['aria-label'] === 'Group name Design',
+  );
+  assert.equal(field.props.onChange, undefined);
+  assert.equal(updates.length, 0);
+  const submit = walk(header).find((node) => node.type === 'form').props
+    .onSubmit;
+  const event = (value) => ({
+    preventDefault: noop,
+    currentTarget: { elements: { namedItem: () => ({ value }) } },
+  });
+  submit(event(' Build '));
+  submit(event('  '));
+  assert.deepEqual(updates, [
+    { groupName: 'Design', nextGroupName: 'Build', rowIds: ['HLD', 'LLD'] },
+    { groupName: 'Design', nextGroupName: '', rowIds: ['HLD', 'LLD'] },
+  ]);
+  submit(event('X'.repeat(201)));
+  assert.equal(updates.length, 2);
+  const locked = walk(PersonnelLinesTable({ ...props, locked: true }));
+  const lockedHeader = locked.find(
+    (node) => node.props['data-personnel-group'] === 'Design',
+  );
+  walk(lockedHeader)
+    .find((node) => node.type === 'form')
+    .props.onSubmit(event('Blocked'));
+  assert.equal(updates.length, 2);
+  assert.match(render(PersonnelLinesTable, props), /Save \/ Merge/);
+});
+
+test('row up/down and drag/drop express position and target Group without writing displayed cost values', () => {
+  const rows = [
+    row({ id: 'HLD', groupName: 'Design' }),
+    row({ id: 'LLD', groupName: 'Design' }),
+    row({ id: 'INSTALL', groupName: 'Build' }),
+  ];
+  const before = structuredClone(rows),
+    moves = [];
+  const props = tableProps(rows[0], {
+    rows,
+    grouped: true,
+    onMoveRow: (value) => moves.push(value),
+  });
+  const nodes = walk(PersonnelLinesTable(props));
+  input(props, 'Move personnel row LLD down').props.onClick();
+  input(props, 'Move personnel row INSTALL up').props.onClick();
+  assert.deepEqual(moves.slice(0, 2), [
+    {
+      rowId: 'LLD',
+      targetRowId: 'INSTALL',
+      position: 'after',
+      groupName: 'Build',
+    },
+    {
+      rowId: 'INSTALL',
+      targetRowId: 'LLD',
+      position: 'before',
+      groupName: 'Design',
+    },
+  ]);
+  const payload = new Map();
+  const dataTransfer = {
+    types: ['application/x-ssr-personnel-row'],
+    setData: (key, value) => payload.set(key, value),
+    getData: (key) => payload.get(key) || '',
+  };
+  input(props, 'Drag personnel row HLD').props.onDragStart({
+    dataTransfer,
+    preventDefault: noop,
+  });
+  assert.equal(dataTransfer.effectAllowed, 'move');
+  const dropEvent = (clientY) => ({
+    dataTransfer,
+    clientY,
+    preventDefault: noop,
+    currentTarget: { getBoundingClientRect: () => ({ top: 100, height: 32 }) },
+  });
+  const target = nodes.find(
+    (node) => node.props['data-personnel-row'] === 'INSTALL',
+  );
+  target.props.onDragOver(dropEvent(102));
+  assert.equal(dataTransfer.dropEffect, 'move');
+  target.props.onDrop(dropEvent(102));
+  target.props.onDrop(dropEvent(130));
+  nodes
+    .find((node) => node.props['data-personnel-group'] === 'Build')
+    .props.onDrop(dropEvent(0));
+  assert.deepEqual(moves.slice(2), [
+    {
+      rowId: 'HLD',
+      targetRowId: 'INSTALL',
+      position: 'before',
+      groupName: 'Build',
+    },
+    {
+      rowId: 'HLD',
+      targetRowId: 'INSTALL',
+      position: 'after',
+      groupName: 'Build',
+    },
+    { rowId: 'HLD', position: 'group-end', groupName: 'Build' },
+  ]);
+  assert.equal(personnelDropPosition(115, 100, 32), 'before');
+  assert.equal(personnelDropPosition(116, 100, 32), 'after');
+  const locked = { ...props, locked: true };
+  input(locked, 'Move personnel row LLD down').props.onClick();
+  input(locked, 'Drag personnel row HLD').props.onDragStart({
+    dataTransfer,
+    preventDefault: noop,
+  });
+  const lockedNodes = walk(PersonnelLinesTable(locked));
+  lockedNodes
+    .find((node) => node.props['data-personnel-row'] === 'INSTALL')
+    .props.onDrop(dropEvent(102));
+  lockedNodes
+    .find((node) => node.props['data-personnel-group'] === 'Build')
+    .props.onDrop(dropEvent(0));
+  assert.equal(moves.length, 5);
+  assert.deepEqual(rows, before);
+});
+
+test('flat row moves preserve existing Group assignments and drag feedback marks before/after targets', () => {
+  const rows = [
+    row({ id: 'A', groupName: 'Design' }),
+    row({ id: 'B', groupName: 'Build' }),
+  ];
+  const moves = [];
+  const props = tableProps(rows[0], {
+    rows,
+    grouped: false,
+    onMoveRow: (value) => moves.push(value),
+  });
+  input(props, 'Move personnel row A down').props.onClick();
+  input(props, 'Move personnel row B up').props.onClick();
+  const attributes = new Map();
+  const event = {
+    dataTransfer: {
+      types: ['application/x-ssr-personnel-row'],
+      getData: () => 'A',
+    },
+    clientY: 102,
+    preventDefault: noop,
+    currentTarget: {
+      getBoundingClientRect: () => ({ top: 100, height: 32 }),
+      setAttribute: (key, value) => attributes.set(key, value),
+      removeAttribute: (key) => attributes.delete(key),
+    },
+  };
+  const target = walk(PersonnelLinesTable(props)).find(
+    (node) => node.props['data-personnel-row'] === 'B',
+  );
+  target.props.onDragOver(event);
+  assert.equal(attributes.get('data-drop-position'), 'before');
+  target.props.onDragOver({ ...event, clientY: 130 });
+  assert.equal(attributes.get('data-drop-position'), 'after');
+  target.props.onDrop(event);
+  assert.equal(attributes.size, 0);
+  assert.deepEqual(moves, [
+    { rowId: 'A', targetRowId: 'B', position: 'after' },
+    { rowId: 'B', targetRowId: 'A', position: 'before' },
+    { rowId: 'A', targetRowId: 'B', position: 'before' },
+  ]);
+  assert.deepEqual(
+    rows.map((line) => line.groupName),
+    ['Design', 'Build'],
   );
 });

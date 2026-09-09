@@ -394,6 +394,45 @@ test('new project creation requests server-side global capture instead of writin
   assert.doesNotMatch(calls[0].body, /resourceTypes|rateSettings|costRows/);
 });
 
+for (const status of [409, 410])
+  test(`duplicate project creation surfaces actionable ${status === 409 ? 'existing' : 'deleted'} ID guidance without retry`, async (t) => {
+    let calls = 0;
+    t.mock.method(globalThis, 'fetch', async () => {
+      calls++;
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: {
+            message:
+              status === 409
+                ? 'Expected revision null, current revision is 1.'
+                : 'Project was deleted.',
+          },
+        }),
+        { status, headers: { 'Content-Type': 'application/json' } },
+      );
+    });
+    await assert.rejects(
+      createProjectFromGlobalMasterData({
+        id: 'CUSTOM-ID-2026',
+        name: 'New project',
+        client: 'Customer',
+      }),
+      (error) => {
+        assert.equal(error.status, status);
+        assert.match(error.message, /CUSTOM-ID-2026/);
+        assert.match(
+          error.message,
+          status === 409
+            ? /already exists.*Choose another/
+            : /deleted project.*Restore/,
+        );
+        return true;
+      },
+    );
+    assert.equal(calls, 1);
+  });
+
 test('source differences render business fields and human-readable labels instead of raw JSON', () => {
   const item = {
     ...resources[0],

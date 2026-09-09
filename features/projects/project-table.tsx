@@ -13,6 +13,7 @@ import {
 import { BiText } from '@/components/workbench/bilingual-text';
 import type { Project, ProjectStatus } from '@/features/projects/types';
 import { formatSgd } from '@/lib/formatters';
+import { workflowComplete } from './workflow-engine';
 
 export function ProjectTable({
   projects,
@@ -75,8 +76,8 @@ export function ProjectTable({
           const currentStep = project.workflowSteps?.find(
             (step) => step.code === project.currentWorkflowStepCode,
           );
-          const completed =
-            project.currentWorkflowStepCode === 'QUOTE_COMPLETED';
+          const completed = workflowComplete(project);
+          const onHold = Boolean(project.workflowHold);
           return (
             <TableRow
               key={project.id}
@@ -91,6 +92,11 @@ export function ProjectTable({
                   <span className="block truncate text-[12px] font-semibold text-[#173a52] hover:underline">
                     {project.name}
                   </span>
+                  {onHold && (
+                    <span className="mt-1 inline-flex rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-900">
+                      On Hold / 已挂起
+                    </span>
+                  )}
                   <span className="financial-numeral mt-0.5 block truncate text-[9px] text-muted-foreground">
                     {project.id} · {project.client}
                   </span>
@@ -105,9 +111,11 @@ export function ProjectTable({
                         : project.stage || '待登记流程'}
                     </p>
                     <p className="mt-1 text-[10px] text-muted-foreground">
-                      {completed
-                        ? '报价完成 · 停止提醒'
-                        : `${currentStep?.owner || '待填写负责人'} · ${currentStep?.followUpDate || '待填写跟进日期'}`}
+                      {onHold
+                        ? 'On Hold · Workflow monitoring paused'
+                        : completed
+                          ? '报价完成 · 停止提醒'
+                          : `${currentStep?.owner || '待填写负责人'} · ${currentStep?.followUpDate || '待填写跟进日期'}`}
                     </p>
                     {currentStep?.note && (
                       <p

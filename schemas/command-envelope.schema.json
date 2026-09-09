@@ -751,6 +751,11 @@
                   "type": "string"
                 }
               },
+              "reorderedCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
               "workflowVersion": {
                 "type": "string"
               },
@@ -1219,6 +1224,7 @@
         "usage": {
           "$ref": "#/$defs/nonBlankText"
         },
+        "workflowActions": { "type": "array", "items": { "type": "string" } },
         "commands": {
           "type": "array",
           "minItems": 1,
@@ -1305,6 +1311,7 @@
         "storage": {
           "const": "local-sqlite"
         },
+        "workflowActions": { "type": "array", "items": { "type": "string" } },
         "restrictions": {
           "type": "array",
           "items": {

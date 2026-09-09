@@ -45,6 +45,7 @@ import {
   COST_WORKBOOK_CONTRACT_VERSION,
 } from '../features/cost/contracts.ts';
 import { costLockReason } from '../features/cost/cost-lock.ts';
+import { WORKFLOW_ACTIONS } from '../features/projects/workflow-engine.ts';
 import { validateCostExportSnapshot } from '../features/cost/validation.ts';
 import {
   buildDailyDigest,
@@ -1271,6 +1272,9 @@ const execute = async () => {
           revision: record.revision,
           updatedAt: record.updatedAt,
           workflowVersion: record.workspace.workflowVersion,
+          ...(record.workspace.workflowHold
+            ? { workflowHold: record.workspace.workflowHold }
+            : {}),
           nodeCode: input.action.nodeCode,
           action: input.action.action,
         };
@@ -1514,6 +1518,7 @@ const execute = async () => {
       version: CLI_VERSION,
       usage: 'cost-cli <group> <action> [--name value] [--pretty]',
       commands: IMPLEMENTED_COMMANDS,
+      workflowActions: [...WORKFLOW_ACTIONS],
     });
   }
   if (resolved.command === 'system.capabilities') {
@@ -1532,6 +1537,7 @@ const execute = async () => {
       rounding: ROUNDING_CONTRACT,
       schemas,
       implementedCommands: IMPLEMENTED_COMMANDS,
+      workflowActions: [...WORKFLOW_ACTIONS],
       storage: 'local-sqlite',
       restrictions: [
         'Workspace writes require an exact expected revision to prevent lost updates.',

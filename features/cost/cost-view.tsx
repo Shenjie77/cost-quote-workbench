@@ -19,6 +19,7 @@ import { VersionComparisonView } from '@/features/cost/version-comparison-view';
 import { buildCostExportSnapshot } from '@/features/cost/build-export-snapshot';
 import type { CostExportSnapshot } from '@/features/cost/contracts';
 import { useCostWorkbookExport } from '@/features/cost/use-cost-workbook-export';
+import { usePersonnelTableView } from '@/features/cost/use-personnel-table-view';
 import {
   getCostStatementValues,
   getActualYears,
@@ -49,6 +50,7 @@ export function CostView({
   setCostView,
   rows,
   setRows,
+  canEditCost,
   subcontractCost,
   onSubcontractCostChange,
   subcontractCatalog = [],
@@ -82,6 +84,7 @@ export function CostView({
   setCostView: (view: CostViewKey) => void;
   rows: CostInputRow[];
   setRows: React.Dispatch<React.SetStateAction<CostInputRow[]>>;
+  canEditCost?: () => boolean;
   subcontractCost?: SubcontractCost;
   onSubcontractCostChange?: (value: SubcontractCost) => void;
   subcontractCatalog?: SubcontractItem[];
@@ -103,6 +106,7 @@ export function CostView({
   onProposalNumberChange?: (value: string) => void;
   announce: (message: string) => void;
 }) {
+  const personnelTableView = usePersonnelTableView();
   // Browsing remains available; only cost writers are guarded by this version's lock.
   const writeIfUnlocked =
     <T,>(setter: (value: T) => void) =>
@@ -185,6 +189,8 @@ export function CostView({
   const { isExporting, exportWorkbook, exportSimpleWorkbook } =
     useCostWorkbookExport({
       enabled: Boolean(version),
+      simpleLayoutReady: personnelTableView.columnSettings.ready,
+      createSimpleLayout: () => personnelTableView.layout,
       announce,
       createSnapshot: () =>
         buildCostExportSnapshot({
@@ -408,8 +414,8 @@ export function CostView({
               size="sm"
               className="px-2 text-[11px]"
               onClick={exportSimpleWorkbook}
-              disabled={isExporting}
-              title="Export cost detail, summaries and statement as displayed"
+              disabled={isExporting || !personnelTableView.columnSettings.ready}
+              title="Cost Detail follows the current groups, row order, columns and year view. Summaries include all five years."
             >
               <Download />
               Simple Export
@@ -438,9 +444,11 @@ export function CostView({
           />
           <CostInputSheet
             key={activeVersion}
+            tableView={personnelTableView}
             locked={!!lockedReason}
             rows={rows}
             setRows={writeIfUnlocked(setRows)}
+            canEditCost={canEditCost}
             rateSettings={rateSettings}
             setRateSettings={writeIfUnlocked(setRateSettings)}
             resourceTypes={resourceTypes}

@@ -64,6 +64,9 @@ export function workflowDefinitions(steps) {
 export function projectWorkflowPlan(record) {
   const w = record.workspace;
   return {
+    ...(w.workflowHold
+      ? { workflowHold: structuredClone(w.workflowHold) }
+      : {}),
     projectId: w.project.id,
     revision: record.revision,
     updatedAt: record.updatedAt,

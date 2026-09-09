@@ -95,6 +95,26 @@ const walk = (node) =>
       ? [node, ...walk(node.props.children)]
       : [];
 
+test('a project hold or resume invalidates a pending workflow confirmation without changing cost', () => {
+  const workspace = makeWorkspace();
+  const before = workflowConfirmationFingerprint(workspace);
+  const held = {
+    ...workspace,
+    workflowHold: { startedAt: '2026-09-09T01:00:00.000Z' },
+  };
+  assert.notEqual(workflowConfirmationFingerprint(held), before);
+  assert.equal(
+    costConfirmationDetails(held, 'V2').costKey,
+    costConfirmationDetails(workspace, 'V2').costKey,
+  );
+  const resumed = { ...held };
+  delete resumed.workflowHold;
+  assert.notEqual(
+    workflowConfirmationFingerprint(resumed),
+    workflowConfirmationFingerprint(held),
+  );
+});
+
 test('cost confirmation is a read-only preview; only explicit approval finalizes the named version', () => {
   const workspace = makeWorkspace();
   const original = structuredClone(workspace);

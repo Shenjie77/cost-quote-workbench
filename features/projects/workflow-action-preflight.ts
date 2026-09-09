@@ -9,6 +9,10 @@ export function preflightWorkflowAction(
   now = new Date().toISOString(),
 ) {
   const versionCode = workspace.workflowVersion || workspace.activeVersion;
+  if (action.action === 'hold_project' || action.action === 'resume_project') {
+    applyWorkflowAction(workspace, action, now);
+    return { versionCode, needsCostConfirmation: false };
+  }
   const node = workspace.processSteps.find(
     (step) => step.code === action.nodeCode,
   );

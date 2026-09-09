@@ -17,6 +17,7 @@ export type DigestCategory =
   | 'data_quality';
 
 export type DigestProject = {
+  workflowHold?: import('../projects/types.ts').WorkflowHold;
   projectId: string;
   name: string;
   client: string;
@@ -300,7 +301,8 @@ export const buildDailyDigest = (
     const project = projectById.get(review.projectId);
     if (
       project &&
-      (project.workflowEngineVersion === 1 ||
+      (project.workflowHold ||
+        project.workflowEngineVersion === 1 ||
         project.workflowMode === 'project' ||
         isDigestProjectCompleted(project))
     )
@@ -360,7 +362,7 @@ export const buildDailyDigest = (
   }
 
   for (const project of projects) {
-    if (isDigestProjectCompleted(project)) continue;
+    if (project.workflowHold || isDigestProjectCompleted(project)) continue;
     if (project.workflowEngineVersion === 1) {
       items.push(...buildWorkflowTaskReminders(project, referenceNow));
       continue;

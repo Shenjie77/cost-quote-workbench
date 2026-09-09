@@ -2,7 +2,10 @@
 import type { WorkflowStep } from '../projects/types.ts';
 import type { CostVersionSnapshot } from './domain.ts';
 import { requiresConfirmedWorkflowStage } from '../projects/workflow-domain.ts';
-import { resetWorkflowRoundSteps } from '../projects/workflow-engine.ts';
+import {
+  resetWorkflowRoundSteps,
+  restoreProjectHoldDeadlines,
+} from '../projects/workflow-engine.ts';
 import {
   isApproved,
   isStale,
@@ -23,6 +26,7 @@ type Gate = {
   costVersion?: string;
 };
 export type WorkflowWorkspace = VersionWorkflowSnapshot & {
+  workflowUpdates?: import('../projects/workflow-domain.ts').WorkflowUpdate[];
   workflowEngineVersion?: 1;
   workflowMode?: 'project';
   activeVersion: string;
@@ -327,6 +331,10 @@ export function reconcileVersionWorkflows<T extends WorkflowWorkspace>(
   }
   if (w.workflowMode !== 'project') applySsrEvents(old, w);
   applyProjection(w, w.versionWorkflows[w.workflowVersion!]);
+  if (removedRound) {
+    w.processSteps = restoreProjectHoldDeadlines(w);
+    w.versionWorkflows[w.workflowVersion!] = snapshot(w);
+  }
   return w;
 }
 

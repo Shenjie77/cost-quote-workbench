@@ -388,6 +388,16 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
       `Workspace schema validation failed at ${location}: ${first?.message || 'invalid value'}.`,
     );
   }
+  if (
+    workspace.workflowHold &&
+    (!Number.isFinite(Date.parse(workspace.workflowHold.startedAt)) ||
+      new Date(workspace.workflowHold.startedAt).toISOString() !==
+        workspace.workflowHold.startedAt)
+  )
+    throw new WorkspaceValidationError(
+      'Project hold time must be a real ISO timestamp.',
+      '/workflowHold/startedAt',
+    );
   if (workspace.maintenanceBoq)
     assertMaintenanceWorkspace(workspace.maintenanceBoq);
   if (workspace.ssr) assertSsr(workspace.ssr);

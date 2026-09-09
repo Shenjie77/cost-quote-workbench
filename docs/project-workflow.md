@@ -19,6 +19,8 @@ Master Data → Workflow 配置节点名称、顺序、并行组、默认负责�
 
 默认模板涵盖 Proposal/Scope、DTRB、成本编制、DRB、概算、专业评审、投标评审、报价决策和报价完成；它是可配置起点。概算与专业评审等需要并行时，配置为同一并行组，不必将多个待办挤在一个当前节点备注里。
 
+节点数量可以超过 10 个。编辑器显示实际 Steps / Phases 数量，顶部和列表底部均可使用 **Add Step** 继续添加；新增节点进入草稿，预览并发布后同步到适用项目。
+
 `workflowVersion` 是正在处理的成本轮次，`activeVersion` 是正在查看的成本版本。查看旧版不会移动当前流程。无论原轮次是否完成，新建或复制成本 Draft 都采用最新全局流程模板，从其 roundStart 开启新轮次；原成本和原轮次快照保持不变。起点及同并行组不能设置 requiresConfirmedCost，避免新 Draft 无法开始。
 
 ## 开始、确认、跳过和暂停
@@ -31,6 +33,14 @@ Master Data → Workflow 配置节点名称、顺序、并行组、默认负责�
 - 已完成/已跳过节点只能通过 reopen 恢复执行；后续关键节点已完成时，前置节点不可重开，应建立新成本轮次。结束节点已完成的整轮保持历史，不直接重写。
 
 公司实际申请、审批和客户发送仍在公司平台处理，本地记录不会代为申请或推断批准。报价 Excel 导出也不自动完成结束节点。
+
+## 整个项目挂起
+
+在 **Project Workflow** 项目信息栏打开 **Project On Hold** 开关，即可挂起整个项目。Project List 显示 **On Hold** 标记。挂起期间，Today、Agent Digest 和提醒收件箱均不再把该项目列为待跟进，也不会产生节点恢复检查提醒。
+
+挂起保留当前节点及并行进度，节点仍可浏览；恢复开关后再更新流程。成本版本仍按各自 Draft / Confirmed 规则管理，挂起本身不锁成本。新建成本轮次会保留项目挂起状态。恢复时按暂停期间补偿活跃节点的 SLA；原本单独暂停的节点仍保留其节点暂停状态。
+
+项目挂起记录在同一 Project Workflow 中，不需要另外维护 Project Status。节点的 **Pause / Resume** 仍适用于某一项任务暂停并安排恢复检查，两种操作可以分别使用。
 
 ## SLA 与提醒
 
@@ -84,6 +94,8 @@ cost-cli project get --project-id ID --section workflow-history --limit 20
 ```
 
 动作可用 start/complete/skip/update/pause/resume/reopen；可选 followUpDate、startedAt、dueAt、fields、confirmed、reason。fields 的键只能来自该节点 requiredFields。操作返回窄收据，使用项目 revision 做 CAS；不直接修改 state、workflowVersion 或 versionWorkflows。
+
+整个项目挂起和恢复也使用 `project workflow-action`，将信封中的 action 分别设置为 `{"action":"hold_project"}` 和 `{"action":"resume_project"}`。这两种项目动作不传 nodeCode，可附加 reason；`workflow-plan` 返回 `workflowHold`，有值表示项目已挂起。
 
 ## 全局发布和同步
 

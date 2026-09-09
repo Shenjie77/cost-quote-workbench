@@ -2,16 +2,20 @@
 import type { WorkflowStep } from './types.ts';
 import type { WorkbenchWorkspace } from '../workbench/workspace-types.ts';
 
+export const WORKFLOW_ACTIONS = [
+  'start',
+  'complete',
+  'skip',
+  'update',
+  'pause',
+  'resume',
+  'reopen',
+  'hold_project',
+  'resume_project',
+] as const;
 export type WorkflowAction = {
-  nodeCode: string;
-  action:
-    | 'start'
-    | 'complete'
-    | 'skip'
-    | 'update'
-    | 'pause'
-    | 'resume'
-    | 'reopen';
+  nodeCode?: string;
+  action: (typeof WORKFLOW_ACTIONS)[number];
   owner?: string;
   note?: string;
   followUpDate?: string;
@@ -396,6 +400,8 @@ export function workflowActionBlockers(
   workspace: WorkbenchWorkspace,
   nodeCode: string,
 ): string[] {
+  if (workspace.workflowHold)
+    return ['Resume project monitoring before updating workflow steps.'];
   const steps = workspace.processSteps;
   const target = steps.find((s) => s.code === nodeCode);
   if (!target) return ['Node not found. Reload the workflow.'];
@@ -447,6 +453,132 @@ const event = (
   });
 };
 
+/** Extend only time covered by this pause, using the node's working calendar. */
+function shiftWorkflowDeadline(
+  step: WorkflowStep,
+  from: number,
+  until: number,
+) {
+  if (!step.dueAt || until <= from) return;
+  const due = timestamp(step.dueAt, 'Due time');
+  const elapsed =
+    step.slaCalendar === 'calendar'
+      ? until - from
+      : businessDuration(from, until, step.slaHolidays || []);
+  step.dueAt = new Date(
+    step.slaCalendar === 'calendar'
+      ? due + elapsed
+      : elapsed
+        ? addBusinessTime(due, elapsed, step.slaHolidays || [])
+        : due,
+  ).toISOString();
+}
+
+function extendProjectHoldStep(
+  step: WorkflowStep,
+  heldAt: number,
+  time: number,
+  now: string,
+) {
+  if (terminal(step)) return;
+  const from = Math.max(
+    heldAt,
+    step.startedAt ? timestamp(step.startedAt, 'Start time') : heldAt,
+  );
+  if (workflowNodeActive(step)) shiftWorkflowDeadline(step, from, time);
+  // A separately paused node's own Resume includes this interval once.
+  if (step.followUpDate && dateOnly(step.followUpDate)) {
+    const days = Math.max(
+      0,
+      (Date.parse(workflowLocalDate(time)) -
+        Date.parse(workflowLocalDate(from))) /
+        DAY,
+    );
+    step.followUpDate = new Date(Date.parse(step.followUpDate) + days * DAY)
+      .toISOString()
+      .slice(0, 10);
+  }
+  if (workflowNodeActive(step) || step.state === 'paused' || step.followUpDate)
+    step.updatedAt = now;
+}
+
+/** Restore deadlines for project holds completed while this older round was inactive. */
+export function restoreProjectHoldDeadlines(
+  workspace: Pick<WorkbenchWorkspace, 'processSteps' | 'workflowUpdates'>,
+): WorkflowStep[] {
+  const steps = structuredClone(workspace.processSteps);
+  let heldAt: number | undefined;
+  for (const update of workspace.workflowUpdates || []) {
+    const time = Date.parse(update.updatedAt);
+    if (!Number.isFinite(time)) continue;
+    if (update.action === 'hold_project') heldAt = time;
+    else if (update.action === 'resume_project' && heldAt !== undefined) {
+      if (time >= heldAt)
+        for (const step of steps) {
+          const lastApplied =
+            Date.parse(step.updatedAt || step.startedAt || '') || 0;
+          if (time > lastApplied)
+            extendProjectHoldStep(step, heldAt, time, update.updatedAt);
+        }
+      heldAt = undefined;
+    }
+  }
+  return steps;
+}
+
+function applyProjectHold<T extends WorkbenchWorkspace>(
+  w: T,
+  request: WorkflowAction,
+  now: string,
+): T {
+  if (Object.keys(request).some((key) => !['action', 'reason'].includes(key)))
+    throw new TypeError('Project hold actions only accept action and reason.');
+  if (
+    request.reason !== undefined &&
+    (typeof request.reason !== 'string' || request.reason.length > 2000)
+  )
+    throw new TypeError(
+      'Project hold reason must be text of at most 2000 characters.',
+    );
+  const time = timestamp(now, 'Current time');
+  if (request.action === 'hold_project') {
+    if (workflowComplete(w))
+      throw new TypeError(
+        'This quotation round is complete and has no active monitoring to pause.',
+      );
+    if (w.workflowHold)
+      throw new TypeError('Project monitoring is already on hold.');
+    w.workflowHold = {
+      startedAt: new Date(time).toISOString(),
+      ...(request.reason?.trim() ? { reason: request.reason.trim() } : {}),
+    };
+  } else {
+    if (!w.workflowHold)
+      throw new TypeError('Project monitoring is not on hold.');
+    const heldAt = timestamp(w.workflowHold.startedAt, 'Project hold time');
+    if (time < heldAt)
+      throw new TypeError('Resume time cannot precede the project hold.');
+    for (const step of w.processSteps)
+      extendProjectHoldStep(step, heldAt, time, now);
+    delete w.workflowHold;
+  }
+  const step =
+    w.processSteps.find((item) => item.code === w.currentWorkflowStepCode) ||
+    w.processSteps[0];
+  event(
+    w,
+    step,
+    request.action,
+    request.reason?.trim() ||
+      (request.action === 'hold_project'
+        ? 'Project monitoring placed on hold. Follow-ups are suspended until resumed.'
+        : 'Project monitoring resumed. Active SLA deadlines exclude the project hold.'),
+    now,
+    w.currentWorkflowStepCode,
+  );
+  return projectExecution(w);
+}
+
 export function applyWorkflowAction<T extends WorkbenchWorkspace>(
   workspace: T,
   request: WorkflowAction,
@@ -466,19 +598,15 @@ export function applyWorkflowAction<T extends WorkbenchWorkspace>(
   ]);
   if (!request || Object.keys(request).some((key) => !allowed.has(key)))
     throw new TypeError('The workflow action contains unknown fields.');
-  if (
-    ![
-      'start',
-      'complete',
-      'skip',
-      'update',
-      'pause',
-      'resume',
-      'reopen',
-    ].includes(request.action)
-  )
+  if (!WORKFLOW_ACTIONS.includes(request.action))
     throw new TypeError('Unsupported workflow action.');
   const w = structuredClone(migrateWorkflowEngine(workspace, now));
+  if (request.action === 'hold_project' || request.action === 'resume_project')
+    return applyProjectHold(w, request, now);
+  if (w.workflowHold)
+    throw new TypeError(
+      'Resume project monitoring before updating workflow steps.',
+    );
   const step = w.processSteps.find((s) => s.code === request.nodeCode);
   if (!step) throw new TypeError('Node not found. Reload the workflow.');
   if (workflowComplete(w))
@@ -678,20 +806,9 @@ export function applyWorkflowAction<T extends WorkbenchWorkspace>(
       throw new TypeError('Only paused nodes can be resumed.');
     const start = timestamp(step.pausedAt, 'Pause time');
     const end = timestamp(now, 'Resume time');
-    if (step.dueAt) {
-      const due = timestamp(step.dueAt, 'Due time');
-      const elapsed =
-        step.slaCalendar === 'calendar'
-          ? end - start
-          : businessDuration(start, end, step.slaHolidays || []);
-      step.dueAt = new Date(
-        step.slaCalendar === 'calendar'
-          ? due + elapsed
-          : elapsed
-            ? addBusinessTime(due, elapsed, step.slaHolidays || [])
-            : due,
-      ).toISOString();
-    }
+    if (end < start)
+      throw new TypeError('Resume time cannot precede the node pause.');
+    shiftWorkflowDeadline(step, start, end);
     step.state = 'in_progress';
     step.pausedAt = '';
     step.tone = 'blue';
@@ -814,7 +931,11 @@ export function previewWorkflowSync(
           JSON.stringify(previous.slaHolidays) !==
             JSON.stringify(next.slaHolidays))
       ) {
-        if (previous.state === 'paused')
+        if (workspace.workflowHold)
+          blockers.push(
+            'Resume project monitoring before migrating active SLA rules.',
+          );
+        else if (previous.state === 'paused')
           blockers.push(
             `Resume paused node ${previous.name || previous.nameZh} before migrating its SLA.`,
           );

@@ -281,6 +281,7 @@ The workspace also carries the fields used by Project List and project tabs:
   start the configured round-start node; old approvals and completion states do not transfer.
   Project-mode export no longer requires a duplicate local SSR approval chain.
 - `processSteps[]` stores definitions (parallelGroup, required/requiredFields, autoSkip, SLA, reminderEnabled, roundStart, requiresConfirmedCost, finishesWorkflow) and node execution (state, startedAt/dueAt/completedAt/pausedAt, fieldValues, skippedBy, owner/note/followUpDate). Actions start/complete/skip/update/pause/resume/reopen enforce the configured gates; do not write states directly. Template publication synchronizes eligible open projects, retains active deadlines by default and never reprices costs or rewrites completed evidence.
+- `workflowHold` marks a project-wide monitoring pause. Use `project workflow-action` with `action={"action":"hold_project"}` or `action={"action":"resume_project"}` and the expected project revision; these actions do not need `nodeCode`. Held projects are excluded from all follow-up reminders, remain visible as On Hold in Project List, and retain hold across new cost rounds. Resume preserves node progress and compensates active SLA time. Individual node pause/resume remains separate.
 - `workflowUpdates[]` stores append-only version/stage/owner/date/note/timestamp
   records. Read with project --section workflow-history; do not patch the array.
 - `pricing` contains `targetGrossMargin`, `discount`, and `gstPercent`.
@@ -308,6 +309,54 @@ of trying to write the projections.
 
 There is no Y0 in v2. The array position never substitutes for a missing or
 incorrect `bucket` value.
+
+### Personnel groups and row order
+
+Read only the desired version with `cost get --project-id ID --version Vn
+--section rows`. Each personnel row has an optional `groupName` independent of
+`scope`. Names are trimmed, case-sensitive and limited to 200 characters;
+empty/absent means unassigned. Different Scope descriptions can share a group.
+No group is inferred from an existing Scope.
+
+Use `cost update --project-id ID --version Vn --section rows --input REQUEST
+--expected-revision REVISION` to edit groups and/or reorder rows:
+
+```json
+{
+  "apiVersion": "cost-workbench/v2",
+  "kind": "OperationRequest",
+  "requestId": "personnel-group-order-001",
+  "data": {
+    "schemaVersion": "1.0.0",
+    "operation": "cost.update",
+    "changes": {
+      "upsert": [
+        { "id": "CI-HLD", "groupName": "Network Design & Planning" },
+        { "id": "CI-LLD", "groupName": "Network Design & Planning" },
+        { "id": "CI-PLAN", "groupName": "Network Design & Planning" }
+      ],
+      "order": ["CI-HLD", "CI-LLD", "CI-PLAN"]
+    }
+  }
+}
+```
+
+This example assumes those three personnel rows already exist. `upsert` can
+patch their group names without replacing effort or source metadata. `order`
+is optional; when provided, it must contain every personnel-row ID exactly
+once **after** any upserts/removals in the same request. Unknown, missing or
+duplicate IDs reject the whole mutation. Legacy subcontract rows are excluded
+from that list and keep their original slots. Omitting `order` preserves the
+existing order and appends new rows in their supplied order.
+
+Both group edits and ordering use normal revision checks and cost-version locks.
+They do not change another version. `order` is supported only by the cost
+`rows` section; the response reports `changedFields: ["order"]` and
+`reorderedCount` when a reorder is supplied. Column visibility and left/right
+positions are browser preferences, not cost data or CLI mutations.
+The browser's **Simple Export** applies its current group/column/year view to
+Cost Detail. CLI `cost export --format simple` keeps the standard full-year
+layout and does not read browser preferences.
 
 ### Resource Type and rate
 

@@ -5,6 +5,7 @@ import type { VersionWorkflowSnapshot } from './version-workflow.ts';
 import { migrateVersionWorkflows } from './version-workflow.ts';
 import { costLockReason } from './cost-lock.ts';
 import { contentKey } from '../cpq/domain.ts';
+import { restoreProjectHoldDeadlines } from '../projects/workflow-engine.ts';
 
 export type DeletedCostVersion = {
   version: CostVersionSnapshot;
@@ -91,6 +92,8 @@ export function deleteSuspendedCostVersion(
     );
     w.workflowVersion = highest.code;
     Object.assign(w, structuredClone(w.versionWorkflows![highest.code]));
+    w.processSteps = restoreProjectHoldDeadlines(w);
+    w.versionWorkflows![highest.code] = topSnapshot(w);
     w.selectedStep = Math.max(
       0,
       w.processSteps.findIndex((s) => s.code === w.currentWorkflowStepCode),

@@ -98,7 +98,7 @@ export async function createProjectFromGlobalMasterData(project: {
   client: string;
   reviewOwner?: string;
 }): Promise<WorkspaceRecord> {
-  return parse(
+  return parse<WorkspaceRecord>(
     await fetch(`${API_BASE}/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -115,7 +115,19 @@ export async function createProjectFromGlobalMasterData(project: {
         },
       }),
     }),
-  );
+  ).catch((error: unknown) => {
+    if (error instanceof LocalApiError && error.status === 409)
+      throw new LocalApiError(
+        `Project ID "${project.id}" already exists. Choose another ID or open the existing project.`,
+        409,
+      );
+    if (error instanceof LocalApiError && error.status === 410)
+      throw new LocalApiError(
+        `Project ID "${project.id}" belongs to a deleted project. Restore that project or choose another ID.`,
+        410,
+      );
+    throw error;
+  });
 }
 
 /** Applying references is a separate, explicit project action with its own revision. */

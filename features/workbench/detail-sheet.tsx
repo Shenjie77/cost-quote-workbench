@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NewProjectIdField } from './new-project-id-field';
+import { projectIdError, type NewProjectInput } from './project-creation';
 import {
   Sheet,
   SheetContent,
@@ -18,16 +20,14 @@ export function DetailSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreateProject: (input: {
-    name: string;
-    client: string;
-    owner: string;
-  }) => void | Promise<void>;
+  onCreateProject: (input: NewProjectInput) => void | Promise<void>;
 }) {
+  const [projectId, setProjectId] = useState('');
   const [name, setName] = useState('');
   const [client, setClient] = useState('');
   const [owner, setOwner] = useState('Me');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   return (
     <Sheet
       open={open}
@@ -47,20 +47,43 @@ export function DetailSheet({
           className="flex flex-1 flex-col"
           onSubmit={async (event) => {
             event.preventDefault();
-            if (busy || !name.trim() || !client.trim()) return;
+            if (
+              busy ||
+              !name.trim() ||
+              !client.trim() ||
+              projectIdError(projectId)
+            )
+              return;
             setBusy(true);
+            setError('');
             try {
               await onCreateProject({
+                id: projectId.trim() || undefined,
                 name: name.trim(),
                 client: client.trim(),
                 owner: owner.trim() || 'Me',
               });
+              setProjectId('');
+              setName('');
+              setClient('');
+              setOwner('Me');
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Create failed');
             } finally {
               setBusy(false);
             }
           }}
         >
           <div className="flex-1 space-y-5 p-5">
+            <NewProjectIdField
+              inputId="new-project-id"
+              value={projectId}
+              onChange={(value) => {
+                setProjectId(value);
+                setError('');
+              }}
+              disabled={busy}
+            />
             <label className="block space-y-2 text-sm">
               Project Name / 项目名称
               <Input
@@ -87,11 +110,21 @@ export function DetailSheet({
                 disabled={busy}
               />
             </label>
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
           </div>
           <SheetFooter className="border-t border-border p-5">
             <Button
               type="submit"
-              disabled={busy || !name.trim() || !client.trim()}
+              disabled={
+                busy ||
+                !name.trim() ||
+                !client.trim() ||
+                Boolean(projectIdError(projectId))
+              }
             >
               {busy ? '创建中…' : 'Create Project / 创建项目'}
             </Button>

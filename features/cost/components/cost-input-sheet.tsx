@@ -1,6 +1,6 @@
 /** Direct personnel spreadsheet entry with optional year focus and Pool allowances. */
 import { useState } from 'react';
-import { Plus, Upload } from 'lucide-react';
+import { ClipboardPaste, ListTree, Plus, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/workbench/status-badge';
 import { formatSgd } from '@/lib/formatters';
@@ -19,6 +19,16 @@ import {
   updatePersonnelCostRows,
 } from '../personnel-cost-rows';
 import { CostImportPanel } from './cost-import-panel';
+import { personnelBulkBasisFingerprint } from '../personnel-bulk-entry';
+import { PersonnelBulkEntryDialog } from './personnel-bulk-entry-dialog';
+import type { PersonnelTableView } from '../use-personnel-table-view';
+import { PersonnelColumnSettings } from './personnel-column-settings';
+import {
+  movePersonnelRow,
+  renamePersonnelGroup,
+  type PersonnelRowMove,
+  type PersonnelGroupRename,
+} from '../personnel-row-layout';
 import {
   blankPersonnelRow,
   applyPersonnelModeChange,
@@ -41,6 +51,8 @@ export function CostInputSheet({
   resourceTypes: allResourceTypes,
   includedTravelCost,
   announce,
+  canEditCost,
+  tableView,
   locked = false,
 }: {
   rows: CostInputRow[];
@@ -50,10 +62,18 @@ export function CostInputSheet({
   resourceTypes: ResourceType[];
   includedTravelCost: number;
   announce: (message: string) => void;
+  canEditCost?: () => boolean;
+  tableView: PersonnelTableView;
   locked?: boolean;
 }) {
   const [showImport, setShowImport] = useState(false);
-  const [yearIndex, setYearIndex] = useState<PersonnelYear>('all');
+  const [showBulkEntry, setShowBulkEntry] = useState(false);
+  const {
+    layout: { grouped, yearIndex },
+    columnSettings,
+    setGrouped,
+    setYearIndex,
+  } = tableView;
   const rows = allRows.filter(
     (row) => !isLegacySubcontractRow(row, allResourceTypes),
   );
@@ -71,6 +91,25 @@ export function CostInputSheet({
   );
   const totalCost = rows.reduce((sum, row) => sum + totalRowCost(row), 0);
   const totalMd = rows.reduce((sum, row) => sum + totalRowMandays(row), 0);
+
+  const applyRowLayout = (change: PersonnelRowMove | PersonnelGroupRename) => {
+    if (locked || (canEditCost && !canEditCost())) return;
+    setAllRows((current) => {
+      const next =
+        'rowId' in change
+          ? movePersonnelRow(current, allResourceTypes, change)
+          : renamePersonnelGroup(current, allResourceTypes, change);
+      if (next === null) {
+        queueMicrotask(() =>
+          announce(
+            'Rows or groups changed. Review the latest table and try again.',
+          ),
+        );
+        return current;
+      }
+      return next;
+    });
+  };
 
   const setRows: React.Dispatch<React.SetStateAction<CostInputRow[]>> = (
     change,
@@ -272,6 +311,40 @@ export function CostInputSheet({
               <span className="text-[10px] text-muted-foreground">Mixed</span>
             )}
           </fieldset>
+          <div className="flex shrink-0 items-center gap-1.5 border-l border-border pl-3">
+            <Button
+              type="button"
+              size="sm"
+              variant={grouped ? 'default' : 'outline'}
+              className="h-7 px-2 text-[11px]"
+              aria-pressed={grouped}
+              onClick={() => setGrouped((current) => !current)}
+            >
+              <ListTree className="size-3" />
+              Groups
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[11px]"
+              disabled={
+                locked || !resources.some((resource) => resource.active)
+              }
+              onClick={() => setShowBulkEntry(true)}
+            >
+              <ClipboardPaste className="size-3" />
+              Bulk Entry
+            </Button>
+            <PersonnelColumnSettings
+              preferences={columnSettings.preferences}
+              onSetVisible={columnSettings.setVisible}
+              onMove={columnSettings.move}
+              onReset={columnSettings.reset}
+              ready={columnSettings.ready}
+              storageAvailable={columnSettings.storageAvailable}
+            />
+          </div>
           <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
             {rows.length} rows
           </span>
@@ -292,10 +365,14 @@ export function CostInputSheet({
         rates={rateSettings}
         actualYears={actualYears}
         yearIndex={yearIndex}
+        grouped={grouped}
+        columns={columnSettings.columns}
+        onMoveRow={applyRowLayout}
+        onRenameGroup={applyRowLayout}
         locked={locked}
         announce={announce}
         onPatch={(id, patch) => {
-          if (locked) return;
+          if (locked || (canEditCost && !canEditCost())) return;
           setAllRows((current) =>
             patchPersonnelRows(
               current,
@@ -313,6 +390,38 @@ export function CostInputSheet({
         allowance. MD/Site applies to all years for that row. Draft changes save
         automatically. Subcontract costs are managed in Subcon.
       </div>
+      {showBulkEntry && (
+        <PersonnelBulkEntryDialog
+          resources={resources}
+          rates={rateSettings}
+          defaultMode={inputMode === 'mixed' ? 'sites' : inputMode}
+          defaultYear={yearIndex === 'all' ? 0 : yearIndex}
+          locked={locked}
+          onClose={() => setShowBulkEntry(false)}
+          announce={announce}
+          onConfirm={(newRows, basis) => {
+            if (canEditCost && !canEditCost()) {
+              announce(
+                'A project or cost-version change is in progress. Keep this preview open and try again when it finishes.',
+              );
+              return false;
+            }
+            if (
+              locked ||
+              basis !== personnelBulkBasisFingerprint(resources, rateSettings)
+            ) {
+              announce(
+                'The cost version or its rates changed. Review the table again.',
+              );
+              return false;
+            }
+            setAllRows((current) => [...current, ...newRows]);
+            setShowBulkEntry(false);
+            announce(`${newRows.length} personnel rows added.`);
+            return true;
+          }}
+        />
+      )}
     </section>
   );
 }

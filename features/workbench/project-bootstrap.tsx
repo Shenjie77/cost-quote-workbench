@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { listLocalWorkspaces } from './workspace-client';
 import { projectRecord } from './workspace-factories';
+import { NewProjectIdField } from './new-project-id-field';
+import { projectIdError, resolveNewProjectId } from './project-creation';
 import { createProjectFromGlobalMasterData } from '@/features/master-data/global-client';
 import type { Project } from '../projects/types';
 import type { LocalWorkspaceIndexItem } from './workspace-types';
@@ -12,6 +14,7 @@ import type { LocalWorkspaceIndexItem } from './workspace-types';
 export const projectFromIndex = (item: LocalWorkspaceIndexItem): Project => ({
   ...projectRecord(item.projectId, item.name, item.client),
   revision: item.revision ?? undefined,
+  workflowHold: item.workflowHold,
   workflowEngineVersion: item.workflowEngineVersion,
   workflowTemplateRevision: item.workflowTemplateRevision,
   projectStatus: item.projectStatus,
@@ -49,6 +52,7 @@ export function ProjectBootstrap({
   const [error, setError] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [projectId, setProjectId] = useState('');
   const [name, setName] = useState('');
   const [client, setClient] = useState('');
   useEffect(() => {
@@ -74,11 +78,12 @@ export function ProjectBootstrap({
   };
   if (projects?.length) return renderSession(projects, reload);
   const create = async () => {
-    if (!name.trim() || !client.trim() || busy) return;
+    if (!name.trim() || !client.trim() || busy || projectIdError(projectId))
+      return;
     setBusy(true);
     try {
       const project = projectRecord(
-        `PRJ-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8)}`,
+        resolveNewProjectId(projectId),
         name.trim(),
         client.trim(),
       );
@@ -116,6 +121,15 @@ export function ProjectBootstrap({
             <p className="text-sm text-muted-foreground">
               暂无项目。新建项目后开始维护成本和报价。
             </p>
+            <NewProjectIdField
+              inputId="first-project-id"
+              value={projectId}
+              onChange={(value) => {
+                setProjectId(value);
+                setError('');
+              }}
+              disabled={busy}
+            />
             <label className="block text-sm">
               项目名称
               <Input
@@ -134,7 +148,12 @@ export function ProjectBootstrap({
             </label>
             <Button
               onClick={() => void create()}
-              disabled={busy || !name.trim() || !client.trim()}
+              disabled={
+                busy ||
+                !name.trim() ||
+                !client.trim() ||
+                Boolean(projectIdError(projectId))
+              }
             >
               New Project / 新建项目
             </Button>

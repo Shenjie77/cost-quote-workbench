@@ -187,6 +187,9 @@ function locate(w, module, options) {
     );
     return {
       object: {
+        ...(w.workflowHold
+          ? { workflowHold: structuredClone(w.workflowHold) }
+          : {}),
         workflowMode: w.workflowMode,
         currentWorkflowStepCode: w.currentWorkflowStepCode,
         name: step?.name || '',
@@ -543,6 +546,36 @@ function patchCollection(items, key, changes) {
   return remaining;
 }
 
+/** Reorder only personnel, keeping saved legacy subcontract rows in their slots. */
+function orderPersonnelRows(rows, order, resources) {
+  if (
+    !Array.isArray(order) ||
+    order.length > 100000 ||
+    order.some((id) => typeof id !== 'string' || !id.trim()) ||
+    new Set(order).size !== order.length
+  )
+    fail('order must list unique personnel row IDs, at most 100,000.');
+  const subcontractIds = new Set(
+    resources
+      .filter((resource) => resource.category === 'subcontract')
+      .map((resource) => resource.id),
+  );
+  const personnel = rows.filter((row) => !subcontractIds.has(row.reTypeId));
+  const byId = new Map(personnel.map((row) => [row.id, row]));
+  if (
+    order.length !== personnel.length ||
+    byId.size !== personnel.length ||
+    order.some((id) => !byId.has(id))
+  )
+    fail(
+      'order must contain every current personnel row ID exactly once after upsert/remove; exclude legacy subcontract rows.',
+    );
+  let index = 0;
+  return rows.map((row) =>
+    subcontractIds.has(row.reTypeId) ? row : byId.get(order[index++]),
+  );
+}
+
 export function updateResource(
   repository,
   id,
@@ -629,7 +662,21 @@ export function updateResource(
   const target = locate(w, module, options);
   if (target.readonly)
     fail('This section is read-only; use the explicit workflow command.');
-  allowed(changes, ['set', 'upsert', 'remove']);
+  allowed(changes, ['set', 'upsert', 'remove', 'order']);
+  const personnelRows =
+    module === 'cost' && (!options.section || options.section === 'rows');
+  if (changes.order !== undefined && !personnelRows)
+    fail('order is available only for cost rows.');
+  if (personnelRows && Array.isArray(changes.upsert)) {
+    changes = {
+      ...changes,
+      upsert: changes.upsert.map((row) =>
+        typeof row.groupName === 'string'
+          ? { ...row, groupName: row.groupName.trim() }
+          : row,
+      ),
+    };
+  }
   if (
     module === 'cost' &&
     (!options.section || options.section === 'rows') &&
@@ -643,7 +690,8 @@ export function updateResource(
     !(
       Object.keys(changes.set || {}).length ||
       changes.upsert?.length ||
-      changes.remove?.length
+      changes.remove?.length ||
+      changes.order !== undefined
     )
   )
     fail('At least one change is required.');
@@ -728,12 +776,19 @@ export function updateResource(
     else if (module === 'cpq') w.cpq.draft = target.object;
     else if (module === 'ssr') Object.assign(w.ssr, target.object);
     else if (module === 'boq') Object.assign(w.maintenanceBoq, target.object);
-  } else
+  } else {
     target.parent[target.field] = patchCollection(
       target.parent[target.field],
       target.key,
       changes,
     );
+    if (changes.order !== undefined)
+      target.parent[target.field] = orderPersonnelRows(
+        target.parent[target.field],
+        changes.order,
+        target.parent.resourceTypes,
+      );
+  }
   if (
     module === 'project' ||
     (module === 'masterdata' && options.tab === 'workflow')
@@ -762,7 +817,13 @@ export function updateResource(
     ...(target.version ? { version: target.version } : {}),
     changedIds: (changes.upsert || []).map((i) => i[target.key]),
     removedIds: changes.remove || [],
-    changedFields: Object.keys(changes.set || {}),
+    changedFields: [
+      ...Object.keys(changes.set || {}),
+      ...(changes.order === undefined ? [] : ['order']),
+    ],
+    ...(changes.order === undefined
+      ? {}
+      : { reorderedCount: changes.order.length }),
   };
 }
 

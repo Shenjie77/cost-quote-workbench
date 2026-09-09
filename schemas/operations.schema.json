@@ -519,6 +519,17 @@
                 "minLength": 1,
                 "maxLength": 300
               }
+            },
+            "order": {
+              "description": "Cost rows only: all personnel row IDs in the intended order after upsert/remove. Legacy subcontract rows are excluded and retain their positions.",
+              "type": "array",
+              "maxItems": 100000,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              }
             }
           }
         }
@@ -538,7 +549,29 @@
         "action": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["nodeCode", "action"],
+          "required": ["action"],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "action": { "enum": ["hold_project", "resume_project"] }
+                }
+              },
+              "then": {
+                "properties": {
+                  "nodeCode": false,
+                  "owner": false,
+                  "note": false,
+                  "followUpDate": false,
+                  "startedAt": false,
+                  "dueAt": false,
+                  "fields": false,
+                  "confirmed": false
+                }
+              },
+              "else": { "required": ["nodeCode"] }
+            }
+          ],
           "properties": {
             "nodeCode": {
               "type": "string",
@@ -552,7 +585,9 @@
                 "update",
                 "pause",
                 "resume",
-                "reopen"
+                "reopen",
+                "hold_project",
+                "resume_project"
               ]
             },
             "owner": {

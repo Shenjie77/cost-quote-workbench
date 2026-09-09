@@ -395,6 +395,18 @@ export const validateCostExportSnapshot = (
       );
     }
     seenLineIds.add(id);
+    if (
+      row.groupName !== undefined &&
+      (typeof row.groupName !== 'string' ||
+        Array.from(row.groupName).length > 200)
+    ) {
+      add(
+        'error',
+        'INVALID_GROUP_NAME',
+        `${path}/groupName`,
+        'Group must be text of at most 200 characters; blank means Unassigned Group.',
+      );
+    }
     if (!row.scope.trim()) {
       add(
         'error',
