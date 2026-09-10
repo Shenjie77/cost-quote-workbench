@@ -279,6 +279,7 @@ function ProjectSessionApp({
     revision: number;
     focusNodeCode?: string;
   } | null>(null);
+  const [workflowNavigationRequest, setWorkflowNavigationRequest] = useState(0);
   const [workflowSaving, setWorkflowSaving] = useState(false);
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const workflowDirtyRef = useRef(false);
@@ -377,6 +378,10 @@ function ProjectSessionApp({
     [activeProject],
   );
   const [activeView, setActiveView] = useState<ViewKey>('overview');
+  // New pages start at their primary controls; workflow pages locate the requested task instead.
+  useEffect(() => {
+    if (activeView !== 'workflow') window.scrollTo({ top: 0, left: 0 });
+  }, [activeView]);
   const [selectedStep, setSelectedStep] = useState(6);
   const [currentWorkflowStepCode, setCurrentWorkflowStepCode] = useState(
     initialProcessSteps[6]?.code || initialProcessSteps[0]?.code || '',
@@ -1725,6 +1730,8 @@ function ProjectSessionApp({
         setWorkflowError(
           'This project was updated elsewhere. Your edits are retained; use Refresh to review the latest progress.',
         );
+      // Reopening the same task is also an explicit request to reveal its editor.
+      setWorkflowNavigationRequest((request) => request + 1);
       setActiveView('workflow');
       setMobileNavOpen(false);
       const hash = workflowPageHash(project.id, focus);
@@ -2421,13 +2428,16 @@ function ProjectSessionApp({
         onNavigate={navigate}
         onDownloadBackup={downloadWorkspaceBackup}
       />
-      <div className="min-h-screen lg:pl-[244px]">
-        <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-md">
-          <div className="flex min-h-[84px] flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3 sm:gap-x-4 sm:px-6 xl:px-8">
+      <div className="min-h-screen lg:pl-[216px]">
+        <header
+          data-workbench-header
+          className="sticky top-0 z-40 border-b border-border bg-card"
+        >
+          <div className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 sm:gap-x-3 sm:px-4">
             <Button
               variant="outline"
               size="icon"
-              className="lg:hidden"
+              className="size-8 lg:hidden"
               onClick={() => setMobileNavOpen((open) => !open)}
               aria-label="Open navigation"
               aria-expanded={mobileNavOpen}
@@ -2435,36 +2445,30 @@ function ProjectSessionApp({
             >
               {mobileNavOpen ? <X /> : <Menu />}
             </Button>
-            <div className="min-w-0 flex-1 basis-[calc(100%-64px)] sm:basis-48">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-accent-foreground">
-                {pageEyebrow}
-              </p>
-              <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                <h1 className="text-xl font-semibold leading-snug tracking-[-0.025em] sm:text-[22px]">
+            <div className="min-w-0 flex-1">
+              <p className="sr-only">{pageEyebrow}</p>
+              <div className="flex min-w-0 items-baseline gap-x-2">
+                <h1 className="truncate text-base font-semibold leading-snug">
                   {title.title}
                 </h1>
-                <span className="shrink-0 text-[11px] text-muted-foreground">
+                <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">
                   {title.titleZh}
                 </span>
-                <p className="hidden truncate text-xs text-muted-foreground 2xl:block">
-                  {pageSubtitle}
-                </p>
+                <p className="sr-only">{pageSubtitle}</p>
               </div>
-              <p className="mt-1 hidden text-[11px] text-muted-foreground sm:block 2xl:hidden">
-                {pageSubtitleZh}
-              </p>
+              <p className="sr-only">{pageSubtitleZh}</p>
             </div>
             <div className="relative hidden w-[220px] shrink-0 xl:block">
               <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="bg-muted/50 pl-8"
+                className="h-8 bg-muted/30 pl-8"
                 aria-label="Search project, client, or version"
                 placeholder="Search project, client, or version / 搜索"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
             </div>
-            <div className="hidden items-center gap-2 text-[11px] text-muted-foreground xl:flex">
+            <div className="sr-only">
               <span className="size-1.5 rounded-full bg-[#377054]" />
               Local Data <span className="text-[10px]">本地数据</span>
             </div>
@@ -2472,15 +2476,22 @@ function ProjectSessionApp({
               <Button
                 variant="outline"
                 size="icon"
+                className="size-8"
                 aria-label="Open project follow-up reminders"
                 onClick={() => navigate('agent')}
               >
                 <Bell />
               </Button>
-              <Button onClick={() => setPanel({ type: 'new-project' })}>
+              <Button
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => setPanel({ type: 'new-project' })}
+              >
                 <Plus />
                 New Project{' '}
-                <span className="text-[10px] opacity-70">新建项目</span>
+                <span className="sr-only sm:not-sr-only sm:text-[10px] sm:opacity-70">
+                  新建项目
+                </span>
               </Button>
             </div>
           </div>
@@ -2488,7 +2499,7 @@ function ProjectSessionApp({
             <nav
               id="mobile-workbench-navigation"
               aria-label="Main navigation"
-              className="workbench-scrollbar flex gap-2 overflow-x-auto border-t border-border bg-muted/40 px-4 py-3 lg:hidden"
+              className="workbench-scrollbar flex gap-2 overflow-x-auto border-t border-border bg-muted/40 px-3 py-2 lg:hidden"
             >
               {navItems.map((item) => (
                 <Button
@@ -2532,7 +2543,7 @@ function ProjectSessionApp({
             />
           ) : null}
         </header>
-        <div className="relative z-0 isolate mx-auto min-w-0 w-full max-w-[1780px] px-4 py-5 sm:px-6 sm:py-6 xl:px-8">
+        <div className="relative z-0 isolate mx-auto min-w-0 w-full max-w-[1780px] px-3 py-2 sm:px-4 sm:py-3">
           {activeView !== 'master-data' && activeView !== 'workflow' && (
             <WorkspaceToolbar
               persistenceStatus={persistenceStatus}
@@ -2608,6 +2619,7 @@ function ProjectSessionApp({
                 <ProjectWorkflowPage
                   key={`${workflowTarget.project.id}:${workflowPageKey}`}
                   project={workflowTarget.project}
+                  navigationRequest={workflowNavigationRequest}
                   workspace={workflowTarget.workspace}
                   onAction={handleWorkflowAction}
                   announce={setNotice}

@@ -53,9 +53,9 @@ export function ProjectWorkflowExecution({
     ['completed', 'skipped'].includes(step.state),
   ).length;
   return (
-    <section className="space-y-4">
+    <section className="space-y-3">
       <div
-        className={`rounded-xl border p-4 ${complete ? 'border-emerald-200 bg-emerald-50' : 'bg-muted/20'}`}
+        className={`rounded-lg border p-3 ${complete ? 'border-emerald-200 bg-emerald-50' : 'bg-muted/20'}`}
       >
         <p className="text-sm font-semibold">
           {complete
@@ -166,7 +166,7 @@ export function WorkflowExecutionNode({
   return (
     <article
       ref={card}
-      className={`rounded-xl border bg-card p-5 shadow-sm ${focused ? 'ring-2 ring-[#177c80]/30' : ''} ${urgency === 'urgent' ? 'border-red-300' : urgency === 'immediate' ? 'border-amber-300' : 'border-border'}`}
+      className={`rounded-lg border bg-card p-3 ${focused ? 'ring-2 ring-[#177c80]/30' : ''} ${urgency === 'urgent' ? 'border-red-300' : urgency === 'immediate' ? 'border-amber-300' : 'border-border'}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -180,7 +180,7 @@ export function WorkflowExecutionNode({
           {stateLabels[step.state]}
         </span>
       </div>
-      <div className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
+      <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
         <p>Started: {dateTime(step.startedAt)}</p>
         <p className={urgency === 'urgent' ? 'font-semibold text-red-700' : ''}>
           Due: {dateTime(step.dueAt)}
@@ -447,7 +447,7 @@ export function WorkflowNodeActionForm({
         <textarea
           aria-label="Step Progress Note"
           rows={3}
-          className="w-full rounded-lg border border-input bg-white px-3 py-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
+          className="w-full rounded-lg border border-input bg-white px-2.5 py-2 text-sm leading-5 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
           value={note}
           disabled={disabled}
           onChange={(event) => onChange({ ...value, note: event.target.value })}

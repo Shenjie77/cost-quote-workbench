@@ -302,7 +302,7 @@ export function GlobalMasterDataPage({
     (change) =>
       store.setItems(tab, change);
   return (
-    <div className="wb-page-stack" data-master-data-scope="global">
+    <div className="wb-page-stack gap-2" data-master-data-scope="global">
       {publication && (
         <WorkflowPublishDialog
           steps={publication.steps}
@@ -318,11 +318,11 @@ export function GlobalMasterDataPage({
           }}
         />
       )}
-      <output className="wb-panel wb-toolbar text-xs">
-        <strong className="mr-auto text-sm text-primary">
+      <output className="flex flex-wrap items-center gap-2 border-b px-1 py-1.5 text-xs">
+        <strong className="mr-auto font-medium text-muted-foreground">
           {workflow ? 'Global Master Data' : 'Global Master Data / 全局主数据'}
         </strong>
-        <span className="rounded-full bg-muted px-3 py-1 font-medium text-muted-foreground">
+        <span className="px-1 font-medium text-muted-foreground">
           {state.loading
             ? workflow
               ? 'Loading'
@@ -338,7 +338,7 @@ export function GlobalMasterDataPage({
                   : 'Not loaded / 尚未载入'}
         </span>
         {isGlobalTabDirty(state) && (
-          <span className="rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-800">
+          <span className="rounded px-1.5 py-0.5 font-medium text-amber-800">
             {workflow ? 'Unsaved changes' : 'Unsaved changes / 未保存修改'}
           </span>
         )}
@@ -364,7 +364,7 @@ export function GlobalMasterDataPage({
       {(state.error || dependencyState?.error) && (
         <div
           role="alert"
-          className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"
+          className="rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive"
         >
           {state.error || dependencyState?.error}
           <p className="mt-1 text-xs">
@@ -384,7 +384,7 @@ export function GlobalMasterDataPage({
         </div>
       )}
       {!!state.record?.conflicts.length && (
-        <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm">
+        <section className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
           <h2 className="font-semibold">
             {workflow
               ? 'Resolve Source Differences'

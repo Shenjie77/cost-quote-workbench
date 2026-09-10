@@ -89,25 +89,79 @@ export function MaintenanceView({
   };
   return (
     <div className="wb-page-stack">
-      <section className="wb-panel space-y-4 p-5">
-        <h2 className="text-base font-semibold text-primary">BOQ 维保配置</h2>
+      <section className="wb-panel space-y-3 p-3">
+        {/* Keep the frequently edited coverage period beside the BOQ title. */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-primary">BOQ 维保配置</h2>
+          <label className="flex flex-wrap items-center gap-2 text-xs">
+            维保期限（月）
+            <Input
+              type="number"
+              className="h-8 w-24"
+              value={value.coverageMonths}
+              onChange={(e) =>
+                onChange({ ...value, coverageMonths: Number(e.target.value) })
+              }
+            />
+          </label>
+          {/* Calculation and archive stay available above long BOQ lists. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() =>
+                onChange({
+                  ...value,
+                  boq: [
+                    ...value.boq,
+                    {
+                      id: crypto.randomUUID(),
+                      model: '',
+                      quantity: 1,
+                      serviceLevel: '',
+                      site: '',
+                      referenceId: '',
+                      unitAnnualQuote: 0,
+                      basis: '',
+                      source: 'Manual BOQ',
+                    },
+                  ],
+                })
+              }
+            >
+              手工添加设备
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                attempt(() => {
+                  const r = calculateMaintenance(value, records);
+                  announce(
+                    `维保报价草稿 SGD ${r.quote.toFixed(2)}；历史成本推算 SGD ${r.cost.toFixed(2)}。请核实差异依据。`,
+                  );
+                })
+              }
+            >
+              计算维保草稿
+            </Button>
+            <Button
+              onClick={() =>
+                attempt(() => {
+                  onChange(archiveMaintenance(value, records, client));
+                  announce('已归档BOQ、参考价格、选价依据与计算结果');
+                })
+              }
+            >
+              归档配置
+            </Button>
+          </div>
+        </div>
+
         <p className="text-sm text-muted-foreground">
           按同型号查看各客户历史单台年价，选择参考后填写本次
           SLA、年价与选价依据。输出为维保报价草稿，正式报价仍需整理税费、T&C
           并完成公司决策。
         </p>
-        <label className="block space-y-2 text-sm">
-          维保期限（月）
-          <Input
-            type="number"
-            className="w-40"
-            value={value.coverageMonths}
-            onChange={(e) =>
-              onChange({ ...value, coverageMonths: Number(e.target.value) })
-            }
-          />
-        </label>
-        <details className="rounded-lg border bg-muted/20 p-4">
+        <details className="rounded-md border bg-muted/10 px-3 py-2">
           <summary className="cursor-pointer text-sm font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring">
             从产品 BOQ Excel 导入设备
           </summary>
@@ -134,8 +188,8 @@ export function MaintenanceView({
                 }
               }}
             />
-            <div className="grid gap-4 md:grid-cols-5">
-              <label className="block space-y-2 text-xs font-medium">
+            <div className="grid gap-3 md:grid-cols-5">
+              <label className="block space-y-1 text-xs font-medium">
                 工作表
                 <select
                   value={sheet}
@@ -143,7 +197,7 @@ export function MaintenanceView({
                     setSheet(e.target.value);
                     setPreview([]);
                   }}
-                  className="block h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+                  className="block h-8 w-full rounded-md border border-input bg-card px-2.5 text-xs focus-visible:outline-2 focus-visible:outline-ring"
                 >
                   {sheets.map((s) => (
                     <option key={s}>{s}</option>
@@ -167,7 +221,7 @@ export function MaintenanceView({
                   />
                 </label>
               ))}
-              <label className="block space-y-2 text-xs font-medium">
+              <label className="block space-y-1 text-xs font-medium">
                 排除行号
                 <Input
                   value={excluded}
@@ -280,37 +334,13 @@ export function MaintenanceView({
             )}
           </fieldset>
         </details>
-        <Button
-          variant="outline"
-          onClick={() =>
-            onChange({
-              ...value,
-              boq: [
-                ...value.boq,
-                {
-                  id: crypto.randomUUID(),
-                  model: '',
-                  quantity: 1,
-                  serviceLevel: '',
-                  site: '',
-                  referenceId: '',
-                  unitAnnualQuote: 0,
-                  basis: '',
-                  source: 'Manual BOQ',
-                },
-              ],
-            })
-          }
-        >
-          手工添加设备
-        </Button>
       </section>
       {value.boq.map((row) => (
-        <section key={row.id} className="wb-panel space-y-4 p-5">
+        <section key={row.id} className="wb-panel space-y-3 p-3">
           <div className="grid gap-3 md:grid-cols-4">
             {(['model', 'quantity', 'serviceLevel', 'site'] as const).map(
               (k, i) => (
-                <label className="block space-y-2 text-sm" key={k}>
+                <label className="block space-y-1 text-xs" key={k}>
                   {['设备型号', 'BOQ 实际数量', '本次 SLA', '站点'][i]}
                   <Input
                     type={k === 'quantity' ? 'number' : 'text'}
@@ -331,7 +361,7 @@ export function MaintenanceView({
           <label className="block text-sm">
             同型号的客户历史参考
             <select
-              className="mt-1 block h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+              className="mt-1 block h-8 w-full rounded-md border border-input bg-card px-2.5 text-xs focus-visible:outline-2 focus-visible:outline-ring"
               value={row.referenceId}
               onChange={(e) => {
                 const ref = maintenanceCandidates(records, row.model).find(
@@ -355,7 +385,7 @@ export function MaintenanceView({
             </select>
           </label>
           <div className="grid gap-3 md:grid-cols-3">
-            <label className="block space-y-2 text-sm">
+            <label className="block space-y-1 text-xs">
               本次单台年价 SGD
               <Input
                 type="number"
@@ -394,34 +424,10 @@ export function MaintenanceView({
           </Button>
         </section>
       ))}
-      <div className="wb-panel wb-toolbar">
-        <Button
-          variant="outline"
-          onClick={() =>
-            attempt(() => {
-              const r = calculateMaintenance(value, records);
-              announce(
-                `维保报价草稿 SGD ${r.quote.toFixed(2)}；历史成本推算 SGD ${r.cost.toFixed(2)}。请核实差异依据。`,
-              );
-            })
-          }
-        >
-          计算维保草稿
-        </Button>
-        <Button
-          onClick={() =>
-            attempt(() => {
-              onChange(archiveMaintenance(value, records, client));
-              announce('已归档BOQ、参考价格、选价依据与计算结果');
-            })
-          }
-        >
-          归档配置
-        </Button>
-      </div>
+
       {value.archives.length > 0 && (
-        <section className="wb-panel space-y-3 p-5">
-          <h2 className="text-base font-semibold text-primary">维保配置历史</h2>
+        <section className="wb-panel space-y-3 p-3">
+          <h2 className="text-sm font-semibold text-primary">维保配置历史</h2>
           {[...value.archives].reverse().map((a) => (
             <div
               key={a.id}

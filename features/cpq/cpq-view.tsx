@@ -119,16 +119,18 @@ export function CpqView({
     });
   return (
     <div className="wb-page-stack text-sm">
-      <div className="wb-toolbar justify-between rounded-lg">
-        <p>输入简短范围，筛选条目后计算服务数量。设备数量保持固定。</p>
+      <div className="wb-toolbar justify-between rounded-md py-2">
+        <p className="text-xs text-muted-foreground">
+          输入简短范围，筛选条目后计算服务数量。设备数量保持固定。
+        </p>
         <Button variant="outline" onClick={() => setShowCatalog(!showCatalog)}>
           Catalog / 条目目录 ({value.catalog.length})
         </Button>
       </div>
       {showCatalog && (
-        <section className="wb-panel space-y-4 p-5">
+        <section className="wb-panel space-y-3 p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-base font-semibold text-primary">
+            <h3 className="text-sm font-semibold text-primary">
               Captured CPQ catalog / 项目采用的 CPQ 目录快照
             </h3>
             {onOpenCatalog && (
@@ -187,347 +189,368 @@ export function CpqView({
           </div>
         </section>
       )}
-      <section className="wb-panel space-y-4 p-5">
-        <h3 className="text-base font-semibold text-primary">
-          1. Brief & candidates / 简述与候选
-        </h3>
-        <Textarea
-          aria-label="Brief scope"
-          placeholder="例如：10 台设备部署，含联调和验收"
-          value={draft.brief}
-          onChange={(e) => update({ brief: e.target.value })}
-        />
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={() => setShowAll(!showAll)}>
-            {showAll
-              ? 'Recommended / 返回候选'
-              : 'Browse catalog / 浏览全部目录'}
-          </Button>
-          <span className="self-center text-muted-foreground">
-            本地按关键词推荐；Skill 可结合描述分析并说明候选依据。
-          </span>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>选择</TableHead>
-              <TableHead>Code</TableHead>
-              <TableHead>Scope</TableHead>
-              <TableHead>Unit cost</TableHead>
-              <TableHead>Qty rule</TableHead>
-              <TableHead>Reason</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {display.map(({ item: row, reason }) => (
-              <TableRow key={row.code}>
-                <TableCell>
-                  <Checkbox
-                    checked={draft.selections.some((s) => s.code === row.code)}
-                    onCheckedChange={(v) => toggle(row, Boolean(v), reason)}
-                    aria-label={`Select ${row.code}`}
-                  />
-                </TableCell>
-                <TableCell>{row.code}</TableCell>
-                <TableCell className="max-w-md whitespace-normal">
-                  {row.scope}
-                </TableCell>
-                <TableCell>
-                  {money(row.unitCost)} / {row.unit}
-                </TableCell>
-                <TableCell>
-                  {row.kind === 'equipment' || !row.adjustable
-                    ? 'Fixed / 固定'
-                    : 'Service / 可调服务'}
-                </TableCell>
-                <TableCell className="max-w-sm whitespace-normal text-muted-foreground">
-                  {reason}
-                </TableCell>
-              </TableRow>
-            ))}
-            {!display.length && (
-              <TableRow>
-                <TableCell colSpan={6}>
-                  {value.catalog.length
-                    ? '没有匹配候选，可浏览目录手动选择。'
-                    : '请先录入条目目录，也可通过 Skill 导入。'}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </section>
-      <section className="wb-panel space-y-4 p-5">
-        <h3 className="text-base font-semibold text-primary">
-          2. Confirm items / 确认条目与固定数量
-        </h3>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Code / Scope</TableHead>
-              <TableHead>Fixed / 锁定</TableHead>
-              <TableHead>实际固定 / 参考 qty</TableHead>
-              <TableHead>预算权重</TableHead>
-              <TableHead>依据</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {draft.selections.map((s) => {
-              const row = value.catalog.find((c) => c.code === s.code);
-              const fixed = !row?.adjustable || row?.kind === 'equipment';
-              return (
-                <TableRow key={s.code}>
-                  <TableCell className="max-w-xs whitespace-normal">
-                    {s.code} · {row?.scope || 'Missing catalog item / 条目缺失'}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        update({
-                          selections: draft.selections.filter(
-                            (x) => x.code !== s.code,
-                          ),
-                        })
-                      }
-                    >
-                      移除
-                    </Button>
-                  </TableCell>
-                  <TableCell>
-                    <Checkbox
-                      checked={fixed || s.locked}
-                      disabled={fixed}
-                      onCheckedChange={(v) =>
-                        selectionChange(s.code, { locked: Boolean(v) })
-                      }
-                      aria-label={`Lock ${s.code}`}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      aria-label={`Quantity ${s.code}`}
-                      className="min-w-24"
-                      type="number"
-                      min="0"
-                      step={row?.step || 1}
-                      value={s.quantity}
-                      onChange={(e) =>
-                        selectionChange(s.code, {
-                          quantity: Number(e.target.value),
-                        })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      aria-label={`Weight ${s.code}`}
-                      type="number"
-                      min="0.0001"
-                      disabled={fixed || s.locked}
-                      value={s.weight}
-                      onChange={(e) =>
-                        selectionChange(s.code, {
-                          weight: Number(e.target.value),
-                        })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      aria-label={`Reason ${s.code}`}
-                      value={s.reason}
-                      onChange={(e) =>
-                        selectionChange(s.code, { reason: e.target.value })
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-        <div className="flex flex-wrap gap-2">
-          <Input
-            className="max-w-48"
-            aria-label="Confirmed by"
-            value={confirmer}
-            onChange={(e) => setConfirmer(e.target.value)}
-          />
-          <Button
-            disabled={!draft.selections.length}
-            onClick={() =>
-              run(() => onChange(confirmMapping(value, confirmer)))
-            }
-          >
-            Confirm selected items / 确认所选条目
-          </Button>
-          <span className="self-center">
-            {confirmed ? `已确认 · ${draft.confirmation?.by}` : '待用户确认'}
-          </span>
-        </div>
-      </section>
-      <section className="wb-panel space-y-4 p-5">
-        <h3 className="text-base font-semibold text-primary">
-          3. Calculate & archive / 计算与归档
-        </h3>
-        <div className="grid gap-4 md:grid-cols-3">
-          <label className="block space-y-2 text-xs font-medium">
-            Cost version / 成本版本
-            <Input readOnly value={draft.costVersion} />
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                update({
-                  costVersion: baseline.code,
-                  targetCost: totalCost,
-                  targetBasis: `整合成本 ${baseline.code}`,
-                })
-              }
-            >
-              Use {baseline.code} · {money(totalCost)}
-            </Button>
-          </label>
-          <label className="block space-y-2 text-xs font-medium">
-            Target cost / 目标成本
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={draft.targetCost}
-              onChange={(e) => update({ targetCost: Number(e.target.value) })}
+      {/* Keep selection and calculation side by side on desktop, in process order on smaller screens. */}
+      <div className="grid min-w-0 items-start gap-3 lg:grid-cols-[minmax(0,1.65fr)_minmax(340px,1fr)]">
+        <div className="min-w-0 space-y-3">
+          <section className="wb-panel space-y-3 p-3">
+            <h3 className="text-sm font-semibold text-primary">
+              1. Brief & candidates / 简述与候选
+            </h3>
+            <Textarea
+              aria-label="Brief scope"
+              placeholder="例如：10 台设备部署，含联调和验收"
+              value={draft.brief}
+              onChange={(e) => update({ brief: e.target.value })}
             />
-          </label>
-          <label className="block space-y-2 text-xs font-medium">
-            Tolerance / 允许差额
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={draft.tolerance}
-              onChange={(e) => update({ tolerance: Number(e.target.value) })}
-            />
-          </label>
-          <label className="block space-y-2 text-xs font-medium">
-            Target basis / 目标口径
-            <Input
-              value={draft.targetBasis}
-              onChange={(e) => update({ targetBasis: e.target.value })}
-            />
-          </label>
-          <label className="block space-y-2 text-xs font-medium md:col-span-2">
-            Allocation basis / 数量分配依据
-            <Input
-              value={draft.allocationBasis}
-              onChange={(e) => update({ allocationBasis: e.target.value })}
-            />
-          </label>
-        </div>
-        <div className="wb-toolbar rounded-lg">
-          <Button
-            variant="outline"
-            onClick={() =>
-              update({
-                selections: draft.selections.map((s) => ({
-                  ...s,
-                  weight: Math.max(
-                    0.0001,
-                    s.quantity *
-                      (value.catalog.find((c) => c.code === s.code)?.unitCost ||
-                        0),
-                  ),
-                })),
-                allocationBasis:
-                  '按参考数量的成本比例分配 / Reference quantity cost weights',
-              })
-            }
-          >
-            Use reference qty weights / 使用参考数量比例
-          </Button>
-          <label className="flex items-center gap-2">
-            <Checkbox
-              checked={draft.rounding === 'half-up-cent'}
-              onCheckedChange={(v) =>
-                update({ rounding: v ? 'half-up-cent' : 'ceil-cent' })
-              }
-            />
-            按行四舍五入到分（默认向上到分）
-          </label>
-        </div>
-        <Button
-          disabled={!confirmed || busy}
-          onClick={() =>
-            run(() => {
-              const result = solveCpq(value, baseline);
-              update({ result });
-            })
-          }
-        >
-          Calculate service quantities / 计算服务数量
-        </Button>
-        {draft.result && (
-          <div className="space-y-3">
-            <p className={fresh ? 'font-medium' : 'text-amber-700'}>
-              {!fresh
-                ? '输入或成本已变化，需要重算。'
-                : draft.result.difference === 0
-                  ? '金额精确匹配'
-                  : `差额 ${money(draft.result.difference)} · ${draft.result.acceptable ? '在容差内' : '待处理'}`}
-              {!draft.result.searchComplete &&
-                ' · 已到搜索上限，未证明分配最优或无精确解'}
-            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline" onClick={() => setShowAll(!showAll)}>
+                {showAll
+                  ? 'Recommended / 返回候选'
+                  : 'Browse catalog / 浏览全部目录'}
+              </Button>
+              <span className="self-center text-muted-foreground">
+                本地按关键词推荐；Skill 可结合描述分析并说明候选依据。
+              </span>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>选择</TableHead>
                   <TableHead>Code</TableHead>
-                  <TableHead>Qty</TableHead>
+                  <TableHead>Scope</TableHead>
                   <TableHead>Unit cost</TableHead>
-                  <TableHead>Cost</TableHead>
-                  <TableHead>Fixed</TableHead>
+                  <TableHead>Qty rule</TableHead>
+                  <TableHead>Reason</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {draft.result.lines.map((line) => (
-                  <TableRow key={line.item.code}>
-                    <TableCell>{line.item.code}</TableCell>
+                {display.map(({ item: row, reason }) => (
+                  <TableRow key={row.code}>
                     <TableCell>
-                      {line.quantity} {line.item.unit}
+                      <Checkbox
+                        checked={draft.selections.some(
+                          (s) => s.code === row.code,
+                        )}
+                        onCheckedChange={(v) => toggle(row, Boolean(v), reason)}
+                        aria-label={`Select ${row.code}`}
+                      />
                     </TableCell>
-                    <TableCell>{money(line.item.unitCost)}</TableCell>
-                    <TableCell>{money(line.amount)}</TableCell>
-                    <TableCell>{line.locked ? '固定' : '可调'}</TableCell>
+                    <TableCell>{row.code}</TableCell>
+                    <TableCell className="max-w-md whitespace-normal">
+                      {row.scope}
+                    </TableCell>
+                    <TableCell>
+                      {money(row.unitCost)} / {row.unit}
+                    </TableCell>
+                    <TableCell>
+                      {row.kind === 'equipment' || !row.adjustable
+                        ? 'Fixed / 固定'
+                        : 'Service / 可调服务'}
+                    </TableCell>
+                    <TableCell className="max-w-sm whitespace-normal text-muted-foreground">
+                      {reason}
+                    </TableCell>
                   </TableRow>
                 ))}
+                {!display.length && (
+                  <TableRow>
+                    <TableCell colSpan={6}>
+                      {value.catalog.length
+                        ? '没有匹配候选，可浏览目录手动选择。'
+                        : '请先录入条目目录，也可通过 Skill 导入。'}
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
-            <p>
-              Total / 合计：{money(draft.result.totalCost)} · Difference /
-              差额：{money(draft.result.difference)}
-            </p>
+          </section>
+          <section className="wb-panel space-y-3 p-3">
+            <h3 className="text-sm font-semibold text-primary">
+              2. Confirm items / 确认条目与固定数量
+            </h3>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code / Scope</TableHead>
+                  <TableHead>Fixed / 锁定</TableHead>
+                  <TableHead>实际固定 / 参考 qty</TableHead>
+                  <TableHead>预算权重</TableHead>
+                  <TableHead>依据</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {draft.selections.map((s) => {
+                  const row = value.catalog.find((c) => c.code === s.code);
+                  const fixed = !row?.adjustable || row?.kind === 'equipment';
+                  return (
+                    <TableRow key={s.code}>
+                      <TableCell className="max-w-xs whitespace-normal">
+                        {s.code} ·{' '}
+                        {row?.scope || 'Missing catalog item / 条目缺失'}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            update({
+                              selections: draft.selections.filter(
+                                (x) => x.code !== s.code,
+                              ),
+                            })
+                          }
+                        >
+                          移除
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          checked={fixed || s.locked}
+                          disabled={fixed}
+                          onCheckedChange={(v) =>
+                            selectionChange(s.code, { locked: Boolean(v) })
+                          }
+                          aria-label={`Lock ${s.code}`}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          aria-label={`Quantity ${s.code}`}
+                          className="min-w-24"
+                          type="number"
+                          min="0"
+                          step={row?.step || 1}
+                          value={s.quantity}
+                          onChange={(e) =>
+                            selectionChange(s.code, {
+                              quantity: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          aria-label={`Weight ${s.code}`}
+                          type="number"
+                          min="0.0001"
+                          disabled={fixed || s.locked}
+                          value={s.weight}
+                          onChange={(e) =>
+                            selectionChange(s.code, {
+                              weight: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          aria-label={`Reason ${s.code}`}
+                          value={s.reason}
+                          onChange={(e) =>
+                            selectionChange(s.code, { reason: e.target.value })
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            <div className="flex flex-wrap gap-2">
+              <Input
+                className="max-w-48"
+                aria-label="Confirmed by"
+                value={confirmer}
+                onChange={(e) => setConfirmer(e.target.value)}
+              />
+              <Button
+                disabled={!draft.selections.length}
+                onClick={() =>
+                  run(() => onChange(confirmMapping(value, confirmer)))
+                }
+              >
+                Confirm selected items / 确认所选条目
+              </Button>
+              <span className="self-center">
+                {confirmed
+                  ? `已确认 · ${draft.confirmation?.by}`
+                  : '待用户确认'}
+              </span>
+            </div>
+          </section>
+        </div>
+        <section className="wb-panel min-w-0 space-y-3 p-3">
+          <h3 className="text-sm font-semibold text-primary">
+            3. Calculate & archive / 计算与归档
+          </h3>
+          {/* Calculation and archive actions remain visible while candidates are reviewed alongside them. */}
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Button
-              disabled={!fresh || !draft.result.acceptable}
+              className="h-auto min-h-8 max-w-full whitespace-normal text-xs"
+              disabled={!confirmed || busy}
               onClick={() =>
                 run(() => {
-                  onChange(archiveCpq(value, baseline, proposalNumber));
-                  announce('配置已加入本地归档队列，请查看保存状态。');
+                  const result = solveCpq(value, baseline);
+                  update({ result });
                 })
               }
             >
-              Archive with cost / 随成本版本归档
+              Calculate service quantities / 计算服务数量
             </Button>
+            {draft.result && (
+              <Button
+                className="h-auto min-h-8 max-w-full whitespace-normal text-xs"
+                disabled={!fresh || !draft.result.acceptable}
+                onClick={() =>
+                  run(() => {
+                    onChange(archiveCpq(value, baseline, proposalNumber));
+                    announce('配置已加入本地归档队列，请查看保存状态。');
+                  })
+                }
+              >
+                Archive with cost / 随成本版本归档
+              </Button>
+            )}
           </div>
-        )}
-      </section>
-      {error && (
-        <p
-          role="alert"
-          className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-destructive"
-        >
-          {error}
-        </p>
-      )}
-      <section className="wb-panel space-y-4 p-5">
-        <h3 className="text-base font-semibold text-primary">
+          {error && (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs text-destructive"
+            >
+              {error}
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="col-span-2 flex min-w-0 flex-wrap items-center gap-2 text-xs font-medium">
+              Cost version / 成本版本
+              <Input readOnly value={draft.costVersion} className="h-8 w-16" />
+              <Button
+                className="h-auto min-h-8 max-w-full whitespace-normal text-xs"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  update({
+                    costVersion: baseline.code,
+                    targetCost: totalCost,
+                    targetBasis: `整合成本 ${baseline.code}`,
+                  })
+                }
+              >
+                Use {baseline.code} · {money(totalCost)}
+              </Button>
+            </label>
+            <label className="block space-y-1 text-xs font-medium">
+              Target cost / 目标成本
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={draft.targetCost}
+                onChange={(e) => update({ targetCost: Number(e.target.value) })}
+              />
+            </label>
+            <label className="block space-y-1 text-xs font-medium">
+              Tolerance / 允许差额
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={draft.tolerance}
+                onChange={(e) => update({ tolerance: Number(e.target.value) })}
+              />
+            </label>
+            <label className="col-span-2 block space-y-1 text-xs font-medium">
+              Target basis / 目标口径
+              <Input
+                value={draft.targetBasis}
+                onChange={(e) => update({ targetBasis: e.target.value })}
+              />
+            </label>
+            <label className="col-span-2 block space-y-1 text-xs font-medium">
+              Allocation basis / 数量分配依据
+              <Input
+                value={draft.allocationBasis}
+                onChange={(e) => update({ allocationBasis: e.target.value })}
+              />
+            </label>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-md bg-muted/20 p-2 text-xs">
+            <Button
+              className="h-auto min-h-8 max-w-full whitespace-normal text-xs"
+              variant="outline"
+              onClick={() =>
+                update({
+                  selections: draft.selections.map((s) => ({
+                    ...s,
+                    weight: Math.max(
+                      0.0001,
+                      s.quantity *
+                        (value.catalog.find((c) => c.code === s.code)
+                          ?.unitCost || 0),
+                    ),
+                  })),
+                  allocationBasis:
+                    '按参考数量的成本比例分配 / Reference quantity cost weights',
+                })
+              }
+            >
+              Use reference qty weights / 使用参考数量比例
+            </Button>
+            <label className="flex items-center gap-2">
+              <Checkbox
+                checked={draft.rounding === 'half-up-cent'}
+                onCheckedChange={(v) =>
+                  update({ rounding: v ? 'half-up-cent' : 'ceil-cent' })
+                }
+              />
+              按行四舍五入到分（默认向上到分）
+            </label>
+          </div>
+
+          {draft.result && (
+            <div className="space-y-3">
+              <p className={fresh ? 'font-medium' : 'text-amber-700'}>
+                {!fresh
+                  ? '输入或成本已变化，需要重算。'
+                  : draft.result.difference === 0
+                    ? '金额精确匹配'
+                    : `差额 ${money(draft.result.difference)} · ${draft.result.acceptable ? '在容差内' : '待处理'}`}
+                {!draft.result.searchComplete &&
+                  ' · 已到搜索上限，未证明分配最优或无精确解'}
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Unit cost</TableHead>
+                    <TableHead>Cost</TableHead>
+                    <TableHead>Fixed</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {draft.result.lines.map((line) => (
+                    <TableRow key={line.item.code}>
+                      <TableCell>{line.item.code}</TableCell>
+                      <TableCell>
+                        {line.quantity} {line.item.unit}
+                      </TableCell>
+                      <TableCell>{money(line.item.unitCost)}</TableCell>
+                      <TableCell>{money(line.amount)}</TableCell>
+                      <TableCell>{line.locked ? '固定' : '可调'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <p>
+                Total / 合计：{money(draft.result.totalCost)} · Difference /
+                差额：{money(draft.result.difference)}
+              </p>
+            </div>
+          )}
+        </section>
+      </div>
+      <section className="wb-panel space-y-3 p-3">
+        <h3 className="text-sm font-semibold text-primary">
           Archived configurations / 历史配置 ({value.archives.length})
         </h3>
         {value.archives
@@ -536,7 +559,7 @@ export function CpqView({
           .map((archive) => (
             <div
               key={archive.id}
-              className="wb-toolbar justify-between rounded-lg border-b py-2"
+              className="wb-toolbar justify-between rounded-md border-b py-2"
             >
               <span>
                 {archive.costVersion} · {archive.draft.brief} ·{' '}

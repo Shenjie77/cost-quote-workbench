@@ -1026,6 +1026,7 @@ export function hasPartialLegacyAllowance(
     return selected.length > 0 && selected.length < candidates.length;
   });
 }
+/** Keep the four allowance Pool choices visible without altering historical selections. */
 export function PersonnelAllowanceOptions({
   selectedPools,
   onToggle,
@@ -1038,8 +1039,8 @@ export function PersonnelAllowanceOptions({
   partialLegacy?: boolean;
 }) {
   return (
-    <div className="border-b border-border px-3 py-2">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+    <div className="border-b border-border px-3 py-1.5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
         <span className="font-medium">3% Allowance</span>
         {PERSONNEL_POOLS.map((pool) => (
           <label key={pool} className="flex items-center gap-1.5">

@@ -31,7 +31,7 @@ const labels: Record<ReviewKind, string> = {
   BID_REVIEW: '标书答复评审',
 };
 const selectClass =
-  'h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring';
+  'h-8 rounded-md border border-input bg-card px-2.5 text-xs focus-visible:outline-2 focus-visible:outline-ring';
 export function SsrView({
   value,
   onChange,
@@ -111,16 +111,16 @@ export function SsrView({
   );
   return (
     <div className="wb-page-stack">
-      <div className="wb-panel px-5 py-4 text-sm">
+      <div className="wb-panel px-3 py-2 text-xs">
         当前流程成本版本：<strong>{baseline.code}</strong> · {baseline.state}。
         {baseline.state !== 'Confirmed'
           ? 'DTRB · 本版成本待确认。'
           : '本版成本已确认。'}
         查看历史成本版本不会改变本轮流程。
       </div>
-      <section className="wb-panel space-y-4 p-5">
+      <section className="wb-panel space-y-3 p-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-primary">
+          <h2 className="text-sm font-semibold text-primary">
             项目范围与正式记录
           </h2>
           <label className="flex items-center gap-2 text-sm">
@@ -136,35 +136,35 @@ export function SsrView({
           先在公司平台完成申请，再登记申请号和依据。系统据此跟踪条件、责任人和日期；启用后，报价导出需有适用的报价决策。
         </p>
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="block space-y-2 text-sm">
+          <label className="block space-y-1 text-xs">
             Proposal 编号
             <Input
               value={value.proposalNumber}
               onChange={(e) => edit({ proposalNumber: e.target.value })}
             />
           </label>
-          <label className="block space-y-2 text-sm">
+          <label className="block space-y-1 text-xs">
             公司平台记录地址
             <Input
               value={value.companyUrl}
               onChange={(e) => edit({ companyUrl: e.target.value })}
             />
           </label>
-          <label className="block space-y-2 text-sm">
+          <label className="block space-y-1 text-xs">
             简短 Scope
             <Input
               value={value.scopeBrief}
               onChange={(e) => edit({ scopeBrief: e.target.value })}
             />
           </label>
-          <label className="block space-y-2 text-sm">
+          <label className="block space-y-1 text-xs">
             产品方案 / TD 人力计划版本或文件号
             <Input
               value={value.technicalBasis}
               onChange={(e) => edit({ technicalBasis: e.target.value })}
             />
           </label>
-          <label className="block space-y-2 text-sm">
+          <label className="block space-y-1 text-xs">
             必需专业领域（用逗号分隔）
             <Input
               value={domainsText}
@@ -183,7 +183,7 @@ export function SsrView({
               }
             />
           </label>
-          <label className="block space-y-2 text-sm">
+          <label className="block space-y-1 text-xs">
             业务类型
             <select
               className={selectClass + ' ml-3'}
@@ -203,7 +203,7 @@ export function SsrView({
         </p>
       </section>
       {items.length > 0 && (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm">
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
           <h2 className="mb-2 font-semibold">需要跟进</h2>
           {items.map((i) => (
             <button
@@ -217,11 +217,9 @@ export function SsrView({
         </section>
       )}
       {value.mode === 'tender' && (
-        <section className="wb-panel space-y-4 p-5">
-          <h2 className="text-base font-semibold text-primary">
-            各专业标书答复
-          </h2>
-          <div className="grid gap-4 md:grid-cols-2">
+        <section className="wb-panel space-y-3 p-3">
+          <h2 className="text-sm font-semibold text-primary">各专业标书答复</h2>
+          <div className="grid gap-3 md:grid-cols-2">
             {(
               [
                 'clause',
@@ -233,7 +231,7 @@ export function SsrView({
                 'dueDate',
               ] as const
             ).map((k, i) => (
-              <label key={k} className="block space-y-2 text-sm">
+              <label key={k} className="block space-y-1 text-xs">
                 {
                   [
                     '条款编号',
@@ -399,12 +397,12 @@ export function SsrView({
           </div>
         </section>
       )}
-      <section className="wb-panel space-y-4 p-5">
-        <h2 className="text-base font-semibold text-primary">
+      <section className="wb-panel space-y-3 p-3">
+        <h2 className="text-sm font-semibold text-primary">
           登记送审 · 保存成本 {baseline.code} 快照
         </h2>
         <div className="grid gap-3 md:grid-cols-3">
-          <label className="block space-y-2 text-sm">
+          <label className="block space-y-1 text-xs">
             评审
             <select
               className={selectClass + ' block w-full'}
@@ -424,7 +422,7 @@ export function SsrView({
             </select>
           </label>
           {submission.kind === 'SPECIALIST' && (
-            <label className="block space-y-2 text-sm">
+            <label className="block space-y-1 text-xs">
               领域
               <select
                 className={selectClass + ' block w-full'}
@@ -442,7 +440,7 @@ export function SsrView({
           )}
           {(['owner', 'dueDate', 'applicationNumber', 'evidence'] as const).map(
             (k, i) => (
-              <label className="block space-y-2 text-sm" key={k}>
+              <label className="block space-y-1 text-xs" key={k}>
                 {['负责人', '截止日期', '公司申请号', '申请依据 / 链接'][i]}
                 <Input
                   type={k === 'dueDate' ? 'date' : 'text'}
@@ -472,8 +470,8 @@ export function SsrView({
             : '登记送审记录'}
         </Button>
       </section>
-      <section className="wb-panel space-y-4 p-5">
-        <h2 className="text-base font-semibold text-primary">
+      <section className="wb-panel space-y-3 p-3">
+        <h2 className="text-sm font-semibold text-primary">
           评审结果与条件关闭
         </h2>
         <label className="flex items-center gap-2 text-sm">
@@ -634,7 +632,7 @@ export function SsrView({
                 记录跟进
               </Button>
             </div>
-            <details className="rounded-lg border bg-muted/20 p-4">
+            <details className="rounded-md border bg-muted/10 px-3 py-2">
               <summary className="cursor-pointer text-sm">查看历史依据</summary>
               <div className="space-y-2 pt-2 text-sm">
                 {record.results.map((r) => (

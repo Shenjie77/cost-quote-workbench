@@ -43,7 +43,7 @@ import {
   type PersonnelYear,
 } from './personnel-input-controls';
 
-/** Arrange cost settings above the grid and keep its entry actions beside the table. */
+/** Keep cost totals compact and all year, entry and display controls directly above the grid. */
 export function CostInputSheet({
   projectId,
   versionCode,
@@ -183,7 +183,8 @@ export function CostInputSheet({
 
   return (
     <section className="wb-panel min-w-0 overflow-hidden">
-      <div className="wb-toolbar justify-between border-b border-border">
+      {/* Keep cost health and totals in one scan line instead of separate metric cards. */}
+      <header className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-b border-border px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold">Cost Input</h2>
           {locked ? (
@@ -193,28 +194,31 @@ export function CostInputSheet({
               {issues.length ? `${issues.length} to review` : 'Calculated'}
             </StatusBadge>
           )}
+          <span className="text-[11px] text-muted-foreground">
+            {rows.length} rows
+          </span>
         </div>
-      </div>
-      <div className="grid grid-cols-2 gap-px border-b border-border bg-border min-[480px]:grid-cols-3">
-        <div className="bg-card px-4 py-3">
-          <p className="text-[10px] text-muted-foreground">Cost · All Years</p>
-          <p className="mt-0.5 text-base font-semibold tabular-nums">
-            {formatSgd(totalCost)}
-          </p>
-        </div>
-        <div className="bg-card px-4 py-3">
-          <p className="text-[10px] text-muted-foreground">Total Mandays</p>
-          <p className="mt-0.5 text-base font-semibold tabular-nums">
-            {totalMd.toLocaleString('en-SG', { maximumFractionDigits: 4 })} MD
-          </p>
-        </div>
-        <div className="col-span-2 bg-card px-4 py-3 min-[480px]:col-span-1">
-          <p className="text-[10px] text-muted-foreground">Included Travel</p>
-          <p className="mt-0.5 text-base font-semibold tabular-nums">
-            {formatSgd(includedTravelCost)}
-          </p>
-        </div>
-      </div>
+        <dl className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1 text-[11px]">
+          <div className="flex items-baseline gap-1.5">
+            <dt className="text-muted-foreground">Cost · All Years</dt>
+            <dd className="font-semibold tabular-nums text-primary">
+              {formatSgd(totalCost)}
+            </dd>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <dt className="text-muted-foreground">Total Mandays</dt>
+            <dd className="font-semibold tabular-nums">
+              {totalMd.toLocaleString('en-SG', { maximumFractionDigits: 4 })} MD
+            </dd>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <dt className="text-muted-foreground">Included Travel</dt>
+            <dd className="font-semibold tabular-nums">
+              {formatSgd(includedTravelCost)}
+            </dd>
+          </div>
+        </dl>
+      </header>
       <PersonnelAllowanceOptions
         selectedPools={allowancePools}
         partialLegacy={hasPartialLegacyAllowance(rateSettings, resources)}
@@ -232,87 +236,6 @@ export function CostInputSheet({
           });
         }}
       />
-      {/* Toolbar controls wrap independently of the dense, horizontally scrollable cost grid. */}
-      <div className="border-b border-border bg-muted/30 px-4 py-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <div
-            className="flex max-w-full flex-wrap gap-1 rounded-lg border border-border bg-card p-1"
-            aria-label="Cost delivery year"
-          >
-            {[
-              ...YEAR_BUCKETS.map((bucket, index) => ({
-                value: index as PersonnelYear,
-                label: bucket,
-              })),
-              { value: 'all' as PersonnelYear, label: 'All Years' },
-            ].map((year) => (
-              <Button
-                key={year.value}
-                type="button"
-                size="sm"
-                variant={yearIndex === year.value ? 'default' : 'ghost'}
-                className="h-8 px-2.5 text-xs"
-                aria-pressed={yearIndex === year.value}
-                onClick={() => setYearIndex(year.value)}
-              >
-                {year.label}
-              </Button>
-            ))}
-          </div>
-          <fieldset
-            className="flex min-w-0 flex-wrap items-center gap-2"
-            aria-label="Cost input mode"
-          >
-            <span className="text-[11px] text-muted-foreground">Mode</span>
-            <div className="flex gap-0.5 rounded-md border border-border bg-card p-0.5">
-              {(
-                [
-                  ['sites', 'Sites'],
-                  ['mandays', 'Direct MD'],
-                ] as const
-              ).map(([mode, label]) => (
-                <Button
-                  key={mode}
-                  type="button"
-                  size="sm"
-                  variant={inputMode === mode ? 'default' : 'ghost'}
-                  className="h-8 px-2.5 text-[11px]"
-                  aria-pressed={inputMode === mode}
-                  disabled={locked}
-                  title={`Set all cost rows to ${label}`}
-                  onClick={() => changeMode(mode)}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-            {inputMode === 'mixed' && (
-              <span className="text-[10px] text-muted-foreground">Mixed</span>
-            )}
-          </fieldset>
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant={grouped ? 'default' : 'outline'}
-              className="h-8 px-2.5 text-xs"
-              aria-pressed={grouped}
-              onClick={() => setGrouped((current) => !current)}
-            >
-              <ListTree className="size-3" />
-              Groups
-            </Button>
-            <PersonnelColumnSettings
-              preferences={columnSettings.preferences}
-              onSetVisible={columnSettings.setVisible}
-              onMove={columnSettings.move}
-              onReset={columnSettings.reset}
-              ready={columnSettings.ready}
-              storageAvailable={columnSettings.storageAvailable}
-            />
-          </div>
-        </div>
-      </div>
       {showImport && !locked && (
         <CostImportPanel
           projectId={projectId}
@@ -326,12 +249,39 @@ export function CostInputSheet({
           onClose={() => setShowImport(false)}
         />
       )}
-      {/* Keep row entry actions directly above the table, even while import is expanded. */}
-      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2">
+      {/* One wrapping toolbar keeps year selection and entry actions next to the editable grid. */}
+      <div
+        className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-border bg-muted/20 px-3 py-1.5"
+        aria-label="Cost table controls"
+      >
+        <div
+          className="flex max-w-full flex-wrap gap-0.5 rounded-md bg-muted/60 p-0.5"
+          aria-label="Cost delivery year"
+        >
+          {[
+            ...YEAR_BUCKETS.map((bucket, index) => ({
+              value: index as PersonnelYear,
+              label: bucket,
+            })),
+            { value: 'all' as PersonnelYear, label: 'All Years' },
+          ].map((year) => (
+            <Button
+              key={year.value}
+              type="button"
+              size="sm"
+              variant={yearIndex === year.value ? 'default' : 'ghost'}
+              className="h-7 gap-1 px-2 text-[11px]"
+              aria-pressed={yearIndex === year.value}
+              onClick={() => setYearIndex(year.value)}
+            >
+              {year.label}
+            </Button>
+          ))}
+        </div>
         <Button
           type="button"
           size="sm"
-          className="h-8 px-2.5 text-xs"
+          className="h-7 gap-1 px-2 text-[11px]"
           disabled={locked || !resources.some((resource) => resource.active)}
           onClick={openNew}
         >
@@ -342,7 +292,7 @@ export function CostInputSheet({
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 px-2.5 text-xs"
+          className="h-7 gap-1 px-2 text-[11px]"
           disabled={locked || !resources.some((resource) => resource.active)}
           onClick={() => setShowBulkEntry(true)}
         >
@@ -353,7 +303,7 @@ export function CostInputSheet({
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 px-2.5 text-xs"
+          className="h-7 gap-1 px-2 text-[11px]"
           disabled={locked}
           onClick={() => {
             if (!locked) setShowImport(!showImport);
@@ -362,9 +312,58 @@ export function CostInputSheet({
           <Upload className="size-3" />
           Import
         </Button>
-        <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-          {rows.length} rows
-        </span>
+        <fieldset
+          className="ml-auto flex min-w-0 flex-wrap items-center gap-1.5"
+          aria-label="Cost input mode"
+        >
+          <span className="sr-only">Mode</span>
+          <div className="flex gap-0.5 rounded-md border border-border bg-card p-0.5">
+            {(
+              [
+                ['sites', 'Sites'],
+                ['mandays', 'Direct MD'],
+              ] as const
+            ).map(([mode, label]) => (
+              <Button
+                key={mode}
+                type="button"
+                size="sm"
+                variant={inputMode === mode ? 'default' : 'ghost'}
+                className="h-7 px-2 text-[11px]"
+                aria-pressed={inputMode === mode}
+                disabled={locked}
+                title={`Set all cost rows to ${label}`}
+                onClick={() => changeMode(mode)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          {inputMode === 'mixed' && (
+            <span className="text-[10px] text-muted-foreground">Mixed</span>
+          )}
+        </fieldset>
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            variant={grouped ? 'default' : 'outline'}
+            className="h-7 gap-1 px-2 text-[11px]"
+            aria-pressed={grouped}
+            onClick={() => setGrouped((current) => !current)}
+          >
+            <ListTree className="size-3" />
+            Groups
+          </Button>
+          <PersonnelColumnSettings
+            preferences={columnSettings.preferences}
+            onSetVisible={columnSettings.setVisible}
+            onMove={columnSettings.move}
+            onReset={columnSettings.reset}
+            ready={columnSettings.ready}
+            storageAvailable={columnSettings.storageAvailable}
+          />
+        </div>
       </div>
       <PersonnelLinesTable
         rows={rows}
@@ -392,7 +391,7 @@ export function CostInputSheet({
         }}
         onDelete={deleteRow}
       />
-      <div className="border-t border-border bg-muted/20 px-4 py-3 text-[11px] leading-5 text-muted-foreground">
+      <div className="border-t border-border bg-muted/20 px-3 py-2 text-[11px] leading-4 text-muted-foreground">
         Sites × MD/Site or Direct MD → RE rate × annual uplift × selected
         allowance. MD/Site applies to all years for that row. Draft changes save
         automatically. Subcontract costs are managed in Subcon.

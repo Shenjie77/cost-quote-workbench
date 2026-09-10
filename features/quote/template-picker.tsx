@@ -46,22 +46,23 @@ export function QuoteTemplatePicker({
   return (
     <section
       aria-labelledby="quote-template-heading"
-      className="wb-panel min-w-0 border-l-4 border-l-primary p-4"
+      className="wb-panel min-w-0 px-3 py-2"
     >
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="quote-template-heading" className="text-sm font-semibold">
-          Quotation Template
-        </h2>
-        <span className="text-xs text-muted-foreground">
-          Client: {client} · {choices.length} available
-        </span>
-      </div>
-      <div className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
-        <div className="min-w-0">
+      {/* Template choice and its actions share one compact toolbar. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="shrink-0">
+          <h2 id="quote-template-heading" className="text-sm font-semibold">
+            Quotation Template
+          </h2>
+          <span className="sr-only">
+            Client: {client} · {choices.length} available
+          </span>
+        </div>
+        <div className="min-w-0 flex-1 basis-64">
           <label
             id="quote-template-label"
             htmlFor="quote-template-select"
-            className="mb-1 block text-xs text-muted-foreground"
+            className="sr-only"
           >
             Select template
           </label>
@@ -74,7 +75,7 @@ export function QuoteTemplatePicker({
             <SelectTrigger
               id="quote-template-select"
               aria-labelledby="quote-template-label"
-              className="w-full min-w-0"
+              className="h-8 w-full min-w-0"
             >
               <SelectValue>{candidate?.name || 'Select template'}</SelectValue>
             </SelectTrigger>
@@ -88,17 +89,20 @@ export function QuoteTemplatePicker({
           </Select>
         </div>
         <Button
+          size="sm"
+          className="h-8"
+          title="Apply title, payment terms and T&C; append eligible default assumptions without overwriting quote edits."
           disabled={!candidate || busy}
           onClick={() => candidate && onApply(candidate.id)}
         >
           <FileCheck2 /> Apply Template
         </Button>
-        <Button variant="outline" onClick={onManage}>
+        <Button variant="outline" size="sm" className="h-8" onClick={onManage}>
           Manage templates
         </Button>
       </div>
       <div
-        className="mt-2 space-y-1 text-xs text-muted-foreground"
+        className="mt-1 space-y-1 text-[11px] text-muted-foreground"
         aria-live="polite"
       >
         <p>
@@ -118,7 +122,7 @@ export function QuoteTemplatePicker({
           </p>
         )}
         {choices.length ? (
-          <p>
+          <p className="sr-only">
             Apply title, payment terms and T&C; append eligible default
             assumptions without overwriting quote edits.
           </p>

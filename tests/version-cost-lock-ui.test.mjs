@@ -200,7 +200,7 @@ test('version controls keep Open and unlocked versions usable while blocking loc
   }
 });
 
-test('cost toolbar shows five information tiles, current status, master apply and both exports', () => {
+test('cost toolbar retains version information, current status, master apply and both exports', () => {
   const selections = [],
     updates = [];
   let applies = 0,
@@ -220,7 +220,9 @@ test('cost toolbar shows five information tiles, current status, master apply an
     return tree;
   };
   const html = renderToStaticMarkup(React.createElement(Probe, draft));
-  assert.match(html, /lg:grid-cols-5/);
+  assert.match(html, /aria-label="Cost version information"/);
+  assert.match(html, /Version Total/);
+  assert.match(html, /aria-label="Input Completeness"/);
   assert.match(html, /Calculation Basis/);
   const versionPanel = html.match(/<section[^>]*>[\s\S]*?<\/section>/)?.[0];
   assert.ok(versionPanel);

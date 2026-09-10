@@ -247,7 +247,7 @@ export function QuoteView({
   const addManualHistory = () => setShowManualHistory(true);
 
   return (
-    <div className="wb-page-stack">
+    <div className="wb-page-stack gap-3">
       <ContextBand
         proposalNumber={proposalNumber}
         onProposalNumberChange={onProposalNumberChange}
@@ -269,7 +269,7 @@ export function QuoteView({
         onManage={() => onOpenMasterData('quote-templates')}
         busy={exportInProgress}
       />
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
         <section className="wb-panel">
           <SectionHeading
             index="01"
@@ -277,9 +277,47 @@ export function QuoteView({
             titleZh="定价参数"
             description="Pricing is saved with the project and recalculated from the active cost version."
             descriptionZh="定价参数随项目保存，并基于当前成本版本实时重算。"
+            action={
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  disabled={isApplyingRates}
+                  onClick={async () =>
+                    announce(
+                      (await onSave())
+                        ? 'Pricing saved / 定价已保存'
+                        : 'Pricing save failed; edits are retained / 保存失败，修改已保留',
+                    )
+                  }
+                >
+                  <Save /> Save Pricing{' '}
+                  <span className="text-[11px] opacity-60">保存定价</span>
+                </Button>
+                <Button
+                  onClick={generateDraft}
+                  disabled={
+                    !template ||
+                    isExporting ||
+                    isApplyingRates ||
+                    exportInProgress ||
+                    versionState !== 'Confirmed' ||
+                    outputErrors.length > 0
+                  }
+                  title={
+                    versionState === 'Confirmed'
+                      ? 'Generate customer quotation workbook'
+                      : 'Confirm the current cost version first / 请先确认当前成本版本'
+                  }
+                >
+                  {isExporting ? <Download /> : <FileCheck2 />}
+                  {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
+                  <span className="text-[11px] opacity-60">生成报价</span>
+                </Button>
+              </div>
+            }
           />
           <div className="divide-y divide-border text-xs">
-            <div className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_180px] px-4 py-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] px-3 py-2">
               <BiText
                 en="Cost with Risk"
                 zh="含风险项目总成本"
@@ -288,6 +326,104 @@ export function QuoteView({
               <span className="financial-numeral text-right font-semibold">
                 {formatSgd(result.cost)}
               </span>
+            </div>
+            <label
+              htmlFor="target-gross-margin"
+              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] px-3 py-2"
+            >
+              <BiText
+                en="Target Sales GP (%)"
+                zh="目标销售毛利率（扣除分成）"
+                className="font-medium"
+              />
+              <Input
+                id="target-gross-margin"
+                type="number"
+                min="0"
+                max="95"
+                step="0.01"
+                value={pricing.targetGrossMargin}
+                onChange={(event) =>
+                  updateNumber('targetGrossMargin', event.target.value)
+                }
+                className="h-8 text-right financial-numeral"
+              />
+            </label>
+            <div className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] bg-muted/40 px-3 py-2">
+              <BiText
+                en="Target List Price"
+                zh="目标报价（折扣前）"
+                className="font-medium"
+              />
+              <span className="financial-numeral text-right font-semibold">
+                {result.valid ? formatSgd(result.listPrice) : '—'}
+              </span>
+            </div>
+            <label
+              htmlFor="pricing-discount"
+              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] px-3 py-2"
+            >
+              <BiText
+                en="Discount (SGD)"
+                zh="折扣金额（SGD）"
+                className="font-medium"
+              />
+              <Input
+                id="pricing-discount"
+                type="number"
+                min="0"
+                step="0.01"
+                value={pricing.discount}
+                onChange={(event) =>
+                  updateNumber('discount', event.target.value)
+                }
+                className="h-8 text-right financial-numeral"
+              />
+            </label>
+            <label
+              htmlFor="pricing-gst"
+              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] px-3 py-2"
+            >
+              <BiText en="GST (%)" zh="税率（%）" className="font-medium" />
+              <Input
+                id="pricing-gst"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={pricing.gstPercent}
+                onChange={(event) =>
+                  updateNumber('gstPercent', event.target.value)
+                }
+                className="h-8 text-right financial-numeral"
+              />
+            </label>
+            <div className="grid grid-cols-2 divide-x divide-border bg-accent/60">
+              <div className="px-3 py-2">
+                <BiText
+                  en="Actual Sales GP"
+                  zh="销售毛利率（扣除分成）"
+                  className="text-xs text-muted-foreground"
+                />
+                <p className="financial-numeral mt-1 text-lg font-bold text-primary">
+                  {result.valid
+                    ? `${result.grossMarginPercent.toFixed(2)}%`
+                    : '—'}
+                </p>
+                <p className="financial-numeral mt-1 text-xs text-muted-foreground">
+                  {result.valid ? formatSgd(result.salesGrossProfit) : '—'}
+                </p>
+              </div>
+              <div className="px-3 py-2 text-right">
+                <BiText
+                  en="Quote Before Tax"
+                  zh="未税报价"
+                  className="items-end text-xs text-muted-foreground"
+                />
+                <p className="financial-numeral mt-1 text-lg font-bold text-primary">
+                  {formatSgd(result.quoteBeforeTax)}
+                </p>
+              </div>
             </div>
             <ProfitShareSummary
               result={result}
@@ -324,140 +460,6 @@ export function QuoteView({
                   : undefined
               }
             />
-            <label
-              htmlFor="target-gross-margin"
-              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_180px] px-4 py-2.5"
-            >
-              <BiText
-                en="Target Sales GP (%)"
-                zh="目标销售毛利率（扣除分成）"
-                className="font-medium"
-              />
-              <Input
-                id="target-gross-margin"
-                type="number"
-                min="0"
-                max="95"
-                step="0.01"
-                value={pricing.targetGrossMargin}
-                onChange={(event) =>
-                  updateNumber('targetGrossMargin', event.target.value)
-                }
-                className="h-10 text-right financial-numeral"
-              />
-            </label>
-            <div className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_180px] bg-muted/40 px-4 py-3">
-              <BiText
-                en="Target List Price"
-                zh="目标报价（折扣前）"
-                className="font-medium"
-              />
-              <span className="financial-numeral text-right font-semibold">
-                {result.valid ? formatSgd(result.listPrice) : '—'}
-              </span>
-            </div>
-            <label
-              htmlFor="pricing-discount"
-              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_180px] px-4 py-2.5"
-            >
-              <BiText
-                en="Discount (SGD)"
-                zh="折扣金额（SGD）"
-                className="font-medium"
-              />
-              <Input
-                id="pricing-discount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={pricing.discount}
-                onChange={(event) =>
-                  updateNumber('discount', event.target.value)
-                }
-                className="h-10 text-right financial-numeral"
-              />
-            </label>
-            <label
-              htmlFor="pricing-gst"
-              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_180px] px-4 py-2.5"
-            >
-              <BiText en="GST (%)" zh="税率（%）" className="font-medium" />
-              <Input
-                id="pricing-gst"
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={pricing.gstPercent}
-                onChange={(event) =>
-                  updateNumber('gstPercent', event.target.value)
-                }
-                className="h-10 text-right financial-numeral"
-              />
-            </label>
-            <div className="grid grid-cols-2 divide-x divide-border bg-accent/60">
-              <div className="px-4 py-3">
-                <BiText
-                  en="Actual Sales GP"
-                  zh="销售毛利率（扣除分成）"
-                  className="text-xs text-muted-foreground"
-                />
-                <p className="financial-numeral mt-1 text-lg font-bold text-primary">
-                  {result.valid
-                    ? `${result.grossMarginPercent.toFixed(2)}%`
-                    : '—'}
-                </p>
-                <p className="financial-numeral mt-1 text-xs text-muted-foreground">
-                  {result.valid ? formatSgd(result.salesGrossProfit) : '—'}
-                </p>
-              </div>
-              <div className="px-4 py-3 text-right">
-                <BiText
-                  en="Quote Before Tax"
-                  zh="未税报价"
-                  className="items-end text-xs text-muted-foreground"
-                />
-                <p className="financial-numeral mt-1 text-lg font-bold text-primary">
-                  {formatSgd(result.quoteBeforeTax)}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="wb-toolbar justify-end border-t border-border">
-            <Button
-              variant="outline"
-              disabled={isApplyingRates}
-              onClick={async () =>
-                announce(
-                  (await onSave())
-                    ? 'Pricing saved / 定价已保存'
-                    : 'Pricing save failed; edits are retained / 保存失败，修改已保留',
-                )
-              }
-            >
-              <Save /> Save Pricing{' '}
-              <span className="text-[11px] opacity-60">保存定价</span>
-            </Button>
-            <Button
-              onClick={generateDraft}
-              disabled={
-                !template ||
-                isExporting ||
-                isApplyingRates ||
-                exportInProgress ||
-                versionState !== 'Confirmed' ||
-                outputErrors.length > 0
-              }
-              title={
-                versionState === 'Confirmed'
-                  ? 'Generate customer quotation workbook'
-                  : 'Confirm the current cost version first / 请先确认当前成本版本'
-              }
-            >
-              {isExporting ? <Download /> : <FileCheck2 />}
-              {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
-              <span className="text-[11px] opacity-60">生成报价</span>
-            </Button>
           </div>
           {outputErrors.length > 0 ? (
             <p role="alert" className="px-3 pb-3 text-xs text-red-700">
@@ -473,9 +475,9 @@ export function QuoteView({
             description="Preview the currently applied quotation template."
             descriptionZh=""
           />
-          <div className="bg-muted/20 p-4 sm:p-6">
-            <div className="wb-panel mx-auto max-w-[520px] p-5 shadow-sm sm:p-7">
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-primary pb-5">
+          <div className="bg-muted/20 p-3">
+            <div className="mx-auto max-w-[520px] border bg-card p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-primary pb-3">
                 <div>
                   <p className="text-base font-bold tracking-wide text-primary">
                     {template?.documentTitle || 'SERVICE QUOTATION'}
@@ -485,7 +487,7 @@ export function QuoteView({
                   QT-{project.id.replace(/^PRJ-/, '')}-{activeVersion}
                 </span>
               </div>
-              <div className="mt-6">
+              <div className="mt-3">
                 <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
                   Prepared for
                 </p>
@@ -494,7 +496,7 @@ export function QuoteView({
                   {project.name}
                 </p>
               </div>
-              <div className="mt-6 border-y border-border py-5">
+              <div className="mt-3 border-y border-border py-3">
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <p className="text-xs font-medium">Total Before Tax</p>
                   <p className="financial-numeral text-xl font-bold tracking-tight text-primary sm:text-2xl">
@@ -516,7 +518,7 @@ export function QuoteView({
                   </p>
                 </div>
               </div>
-              <div className="mt-5 space-y-2 text-xs text-muted-foreground">
+              <div className="mt-3 space-y-2 text-xs text-muted-foreground">
                 <p>• Validity: {template?.validityDays || 30} days</p>
                 <p>• Payment: {template?.paymentTerms || 'Not set'}</p>
                 <p>• Cost baseline: {activeVersion}</p>

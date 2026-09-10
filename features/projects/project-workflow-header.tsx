@@ -55,7 +55,7 @@ function ReferenceLink({ label, value }: { label: string; value?: string }) {
       rel="noopener noreferrer"
       aria-label={`Open ${label} in a new tab`}
       title={href}
-      className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-primary underline-offset-4 hover:bg-primary/5 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+      className="inline-flex min-h-7 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary underline-offset-4 hover:bg-primary/5 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
     >
       {label}
       <ArrowUpRight className="size-3" aria-hidden="true" />
@@ -130,7 +130,7 @@ export function ProjectWorkflowInfoFields({
           Proposal Number
           <Input
             aria-label="Proposal Number"
-            className="h-10"
+            className="h-8"
             value={value.proposalNumber}
             maxLength={300}
             disabled={busy}
@@ -151,7 +151,7 @@ export function ProjectWorkflowInfoFields({
               aria-label={label}
               type="text"
               inputMode="url"
-              className="h-10"
+              className="h-8"
               value={value[field] || ''}
               maxLength={10000}
               placeholder="https://…"
@@ -179,7 +179,7 @@ export function ProjectWorkflowInfoFields({
           Technical Document Version
           <Input
             aria-label="Technical Document Version"
-            className="h-10"
+            className="h-8"
             value={value.technicalBasis}
             maxLength={10000}
             disabled={busy}
@@ -244,7 +244,7 @@ export function ProjectWorkflowHoldControl({
   return (
     <label
       htmlFor="project-workflow-on-hold"
-      className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs ${onHold ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-border text-muted-foreground'}`}
+      className={`inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs ${onHold ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-border text-muted-foreground'}`}
     >
       <Switch
         id="project-workflow-on-hold"
@@ -353,7 +353,7 @@ export function ProjectWorkflowHeader({
   return (
     <section
       aria-label="Project Workflow Info"
-      className="wb-panel min-w-0 px-5 py-4"
+      className="min-w-0 border-b border-border px-1 py-2"
     >
       <div className="flex flex-wrap items-center gap-3">
         <Button
@@ -366,7 +366,7 @@ export function ProjectWorkflowHeader({
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
         </Button>
-        <h2 className="min-w-0 flex-1 basis-48 break-words text-xl font-semibold leading-7 tracking-tight text-primary">
+        <h2 className="min-w-0 flex-1 basis-48 break-words text-base font-semibold leading-6 tracking-tight text-primary">
           {project.name || project.nameZh || project.id}
         </h2>
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -396,7 +396,7 @@ export function ProjectWorkflowHeader({
           </Button>
         </div>
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 text-xs">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
         <dl className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
           {[
             ['Project ID', project.id],
@@ -429,7 +429,7 @@ export function ProjectWorkflowHeader({
         </Button>
       </div>
       {!editing && (
-        <div className="mt-4 grid min-w-0 gap-x-6 gap-y-2 border-t border-border pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)]">
+        <div className="mt-2 grid min-w-0 gap-x-4 gap-y-1 lg:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)]">
           <ReferenceText label="Scope Brief" value={value.scopeBrief} />
           <ReferenceText
             label="Technical Document Version"

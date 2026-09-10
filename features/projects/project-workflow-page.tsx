@@ -176,6 +176,8 @@ export type ProjectWorkflowPageProps = {
   busy?: boolean;
   error?: string;
   focusNodeCode?: string;
+  /** Changes only when the shell explicitly opens this task, including the same node again. */
+  navigationRequest?: number;
   onFocusNode?: (code: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
 };
@@ -193,10 +195,12 @@ export function ProjectWorkflowPage({
   busy = false,
   error = '',
   focusNodeCode,
+  navigationRequest = 0,
   onFocusNode,
   onDirtyChange,
 }: ProjectWorkflowPageProps) {
   const pageRef = useRef<HTMLElement>(null);
+  const taskEditorRef = useRef<HTMLElement>(null);
   const [selectedCode, setSelectedCode] = useState(() =>
     selectWorkflowTask(workspace, focusNodeCode),
   );
@@ -248,6 +252,28 @@ export function ProjectWorkflowPage({
     if (visibleCode && visibleCode !== focusNodeCode)
       onFocusNode?.(visibleCode);
   }, [visibleCode, focusNodeCode, onFocusNode]);
+  // Explicit task links reveal the selected editor once; field edits do not move focus.
+  useEffect(() => {
+    if (!focusNodeCode) return;
+    const frame = requestAnimationFrame(() => {
+      const editor = taskEditorRef.current;
+      if (!editor || editor.closest('[hidden], [inert]')) return;
+      editor.focus({ preventScroll: true });
+      const header = document.querySelector('[data-workbench-header]');
+      const headerHeight = header?.getBoundingClientRect().height || 0;
+      window.scrollTo({
+        top: Math.max(
+          0,
+          window.scrollY +
+            editor.getBoundingClientRect().top -
+            headerHeight -
+            12,
+        ),
+        behavior: 'instant',
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [project.id, focusNodeCode, navigationRequest]);
   useEffect(() => {
     const protectFileDrop = (event: DragEvent) => {
       if (!pageRef.current || pageRef.current.closest('[hidden], [inert]'))
@@ -356,7 +382,7 @@ export function ProjectWorkflowPage({
   return (
     <section
       ref={pageRef}
-      className="wb-page-stack"
+      className="wb-page-stack gap-3"
       aria-label="Project Workflow Page"
     >
       <ProjectWorkflowHeader
@@ -377,11 +403,11 @@ export function ProjectWorkflowPage({
         holdDisabled={complete && !onHold}
         onSetHold={onSetHold ? setHold : undefined}
       />
-      <details className="wb-panel px-5 py-4">
+      <details className="wb-panel px-3 py-2">
         <summary className="cursor-pointer rounded-md text-sm font-semibold text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
           Project Files &amp; Archive
         </summary>
-        <div className="mt-5 grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]">
+        <div className="mt-3 grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]">
           <ProjectFilesPanel
             projectId={project.id}
             disabled={busy || working}
@@ -392,7 +418,7 @@ export function ProjectWorkflowPage({
           <ArchiveSettingsPanel />
         </div>
       </details>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-white/70 px-4 py-3 text-xs leading-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-1 py-1.5 text-xs leading-5">
         <p
           className={
             onHold
@@ -434,7 +460,7 @@ export function ProjectWorkflowPage({
           {localError || error}
         </p>
       )}
-      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="grid min-w-0 items-start gap-3 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]">
         <WorkflowTaskSelect
           steps={workspace.processSteps}
           selectedCode={visibleCode}
@@ -444,9 +470,9 @@ export function ProjectWorkflowPage({
         />
         <nav
           aria-label="Workflow Steps"
-          className="hidden wb-panel space-y-2 p-3 lg:sticky lg:top-4 lg:block lg:max-h-[75vh] lg:overflow-y-auto"
+          className="hidden space-y-1 p-1 lg:sticky lg:top-32 lg:block lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto"
         >
-          <div className="mb-3 flex items-center justify-between border-b border-border px-2 pb-3 pt-1 text-xs font-semibold">
+          <div className="mb-1 flex items-center justify-between border-b border-border px-2 pb-2 pt-1 text-xs font-semibold">
             <span>Steps</span>
             <span className="text-muted-foreground">
               {workspace.processSteps.filter(isDone).length} /{' '}
@@ -475,7 +501,7 @@ export function ProjectWorkflowPage({
                   aria-current={selectedCode === step.code ? 'step' : undefined}
                   disabled={disabled || documentsUploading}
                   onClick={() => choose(step.code)}
-                  className={`flex w-full items-start gap-3 rounded-lg px-3 py-3.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60 ${selectedCode === step.code ? 'bg-[#183c51] text-white shadow-sm' : 'hover:bg-muted/60'}`}
+                  className={`flex w-full items-start gap-2 rounded-md px-2 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60 ${selectedCode === step.code ? 'bg-[#183c51] text-white' : 'hover:bg-muted/60'}`}
                 >
                   <span
                     className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] ${selectedCode === step.code ? 'bg-white/15' : 'bg-muted'}`}
@@ -505,7 +531,49 @@ export function ProjectWorkflowPage({
             </div>
           ))}
         </nav>
-        <div className="min-w-0 space-y-6">
+        <div className="min-w-0 space-y-3">
+          <section
+            ref={taskEditorRef}
+            tabIndex={-1}
+            aria-label={`Current workflow task: ${selected?.name || selected?.nameZh || 'Not selected'}`}
+            className="scroll-mt-32 outline-none"
+          >
+            {selected ? (
+              <WorkflowTaskEditor
+                key={selected.code}
+                step={selected}
+                value={drafts[selected.code] || workflowTaskDraft(selected)}
+                onChange={(value) =>
+                  setDrafts((previous) => ({
+                    ...previous,
+                    [selected.code]: value,
+                  }))
+                }
+                onAction={run}
+                onReset={() =>
+                  setDrafts((previous) => {
+                    const next = { ...previous };
+                    delete next[selected.code];
+                    return next;
+                  })
+                }
+                blockers={workflowActionBlockers(workspace, selected.code)}
+                canAdvance={workflowTaskCanAdvance(workspace, selected.code)}
+                parallel={phases.some(
+                  (phase) =>
+                    phase.parallel &&
+                    phase.steps.some((step) => step.code === selected.code),
+                )}
+                complete={complete}
+                onHold={onHold}
+                busy={disabled || onHold}
+              />
+            ) : (
+              <p className="wb-panel wb-empty-state">
+                No workflow steps are configured.
+              </p>
+            )}
+          </section>
           {selected && (
             <ProjectFilesPanel
               projectId={project.id}
@@ -517,41 +585,6 @@ export function ProjectWorkflowPage({
               onArchived={() => setFilesRevision((value) => value + 1)}
               onUploadingChange={setNodeUploadBusy}
             />
-          )}
-          {selected ? (
-            <WorkflowTaskEditor
-              key={selected.code}
-              step={selected}
-              value={drafts[selected.code] || workflowTaskDraft(selected)}
-              onChange={(value) =>
-                setDrafts((previous) => ({
-                  ...previous,
-                  [selected.code]: value,
-                }))
-              }
-              onAction={run}
-              onReset={() =>
-                setDrafts((previous) => {
-                  const next = { ...previous };
-                  delete next[selected.code];
-                  return next;
-                })
-              }
-              blockers={workflowActionBlockers(workspace, selected.code)}
-              canAdvance={workflowTaskCanAdvance(workspace, selected.code)}
-              parallel={phases.some(
-                (phase) =>
-                  phase.parallel &&
-                  phase.steps.some((step) => step.code === selected.code),
-              )}
-              complete={complete}
-              onHold={onHold}
-              busy={disabled || onHold}
-            />
-          ) : (
-            <p className="wb-panel wb-empty-state">
-              No workflow steps are configured.
-            </p>
           )}
           <ProjectWorkflowHistory workspace={workspace} />
         </div>
@@ -585,14 +618,14 @@ export function WorkflowTaskSelect({
     </option>
   );
   return (
-    <div className="wb-panel space-y-3 p-4 lg:hidden">
+    <div className="space-y-2 lg:hidden">
       <label className="block space-y-1.5 text-xs font-medium">
         Workflow Step
         <select
           aria-label="Select Workflow Step"
           value={selectedCode}
           disabled={busy || !steps.length}
-          className="h-11 w-full rounded-lg border border-input bg-white px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+          className="h-9 w-full rounded-md border border-input bg-white px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
           onChange={(event) => onChange(event.target.value)}
         >
           {phases.map((phase) =>
@@ -665,7 +698,7 @@ export function WorkflowTaskFields({
     }).catch(() => {});
   };
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block space-y-1.5 text-xs font-medium">
           Owner
@@ -693,7 +726,7 @@ export function WorkflowTaskFields({
         </label>
       </div>
       {(step.requiredFields || []).length > 0 && (
-        <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-4">
+        <div className="space-y-2 border-l-2 border-border pl-3">
           <p className="text-xs font-medium">Required to Complete</p>
           {(step.requiredFields || []).map((field) => (
             <label
@@ -721,17 +754,17 @@ export function WorkflowTaskFields({
         Progress Note
         <textarea
           aria-label="Task Progress Note"
-          rows={4}
+          rows={3}
           maxLength={10000}
           value={value.note}
           disabled={busy}
           placeholder="Record the latest progress, decision, or company-platform reference."
-          className="w-full resize-y rounded-lg border border-input bg-white px-3 py-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
+          className="w-full resize-y rounded-md border border-input bg-white px-2.5 py-2 text-sm leading-5 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
           onChange={(event) => onChange({ ...value, note: event.target.value })}
         />
       </label>
       {active && step.required && (
-        <label className="flex items-start gap-2 rounded-lg border border-[#c5dad8] bg-[#f2f8f7] p-3 text-xs">
+        <label className="flex items-start gap-2 rounded-md bg-[#f2f8f7] px-3 py-2 text-xs">
           <input
             type="checkbox"
             aria-label="Confirm Task Completion"
@@ -748,7 +781,7 @@ export function WorkflowTaskFields({
           </span>
         </label>
       )}
-      <div className="flex flex-wrap items-center gap-2 border-t pt-4">
+      <div className="flex flex-wrap items-center gap-2 border-t pt-2">
         {active && (
           <Button
             type="button"
@@ -849,10 +882,10 @@ function WorkflowTaskEditor({
   const urgency = onHold ? 'none' : workflowUrgency(step);
   return (
     <article className="wb-panel overflow-hidden">
-      <div className="space-y-4 border-b border-border bg-muted/20 p-5 sm:p-6">
+      <div className="space-y-2 border-b border-border bg-muted/15 px-3 py-2.5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold tracking-tight text-primary">
+            <h2 className="text-base font-semibold tracking-tight text-primary">
               {step.name || step.nameZh}
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -872,7 +905,7 @@ function WorkflowTaskEditor({
             {stateLabels[step.state]}
           </span>
         </div>
-        <dl className="flex flex-wrap gap-x-8 gap-y-2 text-xs">
+        <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs [&>div]:flex [&>div]:items-baseline [&>div]:gap-1.5 [&_dd]:mt-0">
           <div>
             <dt className="text-muted-foreground">Started</dt>
             <dd className="mt-1">{timeLabel(step.startedAt)}</dd>
@@ -914,7 +947,7 @@ function WorkflowTaskEditor({
           </div>
         )}
       </div>
-      <div className="space-y-5 p-5 sm:p-6">
+      <div className="space-y-3 p-3">
         {done || complete ? (
           <div className="space-y-3 text-sm">
             <p className="text-xs text-muted-foreground">

@@ -312,8 +312,8 @@ export function QuoteTemplatesView({
           )}
         </div>
         {template && (
-          <div className="space-y-5 p-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-3 p-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {(
                 [
                   ['name', 'Name'],
@@ -324,7 +324,7 @@ export function QuoteTemplatesView({
               ).map(([field, label]) => (
                 <label
                   key={field}
-                  className="space-y-2 text-xs text-muted-foreground"
+                  className="space-y-1 text-xs text-muted-foreground"
                 >
                   {label}
                   <Input
@@ -338,7 +338,7 @@ export function QuoteTemplatesView({
               ))}
               <label
                 htmlFor="template-validity"
-                className="space-y-2 text-xs text-muted-foreground"
+                className="space-y-1 text-xs text-muted-foreground"
               >
                 Validity days
                 <Input
@@ -385,7 +385,7 @@ export function QuoteTemplatesView({
                 }
               />
             </label>
-            <fieldset className="rounded-lg border bg-muted/20 p-4">
+            <fieldset className="rounded-md border bg-muted/20 p-3">
               <legend className="px-1 text-xs">Default assumptions</legend>
               <div className="grid max-h-48 gap-2 overflow-y-auto py-1 sm:grid-cols-2">
                 {library.map((entry) => {
@@ -430,12 +430,12 @@ export function QuoteTemplatesView({
                 })}
               </div>
               {!library.length && (
-                <p className="space-y-2 text-xs text-muted-foreground">
+                <p className="space-y-1 text-xs text-muted-foreground">
                   Create library entries in Assumptions first.
                 </p>
               )}
             </fieldset>
-            <p className="space-y-2 text-xs text-muted-foreground">
+            <p className="space-y-1 text-xs text-muted-foreground">
               Exact client match (case-insensitive); * is common. Changes affect
               future projects. Existing project templates remain unchanged.
             </p>

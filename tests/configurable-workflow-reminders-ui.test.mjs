@@ -49,8 +49,14 @@ const hooks = registerHooks({
   },
 });
 
-const { OverviewView, WorkflowDistributionNodes } =
-  await import('../features/overview/overview-view.tsx');
+const {
+  OverviewView,
+  WorkflowDistributionNodes,
+  openPendingWorkflowTasks,
+  WorkflowPendingTaskList,
+} = await import('../features/overview/overview-view.tsx');
+const { buildWorkflowDistribution } =
+  await import('../features/overview/workflow-distribution.ts');
 const { AgentView } = await import('../features/agent/agent-view.tsx');
 const { projects } = await import('../features/projects/demo-data.ts');
 hooks.deregister();
@@ -250,4 +256,110 @@ test('Today leads with pending tasks without counting completed or held projects
   for (const name of ['Active project', 'Held project', 'Finished project'])
     assert.ok(html.includes(name));
   assert.match(html, /Showing 3 of 3 local projects/);
+});
+
+test('a distribution tile with one pending project opens that exact node without altering workflow data', () => {
+  const active = { ...p(), id: 'active', workflowSteps: [step('WORK')] };
+  const held = {
+    ...active,
+    id: 'held',
+    workflowHold: { startedAt: '2026-09-01T00:00:00Z' },
+  };
+  const portfolio = [held, active];
+  const original = structuredClone(portfolio);
+  const entry = buildWorkflowDistribution(portfolio, [step('WORK')]).nodes[0];
+  const opened = [];
+  const chosen = [];
+  const tree = WorkflowDistributionNodes({
+    entries: [entry],
+    onSelect: (code) => {
+      assert.equal(code, 'WORK');
+      openPendingWorkflowTasks(
+        entry,
+        portfolio,
+        (project, nodeCode) => opened.push([project, nodeCode]),
+        (nodeCode) => chosen.push(nodeCode),
+      );
+    },
+  });
+  tree.props.children[0].props.onClick();
+  assert.deepEqual(opened, [[active, 'WORK']]);
+  assert.deepEqual(chosen, []);
+  assert.deepEqual(portfolio, original);
+});
+
+test('a shared pending node presents only its pending projects and opens the chosen project/node', () => {
+  const first = {
+    ...p(),
+    id: 'first',
+    name: 'First project',
+    workflowSteps: [step('WORK', { owner: 'Alice', state: 'awaiting_review' })],
+  };
+  const second = {
+    ...first,
+    id: 'second',
+    name: 'Second project',
+    workflowSteps: [step('WORK', { owner: 'Bob' })],
+  };
+  const completed = {
+    ...first,
+    id: 'finished',
+    name: 'Finished project',
+    workflowSteps: [
+      step('WORK', { state: 'completed', finishesWorkflow: true }),
+    ],
+  };
+  const portfolio = [first, second, completed];
+  const original = structuredClone(portfolio);
+  const entry = buildWorkflowDistribution(portfolio, [step('WORK')]).nodes[0];
+  const opened = [];
+  const chosen = [];
+  const onOpenTask = (project, nodeCode) => opened.push([project, nodeCode]);
+  openPendingWorkflowTasks(entry, portfolio, onOpenTask, (nodeCode) =>
+    chosen.push(nodeCode),
+  );
+  assert.deepEqual(chosen, ['WORK']);
+  assert.deepEqual(opened, []);
+  const list = WorkflowPendingTaskList({
+    entry,
+    projects: portfolio,
+    onOpenTask,
+  });
+  const html = renderToStaticMarkup(list);
+  for (const text of [
+    'First project',
+    'Second project',
+    'Alice',
+    'Bob',
+    'Awaiting review',
+  ])
+    assert.ok(html.includes(text), text);
+  assert.doesNotMatch(html, /Finished project/);
+  const secondRow = list.props.children[1];
+  secondRow.props.children[2].props.onClick();
+  assert.deepEqual(opened, [[second, 'WORK']]);
+  assert.deepEqual(portfolio, original);
+});
+
+test('empty pending nodes remain disabled and never navigate to historical or missing projects', () => {
+  const completed = {
+    ...p(),
+    workflowSteps: [
+      step('DONE', { state: 'completed', finishesWorkflow: true }),
+    ],
+  };
+  const entry = buildWorkflowDistribution([completed], [step('DONE')]).nodes[0];
+  const unexpected = () => assert.fail('An empty node must not navigate');
+  const tree = WorkflowDistributionNodes({
+    entries: [entry],
+    onSelect: unexpected,
+  });
+  assert.equal(tree.props.children[0].props.disabled, true);
+  openPendingWorkflowTasks(entry, [completed], unexpected, unexpected);
+  openPendingWorkflowTasks(
+    { ...entry, pendingProjectIds: ['removed-project'], pendingCount: 1 },
+    [completed],
+    unexpected,
+    unexpected,
+  );
 });

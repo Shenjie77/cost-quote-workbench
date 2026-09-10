@@ -179,7 +179,7 @@ export function ArchiveSettingsPanel({
   return (
     <section
       aria-label="Archive Settings"
-      className="space-y-4 rounded-xl border border-border bg-muted/25 p-5"
+      className="space-y-3 rounded-lg border border-border bg-muted/15 p-3"
     >
       <div>
         <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
@@ -205,7 +205,7 @@ export function ArchiveSettingsPanel({
             setRootPath(event.target.value);
             setNotice('');
           }}
-          className="h-10 bg-white font-mono text-xs"
+          className="h-8 bg-white font-mono text-xs"
         />
       </label>
       <div className="flex flex-wrap items-center gap-2">
@@ -287,21 +287,21 @@ export function ProjectFileList({
 }) {
   if (!files.length)
     return (
-      <p className="wb-empty-state rounded-xl border border-dashed bg-muted/15">
+      <p className="px-3 py-3 text-xs text-muted-foreground">
         No documents archived yet.
       </p>
     );
   return (
     <ul
-      className="max-h-80 divide-y divide-border overflow-y-auto rounded-xl border border-border bg-white"
+      className="max-h-80 divide-y divide-border overflow-y-auto border-t border-border bg-white"
       aria-label="Archived documents"
     >
       {files.map((file) => (
         <li
           key={file.id}
-          className="flex min-w-0 flex-col items-stretch gap-3 px-4 py-4 transition-colors hover:bg-muted/20 2xl:flex-row 2xl:items-center"
+          className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-2 py-2 transition-colors hover:bg-muted/20"
         >
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 basis-52">
             <p
               className="break-words text-sm font-medium leading-5"
               title={file.relativePath}
@@ -326,11 +326,11 @@ export function ProjectFileList({
               )}
             </p>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-1 rounded-lg bg-muted/30 p-1">
+          <div className="flex shrink-0 flex-wrap items-center gap-1">
             <a
               href={projectFileDownloadUrl(projectId, file.id)}
               download={file.originalName}
-              className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-ring"
+              className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-ring"
               aria-label={`Download ${file.originalName}`}
             >
               <Download className="size-3.5" /> Download
@@ -424,7 +424,7 @@ export function ProjectFileDropzone({
     // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- The native picker button provides the keyboard equivalent of this region's file drop.
     <section
       aria-label={node ? 'Workflow Step Documents' : 'Project File Archive'}
-      className={`min-w-0 space-y-4 rounded-xl border p-5 shadow-sm transition-colors ${dragging && !unavailable ? 'border-[#177c80] bg-[#eef7f6] ring-2 ring-[#177c80]/15' : 'border-border bg-card'}`}
+      className={`min-w-0 space-y-2 rounded-lg border p-3 transition-colors ${dragging && !unavailable ? 'border-[#177c80] bg-[#eef7f6] ring-2 ring-[#177c80]/15' : 'border-border bg-card'}`}
       onDragEnter={dragOver}
       onDragOver={dragOver}
       onDragLeave={(event) => {
@@ -455,7 +455,7 @@ export function ProjectFileDropzone({
               </span>
             )}
           </h3>
-          <p className="mt-2 break-all font-mono text-[11px] leading-5 text-muted-foreground">
+          <p className="mt-1 break-all font-mono text-[11px] leading-5 text-muted-foreground">
             {target}
           </p>
         </div>
@@ -476,9 +476,9 @@ export function ProjectFileDropzone({
         aria-label={`Choose files for ${target}`}
         disabled={unavailable}
         onClick={onBrowse}
-        className={`flex w-full items-center justify-center gap-3 rounded-xl border border-dashed px-4 py-6 text-left transition-colors disabled:cursor-wait disabled:opacity-60 ${dragging && !unavailable ? 'border-[#177c80] bg-white/70' : 'border-[#c7d9df] bg-[#f6fafb] hover:border-[#177c80] hover:bg-[#eef7f6]'} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#177c80]`}
+        className={`flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-left transition-colors disabled:cursor-wait disabled:opacity-60 ${dragging && !unavailable ? 'border-[#177c80] bg-white/70' : 'border-[#c7d9df] bg-[#f6fafb] hover:border-[#177c80] hover:bg-[#eef7f6]'} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#177c80]`}
       >
-        <Upload className="pointer-events-none size-10 shrink-0 rounded-xl bg-[#e5f2f2] p-2.5 text-[#177c80]" />
+        <Upload className="pointer-events-none size-7 shrink-0 rounded-md bg-[#e5f2f2] p-1.5 text-[#177c80]" />
         <span className="pointer-events-none">
           <span className="block text-xs font-medium text-[#183c51]">
             {uploading
@@ -712,7 +712,7 @@ function ProjectFilesController({
       {!isNode && archive && (
         <div className="flex flex-wrap items-center gap-2">
           <p
-            className="min-w-0 flex-1 basis-72 break-all rounded-lg border border-border bg-muted/30 px-3 py-2.5 font-mono text-[11px] leading-5"
+            className="min-w-0 flex-1 basis-72 break-all rounded-md bg-muted/20 px-2 py-1.5 font-mono text-[11px] leading-5"
             title="Project archive folder"
           >
             {archive.projectPath}

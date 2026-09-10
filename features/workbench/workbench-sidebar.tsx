@@ -19,13 +19,13 @@ export function WorkbenchSidebar({
   onDownloadBackup,
 }: WorkbenchSidebarProps) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[244px] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
-      <div className="flex h-[84px] items-center gap-3 border-b border-sidebar-border px-5">
-        <span className="financial-numeral flex size-9 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-xs font-bold">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[216px] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
+      <div className="flex h-14 items-center gap-3 border-b border-sidebar-border px-3">
+        <span className="financial-numeral flex size-7 items-center justify-center rounded-md border border-white/20 bg-white/10 text-xs font-bold">
           CQ
         </span>
         <div>
-          <p className="text-[13px] font-semibold tracking-tight">
+          <p className="text-xs font-semibold tracking-tight">
             Cost & Quote Workbench
           </p>
           <p className="mt-1 text-[10px] text-[#adbfcb]">报价管控台</p>
@@ -33,9 +33,9 @@ export function WorkbenchSidebar({
       </div>
       <nav
         aria-label="Main navigation"
-        className="workbench-scrollbar flex-1 overflow-y-auto px-3 py-6"
+        className="workbench-scrollbar flex-1 overflow-y-auto px-2 py-3"
       >
-        <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#a2b5c2]">
+        <p className="px-2 text-[10px] font-medium uppercase tracking-[0.08em] text-[#a2b5c2]">
           Workspace{' '}
           <span className="text-[8px] normal-case tracking-normal">
             工作空间
@@ -56,20 +56,20 @@ export function WorkbenchSidebar({
                     .filter(Boolean)
                     .join(' / ')}
                   className={
-                    'group flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-3 text-left transition-colors ' +
+                    'group flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left transition-colors ' +
                     (active
-                      ? 'border-white/15 bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
+                      ? 'border-white/15 bg-sidebar-primary text-sidebar-primary-foreground'
                       : 'text-[#d2dce3] hover:bg-sidebar-accent hover:text-white')
                   }
                 >
                   <Icon className="size-4 shrink-0" />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[13px] font-semibold">
+                    <span className="block text-xs font-semibold">
                       {item.label}
                     </span>
                     <span
                       className={
-                        'mt-1 block text-[10px] leading-4 ' +
+                        'block text-[10px] leading-3 ' +
                         (active ? 'text-[#4d6877]' : 'text-[#a1b5c3]')
                       }
                     >
@@ -91,7 +91,7 @@ export function WorkbenchSidebar({
               );
             })}
         </div>
-        <p className="mt-7 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#a2b5c2]">
+        <p className="mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.08em] text-[#a2b5c2]">
           Data Management{' '}
           <span className="text-[8px] normal-case tracking-normal">
             数据管理
@@ -102,17 +102,15 @@ export function WorkbenchSidebar({
             onClick={() => onNavigate('master-data')}
             aria-current={activeView === 'master-data' ? 'page' : undefined}
             className={
-              'group flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-3 text-left transition-colors ' +
+              'group flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left transition-colors ' +
               (activeView === 'master-data'
-                ? 'border-white/15 bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
+                ? 'border-white/15 bg-sidebar-primary text-sidebar-primary-foreground'
                 : 'text-[#d2dce3] hover:bg-sidebar-accent hover:text-white')
             }
           >
             <Database className="size-4" />
             <span className="flex-1">
-              <span className="block text-[13px] font-semibold">
-                Master Data
-              </span>
+              <span className="block text-xs font-semibold">Master Data</span>
               <span
                 className={
                   'text-[10px] leading-4 ' +

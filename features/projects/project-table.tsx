@@ -88,9 +88,9 @@ export function ProjectTable({
           return (
             <TableRow
               key={project.id}
-              className="group h-20 bg-card hover:bg-[#f6f8fa]"
+              className="group bg-card hover:bg-[#f6f8fa]"
             >
-              <TableCell className="sm:sticky sm:left-0 z-10 bg-card px-5 py-4 group-hover:bg-[#f6f8fa]">
+              <TableCell className="sm:sticky sm:left-0 z-10 bg-card px-3 py-2.5 group-hover:bg-[#f6f8fa]">
                 <button
                   className="block w-full max-w-[245px] rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
                   onClick={() => onProject(project)}
@@ -107,12 +107,12 @@ export function ProjectTable({
                       On Hold / 已挂起
                     </span>
                   )}
-                  <span className="financial-numeral mt-1.5 block truncate text-[11px] text-muted-foreground">
+                  <span className="financial-numeral mt-1 block truncate text-[11px] text-muted-foreground">
                     {project.id} · {project.client}
                   </span>
                 </button>
               </TableCell>
-              <TableCell className="px-4 py-4 whitespace-normal">
+              <TableCell className="px-3 py-2.5 whitespace-normal">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold leading-5 text-[#183c51]">
@@ -149,13 +149,13 @@ export function ProjectTable({
                   )}
                 </div>
               </TableCell>
-              <TableCell className="financial-numeral py-4 text-right text-xs">
+              <TableCell className="financial-numeral py-2.5 text-right text-xs">
                 {formatSgd(Number(project.serviceCost || 0))}
               </TableCell>
-              <TableCell className="financial-numeral py-4 text-right text-xs">
+              <TableCell className="financial-numeral py-2.5 text-right text-xs">
                 {formatSgd(Number(project.subcontractCost || 0))}
               </TableCell>
-              <TableCell className="py-4 text-right">
+              <TableCell className="py-2.5 text-right">
                 <button
                   className="financial-numeral rounded-sm text-xs font-semibold text-[#177c80] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                   onClick={() => onCost(project)}
@@ -167,12 +167,12 @@ export function ProjectTable({
                   {project.version}
                 </span>
               </TableCell>
-              <TableCell className="financial-numeral py-4 text-right text-xs">
+              <TableCell className="financial-numeral py-2.5 text-right text-xs">
                 {Number(project.totalMandays || 0).toLocaleString('en-SG', {
                   maximumFractionDigits: 4,
                 })}
               </TableCell>
-              <TableCell className="py-4 text-right">
+              <TableCell className="py-2.5 text-right">
                 <button
                   className="financial-numeral rounded-sm text-xs font-semibold text-[#177c80] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                   onClick={() => onQuote(project)}
@@ -181,11 +181,11 @@ export function ProjectTable({
                   {formatSgd(Number(project.totalQuote || 0))}
                 </button>
               </TableCell>
-              <TableCell className="financial-numeral py-4 pr-4 text-right text-xs font-semibold">
+              <TableCell className="financial-numeral py-2.5 pr-4 text-right text-xs font-semibold">
                 {Number(project.grossMarginPercent || 0).toFixed(2)}%
               </TableCell>
               {hasActions && (
-                <TableCell className="py-4 pr-4">
+                <TableCell className="py-2.5 pr-4">
                   <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                     {onEditProject && (
                       <Button

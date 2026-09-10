@@ -78,7 +78,7 @@
   --chart-3: #a86432;
   --chart-4: #6f817b;
   --chart-5: #9b9386;
-  --radius: 0.75rem;
+  --radius: 0.5rem;
   --sidebar: #142d3e;
   --sidebar-foreground: #eaf0f2;
   --sidebar-primary: #e6f3f2;
@@ -168,15 +168,15 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--card);
-    box-shadow: 0 2px 4px rgb(27 51 72 / 3%);
+    box-shadow: none;
   }
 
   .wb-toolbar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
-    padding: 1rem;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
     background: color-mix(in srgb, var(--muted) 45%, var(--card));
   }
 
@@ -193,13 +193,13 @@
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 0.75rem;
   }
 
   .wb-empty-state {
     border: 1px dashed var(--input);
     border-radius: var(--radius);
-    padding: 2rem 1.25rem;
+    padding: 1rem;
     background: var(--muted);
     color: var(--muted-foreground);
     text-align: center;

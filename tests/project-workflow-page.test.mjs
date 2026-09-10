@@ -178,6 +178,28 @@ test('deep link picks its exact task; default and post-completion selection pref
   assert.doesNotMatch(html, /Complete Step/);
 });
 
+test('explicit task navigation exposes the requested editor before its documents without advancing progress', () => {
+  const w = workspace();
+  const before = structuredClone(w);
+  const actions = [];
+  const html = renderPage(w, {
+    focusNodeCode: 'DELIVERY',
+    navigationRequest: 1,
+    onAction: async (action) => actions.push(action),
+  });
+  assert.match(
+    html,
+    /tabindex="-1" aria-label="Current workflow task: DELIVERY"/,
+  );
+  const editorStart = html.indexOf('Current workflow task: DELIVERY');
+  const documentsStart = html.indexOf('Workflow Step Documents');
+  assert.ok(editorStart >= 0 && editorStart < documentsStart);
+  assert.ok(html.indexOf('Complete Step', editorStart) < documentsStart);
+  assert.match(html, /<h2[^>]*>DELIVERY<\/h2>/);
+  assert.deepEqual(actions, []);
+  assert.deepEqual(w, before);
+});
+
 test('required completion emits only the selected action after populated evidence and explicit confirmation', async () => {
   const task = workspace().processSteps[1];
   let value = workflowTaskDraft(task);

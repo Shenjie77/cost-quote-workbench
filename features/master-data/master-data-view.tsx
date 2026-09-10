@@ -637,66 +637,18 @@ export function MasterDataView(props: Props) {
   };
 
   return (
-    <div className="wb-page-stack min-w-0">
-      <section className="wb-panel">
+    <div className="wb-page-stack min-w-0 gap-2">
+      <section className="wb-panel min-w-0 overflow-hidden">
         <SectionHeading
           index="01"
           title="Master Data"
           titleZh={workflow ? '' : '基础数据管理'}
-          description={
-            workflow
-              ? 'Configure the global workflow and preview changes before publishing to ongoing projects.'
-              : 'Global reference data for future projects. Existing project and cost-version snapshots stay unchanged.'
-          }
-          descriptionZh={
-            workflow
-              ? undefined
-              : '全局主数据供未来项目使用；维护不读取项目，已有项目及成本版本保留采用时的数据快照。'
-          }
           action={
-            <Button
-              size="sm"
-              disabled={editingDisabled || profitShareErrors.length > 0}
-              onClick={async () => {
-                if (profitShareErrors.length) return;
-                if (await onSave())
-                  announce(
-                    workflow
-                      ? 'Workflow template saved.'
-                      : 'Global master data saved / 全局主数据已保存。',
-                  );
-              }}
-            >
-              <Save /> {currentSaveLabel}
-            </Button>
-          }
-        />
-        <p className="border-t bg-muted/30 px-5 py-3 text-xs leading-5 text-muted-foreground">
-          {workflow
-            ? 'Publishing updates pending steps in ongoing projects. Active deadlines are retained unless explicitly recalculated; completed history and cost snapshots remain unchanged.'
-            : 'Global / 全局共享 · 新项目取得独立副本。已有 Draft 也不会自动更新汇率；如需采用新汇率，请在目标成本版本明确应用。'}
-        </p>
-      </section>
-      <section className="min-w-0 overflow-hidden wb-panel">
-        <Tabs
-          value={activeTab === 'status' ? 'workflow' : activeTab}
-          onValueChange={(value) => {
-            if (!isMasterDataTab(value)) return;
-            onTabChange(value);
-            setQuery('');
-          }}
-        >
-          <div className="border-b border-border p-4 sm:p-5">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-primary">
-                {workflow
-                  ? 'Reference Libraries'
-                  : 'Reference Libraries / 基础数据与模板库'}
-              </p>
-              <div className="relative w-full sm:w-72">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  className="h-10 bg-background pl-8 text-sm"
+                  className="h-8 bg-background pl-8 text-sm"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   aria-label="Search current master-data tab"
@@ -707,12 +659,54 @@ export function MasterDataView(props: Props) {
                   }
                 />
               </div>
+              <Button
+                size="sm"
+                disabled={editingDisabled || profitShareErrors.length > 0}
+                onClick={async () => {
+                  if (profitShareErrors.length) return;
+                  if (await onSave())
+                    announce(
+                      workflow
+                        ? 'Workflow template saved.'
+                        : 'Global master data saved / 全局主数据已保存。',
+                    );
+                }}
+              >
+                <Save /> {currentSaveLabel}
+              </Button>
             </div>
+          }
+        />
+        <details className="border-t px-3 py-1.5 text-xs text-muted-foreground">
+          <summary className="cursor-pointer">
+            Scope & update rules{workflow ? '' : ' / 适用范围与更新规则'}
+          </summary>
+          <p className="mt-1 leading-5">
+            {workflow
+              ? 'Configure the global workflow and preview changes before publishing to ongoing projects.'
+              : 'Global reference data for future projects. Existing project and cost-version snapshots stay unchanged. 全局主数据供未来项目使用；已有项目及成本版本保留采用时的数据快照。'}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            {workflow
+              ? 'Publishing updates pending steps in ongoing projects. Active deadlines are retained unless explicitly recalculated; completed history and cost snapshots remain unchanged.'
+              : 'Global / 全局共享 · 新项目取得独立副本。已有 Draft 也不会自动更新汇率；如需采用新汇率，请在目标成本版本明确应用。'}
+          </p>
+        </details>
+
+        <Tabs
+          value={activeTab === 'status' ? 'workflow' : activeTab}
+          onValueChange={(value) => {
+            if (!isMasterDataTab(value)) return;
+            onTabChange(value);
+            setQuery('');
+          }}
+        >
+          <div className="border-y border-border px-2 py-1.5">
             <div className="wb-table-scroll pb-1">
               <TabsList
                 variant="default"
                 aria-label="Master Data libraries"
-                className="min-w-max justify-start gap-1 rounded-xl bg-muted/50 p-1 group-data-horizontal/tabs:h-auto"
+                className="min-w-max justify-start gap-1 rounded-md bg-muted/30 p-0.5 group-data-horizontal/tabs:h-auto"
               >
                 {masterDataTabs
                   .filter((tab) => tab.value !== 'status')
@@ -720,7 +714,7 @@ export function MasterDataView(props: Props) {
                     <TabsTrigger
                       key={tab.value}
                       value={tab.value}
-                      className="h-11 flex-none gap-2 rounded-lg px-3 text-xs data-active:bg-primary data-active:text-primary-foreground"
+                      className="h-8 flex-none gap-1.5 rounded px-2 text-xs data-active:bg-primary data-active:text-primary-foreground"
                     >
                       {tab.label}
                       <span className="text-[11px] opacity-70">
@@ -762,7 +756,7 @@ export function MasterDataView(props: Props) {
                   </StatusBadge>
                   <Button
                     size="sm"
-                    className="h-9 text-xs"
+                    className="h-8 text-xs"
                     onClick={addProjectStatusDefinition}
                   >
                     <Plus />
@@ -866,7 +860,7 @@ export function MasterDataView(props: Props) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-9 text-xs"
+                      className="h-8 text-xs"
                       onClick={addResource}
                     >
                       <Plus />
@@ -874,7 +868,7 @@ export function MasterDataView(props: Props) {
                     </Button>
                     <Button
                       size="sm"
-                      className="h-9 text-xs"
+                      className="h-8 text-xs"
                       onClick={async () =>
                         announce(
                           (await onSave())
@@ -1292,14 +1286,14 @@ export function MasterDataView(props: Props) {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-9 text-xs"
+                    className="h-8 text-xs"
                     onClick={() => maintenanceImportRef.current?.click()}
                   >
                     <Upload /> Import JSON/XLSX / 导入
                   </Button>
                   <Button
                     size="sm"
-                    className="h-9 text-xs"
+                    className="h-8 text-xs"
                     onClick={addMaintenance}
                   >
                     <Plus /> Add row / 新增
@@ -1517,7 +1511,7 @@ function TableToolbar({ count, onAdd }: { count: number; onAdd: () => void }) {
   return (
     <div className="wb-toolbar justify-between border-b text-xs text-muted-foreground">
       <span>{count} records / 条记录</span>
-      <Button size="sm" className="h-9 text-xs" onClick={onAdd}>
+      <Button size="sm" className="h-8 text-xs" onClick={onAdd}>
         <Plus />
         Add row / 新增
       </Button>

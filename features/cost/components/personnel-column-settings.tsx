@@ -144,7 +144,7 @@ export function PersonnelColumnSettings(props: PersonnelColumnSettingsProps) {
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 px-2.5 text-xs"
+            className="h-7 gap-1 px-2 text-[11px]"
             disabled={props.ready === false}
           />
         }

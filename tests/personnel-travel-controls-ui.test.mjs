@@ -175,7 +175,7 @@ test('locked rate assumptions keep details navigation available while date edito
   for (const input of html.match(/<input[^>]*>/g) || [])
     assert.match(input, /disabled/);
   const nav = html.match(
-    /<button[^>]*aria-controls="annual-rate-details"[^>]*>/,
+    /<button[^>]*aria-controls="annual-rate-details delivery-date-settings"[^>]*>/,
   )?.[0];
   assert.ok(nav);
   assert.doesNotMatch(nav, / disabled(?:=|\s|>)/);

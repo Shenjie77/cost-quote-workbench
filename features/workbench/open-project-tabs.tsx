@@ -10,6 +10,7 @@ type OpenProjectTabsProps = {
   disabled?: boolean;
 };
 
+/** Keep open projects in a compact tab strip with independent close actions. */
 export function OpenProjectTabs({
   projects,
   openProjectIds,
@@ -21,7 +22,7 @@ export function OpenProjectTabs({
   return (
     <nav
       aria-label="Open Projects"
-      className="workbench-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto border-t border-border/70 bg-muted/50 px-4 py-2 sm:px-6 xl:px-8"
+      className="workbench-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto border-t border-border/70 bg-muted/30 px-3 py-1 sm:px-4"
     >
       <span className="mr-2 shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         Open Projects <span className="normal-case">已打开项目</span>
@@ -34,15 +35,15 @@ export function OpenProjectTabs({
           <div
             key={projectId}
             className={
-              'flex h-11 min-w-[190px] max-w-[280px] items-center rounded-lg border transition-colors ' +
+              'flex h-8 min-w-[150px] max-w-[240px] items-center rounded border transition-colors ' +
               (active
-                ? 'border-ring/35 bg-card text-primary shadow-xs'
+                ? 'border-ring/35 bg-card text-primary'
                 : 'border-transparent bg-transparent text-muted-foreground hover:border-border hover:bg-card/80')
             }
           >
             <button
               type="button"
-              className="min-w-0 flex-1 px-3 text-left disabled:cursor-wait disabled:opacity-60"
+              className="min-w-0 flex-1 px-2 text-left disabled:cursor-wait disabled:opacity-60"
               disabled={disabled}
               aria-current={active ? 'page' : undefined}
               onClick={() => {
@@ -50,9 +51,7 @@ export function OpenProjectTabs({
               }}
               title={`${project.id} · ${project.name}`}
             >
-              <span className="financial-numeral block truncate text-[10px] font-medium">
-                {project.id}
-              </span>
+              <span className="financial-numeral sr-only">{project.id}</span>
               <span className="block truncate text-xs font-medium">
                 {project.name}
               </span>

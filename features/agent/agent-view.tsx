@@ -195,11 +195,11 @@ export function AgentView({
 
   return (
     <div className="wb-page-stack">
-      <section className="wb-panel bg-accent/60">
-        <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+      <section className="wb-panel bg-muted/20">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-3 py-2.5">
           <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-md bg-primary text-white">
-              <Sparkles className="size-5" />
+            <span className="flex size-8 items-center justify-center rounded-md bg-primary text-white">
+              <Sparkles className="size-4" />
             </span>
             <div>
               <p className="text-sm font-semibold text-primary">
@@ -221,7 +221,7 @@ export function AgentView({
           </div>
         </div>
       </section>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         {groups.map((group, index) => {
           const Icon = group.icon;
           const items = group.items;
@@ -246,7 +246,7 @@ export function AgentView({
                     <button
                       key={item.id}
                       onClick={() => openItem(item)}
-                      className="flex w-full items-center gap-3 px-5 py-4 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:bg-accent/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:bg-accent/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                     >
                       <Icon
                         className={`size-4 shrink-0 ${group.tone === 'red' ? 'text-destructive' : group.tone === 'amber' ? 'text-amber-700' : group.tone === 'blue' ? 'text-blue-700' : 'text-muted-foreground'}`}
@@ -307,7 +307,7 @@ export function AgentView({
               '报价完成后不再提醒',
             ],
           ].map(([name, detail, detailZh]) => (
-            <div key={name} className="bg-card p-4">
+            <div key={name} className="bg-card p-3">
               <code className="financial-numeral text-[11px] font-semibold text-accent-foreground">
                 {name}
               </code>

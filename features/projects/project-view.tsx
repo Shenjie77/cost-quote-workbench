@@ -5,7 +5,6 @@
 
 import { FolderPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { BiText } from '@/components/workbench/bilingual-text';
 import { SectionHeading } from '@/components/workbench/section-heading';
 import { ProjectTable } from '@/features/projects/project-table';
 import type { Project, ProjectStatus } from '@/features/projects/types';
@@ -58,48 +57,28 @@ export function ProjectView({
           </Button>
         }
       />
-      <div className="grid grid-cols-1 divide-y divide-border border-b border-border bg-muted/25 min-[480px]:grid-cols-2 min-[480px]:divide-x lg:grid-cols-4 lg:divide-y-0">
-        <div className="px-5 py-4">
-          <BiText
-            en="Projects"
-            zh="项目数"
-            className="text-[11px] text-muted-foreground"
-          />
-          <p className="financial-numeral mt-2 text-xl font-semibold tracking-tight text-primary">
-            {projects.length}
-          </p>
-        </div>
-        <div className="px-5 py-4">
-          <BiText
-            en="Portfolio Cost"
-            zh="项目总成本"
-            className="text-[11px] text-muted-foreground"
-          />
-          <p className="financial-numeral mt-2 text-xl font-semibold tracking-tight text-primary">
-            {formatSgd(totals.cost)}
-          </p>
-        </div>
-        <div className="px-5 py-4">
-          <BiText
-            en="Total Mandays"
-            zh="项目总人天"
-            className="text-[11px] text-muted-foreground"
-          />
-          <p className="financial-numeral mt-2 text-xl font-semibold tracking-tight text-primary">
-            {totals.mandays.toLocaleString('en-SG')}
-          </p>
-        </div>
-        <div className="px-5 py-4">
-          <BiText
-            en="Portfolio Quote"
-            zh="项目总报价"
-            className="text-[11px] text-muted-foreground"
-          />
-          <p className="financial-numeral mt-2 text-xl font-semibold tracking-tight text-primary">
-            {formatSgd(totals.quote)}
-          </p>
-        </div>
-      </div>
+      {/* Portfolio totals remain visible in one wrapping strip above the project rows. */}
+      <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-b border-border bg-muted/15 px-3 py-2 text-xs">
+        {[
+          ['Projects', '项目数', projects.length],
+          ['Portfolio Cost', '项目总成本', formatSgd(totals.cost)],
+          [
+            'Total Mandays',
+            '项目总人天',
+            totals.mandays.toLocaleString('en-SG'),
+          ],
+          ['Portfolio Quote', '项目总报价', formatSgd(totals.quote)],
+        ].map(([label, translation, value]) => (
+          <div key={label} className="flex items-baseline gap-2">
+            <dt className="text-muted-foreground" title={String(translation)}>
+              {label}
+            </dt>
+            <dd className="financial-numeral font-semibold text-primary">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
       <ProjectTable
         projects={projects}
         onProject={onOpenProject}
@@ -111,7 +90,7 @@ export function ProjectView({
         onWorkflowChange={onWorkflowChange}
         onTrackWorkflow={onTrackWorkflow}
       />
-      <div className="border-t border-border bg-[#f6f8fa] px-5 py-3 text-xs text-muted-foreground">
+      <div className="border-t border-border bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
         {projects.length} local projects · {projects.length} 个本地项目
       </div>
     </section>

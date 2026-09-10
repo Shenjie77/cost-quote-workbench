@@ -75,7 +75,7 @@ export function ReviewsView({
 
   return (
     <div className="wb-page-stack">
-      <section className="wb-panel flex flex-wrap items-start justify-between gap-3 bg-accent/60 px-5 py-4">
+      <section className="wb-panel flex flex-wrap items-start justify-between gap-3 bg-muted/20 px-3 py-2.5">
         <BiText
           en="One persisted queue for owners, deadlines, blockers, evidence, and follow-up records."
           zh="统一维护负责人、期限、阻塞项、完成依据和每次跟进记录。"
@@ -85,7 +85,7 @@ export function ReviewsView({
           <BiInline en="Live SQLite data" zh="实时本地数据" />
         </StatusBadge>
       </section>
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <KpiCard
           label="Open Gates"
           labelZh="待处理节点"
@@ -122,7 +122,7 @@ export function ReviewsView({
           tone="gray"
         />
       </div>
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.45fr)_390px]">
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.45fr)_390px]">
         <section className="wb-panel">
           <SectionHeading
             index="01"
@@ -187,7 +187,7 @@ export function ReviewsView({
                         projectId: review.projectId,
                       })
                     }
-                    className="grid w-full grid-cols-[12px_minmax(0,1fr)_120px_110px_18px] items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/50 focus-visible:bg-accent/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-sm:grid-cols-[12px_minmax(0,1fr)_18px]"
+                    className="grid w-full grid-cols-[12px_minmax(0,1fr)_120px_110px_18px] items-center gap-4 px-3 py-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:bg-accent/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-sm:grid-cols-[12px_minmax(0,1fr)_18px]"
                   >
                     <span
                       className={`size-2.5 rounded-full ${timing.tone === 'red' ? 'bg-destructive' : timing.tone === 'amber' ? 'bg-amber-600' : timing.tone === 'blue' ? 'bg-blue-600' : timing.tone === 'green' ? 'bg-emerald-600' : 'bg-muted-foreground'}`}
@@ -250,7 +250,7 @@ export function ReviewsView({
             description="Rules used by the live Agent Digest and CLI output."
             descriptionZh="实时 Agent 摘要与 CLI 输出使用的规则。"
           />
-          <div className="space-y-5 p-5">
+          <div className="space-y-3 p-3">
             <div className="flex items-center gap-3">
               <span className="flex size-9 items-center justify-center rounded-md bg-secondary text-primary">
                 <Bell className="size-4" />

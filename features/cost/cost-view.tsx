@@ -121,6 +121,7 @@ export function CostView({
   );
   const saveInFlight = useRef(false);
   const [isSavingConfiguration, setSavingConfiguration] = useState(false);
+  const [versionDetailsOpen, setVersionDetailsOpen] = useState(false);
   const saveConfiguration = useCallback(async () => {
     if (!personnelTableView.ready || saveInFlight.current) return false;
     saveInFlight.current = true;
@@ -256,7 +257,7 @@ export function CostView({
     });
 
   const content = (
-    <div className="wb-page-stack min-w-0 gap-4">
+    <div className="wb-page-stack min-w-0 gap-2">
       {lockedReason && (
         <output className="block rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
           {lockedReason} 可查看和导出。
@@ -275,158 +276,152 @@ export function CostView({
           {version.calculationNote}
         </output>
       ) : null}
+      {/* A single wrapping strip keeps version selection, status and totals in view. */}
       <section
-        className="wb-panel overflow-hidden"
+        className="wb-panel flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 sm:gap-x-4"
         aria-label="Cost version information"
       >
-        <div className="grid grid-cols-2 gap-px bg-border min-[480px]:grid-cols-3 lg:grid-cols-5">
-          <div className="min-w-0 bg-card px-4 py-3">
-            <p className="text-[11px] font-medium text-muted-foreground">
-              Version Total
-            </p>
-            <p className="financial-numeral mt-1.5 text-xl font-semibold tracking-tight text-primary">
-              {version ? versionTotal(version) : formatSgd(0)}
-            </p>
-          </div>
-          <div className="min-w-0 bg-card px-4 py-3">
-            <p className="text-[11px] font-medium text-muted-foreground">
-              Cost Version
-            </p>
-            <select
-              aria-label="View cost version"
-              className="mt-1.5 h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
-              value={activeVersion}
-              disabled={!versions.length}
-              onChange={(event) =>
-                onSelectVersion(event.target.value, costView)
-              }
-            >
-              {versions.map((item) => (
-                <option key={item.code} value={item.code}>
-                  {item.code} · {item.state}
-                </option>
-              ))}
-            </select>
-            <p
-              className={
-                'financial-numeral mt-1 text-[10px] font-medium ' +
-                'text-primary'
-              }
-            >
-              {version?.sourceVersion
-                ? `Cloned from ${version.sourceVersion}`
-                : 'Initial version'}
-            </p>
-          </div>
-          <div className="min-w-0 bg-card px-4 py-3">
-            <p className="text-[11px] font-medium text-muted-foreground">
-              Input Completeness
-            </p>
-            <div className="mt-1.5 flex items-center gap-3">
-              <span className="financial-numeral text-xl font-semibold tracking-tight text-primary">
-                {inputCompleteness}%
-              </span>
-              <Progress
-                value={inputCompleteness}
-                className="h-2 min-w-0 max-w-24 flex-1 [&_[data-slot=progress-indicator]]:bg-primary"
-              />
-            </div>
-          </div>
-          <div className="min-w-0 bg-card px-4 py-3 min-[480px]:col-span-2 lg:col-span-1">
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-              <p className="text-[11px] font-medium text-muted-foreground">
-                Calculation Basis
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 px-2.5 text-[11px]"
-                disabled={!!lockedReason || version?.state !== 'Draft'}
-                title={
-                  lockedReason
-                    ? 'This cost version is locked. Master Data rates cannot be applied.'
-                    : version?.state !== 'Draft'
-                      ? 'Only Draft versions can apply the latest Master Data rates.'
-                      : 'Apply the latest Master Data personnel rates to this Draft and recalculate its costs.'
-                }
-                onClick={() => {
-                  if (!lockedReason && version?.state === 'Draft')
-                    onApplyMasterRates();
-                }}
-              >
-                Apply Master Rates
-              </Button>
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]">
-              <span className="font-semibold">
-                {actualYears[0]
-                  ? `FY${String(actualYears[0]).slice(-2)}`
-                  : 'FY—'}{' '}
-                · SGD
-              </span>
-              <span className="text-muted-foreground">
-                {representativeRate?.hoursPerManday || 0}h/day ·{' '}
-                {representativeRate?.mandaysPerMonth || 0}d/month
-              </span>
-            </div>
-          </div>
-          <div className="min-w-0 bg-card px-4 py-3">
-            <p className="text-[11px] font-medium text-muted-foreground">
-              Version Status
-            </p>
-            <select
-              aria-label="Current version status"
-              className="mt-1.5 h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:bg-muted/40 disabled:opacity-60"
-              value={version?.state || 'Draft'}
-              disabled={!version || version.state === 'Confirmed'}
-              onChange={(event) => {
-                const state = event.target.value as CostVersionState;
-                if (
-                  version &&
-                  version.state !== 'Confirmed' &&
-                  (!lockedReason || state === 'Confirmed')
-                )
-                  onUpdateVersionState(activeVersion, state);
-              }}
-            >
-              <option value="Draft" disabled={!!lockedReason}>
-                Draft
+        <div className="flex items-center gap-1.5 text-[11px]">
+          <span className="text-muted-foreground">Version</span>
+          <select
+            aria-label="View cost version"
+            className="h-7 w-28 rounded-md border border-input bg-card px-2 text-[11px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+            value={activeVersion}
+            disabled={!versions.length}
+            onChange={(event) => onSelectVersion(event.target.value, costView)}
+          >
+            {versions.map((item) => (
+              <option key={item.code} value={item.code}>
+                {item.code} · {item.state}
               </option>
-              <option value="Suspended" disabled={!!lockedReason}>
-                Suspended
-              </option>
-              <option value="Confirmed">Confirmed</option>
-            </select>
-            <p
-              className="mt-1.5 text-[11px] text-muted-foreground"
-              title={`Confirmation locks Cost ${activeVersion} only.`}
+            ))}
+          </select>
+          <span className="hidden text-[10px] text-muted-foreground sm:inline">
+            {version?.sourceVersion
+              ? `from ${version.sourceVersion}`
+              : 'Initial version'}
+          </span>
+        </div>
+        <div
+          className="flex items-center gap-1.5 text-[11px]"
+          title={`Confirmation locks Cost ${activeVersion} only.`}
+        >
+          <span className="text-muted-foreground">Status</span>
+          <select
+            aria-label="Current version status"
+            className="h-7 w-28 rounded-md border border-input bg-card px-2 text-[11px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:bg-muted/40 disabled:opacity-60"
+            value={version?.state || 'Draft'}
+            disabled={!version || version.state === 'Confirmed'}
+            onChange={(event) => {
+              const state = event.target.value as CostVersionState;
+              if (
+                version &&
+                version.state !== 'Confirmed' &&
+                (!lockedReason || state === 'Confirmed')
+              )
+                onUpdateVersionState(activeVersion, state);
+            }}
+          >
+            <option value="Draft" disabled={!!lockedReason}>
+              Draft
+            </option>
+            <option value="Suspended" disabled={!!lockedReason}>
+              Suspended
+            </option>
+            <option value="Confirmed">Confirmed</option>
+          </select>
+          {version?.state === 'Suspended' && onDeleteVersion ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-[11px] text-destructive"
+              disabled={!!versionDeletionReasons[activeVersion]}
+              title={
+                versionDeletionReasons[activeVersion]
+                  ? 'This version is not eligible for deletion.'
+                  : 'Delete this suspended version and retain its history.'
+              }
+              onClick={() => onDeleteVersion(activeVersion)}
             >
-              Locks on confirmation
-            </p>
-            {version?.state === 'Suspended' && onDeleteVersion ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="mt-1.5 h-8 text-[11px] text-destructive"
-                disabled={!!versionDeletionReasons[activeVersion]}
-                title={
-                  versionDeletionReasons[activeVersion]
-                    ? 'This version is not eligible for deletion.'
-                    : 'Delete this suspended version and retain its history.'
-                }
-                onClick={() => onDeleteVersion(activeVersion)}
-              >
-                Delete Version
-              </Button>
-            ) : null}
-          </div>
+              Delete Version
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex items-baseline gap-1.5 text-[11px]">
+          <span className="text-muted-foreground">Version Total</span>
+          <strong className="financial-numeral text-sm font-semibold text-primary">
+            {version ? versionTotal(version) : formatSgd(0)}
+          </strong>
+        </div>
+        <div
+          className="flex items-center gap-1.5 text-[11px]"
+          aria-label="Input Completeness"
+        >
+          <span className="text-muted-foreground">Complete</span>
+          <span className="financial-numeral font-semibold">
+            {inputCompleteness}%
+          </span>
+          <Progress
+            value={inputCompleteness}
+            className="hidden h-1 w-10 sm:flex [&_[data-slot=progress-indicator]]:bg-primary"
+          />
+        </div>
+        {/* Keep the editing strip short on phones; secondary basis details open explicitly. */}
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="ml-auto h-7 px-1.5 text-[11px] sm:hidden"
+          aria-label="Cost version details"
+          aria-expanded={versionDetailsOpen}
+          aria-controls="cost-version-details"
+          onClick={() => setVersionDetailsOpen(!versionDetailsOpen)}
+        >
+          Details
+        </Button>
+        <div
+          id="cost-version-details"
+          className={`${versionDetailsOpen ? 'flex' : 'hidden'} ml-auto basis-full flex-wrap items-center gap-2 text-[11px] sm:flex sm:basis-auto`}
+          aria-label="Calculation Basis"
+        >
+          <span className="text-[10px] text-muted-foreground sm:hidden">
+            {version?.sourceVersion
+              ? `Cloned from ${version.sourceVersion}`
+              : 'Initial version'}
+          </span>
+          <span
+            className="text-muted-foreground"
+            title={`${representativeRate?.hoursPerManday || 0}h/day · ${representativeRate?.mandaysPerMonth || 0}d/month`}
+          >
+            {actualYears[0] ? `FY${String(actualYears[0]).slice(-2)}` : 'FY—'} ·
+            SGD
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-[11px]"
+            disabled={!!lockedReason || version?.state !== 'Draft'}
+            title={
+              lockedReason
+                ? 'This cost version is locked. Master Data rates cannot be applied.'
+                : version?.state !== 'Draft'
+                  ? 'Only Draft versions can apply the latest Master Data rates.'
+                  : 'Apply the latest Master Data personnel rates to this Draft and recalculate its costs.'
+            }
+            onClick={() => {
+              if (!lockedReason && version?.state === 'Draft')
+                onApplyMasterRates();
+            }}
+          >
+            Apply Master Rates
+          </Button>
         </div>
       </section>
       {/* Keep navigation and save/export actions visible when the toolbar wraps. */}
-      <div className="wb-panel min-w-0 p-2" aria-label="Cost tools">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+      <div className="wb-panel min-w-0 p-1.5" aria-label="Cost tools">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
           <fieldset
-            className="flex min-w-0 max-w-full flex-wrap gap-1 rounded-lg bg-muted/50 p-1"
+            className="flex min-w-0 max-w-full flex-wrap gap-0.5 rounded-md bg-muted/40 p-0.5"
             aria-label="Cost views"
           >
             {[
@@ -455,7 +450,7 @@ export function CostView({
                 key={item.key}
                 variant={costView === item.key ? 'default' : 'ghost'}
                 size="sm"
-                className="h-8 px-3 text-xs"
+                className="h-7 px-2.5 text-[11px]"
                 aria-label={item.title}
                 aria-pressed={costView === item.key}
                 title={item.title}
@@ -474,7 +469,7 @@ export function CostView({
             <Button
               size="sm"
               variant="outline"
-              className="h-8 px-3 text-xs"
+              className="h-7 px-2.5 text-[11px]"
               onClick={() => void saveConfiguration()}
               disabled={isSavingConfiguration || !personnelTableView.ready}
               aria-label="Save cost configuration"
@@ -485,7 +480,7 @@ export function CostView({
             </Button>
             <Button
               size="sm"
-              className="h-8 px-3 text-xs"
+              className="h-7 px-2.5 text-[11px]"
               onClick={exportSimpleWorkbook}
               disabled={isExporting || !personnelTableView.columnSettings.ready}
               title="Cost Detail follows the current groups, row order, columns and year view. Summaries include all five years."
@@ -495,7 +490,7 @@ export function CostView({
             </Button>
             <Button
               size="sm"
-              className="h-8 px-3 text-xs"
+              className="h-7 px-2.5 text-[11px]"
               variant="outline"
               onClick={exportWorkbook}
               disabled={isExporting}
@@ -509,7 +504,7 @@ export function CostView({
         </div>
       </div>
       {costView === 'input' ? (
-        <div className="wb-page-stack min-w-0 gap-4">
+        <div className="wb-page-stack min-w-0 gap-2">
           <RateAssumptions
             locked={!!lockedReason}
             settings={rateSettings}

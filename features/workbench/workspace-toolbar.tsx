@@ -49,13 +49,11 @@ export function WorkspaceToolbar({
   const presentation = persistencePresentation(persistenceStatus.phase);
   const StatusIcon = presentation.icon;
   return (
-    <div className="mb-5 flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border border-border/70 bg-card/65 px-3 py-2">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-[11px] text-muted-foreground">
+    <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-1 py-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
         <Badge
           variant="outline"
-          className={
-            'h-6 rounded-full px-2.5 text-[11px] ' + presentation.className
-          }
+          className={'h-5 rounded px-1.5 text-[11px] ' + presentation.className}
         >
           <StatusIcon className={presentation.iconClassName} />
           Local SQLite <span className="ml-1 text-[10px]">本地数据库</span>
@@ -69,7 +67,7 @@ export function WorkspaceToolbar({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 px-2.5 text-[11px]"
+          className="h-7 px-2 text-[11px]"
           onClick={onSave}
           disabled={persistenceStatus.phase === 'saving'}
         >
@@ -84,7 +82,7 @@ export function WorkspaceToolbar({
         {activeView === 'cost' ? (
           <Button
             size="sm"
-            className="h-8 px-2.5 text-[11px]"
+            className="h-7 px-2 text-[11px]"
             onClick={onNewVersion}
             disabled={newVersionDisabled}
           >

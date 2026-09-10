@@ -55,13 +55,19 @@ export function ReminderInbox({
   const active = items.filter((i) => i.active),
     unread = active.filter((i) => !i.acknowledged);
   return (
-    <section className="wb-panel mb-4 px-4 py-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button variant="ghost" onClick={() => setOpen(!open)}>
+    <section className="mb-2 min-w-0 border-b border-border px-1 py-1">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={() => setOpen(!open)}
+        >
           跟进提醒 · {unread.length} 条未读 / {active.length} 条待处理
         </Button>
-        <span className="text-xs text-muted-foreground">
-          {error || '按节点 SLA 与提醒配置检查，完成或关闭提醒后自动移出'}
+        <span className="text-[11px] text-muted-foreground">
+          {error ||
+            (open ? '按节点 SLA 与提醒配置检查，完成或关闭提醒后自动移出' : '')}
         </span>
       </div>
       {open && (
