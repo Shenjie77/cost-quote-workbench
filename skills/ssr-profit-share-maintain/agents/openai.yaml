@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · BU 分成维护"
+  short_description: "独立维护各 BU 的 Profit Share Rate，全局保存，不修改已有项目。"
+  default_prompt: "使用 $ssr-profit-share-maintain 按我提供的 BU 和比例维护全局分成主数据。"

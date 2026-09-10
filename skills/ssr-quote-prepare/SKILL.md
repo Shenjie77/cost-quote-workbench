@@ -15,7 +15,7 @@ description: 基于当前成本版本编制服务报价，选择客户模板及�
 
 客户模板与可复用假设读取项目捕获快照：`quote get --project-id ID --section templates|library`，按需用 `--id/--query`。不要用当前全局库替代旧项目采用的条款。客户名称规范化精确匹配，展示真实付款条款、有效期与法务 T&C。模板选中与默认假设拷贝是不同操作；仅设置 selectedQuoteTemplateId 不代表假设已自动应用。用户要求套用时按选定模板的 defaultAssumptionIds 读取库记录，再更新当前报价假设，保留用户手改内容与明确排除项。
 
-`project apply-masterdata` 仅允许当前 activeVersion 为未锁定 Draft 的项目；指定成本版本费率则用 `cost apply-rates --version`。若当前版本已定稿，先按用户的新一轮估算意图建立新 Draft，保持原版与历史归档不变。
+`project apply-masterdata` 的成本相关目录仅允许当前 activeVersion 为未锁定 Draft；指定成本版本费率用 `cost apply-rates --version`。`--tab profit-share` 更新报价的分成快照，可用于成本已定稿的项目，不修改锁定成本。其他需要改动已定稿成本的需求，按用户的新一轮估算意图建立新 Draft。
 
 写入文件使用以下信封，`CHANGES` 替换为本业务的变更对象，`requestId` 每次操作取唯一值：
 
@@ -29,3 +29,7 @@ description: 基于当前成本版本编制服务报价，选择客户模板及�
 全局模板/假设维护由对应 skill 处理，维护本身不会应用到本项目。用户明确要求采用最新全局条款时，先核对 `masterdata get --tab assumptions|quote-templates`，再分别 `project apply-masterdata --project-id ID --tab assumptions|quote-templates --expected-revision R`；这是项目写操作，使用项目 revision。按需先应用假设库以保持模板引用有效，每步读回新 revision。项目当前商业依据会改变，须重新核对适用的评审；历史报价归档不变。
 
 编制完成后窄读定价、已选模板和当前报价假设，报告保存结果与仍缺的前置。用户同时要求生成文件时，再使用 [报价导出](../ssr-quote-export/SKILL.md) 完成；仅修改报价参数时不加载导出说明、不生成文件。
+
+Profit Share Rate 按项目捕获的 `pricing.profitShareRates` 计算，比例为百分数（20 表示 20%）。平台按最终成本中各 BU 占比分摊未税报价；EHS、Risk 等无 BU 成本归入直接成本最大的 BU。Sales GP = (未税报价 − 成本 − 分成金额) / 未税报价；目标折扣前价格 = 总成本 / (1 − 目标 GP − 加权分成率)，之后的折扣仍会降低实际 GP。目标 GP 与加权分成率之和必须小于 100%；无匹配比例的 BU 会明确显示按 0% 计算，不能猜测实际比例。
+
+全局比例维护单独使用 [BU 分成维护](../ssr-profit-share-maintain/SKILL.md)，无需项目。只有用户要求应用最新比例时，读取目标报价设置与项目 revision 后执行 `project apply-masterdata --project-id ID --tab profit-share --expected-revision R`，再读回报价设置。新项目自动捕获，旧项目不自动采用，历史报价保存各 BU 分成快照。

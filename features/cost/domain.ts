@@ -5,7 +5,7 @@
  *
  * Business invariants:
  * - Y1 is the first delivery year and can be the current calendar year.
- * - Mandays are always Sites × MD/Site.
+ * - Mandays use recorded effort or Sites × MD/Site, according to input mode.
  * - HQ travel is calculated only for internal resource types marked HQ.
  * - Cost-statement parent rows are roll-ups; only leaf rows can be entered.
  */
@@ -15,15 +15,22 @@ import {
   subcontractCostDetails,
   type SubcontractCost,
 } from './subcontract-domain.ts';
+import {
+  isPersonnelAllowanceApplied,
+  type AllowancePool,
+} from './personnel-allowance.ts';
+
+// Preserve the public domain API while isolating allowance compatibility rules.
+export {
+  PERSONNEL_ALLOWANCE_POOLS,
+  getAllowancePools,
+  getAllowanceResourceTypeIds,
+  isPersonnelAllowanceApplied,
+  validatePersonnelAllowanceSelection,
+  type AllowancePool,
+} from './personnel-allowance.ts';
 
 export const YEAR_BUCKETS = ['Y1', 'Y2', 'Y3', 'Y4', 'Y5'] as const;
-export const PERSONNEL_ALLOWANCE_POOLS = [
-  'LOCAL',
-  'ARP',
-  'HQ',
-  'OTHER',
-] as const;
-export type AllowancePool = (typeof PERSONNEL_ALLOWANCE_POOLS)[number];
 
 /**
  * All SGD amounts round upward at two decimal places. Near-cent float noise is
@@ -134,16 +141,16 @@ export type ManualCostInputs = {
 };
 
 /**
- * Global Master Data supplies future projects. Each cost version captures
- * its own resource definitions, MD rates and conversion factors; refreshing a
- * catalogue does not change a version until Apply Master Rates is selected.
- */
-/**
  * User-controlled lifecycle for a cost snapshot. Creating another version
  * never changes this value on an existing snapshot.
  */
 export type CostVersionState = 'Draft' | 'Suspended' | 'Confirmed';
 
+/**
+ * Global Master Data supplies future projects. Each cost version captures
+ * its own resource definitions, MD rates and conversion factors; refreshing a
+ * catalogue does not change a version until Apply Master Rates is selected.
+ */
 export type CostVersionSnapshot = {
   /** Revision explicitly used when capturing global personnel rates. */
   masterDataRevision?: number;
@@ -218,7 +225,7 @@ export const totalRowSites = (row: CostInputRow) =>
       : row.years.reduce((sum, year) => sum + Number(year.sites || 0), 0),
   );
 
-/** Sums calculated Sites × MD/Site across Y1–Y5 for one cost row. */
+/** Sums the row's direct or site-derived annual mandays across Y1–Y5. */
 export const totalRowMandays = (row: CostInputRow) =>
   roundQuantity(
     row.years.reduce(
@@ -287,126 +294,7 @@ export const getResourceRateConversions = (resourceType: ResourceType) => ({
   ),
 });
 
-/** Pool selection takes priority; reading an old ID selection never expands its scope. */
-export const isPersonnelAllowanceApplied = (
-  resource: ResourceType,
-  settings: RateSettings,
-) =>
-  resource.category === 'internal' &&
-  (settings.allowancePools !== undefined
-    ? Array.isArray(settings.allowancePools) &&
-      resource.pool !== null &&
-      settings.allowancePools.includes(resource.pool)
-    : settings.allowanceResourceTypeIds !== undefined
-      ? Array.isArray(settings.allowanceResourceTypeIds) &&
-        settings.allowanceResourceTypeIds.includes(resource.id)
-      : settings.localArpAllowanceEnabled === true &&
-        (resource.pool === 'LOCAL' || resource.pool === 'ARP'));
-
-/** Checkbox projection only: legacy individual selections remain unchanged until an explicit edit. */
-export function getAllowancePools(
-  settings: RateSettings,
-  resources: ResourceType[],
-): AllowancePool[] {
-  if (settings.allowancePools !== undefined)
-    return Array.isArray(settings.allowancePools)
-      ? PERSONNEL_ALLOWANCE_POOLS.filter((pool) =>
-          settings.allowancePools!.includes(pool),
-        )
-      : [];
-  if (settings.allowanceResourceTypeIds === undefined)
-    return settings.localArpAllowanceEnabled === true ? ['LOCAL', 'ARP'] : [];
-  return PERSONNEL_ALLOWANCE_POOLS.filter((pool) =>
-    resources.some(
-      (resource) =>
-        resource.pool === pool &&
-        isPersonnelAllowanceApplied(resource, settings),
-    ),
-  );
-}
-
-export const getAllowanceResourceTypeIds = (
-  settings: RateSettings,
-  resources: ResourceType[],
-) =>
-  resources
-    .filter((resource) => isPersonnelAllowanceApplied(resource, settings))
-    .map((resource) => resource.id);
-
-export function validatePersonnelAllowanceSelection(
-  settings: RateSettings,
-  resources: ResourceType[],
-) {
-  const selection = settings.allowanceResourceTypeIds;
-  const issues: Array<{ code: string; path: string; message: string }> = [];
-  if (settings.allowancePools !== undefined) {
-    if (!Array.isArray(settings.allowancePools))
-      return [
-        {
-          code: 'INVALID_ALLOWANCE_POOLS',
-          path: '/rateSettings/allowancePools',
-          message:
-            'Personnel allowance pools must be an array of LOCAL, ARP, HQ or OTHER.',
-        },
-      ];
-    const pools = new Set<AllowancePool>();
-    settings.allowancePools.forEach((pool, index) => {
-      const path = `/rateSettings/allowancePools/${index}`;
-      if (!PERSONNEL_ALLOWANCE_POOLS.includes(pool))
-        issues.push({
-          code: 'INVALID_ALLOWANCE_POOL',
-          path,
-          message:
-            'Select only LOCAL, ARP, HQ or OTHER for the personnel allowance.',
-        });
-      else if (pools.has(pool))
-        issues.push({
-          code: 'DUPLICATE_ALLOWANCE_POOL',
-          path,
-          message: 'Each personnel pool can be selected only once.',
-        });
-      pools.add(pool);
-    });
-    // Superseded legacy IDs no longer govern costs or block adopting a new rate card.
-    return issues;
-  }
-  if (selection === undefined) return issues;
-  if (!Array.isArray(selection))
-    return [
-      {
-        code: 'INVALID_ALLOWANCE_SELECTION',
-        path: '/rateSettings/allowanceResourceTypeIds',
-        message:
-          'Personnel allowance selection must be an array of RE Type IDs.',
-      },
-    ];
-  const seen = new Set<string>();
-  selection.forEach((id, index) => {
-    const path = `/rateSettings/allowanceResourceTypeIds/${index}`;
-    if (
-      typeof id !== 'string' ||
-      !id.trim() ||
-      !resources.some(
-        (resource) => resource.id === id && resource.category === 'internal',
-      )
-    ) {
-      issues.push({
-        code: 'INVALID_ALLOWANCE_RESOURCE',
-        path,
-        message:
-          'The 3% allowance can only select an internal RE Type captured in this cost version.',
-      });
-    } else if (seen.has(id))
-      issues.push({
-        code: 'DUPLICATE_ALLOWANCE_RESOURCE',
-        path,
-        message: 'Each RE Type can be selected for the 3% allowance only once.',
-      });
-    seen.add(id);
-  });
-  return issues;
-}
-
+/** Missing flags retain historical HQ travel; explicit false disables all travel charges. */
 export const isHQTravelEnabled = (settings: TravelSettings) =>
   settings.enabled !== false;
 
@@ -427,6 +315,7 @@ export const calculatedYearCost = (
 ) => {
   const resourceType = resourceTypes.find((item) => item.id === row.reTypeId);
   if (!resourceType || resourceType.category !== 'internal') {
+    // Unknown and packaged resource rows retain their saved manual amounts.
     return roundMoney(Number(row.years[yearIndex]?.cost || 0));
   }
   const factor = getLabourRateFactors(rateSettings)[yearIndex] ?? 1;
@@ -472,6 +361,7 @@ export const getHQTravelSummary = (
   resourceTypes: ResourceType[],
   settings: TravelSettings,
 ) => {
+  // Eligibility remains visible when travel is disabled so effort summaries stay useful.
   const hqRows = rows.filter((row) =>
     resourceTypes.some(
       (resourceType) =>
@@ -487,6 +377,7 @@ export const getHQTravelSummary = (
       hqRows.reduce((sum, row) => sum + yearRowMandays(row, yearIndex), 0),
     ),
   );
+  // Legacy rates without a conversion use 21.75 MD/month; zero follows the same fallback.
   const months = roundQuantity(
     hqRows.reduce((sum, row) => {
       const resourceType = resourceTypes.find(
@@ -498,6 +389,7 @@ export const getHQTravelSummary = (
   );
   const enabled = isHQTravelEnabled(settings);
   const required = enabled && hqMandays > 0;
+  // Round each entered unit price before multiplication to reconcile displayed prices.
   const allowanceCost = roundMoney(
     required ? months * roundMoney(settings.monthlyAllowance) : 0,
   );
@@ -516,6 +408,25 @@ export const getHQTravelSummary = (
     totalCost: roundMoney(allowanceCost + airfareCost),
   };
 };
+
+/**
+ * Sums already-rounded row costs for one captured resource category. Lookup
+ * deliberately uses the first matching RE ID, including in legacy rate cards.
+ * The caller owns the final roll-up rounding so BOQ addition keeps its boundary.
+ */
+function sumResourceCategoryCosts(
+  rows: CostInputRow[],
+  resourceTypes: ResourceType[],
+  category: ResourceType['category'],
+): number {
+  return rows
+    .filter(
+      (row) =>
+        resourceTypes.find((resource) => resource.id === row.reTypeId)
+          ?.category === category,
+    )
+    .reduce((sum, row) => sum + totalRowCost(row), 0);
+}
 
 /**
  * Maps cost lines into the company statement. `subcontract` resource rows are
@@ -540,24 +451,13 @@ export const getCostStatementValues = (
   const riskContingency = roundMoney(manual.riskContingency);
   const normalizedTravelCost = roundMoney(travelCost);
   const inHouseLabour = roundMoney(
-    rows
-      .filter(
-        (row) =>
-          resourceTypes.find((item) => item.id === row.reTypeId)?.category ===
-          'internal',
-      )
-      .reduce((sum, row) => sum + totalRowCost(row), 0),
+    sumResourceCategoryCosts(rows, resourceTypes, 'internal'),
   );
   const subcontract = roundMoney(
-    rows
-      .filter(
-        (row) =>
-          resourceTypes.find((item) => item.id === row.reTypeId)?.category ===
-          'subcontract',
-      )
-      .reduce((sum, row) => sum + totalRowCost(row), 0) +
+    sumResourceCategoryCosts(rows, resourceTypes, 'subcontract') +
       calculateSubcontractCost(subcontractCost).total,
   );
+  // Follow statement hierarchy in order; each subtotal retains its own cent rounding.
   const logistics = roundMoney(inlandLogistics + countryWarehousing);
   const period = logistics;
   const labour = roundMoney(
@@ -581,6 +481,7 @@ export const getCostStatementValues = (
   };
 };
 
+/** Applies a configured labour fraction, or retains the saved manual amount when absent. */
 export const getOtherServiceCost = (labour: number, manual: ManualCostInputs) =>
   roundMoney(
     manual.otherServiceRate === undefined
@@ -588,6 +489,7 @@ export const getOtherServiceCost = (labour: number, manual: ManualCostInputs) =>
       : labour * manual.otherServiceRate,
   );
 
+/** Saves a nonnegative manual override and removes the percentage to prevent recalculation. */
 export const overrideOtherServiceCost = (
   manual: ManualCostInputs,
   amount: number,
@@ -797,6 +699,70 @@ export const buildCostStatementRows = (
   ];
 };
 
+type CostDimensionTotals = Omit<CostDimensionSummary, 'shareRatio'>;
+
+const SUBCONTRACT_SUMMARY_KEY = '__SUBCONTRACT__';
+const SUBCONTRACT_SUMMARY_LABEL = '2.3.2 · Subcontract Cost';
+
+/** Resolves business grouping text while preserving stable resource IDs as keys. */
+function getCostDimensionKey(
+  scope: string,
+  bu: string,
+  dimension: CostDimension,
+  resourceKey: string,
+): string {
+  if (dimension === 'scope') return scope.trim() || 'UNSPECIFIED';
+  if (dimension === 'bu') return bu.trim() || 'UNSPECIFIED';
+  return resourceKey;
+}
+
+/** Gives each RE group its existing report label, including legacy subcontract and unmapped rows. */
+function getResourceSummaryLabel(
+  resourceType: ResourceType | undefined,
+): string {
+  if (resourceType?.category === 'subcontract')
+    return SUBCONTRACT_SUMMARY_LABEL;
+  return resourceType
+    ? `${resourceType.code} · ${resourceType.name}`
+    : 'UNMAPPED · Unmapped Resource Type';
+}
+
+/** Reuses group metadata from its first contribution, or initializes an uncounted group. */
+function getCostDimensionGroup(
+  groups: Map<string, CostDimensionTotals>,
+  key: string,
+  label: string,
+  resourceCategory: CostDimensionTotals['resourceCategory'],
+): CostDimensionTotals {
+  return (
+    groups.get(key) ?? {
+      key,
+      label,
+      sites: 0,
+      mandays: 0,
+      cost: 0,
+      allocationStatus: 'ALLOCATED',
+      resourceCategory,
+    }
+  );
+}
+
+/** Calculates shares against the rounded total, then orders largest cost first with label ties. */
+function finalizeCostDimensionSummary(
+  items: CostDimensionTotals[],
+): CostDimensionSummary[] {
+  const totalCost = roundMoney(items.reduce((sum, item) => sum + item.cost, 0));
+  return items
+    .map((item) => ({
+      ...item,
+      shareRatio: totalCost > 0 ? item.cost / totalCost : 0,
+    }))
+    .sort(
+      (left, right) =>
+        right.cost - left.cost || left.label.localeCompare(right.label),
+    );
+}
+
 /**
  * Groups cost-input rows for Scope, BU, or resource-type reporting. Resource
  * types use their stable master-data ID as the key so duplicate display names
@@ -808,69 +774,48 @@ export const buildCostDimensionSummary = (
   resourceTypes: ResourceType[],
   subcontractCost?: SubcontractCost,
 ): CostDimensionSummary[] => {
-  const groups = new Map<string, Omit<CostDimensionSummary, 'shareRatio'>>();
+  const groups = new Map<string, CostDimensionTotals>();
+
+  // Accumulate in input order and round each contribution exactly as the displayed rows do.
   for (const row of rows) {
     const resourceType = resourceTypes.find((item) => item.id === row.reTypeId);
-    const subcontract = resourceType?.category === 'subcontract';
-    const key =
-      dimension === 'scope'
-        ? row.scope.trim() || 'UNSPECIFIED'
-        : dimension === 'bu'
-          ? row.bu.trim() || 'UNSPECIFIED'
-          : subcontract
-            ? '__SUBCONTRACT__'
-            : resourceType?.id || 'UNMAPPED';
-    const label =
-      dimension === 'resourceType'
-        ? subcontract
-          ? '2.3.2 · Subcontract Cost'
-          : resourceType
-            ? `${resourceType.code} · ${resourceType.name}`
-            : 'UNMAPPED · Unmapped Resource Type'
-        : key;
-    const current = groups.get(key) ?? {
+    const resourceKey =
+      resourceType?.category === 'subcontract'
+        ? SUBCONTRACT_SUMMARY_KEY
+        : resourceType?.id || 'UNMAPPED';
+    const key = getCostDimensionKey(row.scope, row.bu, dimension, resourceKey);
+    const current = getCostDimensionGroup(
+      groups,
       key,
-      label,
-      sites: 0,
-      mandays: 0,
-      cost: 0,
-      allocationStatus: 'ALLOCATED',
-      resourceCategory: resourceType?.category ?? 'unmapped',
-    };
+      dimension === 'resourceType'
+        ? getResourceSummaryLabel(resourceType)
+        : key,
+      resourceType?.category ?? 'unmapped',
+    );
     current.sites = roundQuantity(current.sites + totalRowSites(row));
     current.mandays = roundQuantity(current.mandays + totalRowMandays(row));
     current.cost = roundMoney(current.cost + totalRowCost(row));
     groups.set(key, current);
   }
+
+  // BOQ leaves add money to the same business groups; their quantities are not labour effort.
   for (const line of subcontractCostDetails(subcontractCost)) {
-    const key =
-      dimension === 'scope'
-        ? line.scope.trim() || 'UNSPECIFIED'
-        : dimension === 'bu'
-          ? line.bu.trim() || 'UNSPECIFIED'
-          : '__SUBCONTRACT__';
-    const current = groups.get(key) ?? {
+    const key = getCostDimensionKey(
+      line.scope,
+      line.bu,
+      dimension,
+      SUBCONTRACT_SUMMARY_KEY,
+    );
+    const current = getCostDimensionGroup(
+      groups,
       key,
-      label: dimension === 'resourceType' ? '2.3.2 · Subcontract Cost' : key,
-      sites: 0,
-      mandays: 0,
-      cost: 0,
-      allocationStatus: 'ALLOCATED' as const,
-      resourceCategory: 'subcontract' as const,
-    };
+      dimension === 'resourceType' ? SUBCONTRACT_SUMMARY_LABEL : key,
+      'subcontract',
+    );
     current.cost = roundMoney(current.cost + line.total);
-    // BOQ quantities are not labour site deployments or mandays.
     groups.set(key, current);
   }
-  const totalCost = roundMoney(
-    [...groups.values()].reduce((sum, item) => sum + item.cost, 0),
-  );
-  return [...groups.values()]
-    .map((item) => ({
-      ...item,
-      shareRatio: totalCost > 0 ? item.cost / totalCost : 0,
-    }))
-    .sort((a, b) => b.cost - a.cost || a.label.localeCompare(b.label));
+  return finalizeCostDimensionSummary([...groups.values()]);
 };
 
 /** The non-overlapping statement accounts added to each reporting dimension. */
@@ -886,7 +831,7 @@ const SUMMARY_STATEMENT_CODES = [
 
 /** Presentation can resolve bilingual labels without adding fields to CLI summaries. */
 export const getCostSummaryStatementCode = (key: string) =>
-  key === '__SUBCONTRACT__'
+  key === SUBCONTRACT_SUMMARY_KEY
     ? '2.3.2'
     : key.startsWith('__STATEMENT__:')
       ? key.slice('__STATEMENT__:'.length)
@@ -915,6 +860,7 @@ export const buildReconciledCostDimensionSummary = (
     manualCosts,
     subcontractCost,
   );
+  // Add only non-overlapping positive statement accounts; risk remains explicitly opt-in.
   for (const code of SUMMARY_STATEMENT_CODES) {
     if (code === '15' && !options.includeRisk) continue;
     const statement = statementRows.find((row) => row.code === code)!;
@@ -929,13 +875,7 @@ export const buildReconciledCostDimensionSummary = (
       resourceCategory: 'unmapped',
     });
   }
-  const totalCost = roundMoney(items.reduce((sum, item) => sum + item.cost, 0));
-  return items
-    .map((item) => ({
-      ...item,
-      shareRatio: totalCost > 0 ? item.cost / totalCost : 0,
-    }))
-    .sort((a, b) => b.cost - a.cost || a.label.localeCompare(b.label));
+  return finalizeCostDimensionSummary(items);
 };
 
 /** Subcon-only business scopes, including preserved legacy packages and BOQ leaves. */

@@ -1,9 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { inspectCostWorkbook } from '@/features/cost/import-workbook';
 import type { MaintenancePriceRecord } from '@/features/master-data/domain';
+import { archiveProjectFile } from '@/features/projects/project-files';
 import {
   appendBoq,
   archiveMaintenance,
@@ -15,18 +16,34 @@ import {
   type BoqLine,
 } from './domain';
 export function MaintenanceView({
+  projectId,
+  canApply,
   value,
   onChange,
   records,
   client,
   announce,
 }: {
+  projectId: string;
+  canApply?: () => boolean;
   value: MaintenanceWorkspace;
-  onChange: (v: MaintenanceWorkspace) => void;
+  onChange: React.Dispatch<React.SetStateAction<MaintenanceWorkspace>>;
   records: MaintenancePriceRecord[];
   client: string;
   announce: (s: string) => void;
 }) {
+  const mounted = useRef(true);
+  const importing = useRef(false);
+  const latest = useRef(value);
+  useEffect(() => {
+    latest.current = value;
+  }, [value]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [file, setFile] = useState<File | null>(null),
     [sheets, setSheets] = useState<string[]>([]),
     [sheet, setSheet] = useState(''),
@@ -50,16 +67,20 @@ export function MaintenanceView({
   };
   const download = async (id: string) => {
     try {
-      const a = value.archives.find((x) => x.id === id)!;
+      const a = structuredClone(value.archives.find((x) => x.id === id)!);
       const bytes = await buildMaintenanceWorkbook(a);
-      const url = URL.createObjectURL(
-          new Blob([new Uint8Array(bytes).buffer], {
-            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          }),
-        ),
+      const blob = new Blob([new Uint8Array(bytes).buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const fileName = `Maintenance_${id}.xlsx`;
+      await archiveProjectFile(projectId, blob, {
+        originalName: fileName,
+        category: 'maintenance',
+      });
+      const url = URL.createObjectURL(blob),
         link = document.createElement('a');
       link.href = url;
-      link.download = `Maintenance_${id}.xlsx`;
+      link.download = fileName;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
@@ -199,23 +220,59 @@ export function MaintenanceView({
                   ))}
                 </div>
                 <Button
-                  onClick={() =>
-                    attempt(() => {
+                  disabled={busy}
+                  onClick={async () => {
+                    if (importing.current || !file) return;
+                    importing.current = true;
+                    setBusy(true);
+                    try {
+                      if (canApply && !canApply())
+                        throw new Error(
+                          'Wait for the current project operation before importing.',
+                        );
                       if (
                         preview.some((r) =>
-                          value.boq.some(
+                          latest.current.boq.some(
                             (x) => x.source === r.source || x.id === r.id,
                           ),
                         )
                       )
                         throw new Error('这些BOQ行已经导入');
-                      onChange({
-                        ...value,
-                        boq: appendBoq(value.boq, preview),
+                      await archiveProjectFile(projectId, file, {
+                        category: 'source',
+                      });
+                      if (!mounted.current) return;
+                      if (canApply && !canApply())
+                        throw new Error(
+                          'Source file archived. Project is switching; reopen the import to apply its BOQ rows.',
+                        );
+                      onChange((current) => {
+                        try {
+                          if (canApply && !canApply())
+                            throw new Error(
+                              'Project changed before the BOQ import could be applied.',
+                            );
+                          return {
+                            ...current,
+                            boq: appendBoq(current.boq, preview),
+                          };
+                        } catch (error) {
+                          queueMicrotask(() =>
+                            announce(
+                              `Source file archived; BOQ import was not applied: ${String(error)}`,
+                            ),
+                          );
+                          return current;
+                        }
                       });
                       setPreview([]);
-                    })
-                  }
+                    } catch (error) {
+                      if (mounted.current) announce(String(error));
+                    } finally {
+                      importing.current = false;
+                      if (mounted.current) setBusy(false);
+                    }
+                  }}
                 >
                   导入已预览的设备
                 </Button>

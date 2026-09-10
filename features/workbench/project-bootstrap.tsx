@@ -10,6 +10,7 @@ import { projectIdError, resolveNewProjectId } from './project-creation';
 import { createProjectFromGlobalMasterData } from '@/features/master-data/global-client';
 import type { Project } from '../projects/types';
 import type { LocalWorkspaceIndexItem } from './workspace-types';
+import { ArchiveSettingsPanel } from '../projects/project-files-panel';
 
 export const projectFromIndex = (item: LocalWorkspaceIndexItem): Project => ({
   ...projectRecord(item.projectId, item.name, item.client),
@@ -55,6 +56,7 @@ export function ProjectBootstrap({
   const [projectId, setProjectId] = useState('');
   const [name, setName] = useState('');
   const [client, setClient] = useState('');
+  const [archiveBlocked, setArchiveBlocked] = useState(true);
   useEffect(() => {
     let cancelled = false;
     void listLocalWorkspaces()
@@ -78,7 +80,13 @@ export function ProjectBootstrap({
   };
   if (projects?.length) return renderSession(projects, reload);
   const create = async () => {
-    if (!name.trim() || !client.trim() || busy || projectIdError(projectId))
+    if (
+      !name.trim() ||
+      !client.trim() ||
+      busy ||
+      archiveBlocked ||
+      projectIdError(projectId)
+    )
       return;
     setBusy(true);
     try {
@@ -146,10 +154,15 @@ export function ProjectBootstrap({
                 disabled={busy}
               />
             </label>
+            <ArchiveSettingsPanel
+              disabled={busy}
+              onBlockedChange={setArchiveBlocked}
+            />
             <Button
               onClick={() => void create()}
               disabled={
                 busy ||
+                archiveBlocked ||
                 !name.trim() ||
                 !client.trim() ||
                 Boolean(projectIdError(projectId))

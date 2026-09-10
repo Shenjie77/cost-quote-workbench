@@ -25,4 +25,4 @@ cost-cli quote export --project-id ID --output outputs/Quote-new.xlsx
 
 使用新的输出文件名，未经用户要求不覆盖原文件或模板。成功回执返回 artifact 的 path/sha256/sizeBytes/mimeType 及工作表，不含历史 ID 或 revision。用 `quote get --project-id ID --section history` 按文件路径查询，再核对 SHA 和实际报价编号；必要时分页，不只检查第一条，因为标准导出与模板导出的历史插入位置不同。
 
-文件已生成但历史保存失败必须报告为部分完成，不盲目重复导出。历史记录仍为 Draft；导出不表示已提交公司系统、完成审批或已发送客户。
+项目报价导出自动归档生成文件，模板导出还保留输入模板；可用 `files list --project-id ID --category quote --version Vn` 核对文件。文件已生成但历史保存或归档失败必须报告为部分完成，不盲目重复导出。归档失败可用 `files upload` 补存已生成文件，参数按需查 [CLI 文档归档](../../docs/cli-control-manual.md#project-documents-and-archive-location)。历史记录仍为 Draft；导出或上传不表示已提交公司系统、完成审批、解锁成本或已发送客户。

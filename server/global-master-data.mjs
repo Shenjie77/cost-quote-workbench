@@ -14,6 +14,10 @@ import {
 } from '../features/quote/types.ts';
 import { assertCatalog, contentKey } from '../features/cpq/domain.ts';
 import { assertMaintenanceImport } from '../features/master-data/maintenance-import.ts';
+import {
+  normalizeBu,
+  validateProfitShareRates,
+} from '../features/quote/profit-share.ts';
 
 export { GLOBAL_MASTER_DATA_TABS };
 export const GLOBAL_MASTER_TABS = {
@@ -23,6 +27,7 @@ export const GLOBAL_MASTER_TABS = {
   maintenance: ['maintenancePriceRecords', 'id', 'maintenancePriceRecord'],
   assumptions: ['assumptionLibrary', 'id', 'assumptionDefinition'],
   'quote-templates': ['quoteTemplates', 'id', 'quoteTemplate'],
+  'profit-share': ['profitShareRates', 'id', 'profitShareRate'],
   workflow: ['processSteps', 'code', 'workflowStep'],
   status: ['projectStatusDefinitions', 'code', 'projectStatusDefinition'],
   'cpq-catalog': ['catalog', 'code', 'cpqCatalogItem'],
@@ -90,7 +95,12 @@ const objectOnly = (value, description) => {
 };
 const keyOf = (tab, item) => item[tabSpec(tab)[1]];
 const sameIdentity = (tab, a, b) =>
-  keyOf(tab, a) === keyOf(tab, b) || (codedTabs.has(tab) && a.code === b.code);
+  keyOf(tab, a) === keyOf(tab, b) ||
+  (codedTabs.has(tab) && a.code === b.code) ||
+  (tab === 'profit-share' &&
+    a.bu &&
+    b.bu &&
+    normalizeBu(a.bu) === normalizeBu(b.bu));
 const workflowDefinition = (item) => {
   const definition = {
     ...item,
@@ -122,6 +132,7 @@ const defaultCatalogs = () => ({
   maintenance: [],
   assumptions: createAssumptionLibrary(initialQuoteAssumptions),
   'quote-templates': initialQuoteTemplates,
+  'profit-share': [],
   workflow: createProjectWorkflowSteps(),
   status: initialProjectStatusDefinitions,
   'cpq-catalog': [],
@@ -159,6 +170,10 @@ function validateItems(tab, items) {
       );
   }
   try {
+    if (tab === 'profit-share') {
+      const errors = validateProfitShareRates(items);
+      if (errors.length) fail(errors.join(' '));
+    }
     if (tab === 'cpq-catalog') assertCatalog(items);
     if (tab === 'maintenance')
       assertMaintenanceImport({ schemaVersion: '1.0.0', records: items });
@@ -287,6 +302,9 @@ export function initializeGlobalMasterData(db) {
         revision: row.revision,
       };
       for (const tab of GLOBAL_MASTER_DATA_TABS) {
+        // This new commercial catalog starts empty; historical projects are not
+        // a source of company profit-share policy.
+        if (tab === 'profit-share') continue;
         const items =
           tab === 'cpq-catalog'
             ? workspace.cpq?.catalog
@@ -303,7 +321,12 @@ export function initializeGlobalMasterData(db) {
     const payloads = Object.fromEntries(
       GLOBAL_MASTER_DATA_TABS.map((tab) => [
         tab,
-        collectTab(tab, rows[tab], from, timestamp),
+        collectTab(
+          tab,
+          rows[tab],
+          tab === 'profit-share' ? 'defaults' : from,
+          timestamp,
+        ),
       ]),
     );
     unavailableTemplateReferences(payloads);
@@ -504,8 +527,33 @@ export function makeGlobalMasterDataStore(db) {
   const select = db.prepare(
     'SELECT tab,revision,payload_json,updated_at FROM master_data_tabs WHERE tab = ?',
   );
+  const ensureAdditiveTab = (tab) => {
+    if (tab !== 'profit-share' || select.get(tab)) return;
+    // A savepoint works both standalone and inside an existing repository
+    // transaction. Never reseed existing tabs or inspect project snapshots.
+    db.exec('SAVEPOINT initialize_profit_share');
+    try {
+      if (!select.get(tab)) {
+        const timestamp = new Date().toISOString();
+        const payload = collectTab(tab, [], 'defaults', timestamp);
+        const json = JSON.stringify(payload);
+        db.prepare(
+          'INSERT INTO master_data_tabs (tab,revision,payload_json,updated_at) VALUES (?,1,?,?)',
+        ).run(tab, json, timestamp);
+        db.prepare(
+          'INSERT INTO master_data_revisions (tab,revision,payload_json,updated_at) VALUES (?,1,?,?)',
+        ).run(tab, json, timestamp);
+      }
+      db.exec('RELEASE SAVEPOINT initialize_profit_share');
+    } catch (error) {
+      db.exec('ROLLBACK TO SAVEPOINT initialize_profit_share');
+      db.exec('RELEASE SAVEPOINT initialize_profit_share');
+      throw error;
+    }
+  };
   const get = (tab, options) => {
     tabSpec(tab);
+    ensureAdditiveTab(tab);
     const row = select.get(tab);
     if (!row) fail('Global master data has not been initialized.');
     return projectRecord(row, options);
@@ -515,6 +563,7 @@ export function makeGlobalMasterDataStore(db) {
     all: () => GLOBAL_MASTER_DATA_TABS.map((tab) => get(tab, { limit: 10000 })),
     update(tab, changes, expectedRevision, internal = {}) {
       tabSpec(tab);
+      ensureAdditiveTab(tab);
       objectOnly(changes, 'changes');
       for (const key of Object.keys(changes))
         if (!['upsert', 'remove'].includes(key))

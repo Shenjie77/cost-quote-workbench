@@ -1,5 +1,5 @@
 /** A focused project task page: one editor, persistent drafts, canonical actions. */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import {
   type ProjectWorkflowMeta,
 } from './project-workflow-dialog';
 import { ProjectWorkflowHeader } from './project-workflow-header';
+import { ArchiveSettingsPanel, ProjectFilesPanel } from './project-files-panel';
 import {
   WorkflowNodeActionForm,
   type WorkflowActionDraft,
@@ -195,6 +196,7 @@ export function ProjectWorkflowPage({
   onFocusNode,
   onDirtyChange,
 }: ProjectWorkflowPageProps) {
+  const pageRef = useRef<HTMLElement>(null);
   const [selectedCode, setSelectedCode] = useState(() =>
     selectWorkflowTask(workspace, focusNodeCode),
   );
@@ -205,6 +207,9 @@ export function ProjectWorkflowPage({
   const [working, setWorking] = useState(false);
   const [localError, setLocalError] = useState('');
   const [advanceFrom, setAdvanceFrom] = useState('');
+  const [filesRevision, setFilesRevision] = useState(0);
+  const [nodeUploadBusy, setNodeUploadBusy] = useState(false);
+  const [generalUploadBusy, setGeneralUploadBusy] = useState(false);
   if (focusNodeCode !== previousFocus) {
     setPreviousFocus(focusNodeCode);
     setSelectedCode(selectWorkflowTask(workspace, focusNodeCode));
@@ -232,8 +237,9 @@ export function ProjectWorkflowPage({
   const referencesDirty =
     !!referenceDraft &&
     JSON.stringify(referenceDraft) !== JSON.stringify(savedReferences);
-  const dirty = dirtyCodes.length > 0 || referencesDirty;
-  const disabled = busy || working;
+  const documentsUploading = nodeUploadBusy || generalUploadBusy;
+  const dirty = dirtyCodes.length > 0 || referencesDirty || documentsUploading;
+  const disabled = busy || working || documentsUploading;
 
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -242,6 +248,20 @@ export function ProjectWorkflowPage({
     if (visibleCode && visibleCode !== focusNodeCode)
       onFocusNode?.(visibleCode);
   }, [visibleCode, focusNodeCode, onFocusNode]);
+  useEffect(() => {
+    const protectFileDrop = (event: DragEvent) => {
+      if (!pageRef.current || pageRef.current.closest('[hidden], [inert]'))
+        return;
+      if (Array.from(event.dataTransfer?.types || []).includes('Files'))
+        event.preventDefault();
+    };
+    window.addEventListener('dragover', protectFileDrop);
+    window.addEventListener('drop', protectFileDrop);
+    return () => {
+      window.removeEventListener('dragover', protectFileDrop);
+      window.removeEventListener('drop', protectFileDrop);
+    };
+  }, []);
 
   const choose = (code: string) => {
     setSelectedCode(code);
@@ -334,7 +354,11 @@ export function ProjectWorkflowPage({
   };
 
   return (
-    <section className="space-y-4" aria-label="Project Workflow Page">
+    <section
+      ref={pageRef}
+      className="space-y-4"
+      aria-label="Project Workflow Page"
+    >
       <ProjectWorkflowHeader
         project={project}
         round={workspace.workflowVersion || workspace.activeVersion}
@@ -353,6 +377,21 @@ export function ProjectWorkflowPage({
         holdDisabled={complete && !onHold}
         onSetHold={onSetHold ? setHold : undefined}
       />
+      <details className="rounded-xl border bg-card p-3">
+        <summary className="cursor-pointer text-sm font-semibold">
+          Project Files &amp; Archive
+        </summary>
+        <div className="mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.6fr)_minmax(260px,1fr)]">
+          <ProjectFilesPanel
+            projectId={project.id}
+            disabled={busy || working}
+            refreshKey={filesRevision}
+            onArchived={() => setFilesRevision((value) => value + 1)}
+            onUploadingChange={setGeneralUploadBusy}
+          />
+          <ArchiveSettingsPanel />
+        </div>
+      </details>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <p
           className={
@@ -380,6 +419,7 @@ export function ProjectWorkflowPage({
                   ? `${dirtyCodes.length} unsaved task${dirtyCodes.length === 1 ? '' : 's'}`
                   : '',
                 referencesDirty ? 'Unsaved project info' : '',
+                documentsUploading ? 'Uploading documents' : '',
               ]
                 .filter(Boolean)
                 .join(' · ')
@@ -400,7 +440,7 @@ export function ProjectWorkflowPage({
           selectedCode={visibleCode}
           dirtyCodes={dirtyCodes}
           onChange={choose}
-          busy={disabled}
+          busy={disabled || documentsUploading}
         />
         <nav
           aria-label="Workflow Steps"
@@ -433,7 +473,7 @@ export function ProjectWorkflowPage({
                   type="button"
                   aria-label={`Select ${step.name || step.nameZh}`}
                   aria-current={selectedCode === step.code ? 'step' : undefined}
-                  disabled={disabled}
+                  disabled={disabled || documentsUploading}
                   onClick={() => choose(step.code)}
                   className={`flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left transition-colors disabled:opacity-60 ${selectedCode === step.code ? 'bg-[#173a52] text-white' : 'hover:bg-muted/60'}`}
                 >
@@ -466,6 +506,18 @@ export function ProjectWorkflowPage({
           ))}
         </nav>
         <div className="min-w-0 space-y-4">
+          {selected && (
+            <ProjectFilesPanel
+              projectId={project.id}
+              disabled={busy || working}
+              nodeCode={selected.code}
+              nodeName={selected.name || selected.nameZh}
+              versionCode={workspace.workflowVersion || workspace.activeVersion}
+              refreshKey={filesRevision}
+              onArchived={() => setFilesRevision((value) => value + 1)}
+              onUploadingChange={setNodeUploadBusy}
+            />
+          )}
           {selected ? (
             <WorkflowTaskEditor
               key={selected.code}

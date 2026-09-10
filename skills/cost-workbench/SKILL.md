@@ -19,6 +19,7 @@ description: SSR 工作台跨业务任务入口与业务 skill 路由；用于�
 | 主数据维护 · 维保数据维护       | [ssr-maintenance-data](../ssr-maintenance-data/SKILL.md)           |
 | 主数据维护 · 风险假设库维护     | [ssr-assumptions-maintain](../ssr-assumptions-maintain/SKILL.md)   |
 | 主数据维护 · 报价模板更新       | [ssr-quote-template](../ssr-quote-template/SKILL.md)               |
+| 主数据维护 · BU 分成比例维护    | [ssr-profit-share-maintain](../ssr-profit-share-maintain/SKILL.md) |
 | CPQ · CPQ 数据维护              | [ssr-cpq-catalog](../ssr-cpq-catalog/SKILL.md)                     |
 | CPQ · CPQ 配置匹配              | [ssr-cpq-configure](../ssr-cpq-configure/SKILL.md)                 |
 | 维保 · 维保配置与报价           | [ssr-maintenance-quote](../ssr-maintenance-quote/SKILL.md)         |

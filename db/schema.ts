@@ -63,6 +63,52 @@ export const LOCAL_DATABASE_STATEMENTS = [
     updated_at TEXT NOT NULL,
     PRIMARY KEY (tab, revision)
   )`,
+  // Additive archive tables deliberately do not trigger workspace migrations.
+  `CREATE TABLE IF NOT EXISTS project_file_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    root_path TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK (revision >= 1)
+  )`,
+  `CREATE TABLE IF NOT EXISTS project_file_roots (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id),
+    root_path TEXT NOT NULL,
+    project_folder TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (root_path, project_folder)
+  )`,
+  `CREATE TABLE IF NOT EXISTS project_files (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES project_file_roots(project_id),
+    original_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0 AND size_bytes <= 52428800),
+    sha256 TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    category TEXT NOT NULL CHECK (category IN ('general','workflow','cost','quote','cpq','maintenance','source','backup')),
+    node_code TEXT,
+    node_name TEXT,
+    version_code TEXT,
+    relative_path TEXT NOT NULL,
+    request_id TEXT,
+    request_fingerprint TEXT NOT NULL,
+    UNIQUE (project_id, request_id),
+    UNIQUE (project_id, relative_path)
+  )`,
+  `CREATE TABLE IF NOT EXISTS project_file_node_folders (
+    project_id TEXT NOT NULL REFERENCES project_file_roots(project_id),
+    node_code TEXT NOT NULL,
+    folder_name TEXT NOT NULL,
+    PRIMARY KEY (project_id, node_code)
+  )`,
+  `CREATE TABLE IF NOT EXISTS project_file_moves (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES project_file_roots(project_id),
+    source_path TEXT NOT NULL,
+    target_path TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_project_files_scope ON project_files (project_id, version_code, node_code, created_at DESC)`,
   `CREATE TABLE IF NOT EXISTS master_data_metadata (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

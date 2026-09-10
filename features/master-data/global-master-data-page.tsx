@@ -13,6 +13,7 @@ import type {
 } from '@/features/quote/types';
 import type { MaintenancePriceRecord, SupplementalCostItem } from './domain';
 import type { SubcontractItem } from './types';
+import type { ProfitShareRate } from '@/features/quote/profit-share';
 import { MasterDataView } from './master-data-view';
 import { WorkflowPublishDialog } from './workflow-publish-dialog';
 import type { MasterDataTab } from './navigation';
@@ -76,6 +77,7 @@ const fieldLabels: Record<string, string> = {
   revision: 'Revision / 目录版本',
   item: 'Item / 服务条目',
   bu: 'BU / 业务领域',
+  ratePercent: 'Profit share rate (%) / 分成比例（%）',
   supplier: 'Supplier / 供应商',
   pricingBasis: 'Pricing basis / 计价依据',
   currency: 'Currency / 币种',
@@ -174,6 +176,7 @@ export function globalConflictTitle(
         : item.name ||
           item.item ||
           item.scope ||
+          item.bu ||
           item.productModel ||
           item.service,
     ]
@@ -446,6 +449,8 @@ export function GlobalMasterDataPage({
           setAssumptionLibrary={setter('assumptions')}
           quoteTemplates={rows<QuoteTemplate>('quote-templates')}
           setQuoteTemplates={setter('quote-templates')}
+          profitShareRates={rows<ProfitShareRate>('profit-share')}
+          setProfitShareRates={setter('profit-share')}
           processSteps={rows<WorkflowStep>('workflow')}
           setProcessSteps={setter('workflow')}
           projectStatusDefinitions={rows<ProjectStatusDefinition>('status')}

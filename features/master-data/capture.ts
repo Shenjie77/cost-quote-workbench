@@ -6,6 +6,8 @@ import {
   type ResourceType,
 } from '../cost/domain.ts';
 import type { WorkbenchWorkspace } from '../workbench/workspace-types.ts';
+import type { PricingSettings } from '../quote/domain.ts';
+import type { ProfitShareRate } from '../quote/profit-share.ts';
 
 export const capturedMasterFields = {
   resources: 'resourceTypes',
@@ -31,6 +33,19 @@ export function assertMasterCapture(record: MasterCaptureRecord) {
       `Master Data ${record.tab} has unresolved records: ${record.conflicts.map((c) => c.key).join(', ')}. Resolve them in global Master Data before applying.`,
     );
   return record;
+}
+
+/** Pricing snapshots can adopt new commercial terms without changing costs. */
+export function captureProfitShareRates(
+  pricing: PricingSettings,
+  raw: MasterCaptureRecord,
+): PricingSettings {
+  const master = assertMasterCapture(raw);
+  return {
+    ...structuredClone(pricing),
+    profitShareRates: structuredClone(master.items) as ProfitShareRate[],
+    profitShareMasterDataRevision: master.revision,
+  };
 }
 
 /** The explicit apply action changes one draft; missing references fail atomically. */
@@ -116,7 +131,9 @@ export function captureGlobalMasterData(
     const field =
       capturedMasterFields[record.tab as keyof typeof capturedMasterFields];
     if (field) Object.assign(next, { [field]: structuredClone(record.items) });
-    else if (record.tab === 'cpq-catalog') {
+    else if (record.tab === 'profit-share') {
+      next.pricing = captureProfitShareRates(next.pricing, record);
+    } else if (record.tab === 'cpq-catalog') {
       next.cpq = {
         catalog: structuredClone(record.items) as NonNullable<
           WorkbenchWorkspace['cpq']

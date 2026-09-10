@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FolderArchive, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -10,9 +11,18 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { getLocalWorkspace } from '../workbench/workspace-client';
+import {
+  listProjectFiles,
+  moveProjectArchive,
+  type ProjectArchiveLocation,
+} from './project-files';
+import { projectDetails, type ProjectDetails } from './project-details';
 import type { Project } from './types';
 
-/** Edits identity fields only; saved costs and review snapshots remain intact. */
+const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Unable to save project.';
+
+/** Project references and the physical archive have independent save actions. */
 export function ProjectEditDialog({
   project,
   onClose,
@@ -20,85 +30,270 @@ export function ProjectEditDialog({
 }: {
   project: Project;
   onClose: () => void;
-  onSave: (
-    details: { name: string; client: string },
-    revision: number,
-  ) => Promise<void>;
+  onSave: (details: ProjectDetails, baseline: ProjectDetails) => Promise<void>;
 }) {
-  const [name, setName] = useState(project.name);
-  const [client, setClient] = useState(project.client);
-  const [revision, setRevision] = useState<number | null>(null);
+  const [details, setDetails] = useState<ProjectDetails>({
+    name: project.name,
+    client: project.client,
+    proposalNumber: '',
+    companyUrl: '',
+    cpqUrl: '',
+    scopeBrief: '',
+    technicalBasis: '',
+  });
+  const [baseline, setBaseline] = useState<ProjectDetails | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [location, setLocation] = useState<ProjectArchiveLocation | null>(null);
+  const [projectPath, setProjectPath] = useState('');
+  const [folderError, setFolderError] = useState('');
+  const [folderNotice, setFolderNotice] = useState('');
+  const [moving, setMoving] = useState(false);
+  const [folderLoading, setFolderLoading] = useState(true);
+  const [folderReload, setFolderReload] = useState(0);
+  const busy = saving || moving;
+  const folderDirty = Boolean(
+    location && projectPath.trim() !== location.projectPath,
+  );
+  const detailsDirty = Boolean(
+    baseline && JSON.stringify(details) !== JSON.stringify(baseline),
+  );
   useEffect(() => {
     let cancelled = false;
     void getLocalWorkspace(project.id)
       .then((record) => {
         if (cancelled) return;
-        if (!record) throw new Error('项目不存在，请刷新项目列表。');
-        setName(record.workspace.project.name);
-        setClient(record.workspace.project.client);
-        setRevision(record.revision);
+        if (!record)
+          throw new Error(
+            'Project no longer exists. Refresh the project list.',
+          );
+        const current = projectDetails(record.workspace);
+        setDetails(current);
+        setBaseline(current);
       })
-      .catch((e) => {
-        if (!cancelled) setError(e.message);
+      .catch((cause) => {
+        if (!cancelled) setError(errorMessage(cause));
       });
     return () => {
       cancelled = true;
     };
   }, [project.id]);
+  useEffect(() => {
+    let cancelled = false;
+    void listProjectFiles(project.id)
+      .then((archive) => {
+        if (cancelled) return;
+        setLocation(archive);
+        setProjectPath(archive.projectPath);
+        setFolderError('');
+      })
+      .catch((cause) => {
+        if (!cancelled) setFolderError(errorMessage(cause));
+      })
+      .finally(() => {
+        if (!cancelled) setFolderLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, folderReload]);
   const save = async () => {
-    if (!revision || saving || !name.trim() || !client.trim()) return;
+    if (
+      !baseline ||
+      busy ||
+      folderDirty ||
+      !details.name.trim() ||
+      !details.client.trim()
+    )
+      return;
     setSaving(true);
     setError('');
     try {
-      await onSave({ name: name.trim(), client: client.trim() }, revision);
+      await onSave(details, baseline);
       onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '保存失败');
+    } catch (cause) {
+      setError(errorMessage(cause));
     } finally {
       setSaving(false);
     }
   };
+  const move = async () => {
+    if (!location || busy || !folderDirty || !projectPath.trim()) return;
+    setMoving(true);
+    setFolderError('');
+    setFolderNotice('');
+    try {
+      const result = await moveProjectArchive(
+        project.id,
+        projectPath.trim(),
+        location.projectPath,
+      );
+      setLocation(result);
+      setProjectPath(result.projectPath);
+      setFolderNotice(
+        'Project folder updated. Existing documents remain available.',
+      );
+    } catch (cause) {
+      setFolderError(errorMessage(cause));
+    } finally {
+      setMoving(false);
+    }
+  };
+  const field = (
+    key: keyof ProjectDetails,
+    label: string,
+    required = false,
+  ) => (
+    <label className="block space-y-1 text-xs">
+      {label}
+      <Input
+        value={details[key]}
+        onChange={(event) =>
+          setDetails((previous) => ({ ...previous, [key]: event.target.value }))
+        }
+        disabled={busy || !baseline}
+        required={required}
+        type={key.endsWith('Url') ? 'url' : 'text'}
+        maxLength={key.endsWith('Url') ? 2048 : 200}
+      />
+    </label>
+  );
   return (
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !saving) onClose();
+        if (!open && !busy) onClose();
       }}
     >
-      <DialogContent showCloseButton={!saving}>
+      <DialogContent
+        showCloseButton={!busy}
+        className="max-h-[90vh] overflow-y-auto sm:max-w-[660px]"
+      >
         <DialogHeader>
-          <DialogTitle>Edit Project / 编辑项目</DialogTitle>
+          <DialogTitle>Edit Project</DialogTitle>
           <DialogDescription>{project.id}</DialogDescription>
         </DialogHeader>
         <form
           className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
+          onSubmit={(event) => {
+            event.preventDefault();
             void save();
           }}
         >
-          <label className="block space-y-1 text-xs">
-            Project Name / 项目名称
+          <div className="grid gap-3 sm:grid-cols-2">
+            {field('name', 'Project Name', true)}
+            {field('client', 'Client', true)}
+            {field('proposalNumber', 'Proposal Number')}
+            <div className="hidden sm:block" />
+            {field('companyUrl', 'iSales Link')}
+            {field('cpqUrl', 'CPQ Link')}
+          </div>
+          <details className="rounded-lg border px-3 py-2">
+            <summary className="cursor-pointer text-xs font-medium">
+              Scope & Technical Basis
+            </summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {(['scopeBrief', 'technicalBasis'] as const).map((key) => (
+                <label key={key} className="block space-y-1 text-xs">
+                  {key === 'scopeBrief' ? 'Scope Brief' : 'Technical Basis'}
+                  <textarea
+                    className="min-h-20 w-full rounded-md border bg-background p-2 text-sm"
+                    value={details[key]}
+                    disabled={busy || !baseline}
+                    maxLength={4000}
+                    onChange={(event) =>
+                      setDetails((previous) => ({
+                        ...previous,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          </details>
+          <section
+            aria-label="Project Folder"
+            className="space-y-2 rounded-lg border bg-muted/20 p-3"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-xs font-semibold">
+                <FolderArchive className="size-4" />
+                Project Folder
+              </h3>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-7"
+                aria-label="Reload project folder"
+                disabled={busy || folderLoading}
+                onClick={() => {
+                  setFolderLoading(true);
+                  setFolderNotice('');
+                  setFolderReload((value) => value + 1);
+                }}
+              >
+                <RefreshCw className="size-3.5" />
+              </Button>
+            </div>
             <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={saving || !revision}
-              required
-              maxLength={200}
+              aria-label="Project folder path"
+              className="font-mono text-xs"
+              value={projectPath}
+              placeholder={
+                folderLoading
+                  ? 'Loading project folder…'
+                  : 'Absolute path to this project folder'
+              }
+              disabled={busy || folderLoading || !location}
+              onChange={(event) => {
+                setProjectPath(event.target.value);
+                setFolderNotice('');
+              }}
             />
-          </label>
-          <label className="block space-y-1 text-xs">
-            Client / 客户
-            <Input
-              value={client}
-              onChange={(e) => setClient(e.target.value)}
-              disabled={saving || !revision}
-              required
-              maxLength={200}
-            />
-          </label>
+            <p className="text-[11px] text-muted-foreground">
+              Change the full folder path, then apply to move this project&apos;s
+              documents. Other projects keep their folders.
+            </p>
+            {folderDirty && (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy || !projectPath.trim()}
+                  onClick={() => void move()}
+                >
+                  {moving ? 'Moving…' : 'Apply Folder'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => {
+                    setProjectPath(location?.projectPath || '');
+                    setFolderError('');
+                  }}
+                >
+                  Reset
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  Apply or reset before saving project info.
+                </span>
+              </div>
+            )}
+            {folderError && (
+              <p role="alert" className="text-xs text-destructive">
+                {folderError}
+              </p>
+            )}
+            {folderNotice && (
+              <output className="block text-xs text-emerald-700">
+                {folderNotice}
+              </output>
+            )}
+          </section>
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}
@@ -108,16 +303,23 @@ export function ProjectEditDialog({
             <Button
               type="button"
               variant="outline"
-              disabled={saving}
+              disabled={busy}
               onClick={onClose}
             >
-              Cancel / 取消
+              Cancel
             </Button>
             <Button
               type="submit"
-              disabled={saving || !revision || !name.trim() || !client.trim()}
+              disabled={
+                busy ||
+                !baseline ||
+                !detailsDirty ||
+                folderDirty ||
+                !details.name.trim() ||
+                !details.client.trim()
+              }
             >
-              {saving ? 'Saving… / 保存中' : 'Save / 保存'}
+              {saving ? 'Saving…' : 'Save Project Info'}
             </Button>
           </DialogFooter>
         </form>

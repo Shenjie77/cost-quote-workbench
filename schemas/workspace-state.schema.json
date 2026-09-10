@@ -148,6 +148,17 @@
           "type": "number",
           "minimum": 0,
           "maximum": 100
+        },
+        "profitShareRates": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/profitShareRate"
+          }
+        },
+        "profitShareMasterDataRevision": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
@@ -317,6 +328,72 @@
     }
   },
   "$defs": {
+    "profitShareRate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "bu", "ratePercent", "active"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "bu": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "\\S"
+        },
+        "ratePercent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "active": { "type": "boolean" }
+      }
+    },
+    "profitShareSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "weightedProfitShareRate",
+        "profitShareAmount",
+        "salesGrossProfit",
+        "profitShareBreakdown"
+      ],
+      "properties": {
+        "weightedProfitShareRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "profitShareAmount": { "$ref": "#/$defs/money" },
+        "salesGrossProfit": { "type": "number" },
+        "masterDataRevision": { "type": "integer", "minimum": 1 },
+        "profitShareBreakdown": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "bu",
+              "cost",
+              "costWeight",
+              "ratePercent",
+              "allocatedRevenue",
+              "profitShareAmount",
+              "directCost",
+              "unassignedCost",
+              "configured"
+            ],
+            "properties": {
+              "bu": { "$ref": "#/$defs/text" },
+              "cost": { "$ref": "#/$defs/money" },
+              "costWeight": { "type": "number", "minimum": 0, "maximum": 1 },
+              "ratePercent": { "type": "number", "minimum": 0, "maximum": 100 },
+              "allocatedRevenue": { "$ref": "#/$defs/money" },
+              "profitShareAmount": { "$ref": "#/$defs/money" },
+              "directCost": { "$ref": "#/$defs/money" },
+              "unassignedCost": { "$ref": "#/$defs/money" },
+              "configured": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
     "text": {
       "type": "string",
       "maxLength": 2000
@@ -1049,6 +1126,9 @@
           "items": {
             "$ref": "#/$defs/quoteAssumption"
           }
+        },
+        "profitShareSnapshot": {
+          "$ref": "#/$defs/profitShareSnapshot"
         },
         "status": {
           "enum": ["Draft", "Final"]

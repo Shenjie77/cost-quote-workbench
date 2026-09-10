@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NewProjectIdField } from './new-project-id-field';
+import { ArchiveSettingsPanel } from '../projects/project-files-panel';
 import { projectIdError, type NewProjectInput } from './project-creation';
 import {
   Sheet,
@@ -28,6 +29,7 @@ export function DetailSheet({
   const [owner, setOwner] = useState('Me');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [archiveBlocked, setArchiveBlocked] = useState(true);
   return (
     <Sheet
       open={open}
@@ -49,6 +51,7 @@ export function DetailSheet({
             event.preventDefault();
             if (
               busy ||
+              archiveBlocked ||
               !name.trim() ||
               !client.trim() ||
               projectIdError(projectId)
@@ -74,7 +77,7 @@ export function DetailSheet({
             }
           }}
         >
-          <div className="flex-1 space-y-5 p-5">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
             <NewProjectIdField
               inputId="new-project-id"
               value={projectId}
@@ -110,6 +113,10 @@ export function DetailSheet({
                 disabled={busy}
               />
             </label>
+            <ArchiveSettingsPanel
+              disabled={busy}
+              onBlockedChange={setArchiveBlocked}
+            />
             {error && (
               <p role="alert" className="text-sm text-destructive">
                 {error}
@@ -121,6 +128,7 @@ export function DetailSheet({
               type="submit"
               disabled={
                 busy ||
+                archiveBlocked ||
                 !name.trim() ||
                 !client.trim() ||
                 Boolean(projectIdError(projectId))

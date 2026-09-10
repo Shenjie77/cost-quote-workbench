@@ -34,6 +34,10 @@ Master Data → Workflow 配置节点名称、顺序、并行组、默认负责�
 
 公司实际申请、审批和客户发送仍在公司平台处理，本地记录不会代为申请或推断批准。报价 Excel 导出也不自动完成结束节点。
 
+## 节点文档
+
+选择节点后，将文件拖入其 **Documents** 卡片即可上传，也可点击卡片选择多个文件。磁盘路径为 `workflow/节点名称`，文件记录保留流程轮次。节点已完成、项目挂起或成本已锁定时仍可补充附件；上传不改变流程进度或成本。**Project Files & Archive** 汇总所有文件，包括旧轮次与退役节点，并提供项目公共文件上传和归档根目录设置。项目目录只包含 `workflow`、`cost`、`quotation`；详见 [项目文件归档](project-files.md)。
+
 ## 整个项目挂起
 
 在 **Project Workflow** 项目信息栏打开 **Project On Hold** 开关，即可挂起整个项目。Project List 显示 **On Hold** 标记。挂起期间，Today、Agent Digest 和提醒收件箱均不再把该项目列为待跟进，也不会产生节点恢复检查提醒。

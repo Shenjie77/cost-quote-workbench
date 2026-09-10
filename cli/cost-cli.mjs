@@ -24,7 +24,16 @@ import {
   mutationReceipt,
 } from '../server/workspace-resources.mjs';
 import { createHash, randomUUID } from 'node:crypto';
-import { access, mkdir, readFile, writeFile, stat } from 'node:fs/promises';
+import {
+  access,
+  mkdir,
+  readFile,
+  writeFile,
+  stat,
+  link,
+  rename,
+  unlink,
+} from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -97,6 +106,10 @@ const ROUNDING_CONTRACT = Object.freeze({
 });
 
 const IMPLEMENTED_COMMANDS = Object.freeze([
+  'files settings [--root PATH --expected-revision N] [--db FILE]',
+  'files list --project-id ID [--node-code CODE --version Vn --category CATEGORY] [--db FILE]',
+  'files upload --project-id ID --input FILE [--node-code CODE --version Vn --category CATEGORY] [--compact] [--db FILE]',
+  'files download --project-id ID --file-id ID --output FILE [--overwrite] [--db FILE]',
   'project workflow-action --project-id ID --input REQUEST --expected-revision REVISION [--db FILE]',
   'workflow preview --input REQUEST --expected-revision REVISION [--db FILE]',
   'workflow publish --input REQUEST --expected-revision REVISION [--db FILE]',
@@ -176,6 +189,41 @@ const readWorkbookFile = async (file) => {
  * boolean options never do. Keeping this explicit prevents silent typos.
  */
 const COMMAND_SPECS = Object.freeze({
+  'files.settings': {
+    values: ['root', 'expected-revision', 'db', 'request-id'],
+    booleans: ['pretty'],
+    required: [],
+  },
+  'files.list': {
+    values: [
+      'project-id',
+      'node-code',
+      'version',
+      'category',
+      'db',
+      'request-id',
+    ],
+    booleans: ['pretty'],
+    required: ['project-id'],
+  },
+  'files.upload': {
+    values: [
+      'project-id',
+      'input',
+      'node-code',
+      'version',
+      'category',
+      'db',
+      'request-id',
+    ],
+    booleans: ['pretty', 'compact'],
+    required: ['project-id', 'input'],
+  },
+  'files.download': {
+    values: ['project-id', 'file-id', 'output', 'db', 'request-id'],
+    booleans: ['pretty', 'overwrite'],
+    required: ['project-id', 'file-id', 'output'],
+  },
   'cost.delete': {
     values: ['project-id', 'version', 'expected-revision', 'db', 'request-id'],
     booleans: ['pretty'],
@@ -1180,6 +1228,103 @@ const parseExpectedRevision = (value) => {
   return Number(value);
 };
 
+const XLSX_MIME =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/** Keep exact generated/imported bytes without changing project cost or workflow. */
+const archiveProjectBytes = (
+  repository,
+  projectId,
+  bytes,
+  fileName,
+  category,
+  versionCode,
+  completedAction,
+) => {
+  try {
+    return repository.files.add(projectId, {
+      originalName: path.basename(fileName),
+      mimeType:
+        path.extname(fileName).toLowerCase() === '.xlsx'
+          ? XLSX_MIME
+          : 'application/octet-stream',
+      category,
+      ...(versionCode ? { versionCode } : {}),
+      buffer: Buffer.from(bytes),
+      requestId: createHash('sha256')
+        .update(`${responseRequestId}:${category}`)
+        .digest('hex'),
+    });
+  } catch (error) {
+    throw new CliFault(
+      'PROJECT_FILE_ARCHIVE_FAILED',
+      `${completedAction}; project file archive failed: ${error.message}. Use files upload to archive the retained source/output; do not repeat an applied import.`,
+      EXIT.FILE_IO,
+    );
+  }
+};
+
+const fileCommandFault = (error) => {
+  if (error instanceof CliFault) return error;
+  if (error?.name === 'ProjectFileError') {
+    const exitCode =
+      error.status === 404
+        ? EXIT.NOT_FOUND
+        : error.status === 409
+          ? EXIT.CONFLICT
+          : error.status >= 500
+            ? EXIT.FILE_IO
+            : EXIT.VALIDATION;
+    return new CliFault(
+      error.code === 'ARCHIVE_CONFLICT' && responseCommand === 'files.settings'
+        ? 'REVISION_CONFLICT'
+        : error.code,
+      error.message,
+      exitCode,
+    );
+  }
+  if (error?.code === 'EEXIST')
+    return new CliFault(
+      'OUTPUT_ALREADY_EXISTS',
+      'Output exists; pass --overwrite to replace it.',
+      EXIT.CONFLICT,
+    );
+  if (error?.code === 'ENOENT')
+    return new CliFault('FILE_NOT_FOUND', error.message, EXIT.NOT_FOUND);
+  if (
+    ['EACCES', 'EPERM', 'EISDIR', 'ENOTDIR', 'ENOSPC', 'EROFS'].includes(
+      error?.code,
+    )
+  )
+    return new CliFault('FILE_IO_ERROR', error.message, EXIT.FILE_IO);
+  return error;
+};
+
+/** Download arbitrary archived documents atomically; preserve existing output by default. */
+const writeDocumentArtifact = async (output, buffer, mimeType, overwrite) => {
+  const outputPath = path.resolve(output);
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  const temporary = path.join(
+    path.dirname(outputPath),
+    `.workbench-download-${randomUUID()}.tmp`,
+  );
+  try {
+    await writeFile(temporary, buffer, { flag: 'wx' });
+    if (overwrite) await rename(temporary, outputPath);
+    else await link(temporary, outputPath);
+  } finally {
+    await unlink(temporary).catch((error) => {
+      if (error.code !== 'ENOENT') throw error;
+    });
+  }
+  return {
+    path: outputPath,
+    sha256: createHash('sha256').update(buffer).digest('hex'),
+    sizeBytes: buffer.byteLength,
+    mimeType,
+  };
+};
+
 /** Runs a repository action and guarantees the SQLite handle is closed. */
 const withWorkspaceRepository = async (options, action) => {
   const {
@@ -1192,6 +1337,7 @@ const withWorkspaceRepository = async (options, action) => {
   try {
     return await action(repository);
   } catch (error) {
+    if (error?.name === 'ProjectFileError') throw fileCommandFault(error);
     if (error instanceof RepositoryNotFoundError)
       throw new CliFault(
         error.deleted ? 'PROJECT_DELETED' : 'NOT_FOUND',
@@ -1239,6 +1385,112 @@ const execute = async () => {
   responseCommand = resolved.command;
   const options = parseOptions(resolved.command, resolved.optionTokens);
   compactRequested = Boolean(options.compact);
+  if (resolved.command.startsWith('files.')) {
+    if (
+      resolved.command === 'files.settings' &&
+      Object.hasOwn(options, 'root') !==
+        Object.hasOwn(options, 'expected-revision')
+    )
+      throw new CliFault(
+        'INVALID_OPTIONS',
+        '--root and --expected-revision must be supplied together.',
+        EXIT.USAGE,
+      );
+    if (resolved.command === 'files.upload' && options.input === '-')
+      throw new CliFault(
+        'FILE_PATH_REQUIRED',
+        'files upload requires an explicit file path, not stdin.',
+        EXIT.USAGE,
+      );
+    return withWorkspaceRepository(options, async (repository) => {
+      try {
+        if (resolved.command === 'files.settings') {
+          const revision = options['expected-revision'];
+          if (revision !== undefined && !/^(0|[1-9][0-9]*)$/.test(revision))
+            throw new CliFault(
+              'INVALID_EXPECTED_REVISION',
+              'File settings revision must be a nonnegative integer.',
+              EXIT.USAGE,
+            );
+          const settings =
+            options.root === undefined
+              ? repository.files.getSettings()
+              : repository.files.updateSettings(
+                  { rootPath: String(options.root) },
+                  Number(revision),
+                );
+          return success('FileSettingsResult', settings, [], '1.0.0');
+        }
+        const projectId = String(options['project-id']);
+        if (resolved.command === 'files.list')
+          return success(
+            'ProjectFilesResult',
+            repository.files.list(projectId, {
+              ...(options['node-code']
+                ? { nodeCode: String(options['node-code']) }
+                : {}),
+              ...(options.version
+                ? { versionCode: String(options.version) }
+                : {}),
+              ...(options.category
+                ? { category: String(options.category) }
+                : {}),
+            }),
+            [],
+            '1.0.0',
+          );
+        if (resolved.command === 'files.upload') {
+          const filePath = path.resolve(String(options.input));
+          const { MAX_PROJECT_FILE_BYTES } =
+            await import('../server/project-files.mjs');
+          const sourceStat = await stat(filePath);
+          if (!sourceStat.isFile() || sourceStat.size > MAX_PROJECT_FILE_BYTES)
+            throw new CliFault(
+              'INVALID_UPLOAD_FILE',
+              'Upload must be a file no larger than 50 MiB.',
+              EXIT.VALIDATION,
+            );
+          const buffer = await readFile(filePath);
+          const file = repository.files.add(projectId, {
+            originalName: path.basename(filePath),
+            category: String(
+              options.category ||
+                (options['node-code'] ? 'workflow' : 'general'),
+            ),
+            ...(options['node-code']
+              ? { nodeCode: String(options['node-code']) }
+              : {}),
+            ...(options.version
+              ? { versionCode: String(options.version) }
+              : {}),
+            buffer,
+            requestId: createHash('sha256')
+              .update(responseRequestId)
+              .digest('hex'),
+          });
+          return success('ProjectFileResult', { projectId, file }, [], '1.0.0');
+        }
+        const { record, buffer } = repository.files.read(
+          projectId,
+          String(options['file-id']),
+        );
+        const artifact = await writeDocumentArtifact(
+          String(options.output),
+          buffer,
+          record.mimeType,
+          Boolean(options.overwrite),
+        );
+        return success(
+          'FileDownloadResult',
+          { projectId, file: record, artifact },
+          [],
+          '1.0.0',
+        );
+      } catch (error) {
+        throw fileCommandFault(error);
+      }
+    });
+  }
   if (
     [
       'project.workflow-action',
@@ -1745,21 +1997,35 @@ const execute = async () => {
         if (!archive) throw new TypeError('Archive not found');
         const bytes = await buildMaintenanceWorkbook(archive);
         const { writeXlsxArtifact } = await import('../server/artifact-io.mjs');
+        const artifact = await writeXlsxArtifact(
+          String(options.output),
+          bytes,
+          Boolean(options.overwrite),
+        );
+        archiveProjectBytes(
+          repository,
+          w.project.id,
+          bytes,
+          String(options.output),
+          'maintenance',
+          undefined,
+          `Workbook written to ${artifact.path}`,
+        );
         return success(
           'WorkbookExportResult',
           {
-            artifact: await writeXlsxArtifact(
-              String(options.output),
-              bytes,
-              Boolean(options.overwrite),
-            ),
+            artifact,
             sheets: await readWorkbookSheetNames(bytes),
           },
           [],
           '1.0.0',
         );
       } catch (error) {
-        if (error.name === 'RepositoryConflictError') throw error;
+        if (
+          error instanceof CliFault ||
+          error.name === 'RepositoryConflictError'
+        )
+          throw error;
         throw new CliFault(
           'MAINTENANCE_FAILED',
           error.message,
@@ -1864,8 +2130,9 @@ const execute = async () => {
         if (resolved.command === 'boq.import') {
           const { importBoq, appendBoq, emptyMaintenance } =
             await import('../features/maintenance/domain.ts');
+          const sourceBytes = await readWorkbookFile(String(options.file));
           const rows = await importBoq(
-            await readWorkbookFile(String(options.file)),
+            sourceBytes,
             path.basename(String(options.file)),
             input.mapping,
           );
@@ -1882,22 +2149,27 @@ const execute = async () => {
             )
           )
             throw new TypeError('BOQ rows already imported');
-          return success(
-            'WorkspaceRecordResult',
-            repository.save(
-              w.project.id,
-              {
-                ...w,
-                maintenanceBoq: {
-                  ...current,
-                  boq: appendBoq(current.boq, rows),
-                },
+          const saved = repository.save(
+            w.project.id,
+            {
+              ...w,
+              maintenanceBoq: {
+                ...current,
+                boq: appendBoq(current.boq, rows),
               },
-              parseExpectedRevision(options['expected-revision']),
-            ),
-            [],
-            '1.0.0',
+            },
+            parseExpectedRevision(options['expected-revision']),
           );
+          archiveProjectBytes(
+            repository,
+            w.project.id,
+            sourceBytes,
+            String(options.file),
+            'source',
+            undefined,
+            `BOQ import applied at project revision ${saved.revision}`,
+          );
+          return success('WorkspaceRecordResult', saved, [], '1.0.0');
         }
         if (resolved.command === 'cost.import') {
           const { previewCostImport, applyCostImport } =
@@ -1913,8 +2185,9 @@ const execute = async () => {
           if (options.apply && costLockReason(w, version))
             throw new TypeError(costLockReason(w, version));
           const resources = target.resourceTypes || w.resourceTypes;
+          const sourceBytes = await readWorkbookFile(String(options.file));
           const preview = await previewCostImport(
-            await readWorkbookFile(String(options.file)),
+            sourceBytes,
             path.basename(String(options.file)),
             input.mapping,
             resources,
@@ -1943,6 +2216,15 @@ const execute = async () => {
             w.project.id,
             w,
             parseExpectedRevision(options['expected-revision']),
+          );
+          archiveProjectBytes(
+            repository,
+            w.project.id,
+            sourceBytes,
+            String(options.file),
+            'source',
+            version,
+            `Cost import applied at project revision ${saved.revision}`,
           );
           if (!options.compact)
             return success('WorkspaceRecordResult', saved, [], '1.0.0');
@@ -1987,8 +2269,9 @@ const execute = async () => {
               'Output refers to the original template; choose a different file',
             );
           const quoteNumber = `QT-${w.project.id}-${Date.now()}`;
+          const templateBytes = await readWorkbookFile(String(options.file));
           const result = await fillTemplateWorkbook(
-            await readWorkbookFile(String(options.file)),
+            templateBytes,
             input,
             w,
             quoteNumber,
@@ -2027,6 +2310,24 @@ const execute = async () => {
               );
             }
           }
+          archiveProjectBytes(
+            repository,
+            w.project.id,
+            result.bytes,
+            String(options.output),
+            input.purpose === 'quote' ? 'quote' : 'cost',
+            w.activeVersion,
+            `Workbook written to ${artifact.path}`,
+          );
+          archiveProjectBytes(
+            repository,
+            w.project.id,
+            templateBytes,
+            String(options.file),
+            'source',
+            w.activeVersion,
+            `Workbook written to ${artifact.path}`,
+          );
           return success(
             'WorkbookExportResult',
             { artifact, sheets: await readWorkbookSheetNames(result.bytes) },
@@ -2170,7 +2471,7 @@ const execute = async () => {
           );
           return success('WorkspaceRecordResult', saved, [], '1.0.0');
         }
-        let bytes, quoteInput;
+        let bytes, quoteInput, archivedVersion;
         if (resolved.command === 'cpq.export') {
           const archived = cpq.archives.find(
             (entry) => entry.id === options['archive-id'],
@@ -2184,6 +2485,7 @@ const execute = async () => {
           const { buildCpqWorkbook } =
             await import('../features/cpq/export-workbook.ts');
           bytes = await buildCpqWorkbook(archived);
+          archivedVersion = archived.costVersion;
         } else {
           const { validatedQuoteInput } =
             await import('../features/quote/validated-input.ts');
@@ -2222,6 +2524,15 @@ const execute = async () => {
             );
           }
         }
+        archiveProjectBytes(
+          repository,
+          workspace.project.id,
+          bytes,
+          String(options.output),
+          quoteInput ? 'quote' : 'cpq',
+          quoteInput ? workspace.activeVersion : archivedVersion,
+          `Workbook written to ${artifact.path}`,
+        );
         return success(
           'WorkbookExportResult',
           { artifact, sheets: await readWorkbookSheetNames(bytes) },
@@ -2398,6 +2709,18 @@ const execute = async () => {
         { dataSchemaVersion: COST_EXPORT_SCHEMA_VERSION },
       );
     }
+    if (options['project-id'])
+      await withWorkspaceRepository(options, (repository) =>
+        archiveProjectBytes(
+          repository,
+          snapshot.project.id,
+          bytes,
+          outputPath,
+          'cost',
+          snapshot.costVersion.code,
+          `Workbook written to ${outputPath}`,
+        ),
+      );
     return success(
       'CostExportResult',
       {

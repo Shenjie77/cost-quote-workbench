@@ -25,4 +25,6 @@ cost-cli cost export --project-id ID --version V1 --output outputs/Cost-new.xlsx
 
 核对输出 manifest、路径与对账结果；源表和已存在文件保持不变，除非用户要求覆盖指定文件。报告校验失败/文件写入失败，不把失败当成功。内部成本文件可含成本、费率、毛利；客户报价由报价 skill 处理。
 
-用户要求“简易导出/按页面导出”时，运行 `cost export --project-id ID --version Vn --format simple --output outputs/Cost-simple.xlsx`。文件只有 Cost Detail、Summary Scope、Summary BU、Summary RE Type、Cost Statement 五张业务表；按页面展示年度投入/成本和多维汇总，报表中英文放同一格，不输出后台类型、编码、ID、Source 列。报表科目号保留在 Report Item 内。默认省略 format 或 `--format full` 仍输出完整九页审计工作簿。两种格式都取该版本已计算结果，支持锁版只读导出，不更改成本。
+用户要求“简易导出/按页面导出”时，运行 `cost export --project-id ID --version Vn --format simple --output outputs/Cost-simple.xlsx`。文件包含 Cost Detail、Summary Scope、Summary BU、Summary RE Type、Cost Statement、Summary Subcon 六张业务表；按页面展示年度投入/成本和多维汇总，报表中英文放同一格，不输出后台类型、编码、ID、Source 列。报表科目号保留在 Report Item 内。默认省略 format 或 `--format full` 仍输出完整九页审计工作簿。两种格式都取该版本已计算结果，支持锁版只读导出，不更改成本。
+
+项目导出自动归档生成文件，模板导出还保留输入模板；可用 `files list --project-id ID --category cost --version Vn` 核对文件。归档失败仍返回错误，即使输出文件已生成；按已完成状态用 `files upload` 补归档，不把错误当作完整成功。上传不完成节点或解锁成本，参数按需查 [CLI 文档归档](../../docs/cli-control-manual.md#project-documents-and-archive-location)。

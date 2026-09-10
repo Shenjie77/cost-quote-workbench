@@ -32,7 +32,7 @@ atomic JSON workspace per project with:
 - captured quote templates/library, selected assumptions, pricing, and quote history;
 - update timestamp.
 
-Global Master Data is separate from workspace snapshots. Its nine tabs have
+Global Master Data is separate from workspace snapshots. Its ten tabs have
 independent revisions and preserve migration conflict sources. Updating a tab
 does not read or save a project. New projects and blank cost versions capture
 current defaults/rates; cloned versions retain their source snapshots. All
@@ -42,6 +42,15 @@ explicit project/version adoption is requested. See [data boundaries](global-mas
 The schema is defined in `db/schema.ts`. Initialization uses idempotent,
 single-statement migrations and enables foreign keys, WAL, busy timeout, and
 `PRAGMA optimize`.
+
+Project document archives are separate from workspace snapshots. Additive
+`project_file_settings`, `project_file_roots`, and `project_files` tables store
+the default folder, per-project folder locations, and file metadata; binaries live
+under those folders. These tables are initialized without rewriting existing
+cost snapshots or incrementing workspace revisions. See [project files](project-files.md).
+Two additional archive tables retain readable node-folder mappings and pending
+migration cleanup. Project Folder changes copy and verify the full archive before
+switching its location; the project and global settings revisions stay unchanged.
 
 ## Save and conflict behavior
 
@@ -107,6 +116,11 @@ Use `--expected-revision none` only for a project known not to exist.
 `data/backups/` using SQLite's backup API, including committed WAL contents.
 It prints one JSON result with the backup path and does not stop a running app.
 This script never runs compatibility migrations.
+
+The database backup includes file indexes, but does not copy archived document
+contents. Back up each project's actual archive folder as well, including any
+custom roots outside `data/`. Project JSON backups do not contain attachments.
+Restore archived folders at their original paths alongside the database.
 
 In the UI, select the three-dot action beside the workspace identity to
 download the active project as a restore-ready `WorkspaceSaveRequest` JSON

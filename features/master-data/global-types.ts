@@ -6,6 +6,7 @@ export const GLOBAL_MASTER_DATA_TABS = [
   'maintenance',
   'assumptions',
   'quote-templates',
+  'profit-share',
   'workflow',
   'status',
   'cpq-catalog',

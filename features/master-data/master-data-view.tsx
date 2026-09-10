@@ -36,6 +36,11 @@ import type { SubcontractItem } from '@/features/master-data/types';
 import type { CatalogItem } from '@/features/cpq/domain';
 import { GlobalCpqCatalog } from './global-cpq-catalog';
 import { WorkflowTemplateEditor } from './workflow-template-editor';
+import { ProfitShareEditor } from './profit-share-editor';
+import {
+  validateProfitShareRates,
+  type ProfitShareRate,
+} from '@/features/quote/profit-share';
 import type {
   ProjectStatusDefinition,
   WorkflowStep,
@@ -86,6 +91,8 @@ type Props = {
   >;
   quoteTemplates: QuoteTemplate[];
   setQuoteTemplates: React.Dispatch<React.SetStateAction<QuoteTemplate[]>>;
+  profitShareRates?: ProfitShareRate[];
+  setProfitShareRates?: React.Dispatch<React.SetStateAction<ProfitShareRate[]>>;
   processSteps: WorkflowStep[];
   setProcessSteps: React.Dispatch<React.SetStateAction<WorkflowStep[]>>;
   projectStatusDefinitions: ProjectStatusDefinition[];
@@ -272,6 +279,8 @@ export function MasterDataView(props: Props) {
     setAssumptionLibrary,
     quoteTemplates,
     setQuoteTemplates,
+    profitShareRates = [],
+    setProfitShareRates = () => {},
     processSteps,
     setProcessSteps,
     projectStatusDefinitions,
@@ -283,6 +292,10 @@ export function MasterDataView(props: Props) {
   } = props;
   const [query, setQuery] = useState('');
   const workflow = activeTab === 'workflow';
+  const profitShareErrors =
+    activeTab === 'profit-share'
+      ? validateProfitShareRates(profitShareRates)
+      : [];
   const currentSaveLabel =
     saveLabel ||
     (workflow ? 'Preview & Publish' : 'Save this tab / 保存当前页签');
@@ -294,6 +307,7 @@ export function MasterDataView(props: Props) {
     maintenance: maintenancePriceRecords.length,
     assumptions: assumptionLibrary.length,
     'quote-templates': quoteTemplates.length,
+    'profit-share': profitShareRates.length,
     workflow: processSteps.length,
     status: projectStatusDefinitions.length,
   };
@@ -641,8 +655,9 @@ export function MasterDataView(props: Props) {
           action={
             <Button
               size="sm"
-              disabled={editingDisabled}
+              disabled={editingDisabled || profitShareErrors.length > 0}
               onClick={async () => {
+                if (profitShareErrors.length) return;
                 if (await onSave())
                   announce(
                     workflow
@@ -1480,6 +1495,13 @@ export function MasterDataView(props: Props) {
                 library={assumptionLibrary}
                 query={query}
                 announce={announce}
+              />
+            </TabsContent>
+            <TabsContent value="profit-share" className="mt-0">
+              <ProfitShareEditor
+                items={profitShareRates}
+                setItems={setProfitShareRates}
+                query={query}
               />
             </TabsContent>
           </fieldset>

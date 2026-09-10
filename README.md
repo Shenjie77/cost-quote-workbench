@@ -31,6 +31,15 @@ including after restart; snapshots can be recovered with `project restore`.
 Both new-project forms accept an optional Project ID (up to 80 characters).
 Leave it blank to generate one automatically; existing or deleted IDs cannot be
 reused, and the ID is immutable after creation.
+New projects create a folder under the configurable archive root, containing only
+**workflow**, **cost**, and **quotation**. Workflow subfolders use node names.
+Select a workflow node and drop files onto its **Documents** card to upload;
+**Project Files & Archive** lists all project files, including earlier rounds. Cost, quote, CPQ and maintenance
+exports and applied source imports are archived automatically. File uploads do
+not change workflow progress or locked costs. See [project file archives](docs/project-files.md).
+Project List **Edit** updates project name, client, Proposal Number, iSales/CPQ
+links and scope references. Its **Project Folder → Apply Folder** moves the
+project's documents to an unused absolute folder path while preserving downloads.
 Costs must be explicitly confirmed by the user before their version can enter,
 submit or complete DRB. `Confirmed` makes that version's inputs immutable; it
 is cost finalization, not DRB approval. Draft costs remain editable and cannot
@@ -46,6 +55,13 @@ only views history. Existing submissions and approvals remain bound to their
 original versions. Company approvals are recorded as actual progress in the
 project workflow; quote export checks confirmed cost and valid quotation inputs
 without requiring a duplicate local SSR approval chain.
+
+**Master Data → Profit Share** maintains each BU's share of selling revenue.
+Pricing Parameters uses the project's captured rates and BU cost weights to
+calculate net **Sales GP** and solve the target price. Costs without a BU,
+including EHS and Risk, go to the largest direct-cost BU. Existing projects use
+**Apply Latest Master Data** to adopt new rates; locked costs and quotation
+history stay unchanged. See [BU profit share and pricing](docs/profit-share.md).
 
 Cost Input is a compact editable grid with All/Y1–Y5 views and a toolbar
 Mode selector for Sites or Direct MD; it has no separate search bar. The
@@ -81,10 +97,10 @@ items kept separate. Select catalogue items in batches or save a manual item,
 then adjust the version's captured price and quantities. Catalogue price updates
 do not reprice existing BOQs. See the [subcontract cost guide](docs/subcontract-cost-design.md).
 
-Use the [18 business Skills](docs/business-skills.md) directly for project setup, master data, costing, CPQ, maintenance, quotation and workflow updates. `cost-workbench` is the lightweight cross-business router.
+Use the [19 business Skills](docs/business-skills.md) directly for project setup, master data, costing, CPQ, maintenance, quotation and workflow updates. `cost-workbench` is the lightweight cross-business router.
 
 For routine Skill work, use [narrow resource commands](skills/cost-workbench/references/resources.md):
-project metadata, individual cost versions/rows, nine global Master Data tabs,
+project metadata, individual cost versions/rows, ten global Master Data tabs,
 project CPQ drafts/selections, workflow plan/actions/history, quotations and BOQ. General catalogue maintenance needs
 no project ID or workspace read and has an independent revision per tab. Workflow
 publication is the exception: it previews affected projects and checks their revisions. Paginated reads and compact

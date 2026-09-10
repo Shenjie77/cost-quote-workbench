@@ -175,16 +175,26 @@ export async function buildCpqWorkbook(archive: CpqArchive) {
   }
   return workbook.xlsx.writeBuffer();
 }
-export async function downloadCpqArchive(archive: CpqArchive) {
+export async function downloadCpqArchive(
+  archive: CpqArchive,
+  projectId: string,
+) {
+  archive = structuredClone(archive);
   const bytes = await buildCpqWorkbook(archive);
-  const url = URL.createObjectURL(
-    new Blob([bytes as BlobPart], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    }),
-  );
+  const blob = new Blob([bytes as BlobPart], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const fileName = `${archive.id}.xlsx`;
+  const { archiveProjectFile } = await import('../projects/project-files.ts');
+  await archiveProjectFile(projectId, blob, {
+    originalName: fileName,
+    category: 'cpq',
+    versionCode: archive.costVersion,
+  });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${archive.id}.xlsx`;
+  a.download = fileName;
   a.click();
   URL.revokeObjectURL(url);
 }

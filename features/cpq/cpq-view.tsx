@@ -32,6 +32,7 @@ const money = (n: number) =>
     maximumFractionDigits: 2,
   });
 export function CpqView({
+  projectId,
   value,
   onChange,
   baseline,
@@ -43,6 +44,7 @@ export function CpqView({
   catalogApplyDisabled,
   announce,
 }: {
+  projectId: string;
   value: CpqWorkspace;
   onChange: (next: CpqWorkspace) => void;
   baseline: CostVersionSnapshot;
@@ -538,7 +540,7 @@ export function CpqView({
                 onClick={async () => {
                   setBusy(true);
                   try {
-                    await downloadCpqArchive(archive);
+                    await downloadCpqArchive(archive, projectId);
                   } catch (e) {
                     setError(String(e));
                   } finally {

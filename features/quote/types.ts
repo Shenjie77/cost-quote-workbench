@@ -1,4 +1,13 @@
 /** Durable client-template, assumption, and quotation-history contracts. */
+import type { PricingResult } from './domain.ts';
+
+export type QuoteProfitShareSnapshot = Pick<
+  PricingResult,
+  | 'weightedProfitShareRate'
+  | 'profitShareAmount'
+  | 'salesGrossProfit'
+  | 'profitShareBreakdown'
+> & { masterDataRevision?: number };
 
 export type QuoteTemplate = {
   id: string;
@@ -51,6 +60,8 @@ export type QuoteHistoryRecord = {
   gstAmount: number;
   quoteAfterTax: number;
   grossMarginPercent: number;
+  /** Effective rates and BU allocation used for this historical output. */
+  profitShareSnapshot?: QuoteProfitShareSnapshot;
   note: string;
   /** Exact output text, detached from subsequent master-data edits. */
   templateSnapshot?: QuoteTemplate;

@@ -1,6 +1,6 @@
 ---
 name: ssr-workflow-update
-description: 更新项目可配置流程的节点信息、完成确认、并行待办和暂停恢复，查询 SLA 跟进提醒；历史评审只读，全局模板用流程配置 skill。
+description: 更新项目可配置流程的节点信息、完成确认、并行待办和暂停恢复，归档节点文档，查询 SLA 跟进提醒；历史评审只读，全局模板用流程配置 skill。
 ---
 
 # SSR · 项目流程更新
@@ -40,6 +40,20 @@ cost-cli project workflow-action --project-id ID --input action.json --expected-
 旧节点没有 startedAt 时，迁移以升级时刻初始化需要开始计时节点的 SLA，不推测过去的实际开始日；保留原 followUpDate。用户给出实际开始时间后可通过节点动作修正，并填写原因。旧完成标记不代表公司批准，不补造审批证据。
 
 带项目最新 revision 写入；成功核对 `OperationResult` 的 projectId/revision/workflowVersion/nodeCode/action。CAS 冲突后重读目标计划并重施原意，不盲重放旧动作。
+
+## 节点文档
+
+上传前核对实际节点 code 和目标流程轮次；当前轮次使用 `workflow-plan` 回执的 `workflowVersion`，不能用正在查看的成本版代替。显式传 `--node-code CODE --version Vn`，历史轮次按用户指定的版本归档。
+
+节点文件存入 `workflow/<可读节点名称>`，不按轮次再建目录。`nodeCode/versionCode` 仍保留在元数据中；名称用于展示和归档目录，不能用名称代替 CLI 节点代码或从路径推断轮次。页面操作为选择节点后拖入文件，也可点击选择文件。
+
+```sh
+cost-cli files list --project-id ID --node-code CODE --version Vn
+cost-cli files upload --project-id ID --node-code CODE --version Vn --input /absolute/document.xlsx --compact
+cost-cli files download --project-id ID --file-id FILE_ID --output /absolute/download/document.xlsx
+```
+
+文档上传独立归档，不改变项目 revision，不完成节点、不解锁成本，也不代表审批通过；完成确认仍走上面的节点动作。核对上传返回的 file.id、nodeCode、versionCode 和 sha256。通用项目文档和归档位置由项目管理 skill 处理；文件限制、重试及返回结构按需查 [CLI 文档归档](../../docs/cli-control-manual.md#project-documents-and-archive-location)。
 
 ## 业务边界
 

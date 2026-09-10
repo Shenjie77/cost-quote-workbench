@@ -49,6 +49,9 @@ import { ManualHistoryForm } from './manual-history-form';
 import { validatePricingSettings } from './domain';
 import { formatSgd } from '@/lib/formatters';
 import type { QuoteMasterDataTab } from '@/features/master-data/navigation';
+import type { BuCostAllocation } from './profit-share';
+import { quoteProfitShareSnapshot } from './history-record';
+import { ProfitShareSummary } from './profit-share-summary';
 
 const newId = (prefix: string) => `${prefix}-${globalThis.crypto.randomUUID()}`;
 
@@ -59,10 +62,12 @@ export function QuoteView({
   activeVersion,
   versionState,
   totalCost,
+  costAllocation,
   costErrors,
   decisionError,
   onSave,
   onOpenMasterData,
+  onApplyProfitShare,
   onExportStateChange,
   exportInProgress,
   pricing,
@@ -83,11 +88,14 @@ export function QuoteView({
   activeVersion: string;
   versionState: CostVersionState;
   totalCost: number;
+  costAllocation?: BuCostAllocation;
   costErrors: string[];
   decisionError?: string;
   onSave: () => Promise<boolean>;
   /** Catalog maintenance stays outside Quote; this callback only changes views. */
   onOpenMasterData: (tab: QuoteMasterDataTab) => void;
+  /** Explicitly captures the published global rates for this pricing draft. */
+  onApplyProfitShare?: () => Promise<boolean>;
   /** Parent prevents cross-project switching while allowing same-project navigation. */
   onExportStateChange: (exporting: boolean) => void;
   exportInProgress: boolean;
@@ -105,6 +113,8 @@ export function QuoteView({
 }) {
   const [showManualHistory, setShowManualHistory] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isApplyingRates, setIsApplyingRates] = useState(false);
+  const applyingRates = useRef(false);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -112,7 +122,7 @@ export function QuoteView({
       mounted.current = false;
     };
   }, []);
-  const result = calculatePricing(totalCost, pricing);
+  const result = calculatePricing(totalCost, pricing, costAllocation);
   const template = quoteTemplates.find(
     (item) => item.id === selectedQuoteTemplateId,
   );
@@ -122,7 +132,7 @@ export function QuoteView({
   );
   const outputErrors = [
     ...costErrors,
-    ...validatePricingSettings(pricing, totalCost),
+    ...validatePricingSettings(pricing, totalCost, costAllocation),
     ...(!templateAvailable
       ? [
           'Select an active template matching this client / 请选择当前客户适用的启用模板',
@@ -159,7 +169,8 @@ export function QuoteView({
 
   /** Generates one real XLSX file and records the exact commercial snapshot. */
   const generateDraft = async () => {
-    if (!template || isExporting || exportInProgress) return;
+    if (!template || isExporting || exportInProgress || applyingRates.current)
+      return;
     if (decisionError) {
       announce(decisionError);
       return;
@@ -179,6 +190,7 @@ export function QuoteView({
     setIsExporting(true);
     onExportStateChange(true);
     const timestamp = new Date();
+    const profitShareMasterDataRevision = pricing.profitShareMasterDataRevision;
     const quoteNumber = `QT-${project.id.replace(/^PRJ-/, '')}-${activeVersion}-${timestamp
       .toISOString()
       .replace(/[-:TZ.]/g, '')
@@ -191,6 +203,7 @@ export function QuoteView({
         template,
         assumptions: quoteAssumptions,
         pricing: result,
+        profitShareMasterDataRevision,
       });
       const history: QuoteHistoryRecord = {
         id: newId('quote-history'),
@@ -204,6 +217,10 @@ export function QuoteView({
         gstAmount: result.gstAmount,
         quoteAfterTax: result.quoteAfterTax,
         grossMarginPercent: result.grossMarginPercent,
+        profitShareSnapshot: quoteProfitShareSnapshot(
+          result,
+          profitShareMasterDataRevision,
+        ),
         note: `Generated ${exported.fileName}`,
         templateSnapshot: structuredClone(template),
         assumptionSnapshots: structuredClone(
@@ -272,13 +289,48 @@ export function QuoteView({
                 {formatSgd(result.cost)}
               </span>
             </div>
+            <ProfitShareSummary
+              result={result}
+              masterDataRevision={pricing.profitShareMasterDataRevision}
+              onManage={() => onOpenMasterData('profit-share')}
+              applying={isApplyingRates}
+              disabled={exportInProgress || isExporting}
+              onApply={
+                onApplyProfitShare
+                  ? async () => {
+                      if (
+                        applyingRates.current ||
+                        exportInProgress ||
+                        isExporting
+                      )
+                        return;
+                      applyingRates.current = true;
+                      setIsApplyingRates(true);
+                      try {
+                        announce(
+                          (await onApplyProfitShare())
+                            ? 'Latest profit share rates applied and saved.'
+                            : 'Profit share rates were not applied. The current selection is retained.',
+                        );
+                      } catch (error) {
+                        announce(
+                          `Unable to apply profit share rates: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                        );
+                      } finally {
+                        applyingRates.current = false;
+                        if (mounted.current) setIsApplyingRates(false);
+                      }
+                    }
+                  : undefined
+              }
+            />
             <label
               htmlFor="target-gross-margin"
               className="grid grid-cols-[1fr_180px] items-center gap-4 px-4 py-2.5"
             >
               <BiText
-                en="Target Gross Margin (%)"
-                zh="目标销毛率（%）"
+                en="Target Sales GP (%)"
+                zh="目标销售毛利率（扣除分成）"
                 className="font-medium"
               />
               <Input
@@ -301,7 +353,7 @@ export function QuoteView({
                 className="font-medium"
               />
               <span className="financial-numeral text-right font-semibold">
-                {formatSgd(result.listPrice)}
+                {result.valid ? formatSgd(result.listPrice) : '—'}
               </span>
             </div>
             <label
@@ -346,12 +398,17 @@ export function QuoteView({
             <div className="grid grid-cols-2 divide-x divide-border bg-[#edf4f3]">
               <div className="px-4 py-3">
                 <BiText
-                  en="Actual Sales GM"
-                  zh="项目实际销毛"
+                  en="Actual Sales GP"
+                  zh="销售毛利率（扣除分成）"
                   className="text-[10px] text-[#557276]"
                 />
                 <p className="financial-numeral mt-1 text-lg font-bold text-[#173a52]">
-                  {result.grossMarginPercent.toFixed(2)}%
+                  {result.valid
+                    ? `${result.grossMarginPercent.toFixed(2)}%`
+                    : '—'}
+                </p>
+                <p className="financial-numeral mt-1 text-[10px] text-[#557276]">
+                  {result.valid ? formatSgd(result.salesGrossProfit) : '—'}
                 </p>
               </div>
               <div className="px-4 py-3 text-right">
@@ -369,6 +426,7 @@ export function QuoteView({
           <div className="flex flex-wrap justify-end gap-2 border-t border-border p-3">
             <Button
               variant="outline"
+              disabled={isApplyingRates}
               onClick={async () =>
                 announce(
                   (await onSave())
@@ -385,6 +443,7 @@ export function QuoteView({
               disabled={
                 !template ||
                 isExporting ||
+                isApplyingRates ||
                 exportInProgress ||
                 versionState !== 'Confirmed' ||
                 outputErrors.length > 0
@@ -673,7 +732,7 @@ export function QuoteView({
                 <TableHead className="text-right">Cost</TableHead>
                 <TableHead className="text-right">Before Tax</TableHead>
                 <TableHead className="text-right">After Tax</TableHead>
-                <TableHead className="text-right">GM</TableHead>
+                <TableHead className="text-right">Sales GP</TableHead>
                 <TableHead>Note</TableHead>
                 <TableHead className="w-16">Action</TableHead>
               </TableRow>

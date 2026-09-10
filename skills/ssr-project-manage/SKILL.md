@@ -1,6 +1,6 @@
 ---
 name: ssr-project-manage
-description: 新建 SSR 报价项目、修改项目基本资料、删除或恢复项目；流程进度使用 ssr-workflow-update，成本版本使用 ssr-cost-create。
+description: 新建 SSR 报价项目、修改基本资料、删除或恢复项目，维护归档位置及项目文档；流程进度和节点文档使用 ssr-workflow-update，成本版本使用 ssr-cost-create。
 ---
 
 # SSR · 项目管理
@@ -31,6 +31,20 @@ description: 新建 SSR 报价项目、修改项目基本资料、删除或恢�
 ```
 
 创建返回空白 V1 草稿，并捕获创建时的全局主数据为项目和成本版本的独立快照。以后维护全局库不会改动这个项目。使用实际成本前核实捕获的 RE 费率、有效期与 TD 日期，不把初始样例当成公司已批准记录。
+
+创建时自动在已配置的归档根目录建立项目文件夹。用户指定归档目录时，用 `files settings` 读取独立配置 revision，再 `files settings --root /absolute/folder --expected-revision R`；这不是项目 revision，无需读取项目，正常项目操作不擅自更改全局目录。目录更新用于后续新建项目，已有项目保留原位置。
+
+归档目录按 `workflow/cost/quotation` 三个模块组织。逻辑类别不变：`general/backup` 存入 workflow，`cost/source` 存入 cost，`quote/cpq/maintenance` 存入 quotation；`quotation` 不是 CLI category 值。节点文档按可读节点名称建子目录，轮次仍用元数据筛选，不根据文件夹推断版本。
+
+已有项目改路径属于单项目迁移，不用修改全局根目录替代。项目编辑会复制并校验原目录后更新索引，不能直接在磁盘搬走已登记文件；操作及历史布局兼容见 [项目文件归档](../../docs/project-files.md)。
+
+```sh
+cost-cli files list --project-id ID
+cost-cli files upload --project-id ID --category general --input /absolute/document.pdf --compact
+cost-cli files download --project-id ID --file-id FILE_ID --output /absolute/download/document.pdf
+```
+
+`files list` 返回项目归档路径和文档元数据，不加载 workspace。上传直接接收文件路径，不套 JSON 信封；不改流程、成本或项目 revision。节点文档交由流程更新 skill，显式指定节点和轮次。应用成本/BOQ 导入后自动保存源文件，项目 Excel 导出自动保存生成文件；不需重复上传。若归档失败，按错误中已完成步骤恢复，不盲目重复导入。详细命令、分类和错误处理按需读 [CLI 文档归档](../../docs/cli-control-manual.md#project-documents-and-archive-location)。
 
 修改名称/客户：`project get --project-id ID`，随后 `project update --project-id ID --input change.json --expected-revision R`，只设置 `name/client`。Proposal 编号、Scope、公司平台链接、技术资料版本和模式使用 `project get/update --section metadata`，set 字段为 proposalNumber/companyUrl/scopeBrief/technicalBasis/mode（service 或 tender）。流程进展先读 `project get --section workflow-plan`，再用 `project workflow-action`，交流程更新 skill；不独立设置 projectStatus 或修改历史 reviewGates。
 `project apply-masterdata` 仅允许当前 activeVersion 为未锁定 Draft 的项目；指定成本版本费率则用 `cost apply-rates --version`。若当前版本已定稿，先按用户的新一轮估算意图建立新 Draft，保持原版与历史归档不变。

@@ -87,7 +87,8 @@ export function CostStatementTable({
           </span>
         </span>
         <span className="financial-numeral font-semibold text-[#173a52]">
-          Total with risk · {formatSgd(values.totalWithRisk)}
+          Total with risk ·{' '}
+          {values.totalWithRisk ? formatSgd(values.totalWithRisk) : '-'}
         </span>
       </div>
       {unmappedRows.length > 0 ? (
@@ -130,6 +131,12 @@ export function CostStatementTable({
           <TableBody>
             {statementRows.map((row) => {
               const isManual = row.mode === 'manual' && row.manualKey;
+              const manualAmount =
+                row.manualKey === 'otherService'
+                  ? row.amount
+                  : row.manualKey
+                    ? manualCosts[row.manualKey]
+                    : 0;
               const rowClass =
                 row.mode === 'grand-total'
                   ? 'bg-[#17437a] text-white hover:bg-[#17437a]'
@@ -205,9 +212,11 @@ export function CostStatementTable({
                   <TableCell className="p-0 text-right">
                     {isManual && row.manualKey ? (
                       <div className="relative">
-                        <span className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 text-[9px] text-muted-foreground">
-                          S$
-                        </span>
+                        {!!manualAmount && (
+                          <span className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 text-[9px] text-muted-foreground">
+                            S$
+                          </span>
+                        )}
                         <Input
                           aria-label={`${row.en} cost in SGD`}
                           type="number"
@@ -217,12 +226,8 @@ export function CostStatementTable({
                             row.manualKey === 'otherService' ? '0.01' : '100'
                           }
                           className="financial-numeral h-9 rounded-none border-0 bg-transparent pl-7 pr-2 text-right text-[11px] shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-white focus-visible:ring-1"
-                          value={
-                            (row.manualKey === 'otherService'
-                              ? row.amount
-                              : manualCosts[row.manualKey]) || ''
-                          }
-                          placeholder="0"
+                          value={manualAmount || ''}
+                          placeholder="-"
                           onChange={(event) =>
                             updateManualCost(
                               row.manualKey as keyof ManualCostInputs,
@@ -244,7 +249,7 @@ export function CostStatementTable({
                       </div>
                     ) : (
                       <span className="financial-numeral block px-3 py-2 font-semibold">
-                        {formatSgd(row.amount)}
+                        {row.amount ? formatSgd(row.amount) : '-'}
                       </span>
                     )}
                   </TableCell>

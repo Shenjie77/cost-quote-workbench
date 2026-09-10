@@ -62,7 +62,7 @@ export function ProjectTable({
             <BiText en="Total Quote" zh="项目总报价" className="items-end" />
           </TableHead>
           <TableHead className="pr-3 text-right">
-            <BiText en="Sales GM" zh="项目销毛" className="items-end" />
+            <BiText en="Sales GP" zh="项目销毛" className="items-end" />
           </TableHead>
           {hasActions && (
             <TableHead className="w-[140px] pr-3 text-right">

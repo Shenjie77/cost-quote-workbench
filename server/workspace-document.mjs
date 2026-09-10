@@ -24,6 +24,7 @@ import {
   initialQuoteTemplates,
 } from '../features/quote/types.ts';
 import { initialPricingSettings } from '../features/quote/domain.ts';
+import { validateProfitShareRates } from '../features/quote/profit-share.ts';
 import { assertMaintenanceWorkspace } from '../features/maintenance/domain.ts';
 import { assertSsr } from '../features/ssr/domain.ts';
 import { assertCpq } from '../features/cpq/domain.ts';
@@ -400,6 +401,14 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
     );
   if (workspace.maintenanceBoq)
     assertMaintenanceWorkspace(workspace.maintenanceBoq);
+  if (workspace.pricing?.profitShareRates !== undefined) {
+    const errors = validateProfitShareRates(workspace.pricing.profitShareRates);
+    if (errors.length)
+      throw new WorkspaceValidationError(
+        errors.join(' '),
+        '/pricing/profitShareRates',
+      );
+  }
   if (workspace.ssr) assertSsr(workspace.ssr);
   if (workspace.cpq) {
     try {

@@ -1,6 +1,6 @@
 'use client';
 /** Reusable workbook-column mapping; no changes are applied until preview succeeds. */
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,6 +18,7 @@ import {
   type ImportPreview,
 } from '../import-workbook';
 import type { CostInputRow, RateSettings, ResourceType } from '../domain';
+import { archiveProjectFile } from '@/features/projects/project-files';
 const fields = [
   'scope',
   'bu',
@@ -28,12 +29,20 @@ const fields = [
   'cost',
 ] as const;
 export function CostImportPanel({
+  projectId,
+  versionCode,
+  announce,
+  canApply,
   rows,
   setRows,
   resources,
   rates,
   onClose,
 }: {
+  projectId?: string;
+  versionCode?: string;
+  announce?: (message: string) => void;
+  canApply?: () => boolean;
   rows: CostInputRow[];
   setRows: React.Dispatch<React.SetStateAction<CostInputRow[]>>;
   resources: ResourceType[];
@@ -49,6 +58,18 @@ export function CostImportPanel({
     [busy, setBusy] = useState(false);
   const [excludeText, setExcludeText] = useState('');
   const requestSeq = useRef(0);
+  const importing = useRef(false);
+  const mounted = useRef(true);
+  const latest = useRef({ rows, resources, rates });
+  useEffect(() => {
+    latest.current = { rows, resources, rates };
+  }, [rows, resources, rates]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [mapping, setMapping] = useState<CostImportMapping>({
     sheet: '',
     headerRow: 1,
@@ -348,12 +369,61 @@ export function CostImportPanel({
           </div>
           <Button
             disabled={busy || preview.issues.length > 0}
-            onClick={() => {
+            onClick={async () => {
+              if (importing.current || !file) return;
+              importing.current = true;
+              const seq = requestSeq.current;
+              setBusy(true);
+              setError('');
               try {
-                setRows(applyCostImport(rows, preview, { resources, rates }));
+                if (canApply && !canApply())
+                  throw new Error(
+                    'Wait for the current project operation before importing.',
+                  );
+                applyCostImport(rows, preview, { resources, rates });
+                if (projectId)
+                  await archiveProjectFile(projectId, file, {
+                    category: 'source',
+                    versionCode,
+                  });
+                if (!mounted.current) return;
+                if (canApply && !canApply())
+                  throw new Error(
+                    'Source file archived. Project or version is switching; reopen the import after switching to apply its rows.',
+                  );
+                if (seq !== requestSeq.current)
+                  throw new Error(
+                    'The table mapping changed. The source file is archived; refresh the preview before importing.',
+                  );
+                const current = latest.current;
+                setRows((currentRows) => {
+                  try {
+                    if (canApply && !canApply())
+                      throw new Error(
+                        'Project or version changed before the import could be applied.',
+                      );
+                    return applyCostImport(currentRows, preview, {
+                      resources: current.resources,
+                      rates: current.rates,
+                    });
+                  } catch (error) {
+                    queueMicrotask(() =>
+                      announce?.(
+                        `Source file archived; cost import was not applied: ${error instanceof Error ? error.message : String(error)}`,
+                      ),
+                    );
+                    return currentRows;
+                  }
+                });
                 onClose();
               } catch (err) {
-                setError(String(err));
+                if (mounted.current) {
+                  setError(String(err));
+                  announce?.(err instanceof Error ? err.message : String(err));
+                }
+              } finally {
+                importing.current = false;
+                if (mounted.current) setBusy(false);
               }
             }}
           >

@@ -14,6 +14,7 @@
 | 主数据维护 | 维保数据维护       | `$ssr-maintenance-data`      |
 | 主数据维护 | 风险假设库维护     | `$ssr-assumptions-maintain`  |
 | 主数据维护 | 报价模板更新       | `$ssr-quote-template`        |
+| 主数据维护 | BU 分成比例维护    | `$ssr-profit-share-maintain` |
 | CPQ        | CPQ 数据维护       | `$ssr-cpq-catalog`           |
 | CPQ        | CPQ 配置匹配       | `$ssr-cpq-configure`         |
 | 维保       | 维保配置与报价     | `$ssr-maintenance-quote`     |
@@ -23,7 +24,7 @@
 | 项目流程   | 流程模板维护       | `$ssr-workflow-configure`    |
 | 历史参考   | 历史成本参考       | `$ssr-history-reference`     |
 
-现有 18 个独立业务 skill，另有 1 个跨业务总入口。
+现有 19 个独立业务 skill，另有 1 个跨业务总入口。
 
 ## 调用示例
 

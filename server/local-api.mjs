@@ -7,6 +7,8 @@ import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GlobalMasterDataConflictError } from './global-master-data.mjs';
+import { ProjectFileError } from './project-files.mjs';
+import { routeProjectFiles } from './project-files-api.mjs';
 import {
   createProject,
   applyProjectMasterData,
@@ -102,6 +104,18 @@ const route = async (request, response) => {
     });
     return;
   }
+  if (
+    await routeProjectFiles({
+      request,
+      response,
+      url,
+      repository,
+      respond,
+      readJson,
+      origin,
+    })
+  )
+    return;
   if (request.method === 'GET' && url.pathname === '/api/local/workspaces') {
     respond(200, {
       apiVersion: LOCAL_API_VERSION,
@@ -417,21 +431,28 @@ const server = createServer((request, response) => {
     const origin = request.headers.origin;
     send(
       response,
-      conflict
-        ? 409
-        : error instanceof RepositoryNotFoundError
-          ? error.deleted
-            ? 410
-            : 404
-          : error instanceof RangeError
-            ? 413
-            : 400,
+      error instanceof ProjectFileError
+        ? error.status
+        : conflict
+          ? 409
+          : error instanceof RepositoryNotFoundError
+            ? error.deleted
+              ? 410
+              : 404
+            : error instanceof RangeError
+              ? 413
+              : 400,
       {
         apiVersion: LOCAL_API_VERSION,
         kind: 'LocalError',
         ok: false,
         error: {
-          code: conflict ? 'REVISION_CONFLICT' : 'INVALID_REQUEST',
+          code:
+            error instanceof ProjectFileError
+              ? error.code
+              : conflict
+                ? 'REVISION_CONFLICT'
+                : 'INVALID_REQUEST',
           message: error instanceof Error ? error.message : 'Invalid request.',
           ...(conflict ? { currentRevision: error.currentRevision } : {}),
         },

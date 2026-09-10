@@ -12,6 +12,7 @@ export type QuoteWorkbookInput = {
   template: QuoteTemplate;
   assumptions: QuoteAssumption[];
   pricing: PricingResult;
+  profitShareMasterDataRevision?: number;
 };
 
 const CURRENCY_FORMAT = '"S$" #,##0.00;[Red]-"S$" #,##0.00;-';
@@ -151,12 +152,19 @@ export const buildQuoteWorkbookBuffer = async (input: QuoteWorkbookInput) => {
 
 /** Creates a browser download and returns its auditable file metadata. */
 export const downloadQuoteWorkbook = async (input: QuoteWorkbookInput) => {
+  input = structuredClone(input);
   const buffer = await buildQuoteWorkbookBuffer(input);
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   const blob = new Blob([bytes], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const fileName = `${input.quoteNumber.replace(/[^A-Za-z0-9._-]+/g, '_')}.xlsx`;
+  const { archiveProjectFile } = await import('../projects/project-files.ts');
+  await archiveProjectFile(input.project.id, blob, {
+    originalName: fileName,
+    category: 'quote',
+    versionCode: input.costVersion,
+  });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;

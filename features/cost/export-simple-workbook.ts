@@ -62,6 +62,7 @@ const COLORS = {
 };
 const PALETTE = ['FF173A52', 'FF2E6F77', 'FFA86432', 'FF81918B', 'FF657E98'];
 const MONEY = '"S$" #,##0.00;[Red]-"S$" #,##0.00;"S$" 0.00';
+const STATEMENT_MONEY = '"S$" #,##0.00;[Red]-"S$" #,##0.00;"-"';
 const QUANTITY = '#,##0.####';
 const quantityFormat = (value: number) =>
   Number.isInteger(value) ? '#,##0' : QUANTITY;
@@ -777,7 +778,7 @@ const addStatement = (
   );
   sheet.getColumn(1).width = 100;
   sheet.getColumn(2).width = 25;
-  sheet.getColumn(2).numFmt = MONEY;
+  sheet.getColumn(2).numFmt = STATEMENT_MONEY;
   const header = styleRow(sheet, HEADER_ROW, 2, {
     fill: COLORS.total,
     whiteText: true,
@@ -924,9 +925,15 @@ export const downloadSimpleCostWorkbook = async (
   const blob = new Blob([bytes.slice().buffer as ArrayBuffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
+  const fileName = getSimpleCostWorkbookFileName(snapshot);
+  const { archiveProjectFile } = await import('../projects/project-files.ts');
+  await archiveProjectFile(snapshot.project.id, blob, {
+    originalName: fileName,
+    category: 'cost',
+    versionCode: snapshot.costVersion.code,
+  });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
-  const fileName = getSimpleCostWorkbookFileName(snapshot);
   try {
     anchor.href = url;
     anchor.download = fileName;

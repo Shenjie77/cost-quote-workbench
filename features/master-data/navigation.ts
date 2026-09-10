@@ -7,6 +7,7 @@ export const masterDataTabs = [
   { value: 'maintenance', label: 'Maintenance', labelZh: '维保历史' },
   { value: 'assumptions', label: 'Assumptions', labelZh: '假设库' },
   { value: 'quote-templates', label: 'Quote Templates', labelZh: '报价模板' },
+  { value: 'profit-share', label: 'Profit Share', labelZh: 'BU 分成' },
   { value: 'workflow', label: 'Workflow', labelZh: '流程节点' },
   { value: 'status', label: 'Status', labelZh: '状态节点' },
 ] as const;
@@ -14,7 +15,7 @@ export const masterDataTabs = [
 export type MasterDataTab = (typeof masterDataTabs)[number]['value'];
 export type QuoteMasterDataTab = Extract<
   MasterDataTab,
-  'assumptions' | 'quote-templates'
+  'assumptions' | 'quote-templates' | 'profit-share'
 >;
 
 /** Guards values supplied by tab controls so unsupported destinations cannot open. */

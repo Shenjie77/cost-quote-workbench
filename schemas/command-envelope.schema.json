@@ -41,7 +41,11 @@
         "MutationResult",
         "ProjectListResult",
         "GlobalMasterDataResult",
-        "GlobalMasterDataMutationResult"
+        "GlobalMasterDataMutationResult",
+        "FileSettingsResult",
+        "ProjectFilesResult",
+        "ProjectFileResult",
+        "FileDownloadResult"
       ]
     },
     "requestId": {
@@ -147,7 +151,11 @@
               "cost.delete",
               "project.workflow-action",
               "workflow.preview",
-              "workflow.publish"
+              "workflow.publish",
+              "files.settings",
+              "files.list",
+              "files.upload",
+              "files.download"
             ]
           }
         }
@@ -877,7 +885,8 @@
                   "quote-templates",
                   "workflow",
                   "status",
-                  "cpq-catalog"
+                  "cpq-catalog",
+                  "profit-share"
                 ]
               },
               "revision": {
@@ -1061,7 +1070,8 @@
                   "quote-templates",
                   "workflow",
                   "status",
-                  "cpq-catalog"
+                  "cpq-catalog",
+                  "profit-share"
                 ]
               },
               "revision": {
@@ -1090,6 +1100,82 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "FileSettingsResult"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "const": "files.settings"
+          },
+          "data": {
+            "$ref": "#/$defs/fileSettingsData"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "ProjectFilesResult"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "const": "files.list"
+          },
+          "data": {
+            "$ref": "#/$defs/projectFilesData"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "ProjectFileResult"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "const": "files.upload"
+          },
+          "data": {
+            "$ref": "#/$defs/projectFileData"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "FileDownloadResult"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "const": "files.download"
+          },
+          "data": {
+            "$ref": "#/$defs/fileDownloadData"
           }
         }
       }
@@ -1224,7 +1310,12 @@
         "usage": {
           "$ref": "#/$defs/nonBlankText"
         },
-        "workflowActions": { "type": "array", "items": { "type": "string" } },
+        "workflowActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "commands": {
           "type": "array",
           "minItems": 1,
@@ -1311,7 +1402,12 @@
         "storage": {
           "const": "local-sqlite"
         },
-        "workflowActions": { "type": "array", "items": { "type": "string" } },
+        "workflowActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "restrictions": {
           "type": "array",
           "items": {
@@ -2465,6 +2561,156 @@
         "revision": {
           "type": "integer",
           "minimum": 1
+        }
+      }
+    },
+    "fileSettingsData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rootPath", "defaultRootPath", "revision"],
+      "properties": {
+        "rootPath": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "defaultRootPath": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "projectFileRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "projectId",
+        "originalName",
+        "mimeType",
+        "sizeBytes",
+        "sha256",
+        "createdAt",
+        "category",
+        "relativePath"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "projectId": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "originalName": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "mimeType": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "category": {
+          "enum": [
+            "general",
+            "workflow",
+            "cost",
+            "quote",
+            "cpq",
+            "maintenance",
+            "source",
+            "backup"
+          ]
+        },
+        "relativePath": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "nodeCode": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "nodeName": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "versionCode": {
+          "$ref": "#/$defs/nonBlankText"
+        }
+      }
+    },
+    "projectFilesData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projectId", "rootPath", "projectPath", "files"],
+      "properties": {
+        "projectId": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "rootPath": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "projectPath": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectFileRecord"
+          }
+        }
+      }
+    },
+    "projectFileData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projectId", "file"],
+      "properties": {
+        "projectId": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "file": {
+          "$ref": "#/$defs/projectFileRecord"
+        }
+      }
+    },
+    "fileDownloadData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projectId", "file", "artifact"],
+      "properties": {
+        "projectId": {
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "file": {
+          "$ref": "#/$defs/projectFileRecord"
+        },
+        "artifact": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sha256", "sizeBytes", "mimeType"],
+          "properties": {
+            "path": {
+              "$ref": "#/$defs/nonBlankText"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "sizeBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mimeType": {
+              "$ref": "#/$defs/nonBlankText"
+            }
+          }
         }
       }
     }

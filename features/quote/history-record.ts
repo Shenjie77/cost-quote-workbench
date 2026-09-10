@@ -1,5 +1,19 @@
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
-import type { QuoteHistoryRecord } from './types.ts';
+import type { QuoteHistoryRecord, QuoteProfitShareSnapshot } from './types.ts';
+import type { PricingResult } from './domain.ts';
+
+export function quoteProfitShareSnapshot(
+  result: PricingResult,
+  masterDataRevision?: number,
+): QuoteProfitShareSnapshot {
+  return {
+    weightedProfitShareRate: result.weightedProfitShareRate,
+    profitShareAmount: result.profitShareAmount,
+    salesGrossProfit: result.salesGrossProfit,
+    profitShareBreakdown: structuredClone(result.profitShareBreakdown),
+    ...(masterDataRevision ? { masterDataRevision } : {}),
+  };
+}
 export function quoteHistoryRecord(
   input: QuoteWorkbookInput,
   artifact: { path: string; sha256: string },
@@ -18,6 +32,10 @@ export function quoteHistoryRecord(
     gstAmount: p.gstAmount,
     quoteAfterTax: p.quoteAfterTax,
     grossMarginPercent: p.grossMarginPercent,
+    profitShareSnapshot: quoteProfitShareSnapshot(
+      p,
+      input.profitShareMasterDataRevision,
+    ),
     note: `${note} Export ${artifact.path} SHA256 ${artifact.sha256}`,
     templateSnapshot: structuredClone(input.template),
     assumptionSnapshots: structuredClone(

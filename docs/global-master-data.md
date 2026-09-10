@@ -30,7 +30,7 @@ cost-cli masterdata update --tab resources --input rates.json --expected-revisio
 
 读取返回 `GlobalMasterDataResult`；更新返回 `GlobalMasterDataMutationResult`，包含 scope/tab/revision/updatedAt/changedIds/removedIds/unresolvedKeys。普通已有条目可只提交变更字段；新条目和迁移冲突的解决必须提交完整记录。
 
-支持页签：`resources`、`subcontract`、`supplemental`、`maintenance`、`assumptions`、`quote-templates`、`workflow`、`status`、`cpq-catalog`。
+支持页签：`resources`、`subcontract`、`supplemental`、`maintenance`、`assumptions`、`quote-templates`、`profit-share`、`workflow`、`status`、`cpq-catalog`。
 
 示例文件中的费率仅示意，实际使用用户提供的数据：
 
@@ -70,6 +70,19 @@ cost-cli project apply-masterdata --project-id ID --tab maintenance --expected-r
 ```
 
 第一条只捕获指定未锁定成本版本的最新全局资源费率。第二条支持 `subcontract`、`supplemental`、`maintenance`、`assumptions`、`quote-templates`、`cpq-catalog`；它要求当前 activeVersion 为未锁定 Draft，是独立项目写操作，使用项目 revision。应用模板前保持项目假设引用有效，必要时先应用假设库，再使用新的项目 revision 应用模板。workflow 定义同步走独立预览发布流程，不使用 project apply-masterdata；状态和执行证据不会被全局模板伪造。
+
+`profit-share` 是商业定价参数，采用最新分成比例不要求成本为 Draft，也不会改动已确认的成本。维护与采用分为两步：
+
+```sh
+cost-cli masterdata get --tab profit-share
+cost-cli masterdata update --tab profit-share --input profit-share.json --expected-revision GLOBAL-R
+cost-cli quote get --project-id ID --section settings
+cost-cli project apply-masterdata --project-id ID --tab profit-share --expected-revision PROJECT-R
+```
+
+Profit Share 条目字段为 `{ "id": "SHARE-NETWORK", "bu": "Network", "ratePercent": 20, "active": true }`，置于 `masterdata.update` 的 `changes.upsert` 数组中；20 仅为格式示例，不是预设比例。比例范围为 0–100%；BU 匹配忽略大小写、首尾空白与连续空白，同一 BU 不能重复。全局页签初始为空，升级只新增该页签，不重新读取项目或重建其他主数据。
+
+新项目将整张比例表及其 revision 存入 `pricing.profitShareRates` 和 `pricing.profitShareMasterDataRevision`。旧项目没有此字段时继续按 0 分成计算，已有快照不会随全局维护自动刷新。显式采用只更新该项目当前定价参数；历史报价保存生成时的分成明细，已归档的报价和锁定成本保持不变。
 
 应用后的当前商业依据、维保选择或 CPQ 条目需要重新核对，适用评审可能需要重新提交。历史成本、报价、维保和 CPQ 归档保留原始快照。单纯“更新 Master Data”不表示授权执行这些项目应用命令。
 

@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { makeProjectFileStore } from './project-files.mjs';
 import {
   initializeGlobalMasterData,
   upgradeDefaultProjectWorkflowCatalog,
@@ -68,6 +69,7 @@ import {
   calculatePricing,
   initialPricingSettings,
 } from '../features/quote/domain.ts';
+import { calculateBuCostAllocation } from '../features/quote/profit-share.ts';
 import {
   WORKSPACE_SCHEMA_VERSION,
   WorkspaceValidationError,
@@ -153,6 +155,13 @@ const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
   const pricing = calculatePricing(
     statement.totalWithRisk,
     workspace.pricing || initialPricingSettings,
+    calculateBuCostAllocation({
+      costRows: rows,
+      resourceTypes: resources,
+      travelSettings: workspace.travelSettings,
+      manualCosts: workspace.manualCosts || {},
+      subcontractCost: workspace.subcontractCost,
+    }),
   );
   const activeVersion = workspace.activeVersion || 'V1';
   const versionState =
@@ -296,6 +305,7 @@ export const openWorkspaceRepository = (databasePath) => {
   upgradeDefaultProjectWorkflowCatalog(db);
   upgradeWorkflowEngineCatalog(db);
   const globalMasterData = makeGlobalMasterDataStore(db);
+  const files = makeProjectFileStore(db, databasePath);
 
   const selectWorkspace = db.prepare(
     `SELECT project_id, schema_version, revision, payload_json,
@@ -328,6 +338,7 @@ export const openWorkspaceRepository = (databasePath) => {
     databasePath,
     schemaVersion: LOCAL_DATABASE_SCHEMA_VERSION,
     globalMasterData,
+    files,
 
     get(projectId) {
       if (this.isDeleted(projectId)) return null;
@@ -472,6 +483,7 @@ export const openWorkspaceRepository = (databasePath) => {
 
       const ownsTransaction = !internal.inTransaction;
       if (ownsTransaction) db.exec('BEGIN IMMEDIATE');
+      let rollbackProjectArchive;
       try {
         const current = selectWorkspace.get(projectId);
         const currentRevision = current?.revision ?? null;
@@ -979,16 +991,21 @@ export const openWorkspaceRepository = (databasePath) => {
           payloadSha256,
           timestamp,
         );
+        if (!current)
+          rollbackProjectArchive =
+            files.ensureProjectInTransaction(projectId).rollback;
         if (ownsTransaction) db.exec('COMMIT');
         return mapWorkspace(selectWorkspace.get(projectId));
       } catch (error) {
         if (ownsTransaction) db.exec('ROLLBACK');
+        rollbackProjectArchive?.();
         throw error;
       }
     },
 
     close() {
       db.close();
+      files.close();
     },
   };
   Object.assign(

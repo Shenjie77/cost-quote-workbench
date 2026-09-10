@@ -13,20 +13,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import {
-  Bell,
-  Check,
-  Database,
-  LoaderCircle,
-  Menu,
-  MoreHorizontal,
-  Plus,
-  Save,
-  Search,
-  WifiOff,
-  X,
-} from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Bell, Menu, Plus, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -48,6 +35,14 @@ import {
   nextCostVersionCode,
 } from '../cost/version-deletion';
 import { ProjectBootstrap } from './project-bootstrap';
+import { WorkbenchSidebar } from './workbench-sidebar';
+import { WorkspaceToolbar } from './workspace-toolbar';
+import {
+  calculateWorkspaceMetrics,
+  countIncompleteCostRows,
+  filterPortfolioProjects,
+  mergeWorkflowProjection,
+} from './workspace-projections';
 import { OpenProjectTabs } from './open-project-tabs';
 import { runVersionTransition } from '../cost/version-transition';
 import {
@@ -101,13 +96,7 @@ import type {
   ResourceType,
   TravelSettings,
 } from '@/features/cost/domain';
-import {
-  getCostStatementValues,
-  getHQTravelSummary,
-  roundMoney,
-  recalculateCostRows,
-  totalRowMandays,
-} from '@/features/cost/domain';
+import { recalculateCostRows } from '@/features/cost/domain';
 import type { CostViewKey } from '@/features/cost/ui-types';
 import {
   initialResourceTypes,
@@ -155,6 +144,8 @@ import {
 } from './workspace-factories';
 import { ProjectView } from '@/features/projects/project-view';
 import { ProjectEditDialog } from '@/features/projects/project-edit-dialog';
+import { applyProjectDetails } from '@/features/projects/project-details';
+import { calculateBuCostAllocation } from '@/features/quote/profit-share';
 import {
   applyLocalWorkflowAction,
   listLocalWorkspaces,
@@ -164,6 +155,7 @@ import { preflightWorkflowAction } from '@/features/projects/workflow-action-pre
 import type { WorkflowAction } from '@/features/projects/workflow-engine';
 import type { WorkspaceRecord } from './workspace-types';
 import { ProjectWorkflowPage } from '@/features/projects/project-workflow-page';
+import { archiveProjectFile } from '@/features/projects/project-files';
 import {
   workflowPageHash,
   parseWorkflowPageHash,
@@ -175,7 +167,6 @@ import {
 } from '@/features/projects/workflow-domain';
 import { QuoteView } from '@/features/quote/quote-view';
 import {
-  calculatePricing,
   initialPricingSettings,
   type PricingSettings,
 } from '@/features/quote/domain';
@@ -213,6 +204,7 @@ type PendingCostConfirmation = {
   resolve: (success: boolean) => void;
 };
 
+/** Select the global catalogue or a project session while keeping catalogue state shared. */
 export function WorkbenchApp() {
   const globalMasterData = useGlobalMasterData();
   const [masterDataOnly, setMasterDataOnly] = useState(false);
@@ -253,6 +245,7 @@ export function WorkbenchApp() {
   );
 }
 
+/** Compose project editors, persistence and workflow commands within one stable browser session. */
 function ProjectSessionApp({
   initialProjects,
   onEmpty,
@@ -266,6 +259,7 @@ function ProjectSessionApp({
   masterDataTab: MasterDataTab;
   setMasterDataTab: (tab: MasterDataTab) => void;
 }) {
+  // Project, workflow, and version state stay here so view changes cannot reset drafts.
   const [projectList, setProjectList] = useState<Project[]>(initialProjects);
   const [masterDataRevisions, setMasterDataRevisions] =
     useState<WorkbenchWorkspace['masterDataRevisions']>();
@@ -301,9 +295,11 @@ function ProjectSessionApp({
     workflowUiRef.current = { target: workflowTarget, saving: workflowSaving };
   }, [workflowTarget, workflowSaving]);
   useEffect(() => {
+    /** Let the browser protect unsaved workflow fields when the tab is closed or reloaded. */
     const warn = (event: BeforeUnloadEvent) => {
       if (workflowDirtyRef.current) event.preventDefault();
     };
+    /** Use the latest route handler without recreating the browser history subscriptions. */
     const followLocation = () => workflowRouteHandler.current();
     window.addEventListener('beforeunload', warn);
     window.addEventListener('popstate', followLocation);
@@ -344,6 +340,7 @@ function ProjectSessionApp({
   const costConfigurationSaveRef = useRef<(() => Promise<boolean>) | null>(
     null,
   );
+  /** Register the cost page flush operation so Save also persists its local view configuration. */
   const registerCostConfigurationSave = useCallback(
     (handler: (() => Promise<boolean>) | null) => {
       costConfigurationSaveRef.current = handler;
@@ -353,6 +350,7 @@ function ProjectSessionApp({
   const [quoteExporting, setQuoteExporting] = useState(false);
   /** Protect the output/history pair when users navigate during Excel generation. */
   useEffect(() => {
+    /** Keep quotation generation and its history entry together across navigation attempts. */
     const warnPendingExport = (event: BeforeUnloadEvent) => {
       if (quoteExportingRef.current) event.preventDefault();
     };
@@ -367,6 +365,7 @@ function ProjectSessionApp({
   const activeProject =
     projectList.find((item) => item.id === activeProjectId) ??
     initialProjects[0];
+  /** Project identity is shared by persisted documents and every export snapshot. */
   const exportProject = useMemo<CostExportSnapshot['project']>(
     () => ({
       id: activeProject.id,
@@ -404,6 +403,7 @@ function ProjectSessionApp({
   // version's calculation basis. Other versions retain their own snapshots.
   const [versionResourceTypes, setVersionResourceTypes] =
     useState<ResourceType[]>(initialResourceTypes);
+  /** Recalculate editor quantities using the selected version's captured rate card. */
   const costRows = useMemo(
     () =>
       recalculateCostRows(costRowInputs, versionResourceTypes, rateSettings),
@@ -721,6 +721,7 @@ function ProjectSessionApp({
       synchronizedVersions,
     ],
   );
+  /** Ignore edits during version transitions or after the selected cost has been locked. */
   const guardCostEdit =
     <T,>(setter: (value: T) => void) =>
     (value: T) => {
@@ -743,7 +744,6 @@ function ProjectSessionApp({
     adoptSavedRecord,
     adoptRemoteIfClean,
     getLoadedRevision,
-    saveProjectDetails,
     pauseSaving,
     resumeSaving,
     isReady,
@@ -809,31 +809,9 @@ function ProjectSessionApp({
     onMissing: onEmpty,
   });
 
+  /** Apply authoritative workflow details without replacing newer portfolio revisions. */
   const updateWorkflowProjection = (record: WorkspaceRecord) => {
-    const doc = record.workspace;
-    setProjectList((items) =>
-      items.map((item) =>
-        item.id !== doc.project.id || (item.revision || 0) > record.revision
-          ? item
-          : {
-              ...item,
-              revision: record.revision,
-              name: doc.project.name,
-              client: doc.project.client,
-              workflowEngineVersion: doc.workflowEngineVersion,
-              workflowTemplateRevision: doc.workflowTemplateRevision,
-              workflowMode: doc.workflowMode,
-              workflowHold: doc.workflowHold,
-              workflowVersion: doc.workflowVersion,
-              projectStatus: doc.projectStatus,
-              currentWorkflowStepCode: doc.currentWorkflowStepCode,
-              workflowSteps: doc.processSteps,
-              versionState:
-                doc.costVersions.find((v) => v.code === doc.activeVersion)
-                  ?.state || item.versionState,
-            },
-      ),
-    );
+    setProjectList((projects) => mergeWorkflowProjection(projects, record));
   };
 
   // Poll the compact index; load only changed open documents. Both editors retain
@@ -922,6 +900,7 @@ function ProjectSessionApp({
     }
   }, [activeProjectId, adoptRemoteIfClean, getLoadedRevision, setNotice]);
   useEffect(() => {
+    /** Refresh external changes on focus or timer ticks through the same guarded operation. */
     const refresh = () => {
       void refreshPortfolio();
     };
@@ -1001,6 +980,7 @@ function ProjectSessionApp({
     });
   };
 
+  /** Apply the selected global CPQ catalogue after flushing edits and verifying the same cost version. */
   const applyCpqCatalogFromGlobal = async () => {
     if (!isReady || switchingRef.current) return;
     const projectId = activeProjectId;
@@ -1040,6 +1020,41 @@ function ProjectSessionApp({
     });
   };
 
+  /** Capture current global profit-share rates through the serialized project transition. */
+  const applyProfitShareFromGlobal = async (): Promise<boolean> => {
+    if (!isReady || switchingRef.current || quoteExportingRef.current)
+      return false;
+    const projectId = activeProjectId;
+    return runVersionTransition({
+      busy: versionTransitionRef,
+      setBusy: setVersionTransitioning,
+      flushAndPause: pauseSaving,
+      resume: resumeSaving,
+      commit: async () => {
+        const record = await getLocalWorkspace(projectId);
+        if (!record)
+          throw new Error(
+            'Project no longer exists. Refresh the project list.',
+          );
+        const saved = await applyGlobalProjectCatalog(
+          projectId,
+          'profit-share',
+          record.revision,
+        );
+        adoptSavedRecord(saved);
+        hydrateWorkspace(saved.workspace);
+        setNotice('Latest Profit Share rates applied to this project.');
+      },
+      onFailure: (error) =>
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : 'Unable to apply Profit Share rates.',
+        ),
+    });
+  };
+
+  /** Capture the reviewed cost and workflow fingerprints, then resolve when the dialog finishes. */
   const requestCostConfirmation = useCallback(
     (
       document: WorkbenchWorkspace,
@@ -1068,11 +1083,13 @@ function ProjectSessionApp({
     },
     [setNotice],
   );
+  /** Resolve the pending confirmation as cancelled and discard only dialog state. */
   const cancelCostConfirmation = () => {
     costConfirmation?.resolve(false);
     setCostConfirmation(null);
     setConfirmationError('');
   };
+  /** Revalidate the reviewed fingerprints before saving confirmation and its dependent action. */
   const confirmCostAndContinue = async () => {
     const pending = costConfirmation;
     if (
@@ -1107,7 +1124,7 @@ function ProjectSessionApp({
   };
 
   /** Downloads a restore-ready v2 request without sending local data away. */
-  const downloadWorkspaceBackup = () => {
+  const downloadWorkspaceBackup = async () => {
     const request = {
       apiVersion: 'cost-workbench/v2',
       kind: 'WorkspaceSaveRequest',
@@ -1121,40 +1138,58 @@ function ProjectSessionApp({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `${exportProject.id}_${activeVersion}_workspace-backup.json`;
+    const fileName = `${exportProject.id}_${activeVersion}_workspace-backup.json`;
+    anchor.download = fileName;
     anchor.click();
     URL.revokeObjectURL(url);
-    setNotice(
-      'Workspace backup downloaded. Store it only in a company-approved location. / 工作区备份已下载，请仅保存到公司认可的位置。',
-    );
+    try {
+      await archiveProjectFile(exportProject.id, blob, {
+        originalName: fileName,
+        category: 'backup',
+        versionCode: activeVersion,
+      });
+      setNotice(
+        'Workspace backup downloaded and archived. / 工作区备份已下载并归档。',
+      );
+    } catch (error) {
+      setNotice(
+        `Workspace backup downloaded. Archive failed: ${error instanceof Error ? error.message : 'Archive unavailable'}. / 备份已下载，请保留下载文件。`,
+      );
+    }
   };
 
-  /** Project List uses the exact same current cost and pricing engines. */
-  const activeMetrics = useMemo(() => {
-    const travelCost = getHQTravelSummary(
+  /** Share the selected cost version's BU allocation with portfolio pricing and quote output. */
+  const costAllocation = useMemo(
+    () =>
+      calculateBuCostAllocation({
+        costRows,
+        resourceTypes: versionResourceTypes,
+        travelSettings,
+        manualCosts,
+        subcontractCost,
+      }),
+    [
       costRows,
       versionResourceTypes,
       travelSettings,
-    ).totalCost;
-    const statement = getCostStatementValues(
-      costRows,
-      versionResourceTypes,
-      travelCost,
       manualCosts,
       subcontractCost,
+    ],
+  );
+
+  /** Project List uses the exact same current cost and pricing engines. */
+  const activeMetrics = useMemo(() => {
+    return calculateWorkspaceMetrics(
+      {
+        costRows,
+        resourceTypes: versionResourceTypes,
+        travelSettings,
+        manualCosts,
+        subcontractCost,
+        pricing,
+      },
+      costAllocation,
     );
-    const quote = calculatePricing(statement.totalWithRisk, pricing);
-    return {
-      serviceCost: roundMoney(statement.service - statement.subcontract),
-      subcontractCost: statement.subcontract,
-      totalCost: statement.totalWithRisk,
-      totalMandays: costRows.reduce(
-        (sum, row) => sum + totalRowMandays(row),
-        0,
-      ),
-      totalQuote: quote.quoteBeforeTax,
-      grossMarginPercent: quote.grossMarginPercent,
-    };
   }, [
     costRows,
     manualCosts,
@@ -1162,8 +1197,10 @@ function ProjectSessionApp({
     versionResourceTypes,
     travelSettings,
     subcontractCost,
+    costAllocation,
   ]);
 
+  /** Overlay unsaved active-project values while preserving every inactive project record. */
   const portfolioProjects = useMemo(
     () =>
       projectList.map((project) =>
@@ -1196,19 +1233,7 @@ function ProjectSessionApp({
                       )!,
                       normalizeDigestDate(),
                     ),
-              incompleteCostRows: costRows.filter(
-                (row) =>
-                  !row.scope.trim() ||
-                  !row.bu.trim() ||
-                  !row.reTypeId.trim() ||
-                  (row.inputMode !== 'mandays' && row.mdPerSite <= 0) ||
-                  !row.years.some(
-                    (year) =>
-                      year.sites > 0 ||
-                      (year.mandays || 0) > 0 ||
-                      year.cost > 0,
-                  ),
-              ).length,
+              incompleteCostRows: countIncompleteCostRows(costRows),
             }
           : project,
       ),
@@ -1477,6 +1502,7 @@ function ProjectSessionApp({
     setActiveView('project');
   };
 
+  /** Soft-delete a project at its saved revision and reconcile the session after a successful deletion. */
   const deleteProject = async () => {
     const target = deleteTarget;
     if (
@@ -1490,6 +1516,7 @@ function ProjectSessionApp({
     setProjectSwitching(true);
     setDeleteError('');
     const active = target.id === activeProjectId;
+    /** Remove the deleted project from open views and choose a replacement session when needed. */
     const finishDeletion = () => {
       const remaining = portfolioProjects.filter(
         (item) => item.id !== target.id,
@@ -1553,21 +1580,16 @@ function ProjectSessionApp({
     }
   };
 
+  /** Aggregate project-owned review history for portfolio reminders and navigation. */
   const allReviewGates = useMemo(
     () => portfolioProjects.flatMap((project) => project.reviewGates || []),
     [portfolioProjects],
   );
   /** Header search filters portfolio surfaces without changing saved records. */
-  const visiblePortfolioProjects = useMemo(() => {
-    const normalized = searchQuery.trim().toLowerCase();
-    if (!normalized) return portfolioProjects;
-    return portfolioProjects.filter((project) =>
-      [project.id, project.name, project.client, project.version]
-        .join(' ')
-        .toLowerCase()
-        .includes(normalized),
-    );
-  }, [portfolioProjects, searchQuery]);
+  const visiblePortfolioProjects = useMemo(
+    () => filterPortfolioProjects(portfolioProjects, searchQuery),
+    [portfolioProjects, searchQuery],
+  );
   const displayDate = new Intl.DateTimeFormat('en-SG', {
     timeZone: 'Asia/Singapore',
     year: 'numeric',
@@ -1576,6 +1598,7 @@ function ProjectSessionApp({
     weekday: 'long',
   }).format(new Date());
 
+  /** Route legacy views through Project List and keep dedicated workflow URLs synchronized. */
   const navigate = (view: ViewKey) => {
     if (view === 'workflow') {
       void openProjectWorkflow(activeProject);
@@ -1720,6 +1743,7 @@ function ProjectSessionApp({
     }
   };
 
+  /** Reload authoritative workflow progress after resolving any unsaved workflow form edits. */
   const refreshWorkflowPage = async () => {
     if (!workflowTarget || workflowSaving || workflowOpeningRef.current)
       throw new Error('Another workflow operation is in progress.');
@@ -1809,6 +1833,7 @@ function ProjectSessionApp({
     queueMicrotask(() => workflowRouteHandler.current());
   }, [isReady]);
 
+  /** Validate fresh workflow evidence, confirm costs when required, and save one audited action. */
   const handleWorkflowAction = async (
     action: WorkflowAction,
   ): Promise<void> => {
@@ -1924,6 +1949,7 @@ function ProjectSessionApp({
     }
   };
 
+  /** Save workflow references against their original fingerprint and refresh the open detail page. */
   const saveProjectWorkflow = async (
     patch: ProjectWorkflowPatch,
     meta?: Pick<
@@ -1964,6 +1990,7 @@ function ProjectSessionApp({
       const stage =
         patch.currentWorkflowStepCode ||
         record.workspace.currentWorkflowStepCode;
+      /** Recheck concurrency before applying legacy progress or merging project reference fields. */
       const apply = (fresh: WorkbenchWorkspace) => {
         if (workflowConfirmationFingerprint(fresh) !== expectedWorkflow)
           throw new Error(
@@ -2040,6 +2067,7 @@ function ProjectSessionApp({
     if (project) void openProjectWorkflow(project);
   };
 
+  /** Switch projects through the save guard before opening the requested cost or quote page. */
   const openProjectModule = async (
     project: Project,
     view: 'cost' | 'quote',
@@ -2071,6 +2099,7 @@ function ProjectSessionApp({
     setOpenProjectIds(remaining);
   };
 
+  // Feature views receive explicit data and callbacks; session lifecycles remain above.
   let content: ReactNode;
   if (activeView === 'overview')
     content = (
@@ -2111,7 +2140,16 @@ function ProjectSessionApp({
             setNotice('请等待当前保存或导出完成后编辑项目。');
             return;
           }
-          setEditTarget(project);
+          void (async () => {
+            if (project.id === activeProjectId && !(await saveNow())) {
+              setNotice(
+                'Resolve the current save error before editing project information.',
+              );
+              return;
+            }
+            if (!switchingRef.current && !versionTransitionRef.current)
+              setEditTarget(project);
+          })();
         }}
         onDeleteProject={(project) => {
           setDeleteTarget(project);
@@ -2226,9 +2264,16 @@ function ProjectSessionApp({
   else if (activeView === 'maintenance')
     content = (
       <MaintenanceView
+        projectId={exportProject.id}
+        canApply={() =>
+          isReady && !switchingRef.current && !versionTransitionRef.current
+        }
         key={activeProject.id}
         value={maintenanceBoq}
-        onChange={setMaintenanceBoq}
+        onChange={(change) => {
+          if (isReady && !switchingRef.current && !versionTransitionRef.current)
+            setMaintenanceBoq(change);
+        }}
         records={maintenancePriceRecords}
         client={exportProject.client}
         announce={setNotice}
@@ -2237,6 +2282,7 @@ function ProjectSessionApp({
   else if (activeView === 'cpq')
     content = (
       <CpqView
+        projectId={exportProject.id}
         key={activeProject.id}
         value={cpq}
         catalogRevision={masterDataRevisions?.['cpq-catalog']}
@@ -2276,6 +2322,8 @@ function ProjectSessionApp({
   else if (activeView === 'quote')
     content = (
       <QuoteView
+        costAllocation={costAllocation}
+        onApplyProfitShare={applyProfitShareFromGlobal}
         proposalNumber={ssr.proposalNumber}
         onProposalNumberChange={(proposalNumber) =>
           setSsr((current) => ({ ...current, proposalNumber }))
@@ -2356,139 +2404,13 @@ function ProjectSessionApp({
       aria-busy={isProjectSwitching}
       className="min-h-screen bg-background text-foreground"
     >
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[244px] flex-col border-r border-[#29495c] bg-[#132c3d] text-[#eaf0f2] lg:flex">
-        <div className="flex h-[74px] items-center gap-3 border-b border-[#29495c] px-5">
-          <span className="financial-numeral flex size-9 items-center justify-center rounded-md border border-[#65808f] bg-[#1b3d51] text-xs font-bold">
-            CQ
-          </span>
-          <div>
-            <p className="text-sm font-semibold tracking-wide">
-              Cost & Quote Workbench
-            </p>
-            <p className="mt-0.5 text-[9px] text-[#9fb0b9]">报价管控台</p>
-          </div>
-        </div>
-        <nav
-          aria-label="Main navigation"
-          className="workbench-scrollbar flex-1 overflow-y-auto px-3 py-5"
-        >
-          <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#78909e]">
-            Workspace{' '}
-            <span className="text-[8px] normal-case tracking-normal">
-              工作空间
-            </span>
-          </p>
-          <div className="mt-2 space-y-1">
-            {navItems
-              .filter((item) => item.key !== 'master-data')
-              .map((item) => {
-                const Icon = item.icon;
-                const active = item.key === activeView;
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => navigate(item.key)}
-                    className={
-                      'flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors ' +
-                      (active
-                        ? 'bg-[#e8f0f0] text-[#173a52]'
-                        : 'text-[#c8d3d9] hover:bg-[#1b3d51] hover:text-white')
-                    }
-                  >
-                    <Icon className="size-4 shrink-0" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-semibold">
-                        {item.label}
-                      </span>
-                      <span
-                        className={
-                          'mt-0.5 block text-[9px] ' +
-                          (active ? 'text-[#587078]' : 'text-[#8197a3]')
-                        }
-                      >
-                        {item.labelZh} · {item.description}
-                      </span>
-                      <span
-                        className={
-                          'block text-[8px] ' +
-                          (active ? 'text-[#6f858c]' : 'text-[#718792]')
-                        }
-                      >
-                        {item.descriptionZh}
-                      </span>
-                    </span>
-                    {item.key === 'reviews' ? (
-                      <span className="financial-numeral flex size-5 items-center justify-center rounded-full bg-[#a86432] text-[9px] font-bold text-white">
-                        {
-                          allReviewGates.filter(
-                            (review) =>
-                              review.status !== 'completed' &&
-                              review.status !== 'cancelled',
-                          ).length
-                        }
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
-          </div>
-          <p className="mt-7 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#78909e]">
-            Data Management{' '}
-            <span className="text-[8px] normal-case tracking-normal">
-              数据管理
-            </span>
-          </p>
-          <div className="mt-2 space-y-1">
-            <button
-              onClick={() => navigate('master-data')}
-              aria-current={activeView === 'master-data' ? 'page' : undefined}
-              className={
-                'flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors ' +
-                (activeView === 'master-data'
-                  ? 'bg-[#e8f0f0] text-[#173a52]'
-                  : 'text-[#c8d3d9] hover:bg-[#1b3d51] hover:text-white')
-              }
-            >
-              <Database className="size-4" />
-              <span className="flex-1">
-                <span className="block text-xs font-medium">Master Data</span>
-                <span
-                  className={
-                    'text-[8px] ' +
-                    (activeView === 'master-data'
-                      ? 'text-[#587078]'
-                      : 'text-[#8197a3]')
-                  }
-                >
-                  全局主数据 · Rates, CPQ & templates
-                </span>
-              </span>
-              <span className="text-[8px]">Live</span>
-            </button>
-          </div>
-        </nav>
-        <div className="border-t border-[#29495c] p-4">
-          <div className="flex items-center gap-3">
-            <span className="flex size-8 items-center justify-center rounded-full bg-[#dbe7e8] text-xs font-bold text-[#173a52]">
-              ME
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold">Quote Workspace</p>
-              <p className="mt-0.5 text-[8px] text-[#8197a3]">
-                报价工作区 · Local SQLite / 本地数据库
-              </p>
-            </div>
-            <button
-              type="button"
-              aria-label="Download workspace backup"
-              title="Download restore-ready workspace backup / 下载可恢复工作区备份"
-              onClick={downloadWorkspaceBackup}
-            >
-              <MoreHorizontal className="size-4 text-[#8197a3]" />
-            </button>
-          </div>
-        </div>
-      </aside>
+      {/* Shared chrome delegates all navigation and persistence effects to this session. */}
+      <WorkbenchSidebar
+        activeView={activeView}
+        reviews={allReviewGates}
+        onNavigate={navigate}
+        onDownloadBackup={downloadWorkspaceBackup}
+      />
       <div className="min-h-screen lg:pl-[244px]">
         <header className="sticky top-0 z-50 border-b border-border bg-[#f8f6f1]/95 backdrop-blur">
           <div className="flex min-h-[74px] items-center gap-4 px-4 sm:px-6 xl:px-8">
@@ -2592,86 +2514,24 @@ function ProjectSessionApp({
         </header>
         <div className="relative z-0 isolate mx-auto w-full max-w-[1780px] px-4 py-5 sm:px-6 xl:px-8 xl:py-6">
           {activeView !== 'master-data' && activeView !== 'workflow' && (
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                <Badge
-                  variant="outline"
-                  className={
-                    'h-5 ' +
-                    (persistenceStatus.phase === 'saved'
-                      ? 'border-[#9fb9aa] bg-[#edf5ef] text-[#377054]'
-                      : persistenceStatus.phase === 'offline' ||
-                          persistenceStatus.phase === 'error' ||
-                          persistenceStatus.phase === 'conflict'
-                        ? 'border-[#d0b787] bg-[#f8f0e2] text-[#8d5b12]'
-                        : 'border-[#9eb9ba] bg-[#edf4f3] text-[#2e6f77]')
-                  }
-                >
-                  {persistenceStatus.phase === 'saved' ? (
-                    <Check className="mr-1 size-3" />
-                  ) : persistenceStatus.phase === 'offline' ||
-                    persistenceStatus.phase === 'error' ||
-                    persistenceStatus.phase === 'conflict' ? (
-                    <WifiOff className="mr-1 size-3" />
-                  ) : (
-                    <LoaderCircle className="mr-1 size-3 animate-spin" />
-                  )}
-                  Local SQLite{' '}
-                  <span className="ml-1 text-[8px]">本地数据库</span>
-                </Badge>
-                <span
-                  className="max-w-[760px] truncate"
-                  title={persistenceStatus.message}
-                >
-                  {persistenceStatus.message}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-[9px]"
-                  onClick={() =>
-                    !isReady
-                      ? retryLoad()
-                      : activeView === 'cost' &&
-                          costConfigurationSaveRef.current
-                        ? void costConfigurationSaveRef.current()
-                        : void saveNow()
-                  }
-                  disabled={persistenceStatus.phase === 'saving'}
-                >
-                  <Save className="size-3" /> Save{' '}
-                  <span className="text-[8px]">保存</span>
-                </Button>
-                {['conflict', 'error', 'offline'].includes(
-                  persistenceStatus.phase,
-                ) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      downloadWorkspaceBackup();
-                      onEmpty();
-                    }}
-                  >
-                    备份并重载项目列表
-                  </Button>
-                )}
-                {activeView === 'cost' ? (
-                  <Button
-                    size="sm"
-                    className="h-6 px-2 text-[9px]"
-                    onClick={createNewCostVersion}
-                    disabled={!isReady || isVersionTransitioning}
-                  >
-                    <Plus className="size-3" /> New Version{' '}
-                    <span className="text-[8px] opacity-60">创建版本</span>
-                  </Button>
-                ) : null}
-              </div>
-              <span className="financial-numeral hidden text-[10px] text-muted-foreground sm:block">
-                {displayDate}
-              </span>
-            </div>
+            <WorkspaceToolbar
+              persistenceStatus={persistenceStatus}
+              activeView={activeView}
+              displayDate={displayDate}
+              newVersionDisabled={!isReady || isVersionTransitioning}
+              onSave={() =>
+                !isReady
+                  ? retryLoad()
+                  : activeView === 'cost' && costConfigurationSaveRef.current
+                    ? void costConfigurationSaveRef.current()
+                    : void saveNow()
+              }
+              onBackupAndReload={async () => {
+                await downloadWorkspaceBackup();
+                onEmpty();
+              }}
+              onNewVersion={createNewCostVersion}
+            />
           )}
           <div
             inert={
@@ -2811,32 +2671,61 @@ function ProjectSessionApp({
           key={editTarget.id}
           project={editTarget}
           onClose={() => setEditTarget(null)}
-          onSave={async (details, revision) => {
+          onSave={async (details, baseline) => {
             const targetId = editTarget.id;
-            if (targetId === activeProjectId) {
-              if (!(await saveProjectDetails(details)))
-                throw new Error(
-                  '保存失败，请先处理工作区保存错误；输入内容已保留。',
-                );
-            } else {
-              const current = await getLocalWorkspace(targetId);
-              if (!current) throw new Error('项目已删除，请刷新列表。');
-              if (current.revision !== revision)
-                throw new Error('项目已被更新，请关闭并重新打开 Edit 后修改。');
-              await saveLocalWorkspaceDocument(
-                {
-                  ...current.workspace,
-                  project: { ...current.workspace.project, ...details },
-                },
-                revision,
+            let failure: unknown;
+            const saved = await persistCanonicalChange(
+              targetId,
+              (current) => {
+                try {
+                  return applyProjectDetails(current, details, baseline);
+                } catch (error) {
+                  failure = error;
+                  throw error;
+                }
+              },
+              'Project information saved.',
+            );
+            if (!saved)
+              throw (
+                failure ||
+                new Error(
+                  'Project information was not saved. Resolve the current save error and retry.',
+                )
               );
-            }
             setProjectList((items) =>
               items.map((item) =>
-                item.id === targetId ? { ...item, ...details } : item,
+                item.id === targetId
+                  ? {
+                      ...item,
+                      name: details.name.trim(),
+                      client: details.client.trim(),
+                    }
+                  : item,
               ),
             );
-            setNotice('Project updated / 项目名称与客户已保存');
+            try {
+              const record = await getLocalWorkspace(targetId);
+              if (record)
+                setWorkflowTarget((current) =>
+                  current?.project.id === targetId
+                    ? {
+                        ...current,
+                        project: {
+                          ...current.project,
+                          name: record.workspace.project.name,
+                          client: record.workspace.project.client,
+                        },
+                        workspace: record.workspace,
+                        revision: record.revision,
+                      }
+                    : current,
+                );
+            } catch {
+              setNotice(
+                'Project information saved. Reopen Workflow to refresh its information.',
+              );
+            }
           }}
         />
       )}
@@ -2862,8 +2751,8 @@ function ProjectSessionApp({
               </p>
               <Button
                 variant="outline"
-                onClick={() => {
-                  downloadWorkspaceBackup();
+                onClick={async () => {
+                  await downloadWorkspaceBackup();
                   setDeleteTarget(null);
                   onEmpty();
                 }}

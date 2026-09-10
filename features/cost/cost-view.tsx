@@ -502,6 +502,8 @@ export function CostView({
             setSettings={writeIfUnlocked(setRateSettings)}
           />
           <CostInputSheet
+            projectId={project.id}
+            versionCode={activeVersion}
             key={activeVersion}
             tableView={personnelTableView}
             locked={!!lockedReason}

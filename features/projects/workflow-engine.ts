@@ -1,6 +1,17 @@
 /** Configurable project tasks. Definitions and execution share stable IDs, never semantics encoded in names. */
 import type { WorkflowStep } from './types.ts';
 import type { WorkbenchWorkspace } from '../workbench/workspace-types.ts';
+import {
+  isWorkflowDate,
+  parseWorkflowTimestamp,
+  shiftWorkflowDeadline,
+  shiftWorkflowFollowUpDate,
+  workflowDueAt,
+  workflowLocalDate,
+} from './workflow-calendar.ts';
+
+// Preserve the public engine API while keeping all calendar arithmetic independent.
+export { workflowDueAt, workflowLocalDate } from './workflow-calendar.ts';
 
 export const WORKFLOW_ACTIONS = [
   'start',
@@ -40,75 +51,13 @@ export type WorkflowSyncPreview = {
   steps: WorkflowStep[];
 };
 
-const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
-const OFFSET = 8 * HOUR;
-const terminal = (step: WorkflowStep) =>
+/** Treat both explicit completion and recorded skipping as terminal execution. */
+const isTerminalNode = (step: WorkflowStep) =>
   ['completed', 'skipped'].includes(step.state);
+
+/** Report states that continue to consume SLA time and generate active reminders. */
 export const workflowNodeActive = (step: WorkflowStep) =>
   ['in_progress', 'awaiting_review', 'blocked'].includes(step.state);
-export const workflowLocalDate = (time: string | number = Date.now()) =>
-  new Date((typeof time === 'number' ? time : Date.parse(time)) + OFFSET)
-    .toISOString()
-    .slice(0, 10);
-const timestamp = (value: string, field: string) => {
-  const parsed = Date.parse(value);
-  if (!value || !Number.isFinite(parsed))
-    throw new TypeError(`${field} must be a valid date and time.`);
-  return parsed;
-};
-const dateOnly = (value: string) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-  !Number.isNaN(Date.parse(value)) &&
-  new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
-const businessDay = (time: number, holidays: string[]) => {
-  const day = new Date(time + OFFSET).getUTCDay();
-  return day !== 0 && day !== 6 && !holidays.includes(workflowLocalDate(time));
-};
-const dayStart = (time: number) =>
-  Date.parse(`${workflowLocalDate(time)}T00:00:00+08:00`);
-function nextBusinessTime(time: number, holidays: string[]) {
-  let cursor = time;
-  for (let i = 0; i < 4000; i++) {
-    const start = dayStart(cursor);
-    if (businessDay(cursor, holidays) && cursor < start + 18 * HOUR)
-      return Math.max(cursor, start + 9 * HOUR);
-    cursor = start + DAY + 9 * HOUR;
-  }
-  throw new TypeError('The work calendar has no available business days.');
-}
-function addBusinessTime(time: number, duration: number, holidays: string[]) {
-  let cursor = nextBusinessTime(time, holidays);
-  let remaining = duration;
-  while (remaining > 0) {
-    const available = dayStart(cursor) + 18 * HOUR - cursor;
-    if (remaining <= available) return cursor + remaining;
-    remaining -= available;
-    cursor = nextBusinessTime(dayStart(cursor) + DAY + 9 * HOUR, holidays);
-  }
-  return cursor;
-}
-function businessDuration(from: number, until: number, holidays: string[]) {
-  let cursor = nextBusinessTime(from, holidays);
-  let total = 0;
-  while (cursor < until) {
-    total += Math.max(
-      0,
-      Math.min(until, dayStart(cursor) + 18 * HOUR) - cursor,
-    );
-    cursor = nextBusinessTime(dayStart(cursor) + DAY + 9 * HOUR, holidays);
-  }
-  return total;
-}
-export function workflowDueAt(step: WorkflowStep, startedAt: string) {
-  const start = timestamp(startedAt, 'Start time');
-  const days = step.slaDays ?? 3;
-  return new Date(
-    step.slaCalendar === 'calendar'
-      ? start + days * DAY
-      : addBusinessTime(start, days * 9 * HOUR, step.slaHolidays || []),
-  ).toISOString();
-}
 
 /** Defaults are inferred once for old data; explicit booleans always take priority over old codes/names. */
 export function normalizeWorkflowDefinition(step: WorkflowStep): WorkflowStep {
@@ -140,6 +89,7 @@ export function normalizeWorkflowDefinition(step: WorkflowStep): WorkflowStep {
     autoSkip: step.autoSkip ?? !step.required,
   };
 }
+/** Group only adjacent parallel peers, preserving configured phase and node order. */
 export function workflowPhaseGroups(steps: WorkflowStep[]): WorkflowPhase[] {
   const phases: WorkflowPhase[] = [];
   for (const step of steps) {
@@ -158,6 +108,7 @@ export function workflowPhaseGroups(steps: WorkflowStep[]): WorkflowPhase[] {
   }
   return phases;
 }
+/** Validate node definitions and the start/finish gates before publishing a template. */
 export function validateWorkflowTemplate(input: WorkflowStep[]) {
   if (!input.length)
     throw new TypeError('The workflow must contain at least one node.');
@@ -181,7 +132,7 @@ export function validateWorkflowTemplate(input: WorkflowStep[]) {
       throw new TypeError('Invalid SLA calendar.');
     if (
       step.slaHolidays!.length > 366 ||
-      step.slaHolidays!.some((d) => !dateOnly(d))
+      step.slaHolidays!.some((d) => !isWorkflowDate(d))
     )
       throw new TypeError('Holidays must use YYYY-MM-DD.');
     if (
@@ -203,6 +154,7 @@ export function validateWorkflowTemplate(input: WorkflowStep[]) {
     }
     priorGroup = step.parallelGroup || '';
   }
+  // New rounds need one cost-independent start phase and a final mandatory finish gate.
   const starts = input.filter((s) => normalizeWorkflowDefinition(s).roundStart);
   const finishes = input.filter(
     (s) => normalizeWorkflowDefinition(s).finishesWorkflow,
@@ -234,6 +186,7 @@ export function validateWorkflowTemplate(input: WorkflowStep[]) {
     throw new TypeError('The finish node must be mandatory.');
 }
 
+/** Detect completion using configured finish evidence, with legacy code fallback. */
 export function workflowComplete(workspace: {
   processSteps?: WorkflowStep[];
   workflowSteps?: WorkflowStep[];
@@ -245,11 +198,12 @@ export function workflowComplete(workspace: {
     return steps.some((s) => s.finishesWorkflow && s.state === 'completed');
   return workspace.currentWorkflowStepCode === 'QUOTE_COMPLETED';
 }
+/** Rank reminders by the exact deadline and Singapore-local follow-up date. */
 export function workflowUrgency(
   step: WorkflowStep,
   now = new Date().toISOString(),
 ): WorkflowUrgency {
-  const time = timestamp(now, 'Current time');
+  const time = parseWorkflowTimestamp(now, 'Current time');
   const today = workflowLocalDate(time);
   if (step.state === 'paused') {
     if (!step.followUpDate || step.followUpDate > today) return 'none';
@@ -257,43 +211,53 @@ export function workflowUrgency(
   }
   if (!workflowNodeActive(step)) return 'none';
   if (step.dueAt) {
-    const due = timestamp(step.dueAt, 'Due time');
+    const due = parseWorkflowTimestamp(step.dueAt, 'Due time');
     if (time > due) return 'urgent';
     if (workflowLocalDate(due) === today) return 'immediate';
   }
   if (step.followUpDate && step.followUpDate <= today) return 'immediate';
   return 'normal';
 }
-function projectExecution<T extends WorkbenchWorkspace>(w: T): T {
-  const finished = w.processSteps.find(
+/** Align project navigation/status and the current version snapshot after a successful change. */
+function synchronizeWorkflowExecution<T extends WorkbenchWorkspace>(
+  draftWorkspace: T,
+): T {
+  // Prefer finish evidence, then active work, then the first pending node for navigation.
+  const finished = draftWorkspace.processSteps.find(
     (s) => s.finishesWorkflow && s.state === 'completed',
   );
-  const active = w.processSteps.filter(
+  const active = draftWorkspace.processSteps.filter(
     (s) => workflowNodeActive(s) || s.state === 'paused',
   );
   const current =
     finished ||
     active[0] ||
-    w.processSteps.find((s) => !terminal(s)) ||
-    w.processSteps.at(-1)!;
-  w.currentWorkflowStepCode = current.code;
-  w.selectedStep = w.processSteps.indexOf(current);
-  w.projectStatus = finished ? 'completed' : 'solution_review';
-  if (!w.projectStatusDefinitions.some((s) => s.code === w.projectStatus))
-    w.projectStatusDefinitions.push({
-      code: w.projectStatus,
+    draftWorkspace.processSteps.find((s) => !isTerminalNode(s)) ||
+    draftWorkspace.processSteps.at(-1)!;
+  draftWorkspace.currentWorkflowStepCode = current.code;
+  draftWorkspace.selectedStep = draftWorkspace.processSteps.indexOf(current);
+  draftWorkspace.projectStatus = finished ? 'completed' : 'solution_review';
+  if (
+    !draftWorkspace.projectStatusDefinitions.some(
+      (s) => s.code === draftWorkspace.projectStatus,
+    )
+  )
+    draftWorkspace.projectStatusDefinitions.push({
+      code: draftWorkspace.projectStatus,
       name: finished ? 'Completed' : 'In progress',
       nameZh: finished ? '已完成' : '进行中',
       active: true,
     });
-  const version = w.workflowVersion || w.activeVersion;
-  w.versionWorkflows ||= {};
-  w.versionWorkflows[version] = {
+  // Snapshot only the executing version; earlier rounds retain their exact evidence.
+  const version =
+    draftWorkspace.workflowVersion || draftWorkspace.activeVersion;
+  draftWorkspace.versionWorkflows ||= {};
+  draftWorkspace.versionWorkflows[version] = {
     currentWorkflowStepCode: current.code,
-    processSteps: structuredClone(w.processSteps),
-    projectStatus: w.projectStatus,
+    processSteps: structuredClone(draftWorkspace.processSteps),
+    projectStatus: draftWorkspace.projectStatus,
   };
-  return w;
+  return draftWorkspace;
 }
 
 /** No completed predecessor is fabricated when adopting a historical manual register. */
@@ -302,8 +266,8 @@ export function migrateWorkflowEngine<T extends WorkbenchWorkspace>(
   now = new Date().toISOString(),
 ): T {
   if (workspace.workflowEngineVersion === 1) return workspace;
-  const w = structuredClone(workspace);
-  w.workflowEngineVersion = 1;
+  const draftWorkspace = structuredClone(workspace);
+  draftWorkspace.workflowEngineVersion = 1;
   // Only unconfigured legacy tool steps retire. Published definitions may reuse
   // these stable codes; inspect the raw marker before normalization adds defaults.
   const retired = new Set([
@@ -314,23 +278,24 @@ export function migrateWorkflowEngine<T extends WorkbenchWorkspace>(
     'QUOTE_PACKAGE',
     'COMMERCIAL_ARCHIVE',
   ]);
-  w.processSteps = w.processSteps
+  draftWorkspace.processSteps = draftWorkspace.processSteps
     .filter(
       (s) =>
         s.roundStart !== undefined ||
         !retired.has(s.code) ||
-        s.code === w.currentWorkflowStepCode ||
+        s.code === draftWorkspace.currentWorkflowStepCode ||
         s.state === 'completed',
     )
     .map(normalizeWorkflowDefinition);
   const completed =
-    w.currentWorkflowStepCode === 'QUOTE_COMPLETED' ||
-    w.projectStatus === 'completed';
-  const currentIndex = w.processSteps.findIndex(
-    (s) => s.code === w.currentWorkflowStepCode,
+    draftWorkspace.currentWorkflowStepCode === 'QUOTE_COMPLETED' ||
+    draftWorkspace.projectStatus === 'completed';
+  const currentIndex = draftWorkspace.processSteps.findIndex(
+    (s) => s.code === draftWorkspace.currentWorkflowStepCode,
   );
-  for (const [index, step] of w.processSteps.entries()) {
-    if (!completed && index < currentIndex && !terminal(step)) {
+  // Historical position is inherited as skipped evidence, never fabricated completion.
+  for (const [index, step] of draftWorkspace.processSteps.entries()) {
+    if (!completed && index < currentIndex && !isTerminalNode(step)) {
       step.state = 'skipped';
       step.skippedBy = 'legacy-registration';
       step.note = [
@@ -344,9 +309,9 @@ export function migrateWorkflowEngine<T extends WorkbenchWorkspace>(
       step.state = 'completed';
       step.completedAt ||= now;
     } else if (
-      step.code === w.currentWorkflowStepCode &&
+      step.code === draftWorkspace.currentWorkflowStepCode &&
       !completed &&
-      !terminal(step)
+      !isTerminalNode(step)
     ) {
       step.state = 'in_progress';
       step.startedAt ||= now;
@@ -354,9 +319,10 @@ export function migrateWorkflowEngine<T extends WorkbenchWorkspace>(
       step.dueAt ||= workflowDueAt(step, step.startedAt);
     } else if (workflowNodeActive(step)) step.state = 'not_started';
   }
-  return projectExecution(w);
+  return synchronizeWorkflowExecution(draftWorkspace);
 }
 
+/** Initialize a fresh cost round, preserving definitions and activating its configured start phase. */
 export function resetWorkflowRoundSteps(
   input: WorkflowStep[],
   now = new Date().toISOString(),
@@ -396,6 +362,7 @@ export function resetWorkflowRoundSteps(
   return steps;
 }
 
+/** Explain mandatory predecessor and cost-confirmation prerequisites in execution order. */
 export function workflowActionBlockers(
   workspace: WorkbenchWorkspace,
   nodeCode: string,
@@ -409,6 +376,7 @@ export function workflowActionBlockers(
   const index = phases.findIndex((p) =>
     p.steps.some((s) => s.code === nodeCode),
   );
+  // Earlier mandatory gates count unless the record explicitly inherited their position.
   const blockers = phases
     .slice(0, index)
     .flatMap((p) => p.steps)
@@ -419,6 +387,7 @@ export function workflowActionBlockers(
         !['new-cost-round', 'legacy-registration'].includes(s.skippedBy || ''),
     )
     .map((s) => `Complete the mandatory node first: ${s.name || s.nameZh}`);
+  // Cost gating follows the workflow's round, which can differ from the selected cost tab.
   const code = workspace.workflowVersion || workspace.activeVersion;
   if (
     target.requiresConfirmedCost &&
@@ -427,19 +396,20 @@ export function workflowActionBlockers(
     blockers.push(`Confirm cost ${code} first (Confirmed).`);
   return blockers;
 }
-const event = (
-  w: WorkbenchWorkspace,
+/** Append immutable node evidence with stable per-version event ordering. */
+const appendWorkflowEvent = (
+  draftWorkspace: WorkbenchWorkspace,
   step: WorkflowStep,
   action: string,
   note: string,
   now: string,
-  from: string,
+  previousStepCode: string,
 ) => {
-  w.workflowUpdates ||= [];
-  w.workflowUpdates.push({
-    id: `workflow-${w.workflowVersion || w.activeVersion}-${now}-${w.workflowUpdates.length + 1}`,
-    costVersion: w.workflowVersion || w.activeVersion,
-    fromStepCode: from,
+  draftWorkspace.workflowUpdates ||= [];
+  draftWorkspace.workflowUpdates.push({
+    id: `workflow-${draftWorkspace.workflowVersion || draftWorkspace.activeVersion}-${now}-${draftWorkspace.workflowUpdates.length + 1}`,
+    costVersion: draftWorkspace.workflowVersion || draftWorkspace.activeVersion,
+    fromStepCode: previousStepCode,
     toStepCode: step.code,
     nodeCode: step.code,
     fields: structuredClone(step.fieldValues || {}),
@@ -453,50 +423,28 @@ const event = (
   });
 };
 
-/** Extend only time covered by this pause, using the node's working calendar. */
-function shiftWorkflowDeadline(
-  step: WorkflowStep,
-  from: number,
-  until: number,
-) {
-  if (!step.dueAt || until <= from) return;
-  const due = timestamp(step.dueAt, 'Due time');
-  const elapsed =
-    step.slaCalendar === 'calendar'
-      ? until - from
-      : businessDuration(from, until, step.slaHolidays || []);
-  step.dueAt = new Date(
-    step.slaCalendar === 'calendar'
-      ? due + elapsed
-      : elapsed
-        ? addBusinessTime(due, elapsed, step.slaHolidays || [])
-        : due,
-  ).toISOString();
-}
-
+/** Extend eligible SLA/follow-up dates once for the portion of a project hold after node start. */
 function extendProjectHoldStep(
   step: WorkflowStep,
   heldAt: number,
   time: number,
   now: string,
 ) {
-  if (terminal(step)) return;
+  if (isTerminalNode(step)) return;
   const from = Math.max(
     heldAt,
-    step.startedAt ? timestamp(step.startedAt, 'Start time') : heldAt,
+    step.startedAt
+      ? parseWorkflowTimestamp(step.startedAt, 'Start time')
+      : heldAt,
   );
   if (workflowNodeActive(step)) shiftWorkflowDeadline(step, from, time);
   // A separately paused node's own Resume includes this interval once.
-  if (step.followUpDate && dateOnly(step.followUpDate)) {
-    const days = Math.max(
-      0,
-      (Date.parse(workflowLocalDate(time)) -
-        Date.parse(workflowLocalDate(from))) /
-        DAY,
+  if (step.followUpDate && isWorkflowDate(step.followUpDate)) {
+    step.followUpDate = shiftWorkflowFollowUpDate(
+      step.followUpDate,
+      from,
+      time,
     );
-    step.followUpDate = new Date(Date.parse(step.followUpDate) + days * DAY)
-      .toISOString()
-      .slice(0, 10);
   }
   if (workflowNodeActive(step) || step.state === 'paused' || step.followUpDate)
     step.updatedAt = now;
@@ -507,6 +455,7 @@ export function restoreProjectHoldDeadlines(
   workspace: Pick<WorkbenchWorkspace, 'processSteps' | 'workflowUpdates'>,
 ): WorkflowStep[] {
   const steps = structuredClone(workspace.processSteps);
+  // Pair historical holds in recorded order and use per-node update times for idempotency.
   let heldAt: number | undefined;
   for (const update of workspace.workflowUpdates || []) {
     const time = Date.parse(update.updatedAt);
@@ -526,8 +475,9 @@ export function restoreProjectHoldDeadlines(
   return steps;
 }
 
+/** Toggle project monitoring and compensate active deadlines when the hold ends. */
 function applyProjectHold<T extends WorkbenchWorkspace>(
-  w: T,
+  draftWorkspace: T,
   request: WorkflowAction,
   now: string,
 ): T {
@@ -540,33 +490,38 @@ function applyProjectHold<T extends WorkbenchWorkspace>(
     throw new TypeError(
       'Project hold reason must be text of at most 2000 characters.',
     );
-  const time = timestamp(now, 'Current time');
+  const time = parseWorkflowTimestamp(now, 'Current time');
+  // A project hold preserves node states; resume compensates them without starting any node.
   if (request.action === 'hold_project') {
-    if (workflowComplete(w))
+    if (workflowComplete(draftWorkspace))
       throw new TypeError(
         'This quotation round is complete and has no active monitoring to pause.',
       );
-    if (w.workflowHold)
+    if (draftWorkspace.workflowHold)
       throw new TypeError('Project monitoring is already on hold.');
-    w.workflowHold = {
+    draftWorkspace.workflowHold = {
       startedAt: new Date(time).toISOString(),
       ...(request.reason?.trim() ? { reason: request.reason.trim() } : {}),
     };
   } else {
-    if (!w.workflowHold)
+    if (!draftWorkspace.workflowHold)
       throw new TypeError('Project monitoring is not on hold.');
-    const heldAt = timestamp(w.workflowHold.startedAt, 'Project hold time');
+    const heldAt = parseWorkflowTimestamp(
+      draftWorkspace.workflowHold.startedAt,
+      'Project hold time',
+    );
     if (time < heldAt)
       throw new TypeError('Resume time cannot precede the project hold.');
-    for (const step of w.processSteps)
+    for (const step of draftWorkspace.processSteps)
       extendProjectHoldStep(step, heldAt, time, now);
-    delete w.workflowHold;
+    delete draftWorkspace.workflowHold;
   }
   const step =
-    w.processSteps.find((item) => item.code === w.currentWorkflowStepCode) ||
-    w.processSteps[0];
-  event(
-    w,
+    draftWorkspace.processSteps.find(
+      (item) => item.code === draftWorkspace.currentWorkflowStepCode,
+    ) || draftWorkspace.processSteps[0];
+  appendWorkflowEvent(
+    draftWorkspace,
     step,
     request.action,
     request.reason?.trim() ||
@@ -574,16 +529,13 @@ function applyProjectHold<T extends WorkbenchWorkspace>(
         ? 'Project monitoring placed on hold. Follow-ups are suspended until resumed.'
         : 'Project monitoring resumed. Active SLA deadlines exclude the project hold.'),
     now,
-    w.currentWorkflowStepCode,
+    draftWorkspace.currentWorkflowStepCode,
   );
-  return projectExecution(w);
+  return synchronizeWorkflowExecution(draftWorkspace);
 }
 
-export function applyWorkflowAction<T extends WorkbenchWorkspace>(
-  workspace: T,
-  request: WorkflowAction,
-  now = new Date().toISOString(),
-): T {
+/** Reject unknown payload keys and action names before migration or execution. */
+function validateWorkflowActionShape(request: WorkflowAction) {
   const allowed = new Set([
     'nodeCode',
     'action',
@@ -600,25 +552,14 @@ export function applyWorkflowAction<T extends WorkbenchWorkspace>(
     throw new TypeError('The workflow action contains unknown fields.');
   if (!WORKFLOW_ACTIONS.includes(request.action))
     throw new TypeError('Unsupported workflow action.');
-  const w = structuredClone(migrateWorkflowEngine(workspace, now));
-  if (request.action === 'hold_project' || request.action === 'resume_project')
-    return applyProjectHold(w, request, now);
-  if (w.workflowHold)
-    throw new TypeError(
-      'Resume project monitoring before updating workflow steps.',
-    );
-  const step = w.processSteps.find((s) => s.code === request.nodeCode);
-  if (!step) throw new TypeError('Node not found. Reload the workflow.');
-  if (workflowComplete(w))
-    throw new TypeError(
-      'This quotation round is complete. Create a new cost version if the requirements change.',
-    );
-  const before = w.currentWorkflowStepCode;
-  const wasTerminal = terminal(step);
-  if (wasTerminal && request.action !== 'reopen')
-    throw new TypeError(
-      'Completed or skipped nodes must be reopened before they can be changed.',
-    );
+}
+
+/** Validate node inputs and action prerequisites in their established error order. */
+function validateNodeAction(
+  draftWorkspace: WorkbenchWorkspace,
+  step: WorkflowStep,
+  request: WorkflowAction,
+) {
   for (const field of [
     'owner',
     'note',
@@ -631,7 +572,7 @@ export function applyWorkflowAction<T extends WorkbenchWorkspace>(
       throw new TypeError(`${field} must be text.`);
   if (request.owner !== undefined && !request.owner.trim())
     throw new TypeError('A follow-up owner is required.');
-  if (request.followUpDate && !dateOnly(request.followUpDate))
+  if (request.followUpDate && !isWorkflowDate(request.followUpDate))
     throw new TypeError('The follow-up date must use YYYY-MM-DD.');
   if (
     request.fields &&
@@ -644,8 +585,9 @@ export function applyWorkflowAction<T extends WorkbenchWorkspace>(
       ))
   )
     throw new TypeError('Only fields configured for this node may be entered.');
+  // Gate transitions after payload validation to preserve first-error precedence.
   if (['start', 'complete', 'reopen'].includes(request.action)) {
-    const blockers = workflowActionBlockers(w, step.code);
+    const blockers = workflowActionBlockers(draftWorkspace, step.code);
     if (blockers.length) throw new TypeError(blockers.join('; '));
   }
   if (request.action === 'skip' && step.required)
@@ -655,32 +597,51 @@ export function applyWorkflowAction<T extends WorkbenchWorkspace>(
     !request.reason?.trim()
   )
     throw new TypeError('Enter a reason for this action.');
-  if (request.action === 'reopen') {
-    if (!wasTerminal)
-      throw new TypeError('Only completed or skipped nodes can be reopened.');
-    const phases = workflowPhaseGroups(w.processSteps);
-    const position = phases.findIndex((p) =>
-      p.steps.some((s) => s.code === step.code),
+}
+
+/** Clear terminal evidence only when no completed mandatory downstream phase prevents reopening. */
+function prepareNodeReopen(
+  draftWorkspace: WorkbenchWorkspace,
+  step: WorkflowStep,
+  wasTerminal: boolean,
+) {
+  if (!wasTerminal)
+    throw new TypeError('Only completed or skipped nodes can be reopened.');
+  const phases = workflowPhaseGroups(draftWorkspace.processSteps);
+  const position = phases.findIndex((p) =>
+    p.steps.some((s) => s.code === step.code),
+  );
+  if (
+    phases
+      .slice(position + 1)
+      .some((p) => p.steps.some((s) => s.required && s.state === 'completed'))
+  )
+    throw new TypeError(
+      'A later mandatory node is already complete. Create a new cost round to revisit an earlier node.',
     );
-    if (
-      phases
-        .slice(position + 1)
-        .some((p) => p.steps.some((s) => s.required && s.state === 'completed'))
-    )
-      throw new TypeError(
-        'A later mandatory node is already complete. Create a new cost round to revisit an earlier node.',
-      );
-    step.state = 'not_started';
-    step.completedAt = '';
-    step.skippedBy = '';
-    step.fieldValues = {};
-  }
+  // Reopening clears terminal evidence while retaining the original SLA timestamps.
+  step.state = 'not_started';
+  step.completedAt = '';
+  step.skippedBy = '';
+  step.fieldValues = {};
+}
+
+/** Merge explicitly provided user fields; omitted fields retain their existing values. */
+function applyNodeDetails(step: WorkflowStep, request: WorkflowAction) {
   if (request.owner !== undefined) step.owner = request.owner.trim();
   if (request.note !== undefined) step.note = request.note;
   if (request.followUpDate !== undefined)
     step.followUpDate = request.followUpDate;
   if (request.fields)
     step.fieldValues = { ...step.fieldValues, ...request.fields };
+}
+
+/** Apply justified timestamp corrections, recalculating SLA before a manual due-time override. */
+function applyNodeTimeCorrections(
+  step: WorkflowStep,
+  request: WorkflowAction,
+  now: string,
+) {
   if (request.startedAt !== undefined) {
     if (
       step.startedAt &&
@@ -691,144 +652,228 @@ export function applyWorkflowAction<T extends WorkbenchWorkspace>(
         'A reason is required to correct the actual start time.',
       );
     if (
-      timestamp(request.startedAt, 'Start time') >
-      timestamp(now, 'Current time')
+      parseWorkflowTimestamp(request.startedAt, 'Start time') >
+      parseWorkflowTimestamp(now, 'Current time')
     )
       throw new TypeError('The actual start time cannot be in the future.');
     step.startedAt = new Date(request.startedAt).toISOString();
     step.dueAt = workflowDueAt(step, step.startedAt);
   }
+  // An explicit due time overrides the deadline derived from a corrected start above.
   if (request.dueAt !== undefined) {
     if (!request.reason?.trim())
       throw new TypeError(
         'A reason is required to change the SLA due time manually.',
       );
     if (
-      timestamp(request.dueAt, 'Due time') <
-      timestamp(step.startedAt || now, 'Start time')
+      parseWorkflowTimestamp(request.dueAt, 'Due time') <
+      parseWorkflowTimestamp(step.startedAt || now, 'Start time')
     )
       throw new TypeError(
         'The due time cannot be earlier than the start time.',
       );
     step.dueAt = new Date(request.dueAt).toISOString();
   }
-  if (request.action === 'start' || request.action === 'reopen') {
-    if (step.state !== 'not_started')
-      throw new TypeError(
-        'This node has already started. Use Update or Resume.',
+}
+
+/** Start all pending peers in the phase and audit peer starts before the requested node. */
+function startNodePhase(
+  draftWorkspace: WorkbenchWorkspace,
+  step: WorkflowStep,
+  now: string,
+  previousStepCode: string,
+) {
+  if (step.state !== 'not_started')
+    throw new TypeError('This node has already started. Use Update or Resume.');
+  const phase = workflowPhaseGroups(draftWorkspace.processSteps).find((p) =>
+    p.steps.some((s) => s.code === step.code),
+  )!;
+  for (const peer of phase.steps.filter((s) => s.state === 'not_started')) {
+    const blockers = workflowActionBlockers(draftWorkspace, peer.code);
+    if (blockers.length) throw new TypeError(blockers.join('; '));
+    peer.state = 'in_progress';
+    peer.tone = 'blue';
+    peer.startedAt ||= step.startedAt || now;
+    peer.dueAt ||= workflowDueAt(peer, peer.startedAt);
+    peer.updatedAt = now;
+    if (peer.code !== step.code)
+      appendWorkflowEvent(
+        draftWorkspace,
+        peer,
+        'start',
+        `Started in parallel with ${step.name || step.nameZh}.`,
+        now,
+        previousStepCode,
       );
-    const phase = workflowPhaseGroups(w.processSteps).find((p) =>
-      p.steps.some((s) => s.code === step.code),
-    )!;
-    for (const peer of phase.steps.filter((s) => s.state === 'not_started')) {
-      const blockers = workflowActionBlockers(w, peer.code);
-      if (blockers.length) throw new TypeError(blockers.join('; '));
-      peer.state = 'in_progress';
-      peer.tone = 'blue';
-      peer.startedAt ||= step.startedAt || now;
-      peer.dueAt ||= workflowDueAt(peer, peer.startedAt);
-      peer.updatedAt = now;
-      if (peer.code !== step.code)
-        event(
-          w,
-          peer,
-          'start',
-          `Started in parallel with ${step.name || step.nameZh}.`,
-          now,
-          before,
-        );
-    }
-  } else if (request.action === 'complete') {
-    if (!workflowNodeActive(step))
-      throw new TypeError('Start the node before confirming completion.');
-    if (step.required && request.confirmed !== true)
-      throw new TypeError(
-        'Explicitly confirm the recorded information for a mandatory node.',
-      );
-    const missing = (step.requiredFields || []).filter(
-      (key) => !step.fieldValues?.[key]?.trim(),
+  }
+}
+
+/** Confirm recorded completion and automatically skip eligible optional predecessor phases. */
+function completeNode(
+  draftWorkspace: WorkbenchWorkspace,
+  step: WorkflowStep,
+  request: WorkflowAction,
+  now: string,
+  previousStepCode: string,
+) {
+  if (!workflowNodeActive(step))
+    throw new TypeError('Start the node before confirming completion.');
+  if (step.required && request.confirmed !== true)
+    throw new TypeError(
+      'Explicitly confirm the recorded information for a mandatory node.',
     );
-    if (missing.length)
-      throw new TypeError(
-        `Complete the required fields: ${missing.join(', ')}`,
-      );
-    if (step.finishesWorkflow) {
-      const unresolved = w.processSteps.filter(
-        (other) =>
-          other.code !== step.code &&
-          !terminal(other) &&
-          !other.required &&
-          !other.autoSkip,
-      );
-      if (unresolved.length)
-        throw new TypeError(
-          `Complete or explicitly skip the unresolved nodes first: ${unresolved.map((other) => other.name || other.nameZh).join(', ')}`,
-        );
-    }
-    step.state = 'completed';
-    step.completedAt = now;
-    step.tone = 'green';
-    const phases = workflowPhaseGroups(w.processSteps);
-    const position = phases.findIndex((p) =>
-      p.steps.some((s) => s.code === step.code),
+  const missing = (step.requiredFields || []).filter(
+    (key) => !step.fieldValues?.[key]?.trim(),
+  );
+  if (missing.length)
+    throw new TypeError(`Complete the required fields: ${missing.join(', ')}`);
+  // Optional work without auto-skip must be resolved explicitly before final completion.
+  if (step.finishesWorkflow) {
+    const unresolved = draftWorkspace.processSteps.filter(
+      (other) =>
+        other.code !== step.code &&
+        !isTerminalNode(other) &&
+        !other.required &&
+        !other.autoSkip,
     );
-    for (const prior of phases.slice(0, position).flatMap((p) => p.steps))
-      if (!prior.required && prior.autoSkip && !terminal(prior)) {
-        prior.state = 'skipped';
-        prior.completedAt = now;
-        prior.skippedBy = step.code;
-        prior.tone = 'gray';
-        prior.updatedAt = now;
-        event(
-          w,
-          prior,
-          'auto_skip',
-          `Automatically skipped as configured after downstream node ${step.name || step.nameZh} completed.`,
-          now,
-          before,
-        );
-      }
-  } else if (request.action === 'skip') {
-    step.state = 'skipped';
-    step.completedAt = now;
-    step.skippedBy = 'manual';
-    step.tone = 'gray';
-  } else if (request.action === 'pause') {
-    if (!workflowNodeActive(step))
-      throw new TypeError('Only active nodes can be paused.');
-    if (!request.followUpDate || request.followUpDate < workflowLocalDate(now))
-      throw new TypeError('Set a resume follow-up date for today or later.');
-    step.state = 'paused';
-    step.pausedAt = now;
-    step.tone = 'gray';
-  } else if (request.action === 'resume') {
-    if (step.state !== 'paused' || !step.pausedAt)
-      throw new TypeError('Only paused nodes can be resumed.');
-    const start = timestamp(step.pausedAt, 'Pause time');
-    const end = timestamp(now, 'Resume time');
-    if (end < start)
-      throw new TypeError('Resume time cannot precede the node pause.');
-    shiftWorkflowDeadline(step, start, end);
-    step.state = 'in_progress';
-    step.pausedAt = '';
-    step.tone = 'blue';
-    if (request.followUpDate === undefined) step.followUpDate = '';
+    if (unresolved.length)
+      throw new TypeError(
+        `Complete or explicitly skip the unresolved nodes first: ${unresolved.map((other) => other.name || other.nameZh).join(', ')}`,
+      );
+  }
+  step.state = 'completed';
+  step.completedAt = now;
+  step.tone = 'green';
+  const phases = workflowPhaseGroups(draftWorkspace.processSteps);
+  const position = phases.findIndex((p) =>
+    p.steps.some((s) => s.code === step.code),
+  );
+  // Auto-skip only prior phases and audit those skips before the requested completion.
+  for (const prior of phases.slice(0, position).flatMap((p) => p.steps))
+    if (!prior.required && prior.autoSkip && !isTerminalNode(prior)) {
+      prior.state = 'skipped';
+      prior.completedAt = now;
+      prior.skippedBy = step.code;
+      prior.tone = 'gray';
+      prior.updatedAt = now;
+      appendWorkflowEvent(
+        draftWorkspace,
+        prior,
+        'auto_skip',
+        `Automatically skipped as configured after downstream node ${step.name || step.nameZh} completed.`,
+        now,
+        previousStepCode,
+      );
+    }
+}
+
+/** Record an explicitly skipped optional node and its manual skip marker. */
+function skipNode(step: WorkflowStep, now: string) {
+  step.state = 'skipped';
+  step.completedAt = now;
+  step.skippedBy = 'manual';
+  step.tone = 'gray';
+}
+
+/** Pause an active node only when it has a valid recovery follow-up date. */
+function pauseNode(step: WorkflowStep, request: WorkflowAction, now: string) {
+  if (!workflowNodeActive(step))
+    throw new TypeError('Only active nodes can be paused.');
+  if (!request.followUpDate || request.followUpDate < workflowLocalDate(now))
+    throw new TypeError('Set a resume follow-up date for today or later.');
+  step.state = 'paused';
+  step.pausedAt = now;
+  step.tone = 'gray';
+}
+
+/** Resume a paused node, excluding its captured pause interval from the SLA deadline. */
+function resumeNode(step: WorkflowStep, request: WorkflowAction, now: string) {
+  if (step.state !== 'paused' || !step.pausedAt)
+    throw new TypeError('Only paused nodes can be resumed.');
+  const start = parseWorkflowTimestamp(step.pausedAt, 'Pause time');
+  const end = parseWorkflowTimestamp(now, 'Resume time');
+  if (end < start)
+    throw new TypeError('Resume time cannot precede the node pause.');
+  shiftWorkflowDeadline(step, start, end);
+  step.state = 'in_progress';
+  step.pausedAt = '';
+  step.tone = 'blue';
+  if (request.followUpDate === undefined) step.followUpDate = '';
+}
+
+/** Apply one workflow action to a cloned workspace and persist its audit/snapshot together. */
+export function applyWorkflowAction<T extends WorkbenchWorkspace>(
+  workspace: T,
+  request: WorkflowAction,
+  now = new Date().toISOString(),
+): T {
+  validateWorkflowActionShape(request);
+  const draftWorkspace = structuredClone(migrateWorkflowEngine(workspace, now));
+  if (request.action === 'hold_project' || request.action === 'resume_project')
+    return applyProjectHold(draftWorkspace, request, now);
+  if (draftWorkspace.workflowHold)
+    throw new TypeError(
+      'Resume project monitoring before updating workflow steps.',
+    );
+  const step = draftWorkspace.processSteps.find(
+    (s) => s.code === request.nodeCode,
+  );
+  if (!step) throw new TypeError('Node not found. Reload the workflow.');
+  if (workflowComplete(draftWorkspace))
+    throw new TypeError(
+      'This quotation round is complete. Create a new cost version if the requirements change.',
+    );
+  const previousStepCode = draftWorkspace.currentWorkflowStepCode;
+  const wasTerminal = isTerminalNode(step);
+  if (wasTerminal && request.action !== 'reopen')
+    throw new TypeError(
+      'Completed or skipped nodes must be reopened before they can be changed.',
+    );
+  // Preserve the validation/edit/transition sequence so rejected actions are atomic
+  // and callers receive the same first error when multiple prerequisites fail.
+  validateNodeAction(draftWorkspace, step, request);
+  if (request.action === 'reopen')
+    prepareNodeReopen(draftWorkspace, step, wasTerminal);
+  applyNodeDetails(step, request);
+  applyNodeTimeCorrections(step, request, now);
+
+  // Each handler owns one transition; audit and execution snapshots stay centralized.
+  switch (request.action) {
+    case 'start':
+    case 'reopen':
+      startNodePhase(draftWorkspace, step, now, previousStepCode);
+      break;
+    case 'complete':
+      completeNode(draftWorkspace, step, request, now, previousStepCode);
+      break;
+    case 'skip':
+      skipNode(step, now);
+      break;
+    case 'pause':
+      pauseNode(step, request, now);
+      break;
+    case 'resume':
+      resumeNode(step, request, now);
+      break;
+    case 'update':
+      break;
   }
   step.updatedAt = now;
-  event(
-    w,
+  appendWorkflowEvent(
+    draftWorkspace,
     step,
     request.action,
     request.reason?.trim() ||
       request.note ||
       `${step.name || step.nameZh}: ${request.action}`,
     now,
-    before,
+    previousStepCode,
   );
-  return projectExecution(w);
+  return synchronizeWorkflowExecution(draftWorkspace);
 }
 
-const configFields = [
+// Definition fields eligible for publication; owner follows separate execution rules.
+const WORKFLOW_CONFIGURATION_FIELDS = [
   'name',
   'nameZh',
   'detail',
@@ -847,7 +892,8 @@ const configFields = [
   'finishesWorkflow',
   'autoSkip',
 ] as const;
-const runtimeFields = [
+// Persisted execution fields copied verbatim when a nonterminal definition is updated.
+const WORKFLOW_RUNTIME_FIELDS = [
   'state',
   'tone',
   'startedAt',
@@ -862,6 +908,7 @@ const runtimeFields = [
   'date',
   'dateZh',
 ] as const;
+/** Merge published definitions with runtime/history evidence and report executable-plan blockers. */
 export function previewWorkflowSync(
   workspace: WorkbenchWorkspace,
   definitions: WorkflowStep[],
@@ -876,14 +923,15 @@ export function previewWorkflowSync(
       retained: ['Completed rounds retain their original workflow.'],
       steps: structuredClone(workspace.processSteps),
     };
-  const old = workspace.processSteps;
-  const byCode = new Map(old.map((s) => [s.code, s]));
+  // Reconcile by stable code; terminal records retain their historical definitions.
+  const existingSteps = workspace.processSteps;
+  const existingByCode = new Map(existingSteps.map((s) => [s.code, s]));
   const changes: string[] = [],
     blockers: string[] = [],
     retained: string[] = [];
   const steps = definitions.map((raw) => {
     const definition = normalizeWorkflowDefinition(raw);
-    const previous = byCode.get(definition.code);
+    const previous = existingByCode.get(definition.code);
     if (!previous) {
       changes.push(`Add: ${definition.name || definition.nameZh}`);
       return {
@@ -901,16 +949,18 @@ export function previewWorkflowSync(
         updatedAt: '',
       };
     }
-    if (terminal(previous)) {
+    if (isTerminalNode(previous)) {
       retained.push(`Retain history: ${previous.name || previous.nameZh}`);
       return structuredClone(previous);
     }
+    // Runtime evidence remains project-owned, including fields omitted in legacy records.
     const next = { ...definition, owner: previous.owner };
-    for (const field of runtimeFields)
+    for (const field of WORKFLOW_RUNTIME_FIELDS)
       Object.assign(next, { [field]: structuredClone(previous[field]) });
     if (workflowNodeActive(previous) || previous.state === 'paused') {
+      // Active SLA rules only change when migration is explicitly requested.
       if (!options.migrateActive) {
-        for (const field of configFields)
+        for (const field of WORKFLOW_CONFIGURATION_FIELDS)
           if (
             ![
               'name',
@@ -946,23 +996,24 @@ export function previewWorkflowSync(
       changes.push(`Update: ${next.name || next.nameZh}`);
     return next;
   });
-  for (const previous of old)
+  // Keep deleted active/history nodes at their former position; only pending nodes disappear.
+  for (const previous of existingSteps)
     if (!definitions.some((s) => s.code === previous.code)) {
       if (workflowNodeActive(previous) || previous.state === 'paused') {
         blockers.push(
           `Cannot delete an active node: ${previous.name || previous.nameZh}`,
         );
         steps.splice(
-          Math.min(old.indexOf(previous), steps.length),
+          Math.min(existingSteps.indexOf(previous), steps.length),
           0,
           structuredClone(previous),
         );
-      } else if (terminal(previous)) {
+      } else if (isTerminalNode(previous)) {
         retained.push(
           `Retain historical node: ${previous.name || previous.nameZh}`,
         );
         steps.splice(
-          Math.min(old.indexOf(previous), steps.length),
+          Math.min(existingSteps.indexOf(previous), steps.length),
           0,
           structuredClone(previous),
         );
@@ -1001,19 +1052,24 @@ export function previewWorkflowSync(
           );
       }
     }
+  // Number the merged plan and retain the established ordered, deduplicated messages.
   steps.forEach((s, i) => {
     s.no = String(i + 1).padStart(2, '0');
   });
-  if (old.map((s) => s.code).join('|') !== steps.map((s) => s.code).join('|'))
+  if (
+    existingSteps.map((s) => s.code).join('|') !==
+    steps.map((s) => s.code).join('|')
+  )
     changes.push('Node order updated.');
   return {
-    changed: JSON.stringify(old) !== JSON.stringify(steps),
+    changed: JSON.stringify(existingSteps) !== JSON.stringify(steps),
     changes: [...new Set(changes)],
     blockers: [...new Set(blockers)],
     retained,
     steps,
   };
 }
+/** Apply an accepted publication plan to a clone and record its revision and audit event. */
 export function applyWorkflowTemplate<T extends WorkbenchWorkspace>(
   workspace: T,
   definitions: WorkflowStep[],
@@ -1021,26 +1077,27 @@ export function applyWorkflowTemplate<T extends WorkbenchWorkspace>(
   options: { migrateActive?: boolean } = {},
   now = new Date().toISOString(),
 ): T {
-  const w = structuredClone(migrateWorkflowEngine(workspace, now));
-  const plan = previewWorkflowSync(w, definitions, options);
+  const draftWorkspace = structuredClone(migrateWorkflowEngine(workspace, now));
+  const plan = previewWorkflowSync(draftWorkspace, definitions, options);
   if (plan.blockers.length) throw new TypeError(plan.blockers.join('; '));
   if (
-    workflowComplete(w) ||
-    (!plan.changed && w.workflowTemplateRevision === revision)
+    workflowComplete(draftWorkspace) ||
+    (!plan.changed && draftWorkspace.workflowTemplateRevision === revision)
   )
-    return w;
-  const before = w.currentWorkflowStepCode;
-  w.processSteps = plan.steps;
-  w.workflowTemplateRevision = revision;
+    return draftWorkspace;
+  const previousStepCode = draftWorkspace.currentWorkflowStepCode;
+  draftWorkspace.processSteps = plan.steps;
+  draftWorkspace.workflowTemplateRevision = revision;
   const step =
-    w.processSteps.find((s) => s.code === before) || w.processSteps[0];
-  event(
-    w,
+    draftWorkspace.processSteps.find((s) => s.code === previousStepCode) ||
+    draftWorkspace.processSteps[0];
+  appendWorkflowEvent(
+    draftWorkspace,
     step,
     'template_sync',
     `Global workflow r${revision}: ${plan.changes.join('; ') || 'Definitions match; existing execution rules retained.'}`,
     now,
-    before,
+    previousStepCode,
   );
-  return projectExecution(w);
+  return synchronizeWorkflowExecution(draftWorkspace);
 }

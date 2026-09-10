@@ -4,6 +4,7 @@ import type { WorkbenchWorkspace } from '../workbench/workspace-types.ts';
 import { getCostStatementValues, getHQTravelSummary } from '../cost/domain.ts';
 import { validateCostExportSnapshot } from '../cost/validation.ts';
 import { calculatePricing, validatePricingSettings } from './domain.ts';
+import { calculateBuCostAllocation } from './profit-share.ts';
 import { matchesClient } from './catalog-domain.ts';
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
 export function validatedQuoteInput(
@@ -49,7 +50,8 @@ export function validatedQuoteInput(
     version.manualCosts,
     version.subcontractCost,
   ).totalWithRisk;
-  const errors = validatePricingSettings(workspace.pricing, total);
+  const allocation = calculateBuCostAllocation(snapshot);
+  const errors = validatePricingSettings(workspace.pricing, total, allocation);
   const template = workspace.quoteTemplates.find(
     (t) => t.id === workspace.selectedQuoteTemplateId,
   );
@@ -67,6 +69,8 @@ export function validatedQuoteInput(
     costVersion: version.code,
     template: structuredClone(template!),
     assumptions: structuredClone(workspace.quoteAssumptions),
-    pricing: calculatePricing(total, workspace.pricing),
+    pricing: calculatePricing(total, workspace.pricing, allocation),
+    profitShareMasterDataRevision:
+      workspace.pricing.profitShareMasterDataRevision,
   };
 }

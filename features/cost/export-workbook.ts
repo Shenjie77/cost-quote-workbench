@@ -2409,14 +2409,21 @@ export const getCostWorkbookFileName = (snapshot: CostExportSnapshot) => {
  * removed synchronously; URL revocation waits until the click has dispatched.
  */
 export const downloadCostWorkbook = async (snapshot: CostExportSnapshot) => {
+  snapshot = structuredClone(snapshot);
   const bytes = await buildCostWorkbookBytes(snapshot);
   const blobBytes = bytes.slice().buffer as ArrayBuffer;
   const blob = new Blob([blobBytes], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
+  const fileName = getCostWorkbookFileName(snapshot);
+  const { archiveProjectFile } = await import('../projects/project-files.ts');
+  await archiveProjectFile(snapshot.project.id, blob, {
+    originalName: fileName,
+    category: 'cost',
+    versionCode: snapshot.costVersion.code,
+  });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
-  const fileName = getCostWorkbookFileName(snapshot);
   try {
     anchor.href = url;
     anchor.download = fileName;

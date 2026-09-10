@@ -44,6 +44,8 @@ import {
 } from './personnel-input-controls';
 
 export function CostInputSheet({
+  projectId,
+  versionCode,
   rows: allRows,
   setRows: setAllRows,
   rateSettings,
@@ -55,6 +57,8 @@ export function CostInputSheet({
   tableView,
   locked = false,
 }: {
+  projectId?: string;
+  versionCode?: string;
   rows: CostInputRow[];
   setRows: React.Dispatch<React.SetStateAction<CostInputRow[]>>;
   rateSettings: RateSettings;
@@ -350,6 +354,10 @@ export function CostInputSheet({
       </div>
       {showImport && !locked && (
         <CostImportPanel
+          projectId={projectId}
+          versionCode={versionCode}
+          announce={announce}
+          canApply={() => !locked && (!canEditCost || canEditCost())}
           rows={rows}
           setRows={setRows}
           resources={resources}
