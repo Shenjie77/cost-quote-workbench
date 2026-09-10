@@ -2285,6 +2285,17 @@ const execute = async () => {
             const { validatedQuoteInput } =
               await import('../features/quote/validated-input.ts');
             const q = validatedQuoteInput(w, quoteNumber);
+            // Legacy external mappings may export only discounted totals or a custom
+            // ScopeBrief row. Record line snapshots only when the new detail dataset
+            // was actually mapped, so history never claims rows absent from the file.
+            if (
+              !w.pricing.lineMode ||
+              w.pricing.lineMode === 'single' ||
+              !input.tables.some((table) => table.dataset === 'quoteLines')
+            ) {
+              delete q.lines;
+              delete q.lineMode;
+            }
             // History construction is shared with the standard exporter below.
             const { quoteHistoryRecord } =
               await import('../features/quote/history-record.ts');
@@ -2495,7 +2506,24 @@ const execute = async () => {
             workspace,
             `QT-${workspace.project.id}-${workspace.activeVersion}-${Date.now()}`,
           );
-          bytes = await buildQuoteWorkbookBuffer(quoteInput);
+          // CLI exports read the same local asset directly, including when the HTTP API is stopped.
+          if (quoteInput.template.excel) {
+            const { openQuoteTemplateStore } =
+              await import('../server/quote-template-assets.mjs');
+            const templates = openQuoteTemplateStore(
+              resolveDatabasePath(options),
+            );
+            try {
+              bytes = await buildQuoteWorkbookBuffer(
+                quoteInput,
+                templates.read(quoteInput.template.excel.assetId),
+              );
+            } finally {
+              templates.close();
+            }
+          } else {
+            bytes = await buildQuoteWorkbookBuffer(quoteInput);
+          }
         }
         const { writeXlsxArtifact } = await import('../server/artifact-io.mjs');
         const artifact = await writeXlsxArtifact(

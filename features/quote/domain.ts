@@ -1,6 +1,8 @@
 /** Shared pricing rules used by the quote page and project portfolio. */
 
 import { roundMoney } from '../cost/domain.ts';
+import type { ManualQuoteLine, QuoteLineMode } from './excel-template-types.ts';
+import { calculateManualQuoteLines } from './quote-lines.ts';
 import {
   allocateMoneyByWeights,
   profitShareBasis,
@@ -18,6 +20,10 @@ export type PricingSettings = {
   /** Project-owned rate snapshot; global catalogue updates are explicitly applied. */
   profitShareRates?: ProfitShareRate[];
   profitShareMasterDataRevision?: number;
+  /** Omitted retains the historical single-total quotation. */
+  lineMode?: QuoteLineMode;
+  /** Project-owned customer prices; unused modes retain these edits for later use. */
+  manualLines?: ManualQuoteLine[];
 };
 
 export const initialPricingSettings: PricingSettings = {
@@ -93,14 +99,21 @@ export const calculatePricing = (
       : 0;
   const basis = profitShareBasis(cost, settings.profitShareRates, allocation);
   const errors: string[] = [...basis.errors];
+  const manualPricing = settings.lineMode === 'manual';
+  if (
+    settings.lineMode !== undefined &&
+    !['single', 'scope', 'item', 'manual'].includes(settings.lineMode)
+  )
+    errors.push('Select a supported quotation detail mode.');
   if (!Number.isFinite(totalCost) || totalCost < 0 || totalCost > 1e12)
     errors.push(
       'Total cost must be a finite non-negative amount within the supported range.',
     );
   if (
-    !Number.isFinite(settings.targetGrossMargin) ||
-    settings.targetGrossMargin < 0 ||
-    settings.targetGrossMargin > 95
+    !manualPricing &&
+    (!Number.isFinite(settings.targetGrossMargin) ||
+      settings.targetGrossMargin < 0 ||
+      settings.targetGrossMargin > 95)
   )
     errors.push(
       'Target sales GP must be between 0 and 95%. / 目标销售毛利须为 0–95%。',
@@ -129,16 +142,24 @@ export const calculatePricing = (
     : 0;
   const weightedProfitShareRate = basis.weightedProfitShareRate;
   const denominator = 1 - (targetGrossMargin + weightedProfitShareRate) / 100;
-  if (denominator <= 0)
+  if (!manualPricing && denominator <= 0)
     errors.push(
       'Target sales GP plus weighted profit-share rate must be less than 100%. / 目标销售毛利与加权分成率之和须小于 100%。',
     );
-  const rawListPrice = targetPriceAfterShareRounding(
-    cost,
-    targetGrossMargin,
-    weightedProfitShareRate,
-    denominator,
-  );
+  // Manual selling prices replace only the target-price calculation; discount,
+  // GST, BU profit share and actual sales GP retain their existing arithmetic.
+  const manual = manualPricing
+    ? calculateManualQuoteLines(settings.manualLines)
+    : undefined;
+  if (manual) errors.push(...manual.errors);
+  const rawListPrice =
+    manual?.total ??
+    targetPriceAfterShareRounding(
+      cost,
+      targetGrossMargin,
+      weightedProfitShareRate,
+      denominator,
+    );
   const listPrice =
     Number.isFinite(rawListPrice) && rawListPrice <= 1e12
       ? roundMoney(rawListPrice)

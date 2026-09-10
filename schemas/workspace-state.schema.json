@@ -159,6 +159,16 @@
         "profitShareMasterDataRevision": {
           "type": "integer",
           "minimum": 1
+        },
+        "lineMode": {
+          "$ref": "#/$defs/quoteLineMode"
+        },
+        "manualLines": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/manualQuoteLine"
+          }
         }
       }
     },
@@ -316,7 +326,10 @@
           "type": "string",
           "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
         },
-        "reason": { "type": "string", "maxLength": 2000 }
+        "reason": {
+          "type": "string",
+          "maxLength": 2000
+        }
       }
     },
     "workflowTemplateRevision": {
@@ -333,7 +346,9 @@
       "additionalProperties": false,
       "required": ["id", "bu", "ratePercent", "active"],
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
         "bu": {
           "type": "string",
           "minLength": 1,
@@ -345,8 +360,14 @@
           "maxLength": 200,
           "description": "Optional company code for human reference only; never used as an internal identity or BU matching key."
         },
-        "ratePercent": { "type": "number", "minimum": 0, "maximum": 100 },
-        "active": { "type": "boolean" }
+        "ratePercent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "active": {
+          "type": "boolean"
+        }
       }
     },
     "profitShareSnapshot": {
@@ -364,9 +385,16 @@
           "minimum": 0,
           "maximum": 100
         },
-        "profitShareAmount": { "$ref": "#/$defs/money" },
-        "salesGrossProfit": { "type": "number" },
-        "masterDataRevision": { "type": "integer", "minimum": 1 },
+        "profitShareAmount": {
+          "$ref": "#/$defs/money"
+        },
+        "salesGrossProfit": {
+          "type": "number"
+        },
+        "masterDataRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
         "profitShareBreakdown": {
           "type": "array",
           "maxItems": 10000,
@@ -385,15 +413,37 @@
               "configured"
             ],
             "properties": {
-              "bu": { "$ref": "#/$defs/text" },
-              "cost": { "$ref": "#/$defs/money" },
-              "costWeight": { "type": "number", "minimum": 0, "maximum": 1 },
-              "ratePercent": { "type": "number", "minimum": 0, "maximum": 100 },
-              "allocatedRevenue": { "$ref": "#/$defs/money" },
-              "profitShareAmount": { "$ref": "#/$defs/money" },
-              "directCost": { "$ref": "#/$defs/money" },
-              "unassignedCost": { "$ref": "#/$defs/money" },
-              "configured": { "type": "boolean" }
+              "bu": {
+                "$ref": "#/$defs/text"
+              },
+              "cost": {
+                "$ref": "#/$defs/money"
+              },
+              "costWeight": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "ratePercent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "allocatedRevenue": {
+                "$ref": "#/$defs/money"
+              },
+              "profitShareAmount": {
+                "$ref": "#/$defs/money"
+              },
+              "directCost": {
+                "$ref": "#/$defs/money"
+              },
+              "unassignedCost": {
+                "$ref": "#/$defs/money"
+              },
+              "configured": {
+                "type": "boolean"
+              }
             }
           }
         }
@@ -1061,6 +1111,9 @@
         },
         "active": {
           "type": "boolean"
+        },
+        "excel": {
+          "$ref": "#/$defs/quoteExcelTemplate"
         }
       }
     },
@@ -1157,6 +1210,16 @@
         },
         "note": {
           "$ref": "#/$defs/text"
+        },
+        "lineMode": {
+          "$ref": "#/$defs/quoteLineMode"
+        },
+        "lineSnapshots": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/quoteLine"
+          }
         }
       }
     },
@@ -1416,7 +1479,7 @@
         "unitCost": {
           "type": "number",
           "minimum": 0.01,
-          "maximum": 100000000.0
+          "maximum": 100000000
         },
         "kind": {
           "enum": ["equipment", "service"]
@@ -1430,22 +1493,22 @@
         "step": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000.0
+          "maximum": 1000000
         },
         "minQty": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000.0
+          "maximum": 1000000
         },
         "maxQty": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000.0
+          "maximum": 1000000
         },
         "referenceQty": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000.0
+          "maximum": 1000000
         },
         "tags": {
           "type": "string",
@@ -1467,7 +1530,7 @@
         "quantity": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000.0
+          "maximum": 1000000
         },
         "locked": {
           "type": "boolean"
@@ -1501,17 +1564,17 @@
         "quantity": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000.0
+          "maximum": 1000000
         },
         "referenceQty": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000.0
+          "maximum": 1000000
         },
         "amount": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000000000.0
+          "maximum": 1000000000000
         },
         "locked": {
           "type": "boolean"
@@ -1552,17 +1615,17 @@
         "targetCost": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000000000.0
+          "maximum": 1000000000000
         },
         "totalCost": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000000000.0
+          "maximum": 1000000000000
         },
         "difference": {
           "type": "number",
-          "minimum": -1000000000000.0,
-          "maximum": 1000000000000.0
+          "minimum": -1000000000000,
+          "maximum": 1000000000000
         },
         "acceptable": {
           "type": "boolean"
@@ -1610,7 +1673,7 @@
         "targetCost": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000000000.0
+          "maximum": 1000000000000
         },
         "targetBasis": {
           "type": "string",
@@ -1619,7 +1682,7 @@
         "tolerance": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000000000000.0
+          "maximum": 1000000000000
         },
         "rounding": {
           "enum": ["ceil-cent", "half-up-cent"]
@@ -2074,7 +2137,7 @@
         "unitAnnualQuote": {
           "type": "number",
           "minimum": 0,
-          "maximum": 100000000000000.0
+          "maximum": 100000000000000
         },
         "basis": {
           "type": "string",
@@ -2116,22 +2179,22 @@
         "annualReferenceQuote": {
           "type": "number",
           "minimum": 0,
-          "maximum": 100000000000000.0
+          "maximum": 100000000000000
         },
         "annualReferenceCost": {
           "type": "number",
           "minimum": 0,
-          "maximum": 100000000000000.0
+          "maximum": 100000000000000
         },
         "cost": {
           "type": "number",
           "minimum": 0,
-          "maximum": 100000000000000.0
+          "maximum": 100000000000000
         },
         "quote": {
           "type": "number",
           "minimum": 0,
-          "maximum": 100000000000000.0
+          "maximum": 100000000000000
         }
       }
     },
@@ -2175,12 +2238,12 @@
         "cost": {
           "type": "number",
           "minimum": 0,
-          "maximum": 100000000000000.0
+          "maximum": 100000000000000
         },
         "quote": {
           "type": "number",
           "minimum": 0,
-          "maximum": 100000000000000.0
+          "maximum": 100000000000000
         }
       }
     },
@@ -2265,6 +2328,230 @@
         },
         "dueAt": {
           "type": "string"
+        }
+      }
+    },
+    "manualQuoteLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "quantity", "unit", "unitPrice"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 4000
+        },
+        "quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 40
+        },
+        "unitPrice": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000
+        }
+      }
+    },
+    "quoteLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "quantity",
+        "unit",
+        "unitPrice",
+        "amount"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 4000
+        },
+        "quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 40
+        },
+        "unitPrice": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000
+        },
+        "amount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000
+        }
+      }
+    },
+    "quoteLineMode": {
+      "enum": ["single", "scope", "item", "manual"]
+    },
+    "quoteExcelTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assetId",
+        "fileName",
+        "sheetName",
+        "detailRow",
+        "columns",
+        "cells"
+      ],
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "fileName": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 255,
+          "pattern": "\\.[xX][lL][sS][xX]$"
+        },
+        "sheetName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 31
+        },
+        "detailRow": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20000
+        },
+        "columns": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["description", "amount"],
+          "properties": {
+            "description": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}$"
+            },
+            "amount": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}$"
+            },
+            "number": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}$"
+            },
+            "quantity": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}$"
+            },
+            "unit": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}$"
+            },
+            "unitPrice": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}$"
+            }
+          }
+        },
+        "cells": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "quoteNumber": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "client": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "project": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "costVersion": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "documentTitle": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "validityDays": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "paymentTerms": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "termsAndConditions": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "assumptions": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "servicePrice": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "discount": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "quoteBeforeTax": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "gstPercent": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "gstAmount": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            },
+            "quoteAfterTax": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            }
+          },
+          "required": [
+            "quoteNumber",
+            "client",
+            "project",
+            "quoteBeforeTax",
+            "gstAmount",
+            "quoteAfterTax",
+            "validityDays",
+            "paymentTerms"
+          ]
         }
       }
     }

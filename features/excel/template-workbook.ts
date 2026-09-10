@@ -146,12 +146,18 @@ export function templateData(
     })),
   );
   const quoteLines: Record<string, string | number>[] = quote
-    ? [
-        {
-          scope: workspace.ssr?.scopeBrief || workspace.project.name,
-          amount: quote.pricing.quoteBeforeTax,
-        },
-      ]
+    ? workspace.pricing.lineMode && workspace.pricing.lineMode !== 'single'
+      ? (quote.lines ?? []).map(({ id: _id, description, ...line }) => ({
+          ...line,
+          description,
+          scope: description,
+        }))
+      : [
+          {
+            scope: workspace.ssr?.scopeBrief || workspace.project.name,
+            amount: quote.pricing.quoteBeforeTax,
+          },
+        ]
     : [];
   return {
     scalars,
@@ -190,6 +196,20 @@ export async function fillTemplateWorkbook(
     )
       throw new TypeError(
         'Map all included quotation assumptions to the customer workbook',
+      );
+    // Explicit detail modes must not silently degrade to the historical scalar-only output.
+    if (
+      workspace.pricing.lineMode &&
+      workspace.pricing.lineMode !== 'single' &&
+      !mapping.tables.some(
+        (table) =>
+          table.dataset === 'quoteLines' &&
+          (table.columns.description || table.columns.scope) &&
+          table.columns.amount,
+      )
+    )
+      throw new TypeError(
+        'Map quotation line descriptions and amounts to the customer workbook.',
       );
   }
   const ExcelJS = (await import('exceljs')).default,

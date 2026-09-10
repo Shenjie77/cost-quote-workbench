@@ -7,6 +7,7 @@ import { initialProcessSteps } from '../features/projects/demo-data.ts';
 import { createProjectWorkflowSteps } from '../features/projects/workflow-domain.ts';
 import { normalizeWorkflowDefinition } from '../features/projects/workflow-engine.ts';
 import { initialProjectStatusDefinitions } from '../features/projects/types.ts';
+import { validateQuoteExcelMapping } from '../features/quote/excel-template-mapping.ts';
 import {
   createAssumptionLibrary,
   initialQuoteAssumptions,
@@ -148,6 +149,10 @@ function validateItems(tab, items) {
     const key = keyOf(tab, item);
     if (keys.has(key)) fail(`${tab}: duplicate ${tabSpec(tab)[1]} ${key}.`);
     keys.add(key);
+    if (tab === 'quote-templates' && item.excel) {
+      const errors = validateQuoteExcelMapping(item.excel);
+      if (errors.length) fail(`${key}: ${errors.join(' ')}`);
+    }
     if (codedTabs.has(tab)) {
       if (codes.has(item.code))
         fail(

@@ -4,6 +4,8 @@ import type { CostExportSnapshot } from '../cost/contracts.ts';
 import type { PricingResult } from './domain.ts';
 import type { QuoteAssumption, QuoteTemplate } from './types.ts';
 import { matchesClient } from './catalog-domain.ts';
+import type { QuoteLine, QuoteLineMode } from './excel-template-types.ts';
+import { validateQuoteLines } from './quote-lines.ts';
 
 export type QuoteWorkbookInput = {
   project: CostExportSnapshot['project'];
@@ -13,12 +15,20 @@ export type QuoteWorkbookInput = {
   assumptions: QuoteAssumption[];
   pricing: PricingResult;
   profitShareMasterDataRevision?: number;
+  /** Customer-visible detail lines, already reconciled to the service price. */
+  lines?: QuoteLine[];
+  lineMode?: QuoteLineMode;
 };
 
 const CURRENCY_FORMAT = '"S$" #,##0.00;[Red]-"S$" #,##0.00;-';
 
 /** Builds a compact internal/client handoff workbook from one immutable input. */
-export const buildQuoteWorkbookBuffer = async (input: QuoteWorkbookInput) => {
+export const buildQuoteWorkbookBuffer = async (
+  input: QuoteWorkbookInput,
+  templateBytes?: Uint8Array | ArrayBuffer,
+) => {
+  // Freeze output content before loading either the workbook library or local assets.
+  input = structuredClone(input);
   if (
     !input.template.active ||
     !matchesClient(input.template.clientPattern, input.project.client)
@@ -26,6 +36,19 @@ export const buildQuoteWorkbookBuffer = async (input: QuoteWorkbookInput) => {
     throw new Error(
       'Quotation template is inactive or does not match the customer.',
     );
+  }
+  if (input.lines) {
+    const errors = validateQuoteLines(input.lines, input.pricing.listPrice);
+    if (errors.length) throw new Error(errors.join(' '));
+  }
+  if (input.template.excel) {
+    const { fillQuoteExcelTemplate } = await import('./fill-excel-template.ts');
+    const source =
+      templateBytes ??
+      (await (
+        await import('./excel-template-client.ts')
+      ).loadQuoteExcelTemplate(input.template.excel.assetId));
+    return fillQuoteExcelTemplate(source, input);
   }
   const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
@@ -139,6 +162,42 @@ export const buildQuoteWorkbookBuffer = async (input: QuoteWorkbookInput) => {
       cell.alignment = { vertical: 'middle', ...cell.alignment };
     });
   });
+  // Retain the established summary cells; detailed modes append an English-only
+  // customer schedule in a second sheet, with no internal costs or resource rates.
+  if (input.lines?.length && input.lineMode !== 'single') {
+    const details = workbook.addWorksheet('Quotation Details', {
+      views: [{ showGridLines: false }],
+      pageSetup: {
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,
+        paperSize: 9,
+      },
+    });
+    details.columns = [
+      { header: 'No.', key: 'number', width: 7 },
+      { header: 'Description', key: 'description', width: 60 },
+      { header: 'Quantity', key: 'quantity', width: 12 },
+      { header: 'Unit', key: 'unit', width: 12 },
+      { header: 'Unit Price', key: 'unitPrice', width: 18 },
+      { header: 'Amount', key: 'amount', width: 18 },
+    ];
+    input.lines.forEach((line, index) =>
+      details.addRow({ number: index + 1, ...line }),
+    );
+    details.addRow({
+      description: 'Service Price (before discount and tax)',
+      amount: input.pricing.listPrice,
+    });
+    details.getRow(1).font = { bold: true, name: 'Aptos', size: 10 };
+    details.eachRow((detailRow, index) => {
+      detailRow.alignment = { wrapText: true, vertical: 'top' };
+      if (index > 1) {
+        detailRow.getCell(5).numFmt = CURRENCY_FORMAT;
+        detailRow.getCell(6).numFmt = CURRENCY_FORMAT;
+      }
+    });
+  }
   return workbook.xlsx.writeBuffer();
 };
 

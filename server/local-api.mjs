@@ -10,6 +10,10 @@ import { GlobalMasterDataConflictError } from './global-master-data.mjs';
 import { ProjectFileError } from './project-files.mjs';
 import { routeProjectFiles } from './project-files-api.mjs';
 import {
+  openQuoteTemplateStore,
+  routeQuoteTemplateAssets,
+} from './quote-template-assets.mjs';
+import {
   createProject,
   applyProjectMasterData,
 } from './workspace-resources.mjs';
@@ -31,6 +35,7 @@ const DATABASE_PATH = path.resolve(
 );
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const repository = openWorkspaceRepository(DATABASE_PATH);
+const quoteTemplates = openQuoteTemplateStore(DATABASE_PATH);
 const reminders = openReminderService(DATABASE_PATH, repository);
 const scanReminders = () => {
   try {
@@ -104,6 +109,17 @@ const route = async (request, response) => {
     });
     return;
   }
+  if (
+    await routeQuoteTemplateAssets({
+      request,
+      response,
+      url,
+      store: quoteTemplates,
+      respond,
+      origin,
+    })
+  )
+    return;
   if (
     await routeProjectFiles({
       request,
@@ -474,6 +490,7 @@ const shutdown = () => {
   server.close(() => {
     clearInterval(reminderTimer);
     reminders.close();
+    quoteTemplates.close();
     repository.close();
     process.exit(0);
   });

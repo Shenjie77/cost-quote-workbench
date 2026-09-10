@@ -52,9 +52,13 @@ import type { QuoteMasterDataTab } from '@/features/master-data/navigation';
 import type { BuCostAllocation } from './profit-share';
 import { quoteProfitShareSnapshot } from './history-record';
 import { ProfitShareSummary } from './profit-share-summary';
+import { buildQuoteLines, validateQuoteLines } from './quote-lines';
+import { QuoteLinesEditor } from './quote-lines-editor';
 
+/** Creates stable local identities for newly recorded assumptions and quotation history. */
 const newId = (prefix: string) => `${prefix}-${globalThis.crypto.randomUUID()}`;
 
+/** Presents project-owned pricing and exports a detached commercial snapshot. */
 export function QuoteView({
   project,
   proposalNumber,
@@ -62,6 +66,7 @@ export function QuoteView({
   activeVersion,
   versionState,
   totalCost,
+  costSnapshot,
   costAllocation,
   costErrors,
   decisionError,
@@ -88,6 +93,8 @@ export function QuoteView({
   activeVersion: string;
   versionState: CostVersionState;
   totalCost: number;
+  /** Captured active-version cost inputs used only to describe and allocate quote lines. */
+  costSnapshot: CostExportSnapshot;
   costAllocation?: BuCostAllocation;
   costErrors: string[];
   decisionError?: string;
@@ -123,6 +130,12 @@ export function QuoteView({
     };
   }, []);
   const result = calculatePricing(totalCost, pricing, costAllocation);
+  const lines = buildQuoteLines(
+    costSnapshot,
+    pricing.lineMode,
+    result.listPrice,
+    pricing.manualLines,
+  );
   const template = quoteTemplates.find(
     (item) => item.id === selectedQuoteTemplateId,
   );
@@ -133,6 +146,7 @@ export function QuoteView({
   const outputErrors = [
     ...costErrors,
     ...validatePricingSettings(pricing, totalCost, costAllocation),
+    ...validateQuoteLines(lines, result.listPrice),
     ...(!templateAvailable
       ? [
           'Select an active template matching this client / 请选择当前客户适用的启用模板',
@@ -159,7 +173,11 @@ export function QuoteView({
       'Template selected; eligible default assumptions added without overwriting existing text. / 已选择模板并补入适用默认假设，原内容保留。',
     );
   };
-  const updateNumber = (key: keyof PricingSettings, raw: string) => {
+  /** Normalizes editable numeric pricing terms without touching captured rates or line data. */
+  const updateNumber = (
+    key: 'targetGrossMargin' | 'discount' | 'gstPercent',
+    raw: string,
+  ) => {
     const value = Number(raw);
     setPricing((current) => ({
       ...current,
@@ -195,16 +213,21 @@ export function QuoteView({
       .toISOString()
       .replace(/[-:TZ.]/g, '')
       .slice(0, 14)}`;
+    // Freeze commercial content before asynchronous workbook loading/archive work.
+    // A same-project edit during export must not change the recorded output history.
+    const exportInput = structuredClone({
+      project,
+      quoteNumber,
+      costVersion: activeVersion,
+      template,
+      assumptions: quoteAssumptions,
+      pricing: result,
+      profitShareMasterDataRevision,
+      lines,
+      lineMode: pricing.lineMode ?? 'single',
+    });
     try {
-      const exported = await downloadQuoteWorkbook({
-        project,
-        quoteNumber,
-        costVersion: activeVersion,
-        template,
-        assumptions: quoteAssumptions,
-        pricing: result,
-        profitShareMasterDataRevision,
-      });
+      const exported = await downloadQuoteWorkbook(exportInput);
       const history: QuoteHistoryRecord = {
         id: newId('quote-history'),
         quoteNumber,
@@ -222,10 +245,12 @@ export function QuoteView({
           profitShareMasterDataRevision,
         ),
         note: `Generated ${exported.fileName}`,
-        templateSnapshot: structuredClone(template),
+        templateSnapshot: exportInput.template,
         assumptionSnapshots: structuredClone(
-          quoteAssumptions.filter((row) => row.included),
+          exportInput.assumptions.filter((row) => row.included),
         ),
+        lineSnapshots: exportInput.lines,
+        lineMode: exportInput.lineMode,
       };
       // Parent keeps the project fixed during export. Its state setter survives
       // navigation away from this view, so every completed output keeps history.
@@ -316,6 +341,13 @@ export function QuoteView({
               </div>
             }
           />
+          <QuoteLinesEditor
+            pricing={pricing}
+            setPricing={setPricing}
+            lines={lines}
+            disabled={isExporting || exportInProgress || isApplyingRates}
+            embedded
+          />
           <div className="divide-y divide-border text-xs">
             <div className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] px-3 py-2">
               <BiText
@@ -338,6 +370,12 @@ export function QuoteView({
               />
               <Input
                 id="target-gross-margin"
+                disabled={pricing.lineMode === 'manual'}
+                title={
+                  pricing.lineMode === 'manual'
+                    ? 'Manual line prices determine the service price; actual sales GP is calculated below.'
+                    : undefined
+                }
                 type="number"
                 min="0"
                 max="95"
@@ -351,8 +389,16 @@ export function QuoteView({
             </label>
             <div className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] bg-muted/40 px-3 py-2">
               <BiText
-                en="Target List Price"
-                zh="目标报价（折扣前）"
+                en={
+                  pricing.lineMode === 'manual'
+                    ? 'Line Total Before Discount'
+                    : 'Target List Price'
+                }
+                zh={
+                  pricing.lineMode === 'manual'
+                    ? '明细合计（折扣前）'
+                    : '目标报价（折扣前）'
+                }
                 className="font-medium"
               />
               <span className="financial-numeral text-right font-semibold">

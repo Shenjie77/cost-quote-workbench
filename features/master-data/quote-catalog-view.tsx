@@ -18,6 +18,7 @@ import type {
   QuoteTemplate,
 } from '@/features/quote/types';
 import { matchesClient } from '@/features/quote/catalog-domain';
+import { QuoteExcelTemplateEditor } from './quote-excel-template-editor';
 
 const cellClass =
   'h-9 rounded-md border border-transparent bg-transparent shadow-none hover:border-input hover:bg-background focus-visible:bg-background';
@@ -372,6 +373,12 @@ export function QuoteTemplatesView({
               />
               Active
             </label>
+            {/* Excel mappings are staged and validated independently before updating this template draft. */}
+            <QuoteExcelTemplateEditor
+              templateId={template.id}
+              value={template.excel}
+              onChange={(excel) => update({ excel })}
+            />
             <label htmlFor="template-tc" className="block text-xs">
               Terms & Conditions
               <Textarea

@@ -80,6 +80,43 @@ const quoteProps = {
   versionState: 'Confirmed',
   totalCost: 50,
   costAllocation: allocation,
+  costSnapshot: {
+    schemaVersion: '2.0.0',
+    exportedAt: '2026-09-11T00:00:00Z',
+    project: {
+      id: 'PRJ-SHARE',
+      name: 'Rate snapshot',
+      client: 'Client A',
+      currency: 'SGD',
+    },
+    costVersion: { code: 'V1', status: 'Confirmed' },
+    rateSettings: {
+      quoteAsOf: '',
+      tdStart: '',
+      tdEnd: '',
+      baseYear: 2026,
+      defaultUplift: 0,
+      annualUplifts: [0, 0, 0, 0, 0],
+    },
+    travelSettings: {
+      enabled: false,
+      monthlyAllowance: 0,
+      airfarePerTrip: 0,
+      trips: 0,
+    },
+    resourceTypes: [],
+    costRows: [],
+    manualCosts: {
+      localPurchasedEquipment: 0,
+      inlandLogistics: 0,
+      countryWarehousing: 0,
+      nonInHouseLabour: 0,
+      settlement: 0,
+      carFee: 0,
+      otherService: 50,
+      riskContingency: 0,
+    },
+  },
   costErrors: [],
   onSave: async () => true,
   onOpenMasterData: noop,
@@ -149,6 +186,36 @@ test('target GP plus share at 100 percent blocks quotation generation', () => {
   assert.match(markup, /role="alert"/);
   assert.match(markup, /<button[^>]*disabled[^>]*>[^]*?Generate XLSX/);
   assert.doesNotMatch(markup, /NaN|Infinity/);
+});
+
+test('manual quotation lines expose editable selling prices and disable the unused target GP control', () => {
+  const markup = render(QuoteView, {
+    ...quoteProps,
+    pricing: {
+      ...pricing,
+      targetGrossMargin: 95,
+      lineMode: 'manual',
+      manualLines: [
+        {
+          id: 'customer-line',
+          description: 'Customer service',
+          quantity: 2,
+          unit: 'site',
+          unitPrice: 50,
+        },
+      ],
+    },
+  });
+  assert.match(markup, /aria-label="Line 1 description"/);
+  assert.match(markup, /aria-label="Line 1 quantity"/);
+  assert.match(markup, /aria-label="Line 1 unit price"/);
+  assert.match(markup, /Add line/);
+  assert.match(markup, /Line Total Before Discount/);
+  assert.match(markup, /id="target-gross-margin"[^>]*disabled/);
+  assert.doesNotMatch(
+    markup,
+    /Target sales GP plus weighted profit-share rate must be less/,
+  );
 });
 
 test('master-data rate editor is independent of projects and flags duplicate BU definitions', () => {

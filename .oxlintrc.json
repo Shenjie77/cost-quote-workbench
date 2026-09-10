@@ -60,5 +60,24 @@
         "depth": 3
       }
     ]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["tests/**/*.test.mjs"],
+      "rules": {
+        "typescript/no-floating-promises": [
+          "error",
+          {
+            "allowForKnownSafeCalls": [
+              {
+                "from": "package",
+                "name": "test",
+                "package": "node"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

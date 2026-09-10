@@ -161,6 +161,77 @@ test('template filling rejects overlapping targets and insufficient preallocated
   );
 });
 
+test('explicit item pricing reaches generic template rows while legacy single mapping retains its discounted amount', async () => {
+  const workspace = setup();
+  workspace.pricing.discount = 100;
+  const legacy = templateData(workspace, 'quote');
+  assert.equal(
+    legacy.datasets.quoteLines[0].amount,
+    legacy.quote.pricing.quoteBeforeTax,
+  );
+  workspace.pricing.lineMode = 'manual';
+  workspace.pricing.manualLines = [
+    {
+      id: 'first',
+      description: 'Customer service A',
+      quantity: 2,
+      unit: 'site',
+      unitPrice: 20000,
+    },
+    {
+      id: 'second',
+      description: 'Customer service B',
+      quantity: 1.5,
+      unit: 'lot',
+      unitPrice: 40000,
+    },
+  ];
+  const source = templateData(workspace, 'quote');
+  assert.equal(source.datasets.quoteLines.length, 2);
+  assert.equal(source.datasets.quoteLines[0].scope, 'Customer service A');
+  assert.equal(source.datasets.quoteLines[1].quantity, 1.5);
+  assert.equal(source.quote.pricing.listPrice, 100000);
+  assert.equal(source.quote.pricing.quoteBeforeTax, 99900);
+  await assert.rejects(
+    fillTemplateWorkbook(await original(), map, workspace),
+    /Map quotation line descriptions/,
+  );
+  const detailMapping = {
+    ...map,
+    tables: [
+      ...map.tables,
+      {
+        sheet: 'Company',
+        startRow: 16,
+        capacity: 2,
+        dataset: 'quoteLines',
+        columns: {
+          description: 1,
+          quantity: 2,
+          unit: 3,
+          unitPrice: 4,
+          amount: 5,
+        },
+      },
+    ],
+  };
+  const filled = await fillTemplateWorkbook(
+    await original(),
+    detailMapping,
+    workspace,
+    'Q-LINES',
+  );
+  const ExcelJS = (await import('exceljs')).default;
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(filled.bytes);
+  assert.equal(
+    book.getWorksheet('Company').getCell('A16').value,
+    'Customer service A',
+  );
+  assert.equal(book.getWorksheet('Company').getCell('B17').value, 1.5);
+  assert.equal(book.getWorksheet('Company').getCell('E17').value, 60000);
+});
+
 test('company quotation mappings expose only primary fields and preserve the supplied text', async () => {
   const workspace = setup();
   workspace.project.name = '客户项目';
@@ -298,7 +369,89 @@ test('CLI standard and company-template quotations persist history and protect s
     assert.notEqual(rejected.status, 0);
     assert.deepEqual(readFileSync(file), before);
     repo = openWorkspaceRepository(database);
-    assert.equal(repo.get(w.project.id).workspace.quoteHistory.length, 2);
+    const saved = repo.get(w.project.id);
+    assert.equal(saved.workspace.quoteHistory.length, 2);
+    assert.equal(saved.workspace.quoteHistory[0].lineSnapshots.length, 1);
+    assert.equal(
+      saved.workspace.quoteHistory[1].lineSnapshots,
+      undefined,
+      'Legacy external mapping must not claim standard detail rows.',
+    );
+    saved.workspace.pricing.lineMode = 'manual';
+    saved.workspace.pricing.manualLines = [
+      {
+        id: 'first',
+        description: 'Customer line one',
+        quantity: 2,
+        unit: 'site',
+        unitPrice: 20000,
+      },
+      {
+        id: 'second',
+        description: 'Customer line two',
+        quantity: 1,
+        unit: 'lot',
+        unitPrice: 60000,
+      },
+    ];
+    repo.save(w.project.id, saved.workspace, saved.revision);
+    repo.close();
+    repo = null;
+    writeFileSync(
+      request,
+      JSON.stringify({
+        apiVersion: 'cost-workbench/v2',
+        kind: 'OperationRequest',
+        requestId: 'q-detail-test',
+        data: {
+          schemaVersion: '1.0.0',
+          operation: 'workbook.fill-template',
+          ...map,
+          tables: [
+            ...map.tables,
+            {
+              sheet: 'Company',
+              startRow: 16,
+              capacity: 2,
+              dataset: 'quoteLines',
+              columns: {
+                scope: 1,
+                quantity: 2,
+                unit: 3,
+                unitPrice: 4,
+                amount: 5,
+              },
+            },
+          ],
+        },
+      }),
+    );
+    const detailed = run([
+      'workbook',
+      'fill-template',
+      '--project-id',
+      w.project.id,
+      '--file',
+      file,
+      '--input',
+      request,
+      '--output',
+      path.join(dir, 'Details.xlsx'),
+    ]);
+    assert.equal(detailed.status, 0, JSON.stringify(detailed.body));
+    repo = openWorkspaceRepository(database);
+    const detailHistory = repo.get(w.project.id).workspace.quoteHistory[2];
+    assert.equal(detailHistory.lineMode, 'manual');
+    assert.deepEqual(
+      detailHistory.lineSnapshots.map((line) => [
+        line.description,
+        line.amount,
+      ]),
+      [
+        ['Customer line one', 40000],
+        ['Customer line two', 60000],
+      ],
+    );
   } finally {
     repo?.close();
     rmSync(dir, { recursive: true, force: true });

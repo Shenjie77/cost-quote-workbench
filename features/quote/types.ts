@@ -1,5 +1,10 @@
 /** Durable client-template, assumption, and quotation-history contracts. */
 import type { PricingResult } from './domain.ts';
+import type {
+  QuoteExcelTemplate,
+  QuoteLine,
+  QuoteLineMode,
+} from './excel-template-types.ts';
 
 export type QuoteProfitShareSnapshot = Pick<
   PricingResult,
@@ -27,6 +32,8 @@ export type QuoteTemplate = {
   /** Suggested library rows copied when the user applies this template. */
   defaultAssumptionIds: string[];
   active: boolean;
+  /** Immutable local workbook reference; omitted templates use the standard layout. */
+  excel?: QuoteExcelTemplate;
 };
 
 /** Project-owned reusable library; may be explicitly copied between projects. */
@@ -69,6 +76,9 @@ export type QuoteHistoryRecord = {
   /** Exact output text, detached from subsequent master-data edits. */
   templateSnapshot?: QuoteTemplate;
   assumptionSnapshots?: QuoteAssumption[];
+  /** Exact customer-visible detail lines used for this export. */
+  lineSnapshots?: QuoteLine[];
+  lineMode?: QuoteLineMode;
 };
 
 /** Default reusable output layout copied into a new or migrated project. */

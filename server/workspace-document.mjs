@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
+import { validateQuoteExcelMapping } from '../features/quote/excel-template-mapping.ts';
 import {
   recalculateCostRows,
   validatePersonnelAllowanceSelection,
@@ -709,6 +710,14 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
     workspace.assumptionLibrary.map((item) => item.id),
   );
   workspace.quoteTemplates.forEach((template, index) => {
+    if (template.excel) {
+      const errors = validateQuoteExcelMapping(template.excel);
+      if (errors.length)
+        throw new WorkspaceValidationError(
+          errors.join(' '),
+          `/quoteTemplates/${index}/excel`,
+        );
+    }
     for (const id of template.defaultAssumptionIds) {
       if (!libraryIds.has(id))
         throw new WorkspaceValidationError(

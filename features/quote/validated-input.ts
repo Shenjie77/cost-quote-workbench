@@ -7,6 +7,8 @@ import { calculatePricing, validatePricingSettings } from './domain.ts';
 import { calculateBuCostAllocation } from './profit-share.ts';
 import { matchesClient } from './catalog-domain.ts';
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
+import { buildQuoteLines, validateQuoteLines } from './quote-lines.ts';
+/** Captures the same immutable pricing and detail output used by the Quote page. */
 export function validatedQuoteInput(
   workspace: WorkbenchWorkspace,
   quoteNumber: string,
@@ -51,7 +53,15 @@ export function validatedQuoteInput(
     version.subcontractCost,
   ).totalWithRisk;
   const allocation = calculateBuCostAllocation(snapshot);
+  const pricing = calculatePricing(total, workspace.pricing, allocation);
+  const lines = buildQuoteLines(
+    snapshot,
+    workspace.pricing.lineMode,
+    pricing.listPrice,
+    workspace.pricing.manualLines,
+  );
   const errors = validatePricingSettings(workspace.pricing, total, allocation);
+  errors.push(...validateQuoteLines(lines, pricing.listPrice));
   const template = workspace.quoteTemplates.find(
     (t) => t.id === workspace.selectedQuoteTemplateId,
   );
@@ -69,7 +79,9 @@ export function validatedQuoteInput(
     costVersion: version.code,
     template: structuredClone(template!),
     assumptions: structuredClone(workspace.quoteAssumptions),
-    pricing: calculatePricing(total, workspace.pricing, allocation),
+    pricing,
+    lines,
+    lineMode: workspace.pricing.lineMode ?? 'single',
     profitShareMasterDataRevision:
       workspace.pricing.profitShareMasterDataRevision,
   };

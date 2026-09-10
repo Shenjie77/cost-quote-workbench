@@ -2339,6 +2339,20 @@ function ProjectSessionApp({
   else if (activeView === 'quote')
     content = (
       <QuoteView
+        costSnapshot={buildCostExportSnapshot({
+          activeVersion,
+          versionStatus:
+            synchronizedVersions.find(
+              (version) => version.code === activeVersion,
+            )?.state || 'Draft',
+          project: exportProject,
+          rateSettings,
+          travelSettings,
+          resourceTypes: versionResourceTypes,
+          rows: costRows,
+          manualCosts,
+          subcontractCost,
+        })}
         costAllocation={costAllocation}
         onApplyProfitShare={applyProfitShareFromGlobal}
         proposalNumber={ssr.proposalNumber}

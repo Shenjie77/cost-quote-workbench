@@ -2,6 +2,7 @@ import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
 import type { QuoteHistoryRecord, QuoteProfitShareSnapshot } from './types.ts';
 import type { PricingResult } from './domain.ts';
 
+/** Detaches the effective BU pricing breakdown from later draft edits. */
 export function quoteProfitShareSnapshot(
   result: PricingResult,
   masterDataRevision?: number,
@@ -14,6 +15,7 @@ export function quoteProfitShareSnapshot(
     ...(masterDataRevision ? { masterDataRevision } : {}),
   };
 }
+/** Records the exact terms, detail rows and pricing used for a completed export. */
 export function quoteHistoryRecord(
   input: QuoteWorkbookInput,
   artifact: { path: string; sha256: string },
@@ -41,5 +43,11 @@ export function quoteHistoryRecord(
     assumptionSnapshots: structuredClone(
       input.assumptions.filter((a) => a.included),
     ),
+    ...(input.lines
+      ? {
+          lineSnapshots: structuredClone(input.lines),
+          lineMode: input.lineMode ?? 'single',
+        }
+      : {}),
   };
 }
