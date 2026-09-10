@@ -344,6 +344,55 @@ test('workflow collection copies definitions and clears per-project execution', 
   }
 });
 
+test('workflow folder choices are validated, retained in source conflicts and explicitly resolvable', () => {
+  const db = database();
+  try {
+    const base = initialProcessSteps[0];
+    seed(db, 'FOLDERS-ON', { processSteps: [{ ...base, createFolder: true }] });
+    seed(db, 'FOLDERS-OFF', {
+      processSteps: [{ ...base, createFolder: false }],
+    });
+    const before = oldRows(db);
+    initializeGlobalMasterData(db);
+    const store = makeGlobalMasterDataStore(db);
+    const conflicted = store.get('workflow');
+    assert.equal(conflicted.conflicts.length, 1);
+    assert.deepEqual(
+      new Set(
+        conflicted.conflicts[0].variants.map(
+          (variant) => variant.item.createFolder,
+        ),
+      ),
+      new Set([false, true]),
+    );
+    const resolved = store.update(
+      'workflow',
+      {
+        upsert: [
+          { ...conflicted.conflicts[0].variants[0].item, createFolder: false },
+        ],
+      },
+      conflicted.revision,
+    );
+    assert.equal(resolved.conflicts.length, 0);
+    assert.equal(resolved.items[0].createFolder, false);
+    for (const createFolder of [null, 'false', 0])
+      assert.throws(
+        () =>
+          store.update(
+            'workflow',
+            { upsert: [{ code: base.code, createFolder }] },
+            resolved.revision,
+          ),
+        /boolean/,
+      );
+    assert.equal(store.get('workflow').revision, resolved.revision);
+    assert.deepEqual(oldRows(db), before);
+  } finally {
+    db.close();
+  }
+});
+
 test('editing workflow requirements preserves node sequence', () => {
   const db = database();
   try {

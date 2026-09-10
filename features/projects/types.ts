@@ -136,6 +136,8 @@ export type WorkflowStep = {
   requiresConfirmedCost?: boolean;
   finishesWorkflow?: boolean;
   autoSkip?: boolean;
+  /** Create this step's archive folder for newly created projects; omitted means true. */
+  createFolder?: boolean;
   /** Version-owned execution data; templates never carry these values. */
   startedAt?: string;
   dueAt?: string;

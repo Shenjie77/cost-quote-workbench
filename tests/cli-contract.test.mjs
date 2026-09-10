@@ -208,6 +208,15 @@ test('workspace CLI persists with revision checks and can list/read records', ()
     );
     assert.equal(listed.response.data.items[0].workflowMode, 'project');
     assert.ok(
+      listed.response.data.items[0].workflowSteps.every(
+        (step) => step.createFolder === true,
+      ),
+    );
+    // Disabled folders are valid in list output without rewriting existing projects.
+    const disabledFolderResponse = structuredClone(listed.response);
+    disabledFolderResponse.data.items[0].workflowSteps[0].createFolder = false;
+    assert.equal(responseValidator(disabledFolderResponse), true);
+    assert.ok(
       listed.response.data.items[0].workflowSteps.some(
         (step) => step.code === 'QUOTE_COMPLETED',
       ),

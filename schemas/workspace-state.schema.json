@@ -798,6 +798,9 @@
         "autoSkip": {
           "type": "boolean"
         },
+        "createFolder": {
+          "type": "boolean"
+        },
         "startedAt": {
           "type": "string",
           "maxLength": 40

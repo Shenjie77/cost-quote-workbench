@@ -35,6 +35,8 @@ export type ProjectFileArchive = {
   projectId: string;
   rootPath: string;
   projectPath: string;
+  /** Actual relative upload destination resolved from the project's saved archive policy. */
+  uploadFolder?: string;
   files: ProjectFileRecord[];
 };
 export type ProjectArchiveLocation = Omit<ProjectFileArchive, 'files'>;
@@ -73,6 +75,45 @@ async function parse<T>(response: Response): Promise<T> {
 
 const projectEndpoint = (projectId: string) =>
   `${API_BASE}/projects/${encodeURIComponent(projectId)}/files`;
+
+/** Opens a saved archive location on the API host; browsers never navigate file URLs. */
+export async function openArchiveFolder(
+  projectId?: string,
+  fileId?: string,
+): Promise<{ opened: true }> {
+  if (fileId && !projectId)
+    throw new TypeError('A project is required to open a document folder.');
+  const endpoint = projectId
+    ? `${projectEndpoint(projectId)}${fileId ? `/${encodeURIComponent(fileId)}` : ''}`
+    : `${API_BASE}/archive-settings`;
+  return parse(
+    await fetch(`${endpoint}/open-folder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiVersion: LOCAL_API_VERSION,
+        kind: 'ArchiveFolderOpenRequest',
+      }),
+    }),
+  );
+}
+
+/** Deletes one archived document through the dedicated project/file boundary. */
+export async function deleteProjectFile(
+  projectId: string,
+  fileId: string,
+): Promise<{ id: string; deleted: true }> {
+  return parse(
+    await fetch(`${projectEndpoint(projectId)}/${encodeURIComponent(fileId)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiVersion: LOCAL_API_VERSION,
+        kind: 'ProjectFileDeleteRequest',
+      }),
+    }),
+  );
+}
 
 export async function moveProjectArchive(
   projectId: string,

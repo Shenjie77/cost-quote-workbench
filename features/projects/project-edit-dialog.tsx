@@ -17,6 +17,7 @@ import {
   type ProjectArchiveLocation,
 } from './project-files';
 import { projectDetails, type ProjectDetails } from './project-details';
+import { ArchiveFolderButton } from './project-files-panel';
 import type { Project } from './types';
 
 const errorMessage = (error: unknown) =>
@@ -251,6 +252,12 @@ export function ProjectEditDialog({
                 setProjectPath(event.target.value);
                 setFolderNotice('');
               }}
+            />
+            <ArchiveFolderButton
+              key={project.id}
+              projectId={project.id}
+              description="Open saved project archive folder"
+              disabled={busy || folderLoading || !location}
             />
             <p className="text-[11px] text-muted-foreground">
               Enter a new project folder on the computer running the workbench,

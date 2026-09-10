@@ -228,6 +228,54 @@ test('compatibility workflow updates also pass new gates inserted before the act
   }
 });
 
+test('folder-only publication saves the future-project policy while preserving existing workflow folder flags', () => {
+  const repo = openWorkspaceRepository(':memory:');
+  try {
+    initialize(repo);
+    const before = repo.get('A');
+    const master = repo.globalMasterData.get('workflow');
+    assert.ok(master.items.every((step) => step.createFolder === true));
+    const changed = master.items.map((step) => ({
+      ...step,
+      createFolder: false,
+    }));
+    const preview = repo.previewWorkflowPublication(changed, master.revision);
+    assert.equal(preview.projects[0].changed, false);
+    assert.deepEqual(preview.projects[0].changes, []);
+    const saved = repo.publishWorkflow(
+      changed,
+      master.revision,
+      revisionMap(preview),
+    );
+    assert.ok(saved.record.items.every((step) => step.createFolder === false));
+    assert.deepEqual(payload(repo).processSteps, before.workspace.processSteps);
+    assert.deepEqual(payload(repo).costVersions, before.workspace.costVersions);
+    createProject(repo, {
+      id: 'NEW-FOLDERS',
+      name: 'New folder policy',
+      client: 'Client',
+    });
+    assert.ok(
+      payload(repo, 'NEW-FOLDERS').processSteps.every(
+        (step) => step.createFolder === false,
+      ),
+    );
+    const invalid = saved.record.items.map((step, index) =>
+      index === 0 ? { ...step, createFolder: null } : step,
+    );
+    assert.throws(
+      () => repo.previewWorkflowPublication(invalid, saved.record.revision),
+      /Create Folder must be a boolean/,
+    );
+    assert.equal(
+      repo.globalMasterData.get('workflow').revision,
+      saved.record.revision,
+    );
+  } finally {
+    repo.close();
+  }
+});
+
 test('a new cost version resets an inherited template gate while preserving the previous round and its audit', () => {
   const repo = openWorkspaceRepository(':memory:');
   try {

@@ -147,6 +147,63 @@ test('template node configuration edits business rules without changing identity
   assert.doesNotMatch(html, /secret-stable-id|Code \/|内部编码/);
 });
 
+test('folder toggle defaults to enabled, records an explicit choice and explains its new-project-only scope', () => {
+  let value = makeStep('folder-step', 'Folder review');
+  delete value.createFolder;
+  const before = structuredClone(value);
+  const tree = WorkflowNodeDefinitionFields({
+    value,
+    onChange: (next) => (value = next),
+  });
+  const checkbox = walk(tree).find(
+    (node) => node.props['aria-label'] === 'Create Folder',
+  );
+  assert.equal(checkbox.props.type, 'checkbox');
+  assert.equal(checkbox.props.checked, true);
+  checkbox.props.onChange({ target: { checked: false } });
+  assert.deepEqual(value, { ...before, createFolder: false });
+  const html = renderToStaticMarkup(
+    React.createElement(WorkflowNodeDefinitionFields, {
+      value,
+      onChange: noop,
+      disabled: true,
+    }),
+  );
+  assert.match(html, /Only applies to new projects/);
+  assert.match(html, /existing project folders are unchanged/);
+  assert.match(html, /aria-label="Create Folder"[^>]*disabled=""/);
+  assert.doesNotMatch(
+    html.match(/<input[^>]*aria-label="Create Folder"[^>]*>/)?.[0] || '',
+    /checked=/,
+  );
+});
+
+test('inserting and reordering a copied workflow step preserves its folder choice', () => {
+  const original = steps();
+  const copy = {
+    ...original[0],
+    code: 'copied-step',
+    name: 'Copied review',
+    roundStart: false,
+    createFolder: false,
+  };
+  const inserted = insertWorkflowTemplateStep(original, copy);
+  const moved = moveWorkflowTemplateNode(inserted, copy.code, -1);
+  assert.equal(
+    moved.find((step) => step.code === copy.code).createFolder,
+    false,
+  );
+  const html = renderToStaticMarkup(
+    React.createElement(WorkflowTemplateEditor, {
+      steps: moved,
+      setSteps: noop,
+      announce: noop,
+    }),
+  );
+  assert.match(html, /No Step Folder for New Projects/);
+  assert.match(html, /Create Folder for New Projects/);
+});
+
 test('template preview groups adjacent parallel nodes and exposes named editing and ordering controls', () => {
   const definitions = steps();
   definitions[0].name = 'Scope Confirmation';

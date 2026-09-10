@@ -5,14 +5,23 @@ import {
   type DragEvent,
   type ReactNode,
 } from 'react';
-import { Download, FolderArchive, RefreshCw, Upload } from 'lucide-react';
+import {
+  Download,
+  FolderArchive,
+  FolderOpen,
+  RefreshCw,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   archiveProjectFile,
+  deleteProjectFile,
   getArchiveSettings,
   listProjectFiles,
   MAX_PROJECT_FILE_BYTES,
+  openArchiveFolder,
   projectFileDownloadUrl,
   projectFileSizeLabel,
   updateArchiveSettings,
@@ -32,6 +41,69 @@ const dateLabel = (value: string) =>
         timeStyle: 'short',
       }).format(new Date(value))
     : value;
+
+/** Opens the persisted folder for a root, project or document, with local request feedback. */
+export function ArchiveFolderButton({
+  projectId,
+  fileId,
+  disabled = false,
+  label = 'Open Folder',
+  description,
+}: {
+  projectId?: string;
+  fileId?: string;
+  disabled?: boolean;
+  label?: string;
+  description: string;
+}) {
+  const [opening, setOpening] = useState(false);
+  const [error, setError] = useState('');
+  const inFlight = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const open = async () => {
+    if (disabled || inFlight.current) return;
+    inFlight.current = true;
+    setOpening(true);
+    setError('');
+    try {
+      await openArchiveFolder(projectId, fileId);
+    } catch (cause) {
+      if (mounted.current) setError(errorMessage(cause));
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) setOpening(false);
+    }
+  };
+  return (
+    <div className="min-w-0">
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        disabled={disabled || opening}
+        aria-label={description}
+        title={description}
+        onClick={() => void open()}
+      >
+        <FolderOpen className="size-3.5" /> {opening ? 'Opening…' : label}
+      </Button>
+      {error && (
+        <p
+          role="alert"
+          className="max-w-xs break-words text-xs text-destructive"
+        >
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /** An absolute path belongs to the local API host, not the browser's download folder. */
 export function ArchiveSettingsPanel({
@@ -137,6 +209,10 @@ export function ArchiveSettingsPanel({
         />
       </label>
       <div className="flex flex-wrap items-center gap-2">
+        <ArchiveFolderButton
+          description="Open saved project archive root folder"
+          disabled={disabled || loading || saving || !settings}
+        />
         <Button
           type="button"
           size="sm"
@@ -198,10 +274,16 @@ export function ProjectFileList({
   projectId,
   files,
   showAssociation = false,
+  onDelete,
+  deletingFileId,
+  disabled = false,
 }: {
   projectId: string;
   files: ProjectFileRecord[];
   showAssociation?: boolean;
+  onDelete?: (file: ProjectFileRecord) => void;
+  deletingFileId?: string | null;
+  disabled?: boolean;
 }) {
   if (!files.length)
     return (
@@ -215,7 +297,10 @@ export function ProjectFileList({
       aria-label="Archived documents"
     >
       {files.map((file) => (
-        <li key={file.id} className="flex items-center gap-3 px-3 py-2.5">
+        <li
+          key={file.id}
+          className="flex flex-wrap items-center gap-3 px-3 py-2.5"
+        >
           <div className="min-w-0 flex-1">
             <p
               className="break-words text-xs font-medium"
@@ -241,14 +326,35 @@ export function ProjectFileList({
               )}
             </p>
           </div>
-          <a
-            href={projectFileDownloadUrl(projectId, file.id)}
-            download={file.originalName}
-            className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-muted"
-            aria-label={`Download ${file.originalName}`}
-          >
-            <Download className="size-3.5" /> Download
-          </a>
+          <div className="flex flex-wrap items-center gap-1">
+            <a
+              href={projectFileDownloadUrl(projectId, file.id)}
+              download={file.originalName}
+              className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-muted"
+              aria-label={`Download ${file.originalName}`}
+            >
+              <Download className="size-3.5" /> Download
+            </a>
+            <ArchiveFolderButton
+              key={JSON.stringify([projectId, file.id])}
+              projectId={projectId}
+              fileId={file.id}
+              description={`Open folder for ${file.originalName}`}
+              disabled={disabled || Boolean(deletingFileId)}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              aria-label={`Delete ${file.originalName}`}
+              disabled={disabled || Boolean(deletingFileId) || !onDelete}
+              onClick={() => onDelete?.(file)}
+            >
+              <Trash2 className="size-3.5" />{' '}
+              {deletingFileId === file.id ? 'Deleting…' : 'Delete'}
+            </Button>
+          </div>
         </li>
       ))}
     </ul>
@@ -423,9 +529,11 @@ function ProjectFilesController({
   const [notice, setNotice] = useState('');
   const [queue, setQueue] = useState<UploadItem[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const live = useRef(false);
   const uploadingRef = useRef(false);
+  const deletingRef = useRef(false);
   const selectionRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     live.current = true;
@@ -470,8 +578,44 @@ function ProjectFilesController({
     };
   }, [projectId, nodeCode, versionCode, isNode, reload, refreshKey]);
 
+  /** Confirm one named document, then refresh both archive views only after deletion succeeds. */
+  const remove = async (file: ProjectFileRecord) => {
+    if (disabled || uploadingRef.current || deletingRef.current || loading)
+      return;
+    if (
+      !window.confirm(
+        `Delete "${file.originalName}" from this project's archive?`,
+      )
+    )
+      return;
+    deletingRef.current = true;
+    setDeletingFileId(file.id);
+    setError('');
+    setNotice('');
+    try {
+      await deleteProjectFile(projectId, file.id);
+      if (!live.current) return;
+      setNotice(`Deleted "${file.originalName}".`);
+      setLoading(true);
+      setReload((value) => value + 1);
+      onArchived?.();
+    } catch (cause) {
+      // Leave the existing list intact so a failed delete never hides a document.
+      if (live.current) setError(errorMessage(cause));
+    } finally {
+      deletingRef.current = false;
+      if (live.current) setDeletingFileId(null);
+    }
+  };
+
   const upload = async (items: UploadItem[]) => {
-    if (disabled || uploadingRef.current || !items.length) return;
+    if (
+      disabled ||
+      uploadingRef.current ||
+      deletingRef.current ||
+      !items.length
+    )
+      return;
     uploadingRef.current = true;
     onUploadingChange?.(true);
     setUploading(true);
@@ -519,7 +663,7 @@ function ProjectFilesController({
     }
   };
   const selectFiles = (files: File[]) => {
-    if (disabled || uploadingRef.current) return;
+    if (disabled || uploadingRef.current || deletingRef.current) return;
     const items: UploadItem[] = files.map((file) => ({
       file,
       requestId: crypto.randomUUID(),
@@ -536,13 +680,13 @@ function ProjectFilesController({
       title={isNode ? 'Documents' : 'Project Files'}
       target={
         isNode
-          ? `workflow / ${nodeName || nodeCode}`
+          ? archive?.uploadFolder || `workflow / ${nodeName || nodeCode}`
           : 'All project documents · Drop uploads to workflow'
       }
       versionCode={isNode ? versionCode : undefined}
       node={isNode}
       dragging={dragging}
-      disabled={disabled}
+      disabled={disabled || Boolean(deletingFileId)}
       uploading={uploading}
       loading={loading}
       onDraggingChange={setDragging}
@@ -559,19 +703,29 @@ function ProjectFilesController({
         multiple
         className="sr-only"
         aria-label={isNode ? 'Choose step documents' : 'Choose project files'}
-        disabled={disabled || uploading}
+        disabled={disabled || uploading || Boolean(deletingFileId)}
         onChange={(event) => {
           selectFiles(Array.from(event.target.files || []));
           event.target.value = '';
         }}
       />
       {!isNode && archive && (
-        <p
-          className="break-all rounded-md bg-muted/40 px-2 py-1.5 font-mono text-[11px]"
-          title="Project archive folder"
-        >
-          {archive.projectPath}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p
+            className="break-all rounded-md bg-muted/40 px-2 py-1.5 font-mono text-[11px]"
+            title="Project archive folder"
+          >
+            {archive.projectPath}
+          </p>
+          <ArchiveFolderButton
+            key={projectId}
+            projectId={projectId}
+            description="Open saved project archive folder"
+            disabled={
+              disabled || loading || uploading || Boolean(deletingFileId)
+            }
+          />
+        </div>
       )}
       {loading && (
         <output className="block text-xs text-muted-foreground">
@@ -603,6 +757,9 @@ function ProjectFilesController({
           projectId={projectId}
           files={archive.files}
           showAssociation={!isNode}
+          onDelete={(file) => void remove(file)}
+          deletingFileId={deletingFileId}
+          disabled={disabled || loading || uploading}
         />
       )}
       {queue.length > 0 && (

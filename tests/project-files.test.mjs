@@ -388,7 +388,7 @@ test('archive schema is additive and reopening never rewrites workspace snapshot
     f.repository.close();
     const db = new DatabaseSync(f.database);
     db.exec(
-      'DROP TABLE project_files; DROP TABLE project_file_node_folders; DROP TABLE project_file_moves; DROP TABLE project_file_roots; DROP TABLE project_file_settings;',
+      'DROP TABLE project_files; DROP TABLE project_file_node_folders; DROP TABLE project_file_moves; DROP TABLE project_file_deletions; DROP TABLE project_file_folder_policies; DROP TABLE project_file_roots; DROP TABLE project_file_settings;',
     );
     const before = db.prepare('SELECT * FROM workspace_snapshots').get();
     db.close();
@@ -688,7 +688,7 @@ test('legacy indexed files migrate once with stable IDs, captured metadata, exac
   }
 });
 
-test('node renames and additions synchronize readable folders while retaining captured file metadata and loose documents', () => {
+test('node renames retain documents while steps added after project creation do not add folders', () => {
   const f = fixture();
   try {
     const saved = create(f.repository);
@@ -737,10 +737,11 @@ test('node renames and additions synchronize readable folders while retaining ca
       ),
       'manual evidence',
     );
-    assert.ok(
+    assert.equal(
       existsSync(
         path.join(archive.projectPath, 'workflow', 'New Legal Review'),
       ),
+      false,
     );
     assert.equal(f.repository.get('P-ARCHIVE').revision, 1);
   } finally {

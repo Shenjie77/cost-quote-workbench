@@ -1,5 +1,6 @@
 /** Narrow HTTP routes for archive settings and project-owned binary files. */
 import { MAX_PROJECT_FILE_BYTES, ProjectFileError } from './project-files.mjs';
+import { openArchiveFolder } from './open-archive-folder.mjs';
 
 const API_VERSION = 'cost-workbench/local-v1';
 const queryValues = (url, allowed) => {
@@ -8,6 +9,17 @@ const queryValues = (url, allowed) => {
       throw new TypeError(`Invalid file query parameter: ${key}`);
   }
   return Object.fromEntries(url.searchParams);
+};
+
+/** Folder and deletion actions accept identifiers in the URL, never a caller-supplied disk path. */
+const readAction = async (request, readJson, kind) => {
+  const body = await readJson(request);
+  if (
+    body?.apiVersion !== API_VERSION ||
+    body?.kind !== kind ||
+    Object.keys(body).some((key) => !['apiVersion', 'kind'].includes(key))
+  )
+    throw new TypeError(`Invalid ${kind} envelope.`);
 };
 
 export async function readProjectFileBody(request) {
@@ -47,7 +59,64 @@ export async function routeProjectFiles({
   respond,
   readJson,
   origin,
+  openFolder = openArchiveFolder,
 }) {
+  const folderMatch = url.pathname.match(
+    /^\/api\/local\/projects\/([^/]+)\/files\/(?:([^/]+)\/)?open-folder$/,
+  );
+  if (
+    url.pathname === '/api/local/archive-settings/open-folder' ||
+    folderMatch
+  ) {
+    if (request.method !== 'POST')
+      throw new ProjectFileError(
+        'Method not allowed.',
+        405,
+        'METHOD_NOT_ALLOWED',
+      );
+    queryValues(url, []);
+    await readAction(request, readJson, 'ArchiveFolderOpenRequest');
+    const directory = folderMatch
+      ? repository.files.folder(
+          decodeURIComponent(folderMatch[1]),
+          folderMatch[2] ? decodeURIComponent(folderMatch[2]) : undefined,
+        )
+      : repository.files.rootFolder();
+    try {
+      await openFolder(directory);
+    } catch (error) {
+      throw new ProjectFileError(
+        error.message || 'Unable to open the archive folder.',
+        error.status || 500,
+        error.code || 'ARCHIVE_OPEN_FAILED',
+      );
+    }
+    respond(200, {
+      apiVersion: API_VERSION,
+      kind: 'ArchiveFolderOpened',
+      ok: true,
+      data: { opened: true },
+    });
+    return true;
+  }
+  const deleteMatch = url.pathname.match(
+    /^\/api\/local\/projects\/([^/]+)\/files\/([^/]+)$/,
+  );
+  if (deleteMatch && request.method === 'DELETE') {
+    queryValues(url, []);
+    await readAction(request, readJson, 'ProjectFileDeleteRequest');
+    const data = repository.files.remove(
+      decodeURIComponent(deleteMatch[1]),
+      decodeURIComponent(deleteMatch[2]),
+    );
+    respond(200, {
+      apiVersion: API_VERSION,
+      kind: 'ProjectFileDeleted',
+      ok: true,
+      data,
+    });
+    return true;
+  }
   if (url.pathname === '/api/local/archive-settings') {
     let settings;
     if (request.method === 'GET') settings = repository.files.getSettings();

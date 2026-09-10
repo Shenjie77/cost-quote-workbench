@@ -460,6 +460,7 @@ test('source differences render business fields and human-readable labels instea
     nameZh: '法务评审',
     required: true,
     requiredFields: ['申请号'],
+    createFolder: false,
   };
   const original = structuredClone(workflowItem);
   const workflowConflict = {
@@ -477,6 +478,7 @@ test('source differences render business fields and human-readable labels instea
     }),
   );
   assert.match(workflowMarkup, /Required Step/);
+  assert.match(workflowMarkup, /Create Folder \(New Projects Only\)/);
   assert.match(workflowMarkup, /Chinese Name/);
   assert.match(workflowMarkup, /法务评审/);
   assert.match(workflowMarkup, /申请号/);

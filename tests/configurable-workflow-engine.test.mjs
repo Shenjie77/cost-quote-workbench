@@ -320,6 +320,77 @@ test('template publication changes future work, retains active SLA unless explic
   );
 });
 
+test('folder creation defaults to true, preserves explicit choices across round copies and rejects non-booleans', () => {
+  const source = defs();
+  delete source[0].createFolder;
+  source[1].createFolder = false;
+  assert.equal(normalizeWorkflowDefinition(source[0]).createFolder, true);
+  assert.equal(normalizeWorkflowDefinition(source[1]).createFolder, false);
+  const copy = resetWorkflowRoundSteps(structuredClone(source), now);
+  assert.equal(copy[0].createFolder, true);
+  assert.equal(copy[1].createFolder, false);
+  assert.equal(source[0].createFolder, undefined);
+  for (const invalid of [null, 'false', 'true', 0, 1, {}]) {
+    const invalidSteps = source.map((step, index) =>
+      index === 0 ? { ...step, createFolder: invalid } : step,
+    );
+    assert.throws(
+      () => validateWorkflowTemplate(invalidSteps),
+      /Create Folder must be a boolean/,
+    );
+    assert.throws(
+      () =>
+        validateWorkflowTemplate(invalidSteps.map(normalizeWorkflowDefinition)),
+      /Create Folder must be a boolean/,
+      'normalization must not hide invalid explicit values from publication validation',
+    );
+  }
+});
+
+test('publishing folder-only changes retains every existing project choice without declaring workflow execution changes', () => {
+  const w = applyWorkflowTemplate(fixture(), defs(), 1, {}, now);
+  w.processSteps[1].createFolder = false;
+  delete w.processSteps[0].createFolder;
+  const before = structuredClone(w);
+  const next = w.processSteps.map((step) => ({
+    ...step,
+    createFolder: !(step.createFolder ?? true),
+  }));
+  for (const migrateActive of [false, true]) {
+    const plan = previewWorkflowSync(w, next, { migrateActive });
+    assert.equal(plan.changed, false);
+    assert.deepEqual(plan.changes, []);
+    assert.deepEqual(plan.blockers, []);
+    assert.match(
+      plan.retained.join(' '),
+      /Folder changes apply only to new projects/,
+    );
+    const applied = applyWorkflowTemplate(w, next, 2, { migrateActive }, now);
+    assert.deepEqual(
+      applied.processSteps.map((step) => step.createFolder),
+      before.processSteps.map((step) => step.createFolder),
+    );
+    assert.deepEqual(applied.costVersions, before.costVersions);
+  }
+  assert.deepEqual(w, before);
+});
+
+test('new workflow nodes synchronized into an existing project do not request new archive folders', () => {
+  const w = fixture();
+  const next = defs();
+  next.splice(1, 0, node('new-step', { createFolder: true }));
+  const plan = previewWorkflowSync(w, next);
+  assert.deepEqual(plan.blockers, []);
+  const added = plan.steps.find((step) => step.code === 'new-step');
+  assert.equal(added.state, 'not_started');
+  assert.equal(added.createFolder, false);
+  assert.equal(
+    next[1].createFolder,
+    true,
+    'the published choice remains enabled for future projects',
+  );
+});
+
 test('new earlier nodes inherit active, paused or completed downstream progress with immutable audit and cost history', () => {
   for (const state of ['in_progress', 'paused', 'completed']) {
     let w = applyWorkflowAction(

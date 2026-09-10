@@ -1,6 +1,7 @@
 /** Configurable project tasks. Definitions and execution share stable IDs, never semantics encoded in names. */
 import type { WorkflowStep } from './types.ts';
 import type { WorkbenchWorkspace } from '../workbench/workspace-types.ts';
+import { contentKey } from '../cpq/domain.ts';
 import {
   isWorkflowDate,
   parseWorkflowTimestamp,
@@ -89,6 +90,7 @@ export function normalizeWorkflowDefinition(step: WorkflowStep): WorkflowStep {
     requiresConfirmedCost: step.requiresConfirmedCost ?? legacyDrb,
     finishesWorkflow: step.finishesWorkflow ?? step.code === 'QUOTE_COMPLETED',
     autoSkip: step.autoSkip ?? !step.required,
+    createFolder: step.createFolder === undefined ? true : step.createFolder,
   };
 }
 /** Group only adjacent parallel peers, preserving configured phase and node order. */
@@ -118,6 +120,9 @@ export function validateWorkflowTemplate(input: WorkflowStep[]) {
   const phases = new Set<string>();
   let priorGroup = '';
   for (const raw of input) {
+    // Folder creation is an explicit boolean policy; only omission receives the legacy default.
+    if (raw.createFolder !== undefined && typeof raw.createFolder !== 'boolean')
+      throw new TypeError('Create Folder must be a boolean.');
     const step = normalizeWorkflowDefinition(raw);
     if (!step.code || codes.has(step.code))
       throw new TypeError('Each node must have a unique internal ID.');
@@ -876,7 +881,7 @@ export function applyWorkflowAction<T extends WorkbenchWorkspace>(
   return synchronizeWorkflowExecution(draftWorkspace);
 }
 
-// Definition fields eligible for publication; owner follows separate execution rules.
+// Definition fields eligible for publication; owner and project folder settings are retained separately.
 const WORKFLOW_CONFIGURATION_FIELDS = [
   'name',
   'nameZh',
@@ -983,6 +988,8 @@ export function previewWorkflowSync(
       changes.push(`Add: ${definition.name || definition.nameZh}`);
       return {
         ...definition,
+        // Publishing a new step never schedules new folders in an existing project.
+        createFolder: false,
         state: 'not_started' as const,
         tone: 'gray' as const,
         startedAt: '',
@@ -996,12 +1003,21 @@ export function previewWorkflowSync(
         updatedAt: '',
       };
     }
+    if ((previous.createFolder ?? true) !== definition.createFolder)
+      retained.push(
+        `Retain project folder setting: ${previous.name || previous.nameZh}. Folder changes apply only to new projects.`,
+      );
     if (isTerminalNode(previous)) {
       retained.push(`Retain history: ${previous.name || previous.nameZh}`);
       return structuredClone(previous);
     }
     // Runtime evidence remains project-owned, including fields omitted in legacy records.
-    const next = { ...definition, owner: previous.owner };
+    // Folder policy belongs to project creation, even for pending steps or active-rule migrations.
+    const next = {
+      ...definition,
+      owner: previous.owner,
+      createFolder: previous.createFolder,
+    };
     for (const field of WORKFLOW_RUNTIME_FIELDS)
       Object.assign(next, { [field]: structuredClone(previous[field]) });
     if (workflowNodeActive(previous) || previous.state === 'paused') {
@@ -1039,7 +1055,8 @@ export function previewWorkflowSync(
         else next.dueAt = workflowDueAt(next, next.startedAt);
       }
     } else next.owner = definition.owner;
-    if (JSON.stringify(next) !== JSON.stringify(previous))
+    // Definition normalization can reorder object keys without changing any project value.
+    if (contentKey(next) !== contentKey(previous))
       changes.push(`Update: ${next.name || next.nameZh}`);
     return next;
   });
@@ -1104,7 +1121,7 @@ export function previewWorkflowSync(
   )
     changes.push('Node order updated.');
   return {
-    changed: JSON.stringify(existingSteps) !== JSON.stringify(steps),
+    changed: contentKey(existingSteps) !== contentKey(steps),
     changes: [...new Set(changes)],
     blockers: [...new Set(blockers)],
     retained,

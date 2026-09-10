@@ -263,6 +263,9 @@ export function WorkflowTemplateEditor({
                             'Confirmed Cost Required',
                           step.finishesWorkflow && 'Closing Step',
                           step.autoSkip && 'Skip by Default',
+                          (step.createFolder ?? true)
+                            ? 'Create Folder for New Projects'
+                            : 'No Step Folder for New Projects',
                         ]
                           .filter(Boolean)
                           .join(' · ')}
@@ -407,6 +410,7 @@ export function WorkflowTemplateEditor({
   );
 }
 
+/** Edit the template definition, including folder choices that apply only at project creation. */
 export function WorkflowNodeDefinitionFields({
   value,
   onChange,
@@ -427,6 +431,11 @@ export function WorkflowNodeDefinitionFields({
       'reminderEnabled',
       'Enable Reminders',
       'Show reminders based on the deadline and follow-up date.',
+    ],
+    [
+      'createFolder',
+      'Create Folder',
+      'Only applies to new projects. Create an archive folder for this step when a project is created; existing project folders are unchanged.',
     ],
     [
       'roundStart',

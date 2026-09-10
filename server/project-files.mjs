@@ -25,6 +25,10 @@ import path from 'node:path';
 import { normalizeArchiveFolderPath } from './archive-folder-path.mjs';
 import { syncArchiveDirectory } from './archive-filesystem.mjs';
 import { stageArchiveMove } from './project-archive-move.mjs';
+import {
+  createProjectFileRemoval,
+  ProjectFileRemovalError,
+} from './project-file-removal.mjs';
 
 export const MAX_PROJECT_FILE_BYTES = 50 * 1024 * 1024;
 export const PROJECT_FILE_CATEGORIES = [
@@ -118,9 +122,17 @@ const readableNodeFolder = (value) => {
     name = Array.from(name).slice(0, -1).join('');
   return name || 'Workflow Node';
 };
-const physicalParts = (category, versionCode, nodeName) => {
+/** Keep disabled workflow steps associated in metadata while storing their files in workflow/. */
+const physicalParts = (
+  category,
+  versionCode,
+  nodeName,
+  createNodeFolder = true,
+) => {
   if (category === 'workflow')
-    return ['workflow', readableNodeFolder(nodeName)];
+    return createNodeFolder
+      ? ['workflow', readableNodeFolder(nodeName)]
+      : ['workflow'];
   const base = ['cost', 'source'].includes(category)
     ? 'cost'
     : ['quote', 'cpq', 'maintenance'].includes(category)
@@ -143,6 +155,8 @@ const normalizedFilename = (value) => {
 };
 const ioError = (error) => {
   if (error instanceof ProjectFileError) throw error;
+  if (error instanceof ProjectFileRemovalError)
+    fail(error.message, error.status, error.code);
   fail(
     `The archive folder could not be accessed (${error.code || 'filesystem error'}). Check its location and permissions.`,
     500,
@@ -325,6 +339,56 @@ export const makeProjectFileStore = (db, databasePath) => {
           labels.set(node.code, node.name || node.nameZh || node.code);
     return labels;
   };
+  /** Record the initial definitions once; historical projects retain every already-known folder. */
+  const saveFolderPolicy = (id, workspace, honorDefinitions) => {
+    const policy = new Map();
+    for (const round of [
+      workspace,
+      ...Object.values(workspace.versionWorkflows || {}),
+    ])
+      for (const step of round?.processSteps || [])
+        if (!policy.has(step.code))
+          policy.set(
+            step.code,
+            honorDefinitions ? step.createFolder !== false : true,
+          );
+    db.prepare(
+      'INSERT INTO project_file_folder_policies (project_id, policy_json) VALUES (?, ?)',
+    ).run(id, JSON.stringify(Object.fromEntries(policy)));
+  };
+  /** Add metadata for legacy archives without changing their existing files or directory choices. */
+  const folderPolicy = (archive) => {
+    let saved = db
+      .prepare(
+        'SELECT policy_json FROM project_file_folder_policies WHERE project_id = ?',
+      )
+      .get(archive.project_id);
+    if (!saved) {
+      const oldFolders = db
+        .prepare(
+          'SELECT node_code FROM project_file_node_folders WHERE project_id = ?',
+        )
+        .all(archive.project_id);
+      // An empty legacy mapping is also a snapshot: do not invent folders from today's template.
+      db.prepare(
+        'INSERT INTO project_file_folder_policies (project_id, policy_json) VALUES (?, ?)',
+      ).run(
+        archive.project_id,
+        JSON.stringify(
+          Object.fromEntries(oldFolders.map((row) => [row.node_code, true])),
+        ),
+      );
+      saved = db
+        .prepare(
+          'SELECT policy_json FROM project_file_folder_policies WHERE project_id = ?',
+        )
+        .get(archive.project_id);
+    }
+    return JSON.parse(saved.policy_json);
+  };
+  /** An absent step was added after project creation and must not provision a new directory. */
+  const hasNodeFolder = (archive, nodeCode) =>
+    folderPolicy(archive)[nodeCode] === true;
   const verifyFile = (archive, relative, sha256, size) => {
     checkedDirectory(
       archive.root_path,
@@ -349,6 +413,12 @@ export const makeProjectFileStore = (db, databasePath) => {
       if (fd !== undefined) closeSync(fd);
     }
   };
+  const fileRemoval = createProjectFileRemoval({
+    db,
+    location,
+    verifyFile,
+    within,
+  });
   const trimEmpty = (archive, relative) => {
     const protectedFolders = new Set([
       'workflow',
@@ -453,6 +523,17 @@ export const makeProjectFileStore = (db, databasePath) => {
         .all(archive.project_id)
         .map((row) => row.relative_path),
     );
+    // Staged deletions are owned by recovery; layout migration must never rename their copies.
+    for (const row of db
+      .prepare('SELECT * FROM project_files WHERE project_id = ?')
+      .all(archive.project_id))
+      pendingSources.add(fileRemoval.stagedRelative(row));
+    for (const row of db
+      .prepare(
+        'SELECT staged_path FROM project_file_deletions WHERE project_id = ?',
+      )
+      .all(archive.project_id))
+      pendingSources.add(row.staged_path);
     const base = location(archive).projectPath;
     const visit = (relative, targetRelative) => {
       const source = within(base, relative);
@@ -542,7 +623,9 @@ export const makeProjectFileStore = (db, databasePath) => {
           if (label)
             visit(
               path.join(relativeVersion, oldNode),
-              path.join('workflow', readableNodeFolder(label)),
+              hasNodeFolder(archive, code)
+                ? path.join('workflow', readableNodeFolder(label))
+                : 'workflow',
             );
         }
         trimEmpty(archive, relativeVersion);
@@ -561,7 +644,9 @@ export const makeProjectFileStore = (db, databasePath) => {
   };
   const syncLayoutInTransaction = (archive, workspace) => {
     checkedDirectory(archive.root_path, archive.project_folder);
+    fileRemoval.recover(archive, { withinTransaction: true });
     const labels = nodeLabels(workspace);
+    const policy = folderPolicy(archive);
     const oldFolders = [];
     for (const base of ['workflow', 'cost', 'quotation'])
       checkedDirectory(
@@ -570,6 +655,7 @@ export const makeProjectFileStore = (db, databasePath) => {
         true,
       );
     for (const [code, name] of labels) {
+      if (policy[code] !== true) continue;
       const folder = readableNodeFolder(name);
       checkedDirectory(
         archive.root_path,
@@ -599,6 +685,7 @@ export const makeProjectFileStore = (db, databasePath) => {
           row.category,
           row.version_code,
           labels.get(row.node_code) || row.node_name || row.node_code,
+          policy[row.node_code] === true,
         );
         let target = path.join(...parts, path.basename(row.relative_path));
         if (target === row.relative_path) continue;
@@ -705,7 +792,7 @@ export const makeProjectFileStore = (db, databasePath) => {
     result.afterCommit();
     return location(archive);
   };
-  const ensureInTransaction = (id) => {
+  const ensureInTransaction = (id, honorDefinitions = false) => {
     const info = project(id);
     const previous = mapping(id);
     if (previous) {
@@ -724,6 +811,7 @@ export const makeProjectFileStore = (db, databasePath) => {
       db.prepare(
         'INSERT INTO project_file_roots (project_id, root_path, project_folder, created_at) VALUES (?, ?, ?, ?)',
       ).run(id, root, projectFolder, new Date().toISOString());
+      saveFolderPolicy(id, getWorkspace(id), honorDefinitions);
       const sync = syncLayoutInTransaction(mapping(id), getWorkspace(id));
       return {
         archive: { projectId: id, rootPath: root, projectPath },
@@ -761,6 +849,66 @@ export const makeProjectFileStore = (db, databasePath) => {
   };
   const store = {
     getSettings,
+    /** Resolve only the saved root; callers cannot ask the API to open arbitrary paths. */
+    rootFolder() {
+      const root = getSettings().rootPath;
+      try {
+        assertRoot(root);
+        return root;
+      } catch (error) {
+        return ioError(error);
+      }
+    },
+    /** Follow the current archive mapping and, for a document, its recorded physical parent. */
+    folder(id, fileId) {
+      project(id, true);
+      if (fileId) readRecord(id, fileId);
+      try {
+        const archive = mapping(id);
+        if (!archive)
+          fail(
+            'Project archive folder is not available.',
+            404,
+            'ARCHIVE_NOT_FOUND',
+          );
+        if (fileId) {
+          const row = readRecord(id, fileId);
+          return checkedDirectory(
+            archive.root_path,
+            path.join(archive.project_folder, path.dirname(row.relative_path)),
+          );
+        }
+        return checkedDirectory(archive.root_path, archive.project_folder);
+      } catch (error) {
+        return ioError(error);
+      }
+    },
+    /** Delete an owned document independently of cost/workflow state, with a durable retry receipt. */
+    remove(id, fileId) {
+      project(id);
+      text(fileId, 'fileId', 100);
+      const deleted = db
+        .prepare(
+          'SELECT 1 FROM project_file_deletions WHERE project_id = ? AND file_id = ?',
+        )
+        .get(id, fileId);
+      if (deleted) {
+        try {
+          fileRemoval.recover(mapping(id));
+          return { id: fileId, deleted: true };
+        } catch (error) {
+          return ioError(error);
+        }
+      }
+      readRecord(id, fileId);
+      try {
+        syncProject(id);
+        fileRemoval.remove(mapping(id), readRecord(id, fileId));
+        return { id: fileId, deleted: true };
+      } catch (error) {
+        return ioError(error);
+      }
+    },
     updateSettings(input, expectedRevision) {
       const requested = requestedFolderPath(input?.rootPath, 'rootPath');
       db.exec('BEGIN IMMEDIATE');
@@ -880,7 +1028,7 @@ export const makeProjectFileStore = (db, databasePath) => {
       return result;
     },
     // Repository.save calls this only inside its new-project transaction.
-    ensureProjectInTransaction: ensureInTransaction,
+    ensureProjectInTransaction: (id) => ensureInTransaction(id, true),
     list(id, filters = {}) {
       project(id, true);
       let archive = mapping(id);
@@ -908,6 +1056,19 @@ export const makeProjectFileStore = (db, databasePath) => {
       }
       return {
         ...location(archive),
+        ...(filters.category === 'workflow' && filters.nodeCode
+          ? {
+              uploadFolder: path.join(
+                ...physicalParts(
+                  'workflow',
+                  filters.versionCode,
+                  nodeLabels(getWorkspace(id)).get(filters.nodeCode) ||
+                    filters.nodeCode,
+                  hasNodeFolder(archive, filters.nodeCode),
+                ),
+              ),
+            }
+          : {}),
         files: db
           .prepare(
             `SELECT * FROM project_files WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC, id DESC`,
@@ -971,6 +1132,18 @@ export const makeProjectFileStore = (db, databasePath) => {
           }),
         );
         if (requestId) {
+          if (
+            db
+              .prepare(
+                'SELECT 1 FROM project_file_deletions WHERE project_id = ? AND request_id = ?',
+              )
+              .get(id, requestId)
+          )
+            fail(
+              'This upload was deleted. Select the file again to create a new upload.',
+              409,
+              'FILE_DELETED',
+            );
           const existing = db
             .prepare(
               'SELECT * FROM project_files WHERE project_id = ? AND request_id = ?',
@@ -1014,7 +1187,12 @@ export const makeProjectFileStore = (db, databasePath) => {
         const result = ensureInTransaction(id);
         rollbackProject = result.rollback;
         const archived = mapping(id);
-        const parts = physicalParts(category, versionCode, nodeName);
+        const parts = physicalParts(
+          category,
+          versionCode,
+          nodeName,
+          hasNodeFolder(archived, nodeCode),
+        );
         const directoryRelative = path.join(archived.project_folder, ...parts);
         checkedDirectory(archived.root_path, directoryRelative, true);
         const fileId = randomUUID();

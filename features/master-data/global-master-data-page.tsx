@@ -122,6 +122,7 @@ const fieldLabels: Record<string, string> = {
   requiresConfirmedCost: '要求成本定稿',
   finishesWorkflow: '结束项目流程',
   autoSkip: '默认跳过可选节点',
+  createFolder: '创建步骤文件夹（仅新项目）',
 };
 const workflowFieldLabels: Record<string, string> = {
   name: 'English Name',
@@ -141,6 +142,7 @@ const workflowFieldLabels: Record<string, string> = {
   requiresConfirmedCost: 'Require Confirmed Cost',
   finishesWorkflow: 'Complete Workflow',
   autoSkip: 'Skip Optional Step by Default',
+  createFolder: 'Create Folder (New Projects Only)',
 };
 /** Quote-template conflicts show only the fields used by the English customer document. */
 const quoteTemplateFieldLabels: Record<string, string> = {

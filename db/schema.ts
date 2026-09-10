@@ -108,6 +108,23 @@ export const LOCAL_DATABASE_STATEMENTS = [
     sha256 TEXT NOT NULL,
     size_bytes INTEGER NOT NULL
   )`,
+  // Freeze folder creation per project; catalog updates never replace this snapshot.
+  `CREATE TABLE IF NOT EXISTS project_file_folder_policies (
+    project_id TEXT PRIMARY KEY REFERENCES project_file_roots(project_id),
+    policy_json TEXT NOT NULL CHECK (json_valid(policy_json))
+  )`,
+  // Completed deletion receipts retain upload idempotency and recover interrupted cleanup.
+  `CREATE TABLE IF NOT EXISTS project_file_deletions (
+    file_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES project_file_roots(project_id),
+    relative_path TEXT NOT NULL,
+    staged_path TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    request_id TEXT,
+    deleted_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_project_file_deletions_request ON project_file_deletions (project_id, request_id)`,
   `CREATE INDEX IF NOT EXISTS idx_project_files_scope ON project_files (project_id, version_code, node_code, created_at DESC)`,
   `CREATE TABLE IF NOT EXISTS master_data_metadata (
     key TEXT PRIMARY KEY,
