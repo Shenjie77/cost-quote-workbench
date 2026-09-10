@@ -95,6 +95,251 @@ const revisionMap = (plan) =>
       .map((p) => [p.projectId, p.revision]),
   );
 
+test('publication passes newly inserted earlier gates for progressed projects while completed history and new project requirements remain intact', () => {
+  const repo = openWorkspaceRepository(':memory:');
+  try {
+    initialize(repo, ['A', 'B', 'C']);
+    complete(repo, 'A', 'START', { application: 'P-A' });
+    act(repo, 'A', { nodeCode: 'LEGAL', action: 'start' });
+    complete(repo, 'B', 'START', { application: 'P-B' });
+    complete(repo, 'B', 'LEGAL', { result: 'Approved' });
+    complete(repo, 'B', 'FINANCE');
+    complete(repo, 'B', 'DONE');
+    const progressed = repo.get('A');
+    const completed = repo.get('B');
+    const master = repo.globalMasterData.get('workflow');
+    const inserted = {
+      ...master.items[1],
+      code: 'NEW-GATE',
+      name: 'New approval gate',
+      required: true,
+      autoSkip: false,
+      requiredFields: ['approval'],
+    };
+    const steps = [master.items[0], inserted, ...master.items.slice(1)].map(
+      (step, index) => ({ ...step, no: String(index + 1).padStart(2, '0') }),
+    );
+    const plan = repo.previewWorkflowPublication(steps, master.revision);
+    assert.deepEqual(
+      plan.projects.flatMap((project) => project.blockers),
+      [],
+    );
+    assert.equal(
+      plan.projects.find((project) => project.projectId === 'A').steps[1].state,
+      'skipped',
+    );
+    assert.equal(
+      plan.projects.find((project) => project.projectId === 'C').steps[1].state,
+      'not_started',
+    );
+    const published = repo.publishWorkflow(
+      steps,
+      master.revision,
+      revisionMap(plan),
+    );
+    assert.deepEqual(repo.get('B'), completed);
+    assert.deepEqual(published.retainedProjects, [
+      { projectId: 'B', revision: completed.revision },
+    ]);
+    assert.deepEqual(
+      payload(repo, 'A').costVersions,
+      progressed.workspace.costVersions,
+    );
+    assert.equal(payload(repo, 'A').processSteps[1].skippedBy, 'template-sync');
+    assert.ok(payload(repo, 'A').processSteps[1].completedAt);
+    assert.equal(payload(repo, 'A').processSteps[1].startedAt, '');
+    assert.equal(payload(repo, 'A').processSteps[1].dueAt, '');
+    assert.equal(
+      payload(repo, 'A').workflowUpdates.filter(
+        (event) =>
+          event.nodeCode === 'NEW-GATE' && event.action === 'auto_skip',
+      ).length,
+      1,
+    );
+    assert.deepEqual(
+      payload(repo, 'A').versionWorkflows.V1.processSteps,
+      payload(repo, 'A').processSteps,
+    );
+    // Templates remain execution-free so future projects and cost rounds must perform the gate.
+    assert.equal(published.record.items[1].state, 'not_started');
+    assert.equal(published.record.items[1].skippedBy, undefined);
+    createProject(repo, {
+      id: 'D',
+      name: 'Created after publication',
+      client: 'Client',
+    });
+    for (const id of ['C', 'D']) {
+      complete(repo, id, 'START', { application: `P-${id}` });
+      assert.throws(
+        () => act(repo, id, { nodeCode: 'LEGAL', action: 'start' }),
+        /New approval gate/,
+      );
+      assert.throws(() => complete(repo, id, 'NEW-GATE'), /approval/);
+      complete(repo, id, 'NEW-GATE', { approval: 'Approved' });
+      act(repo, id, { nodeCode: 'LEGAL', action: 'start' });
+    }
+    createCostDraft(
+      repo,
+      'B',
+      { mode: 'clone', sourceVersion: 'V1' },
+      completed.revision,
+    );
+    assert.equal(payload(repo, 'B').processSteps[1].state, 'not_started');
+    assert.equal(payload(repo, 'B').processSteps[1].skippedBy, '');
+    assert.deepEqual(
+      payload(repo, 'B').versionWorkflows.V1,
+      completed.workspace.versionWorkflows.V1,
+    );
+    complete(repo, 'A', 'LEGAL', { result: 'Approved' });
+    complete(repo, 'A', 'FINANCE');
+    complete(repo, 'A', 'DONE');
+    assert.equal(repo.workflowPlan('A').completed, true);
+  } finally {
+    repo.close();
+  }
+});
+
+test('compatibility workflow updates also pass new gates inserted before the active start phase', () => {
+  const repo = openWorkspaceRepository(':memory:');
+  try {
+    initialize(repo);
+    const master = repo.globalMasterData.get('workflow');
+    const added = {
+      ...master.items[1],
+      code: 'EARLIER-GATE',
+      name: 'Earlier required gate',
+      no: '00',
+      required: true,
+      autoSkip: false,
+    };
+    const published = repo.globalMasterData.update(
+      'workflow',
+      { upsert: [added] },
+      master.revision,
+    );
+    assert.equal(published.revision, master.revision + 1);
+    assert.equal(payload(repo).processSteps[0].state, 'skipped');
+    assert.equal(payload(repo).processSteps[0].skippedBy, 'template-sync');
+    complete(repo, 'A', 'START', { application: 'P-A' });
+    act(repo, 'A', { nodeCode: 'LEGAL', action: 'start' });
+    assert.equal(repo.workflowPlan('A').currentWorkflowStepCode, 'LEGAL');
+  } finally {
+    repo.close();
+  }
+});
+
+test('a new cost version resets an inherited template gate while preserving the previous round and its audit', () => {
+  const repo = openWorkspaceRepository(':memory:');
+  try {
+    initialize(repo);
+    complete(repo, 'A', 'START', { application: 'Original application' });
+    act(repo, 'A', { nodeCode: 'LEGAL', action: 'start' });
+    const master = repo.globalMasterData.get('workflow');
+    const inserted = {
+      ...master.items[1],
+      code: 'NEW-GATE',
+      name: 'New approval gate',
+      required: true,
+      autoSkip: false,
+      requiredFields: ['approval'],
+    };
+    const steps = [master.items[0], inserted, ...master.items.slice(1)].map(
+      (step, index) => ({ ...step, no: String(index + 1).padStart(2, '0') }),
+    );
+    const plan = repo.previewWorkflowPublication(steps, master.revision);
+    repo.publishWorkflow(steps, master.revision, revisionMap(plan));
+    const inherited = repo.get('A');
+    const previousGate = inherited.workspace.processSteps.find(
+      (step) => step.code === 'NEW-GATE',
+    );
+    assert.equal(previousGate.state, 'skipped');
+    assert.equal(previousGate.skippedBy, 'template-sync');
+    assert.ok(previousGate.completedAt);
+    assert.ok(
+      inherited.workspace.workflowUpdates.some(
+        (event) =>
+          event.nodeCode === 'NEW-GATE' && event.action === 'auto_skip',
+      ),
+    );
+
+    // Clone the project that actually inherited the gate, not an unchanged completed project.
+    createCostDraft(
+      repo,
+      'A',
+      { mode: 'clone', sourceVersion: 'V1' },
+      inherited.revision,
+    );
+    const current = payload(repo);
+    assert.equal(current.workflowVersion, 'V2');
+    assert.equal(current.currentWorkflowStepCode, 'START');
+    assert.deepEqual(
+      current.processSteps
+        .filter((step) => step.state === 'in_progress')
+        .map((step) => step.code),
+      ['START'],
+    );
+    const newGate = current.processSteps.find(
+      (step) => step.code === 'NEW-GATE',
+    );
+    assert.equal(newGate.state, 'not_started');
+    for (const field of [
+      'skippedBy',
+      'startedAt',
+      'dueAt',
+      'completedAt',
+      'note',
+    ])
+      assert.equal(
+        newGate[field],
+        '',
+        `${field} must not inherit the old skip`,
+      );
+    assert.deepEqual(newGate.fieldValues, {});
+    assert.deepEqual(
+      current.versionWorkflows.V1,
+      inherited.workspace.versionWorkflows.V1,
+    );
+    assert.deepEqual(
+      current.costVersions[0],
+      inherited.workspace.costVersions[0],
+    );
+    assert.deepEqual(
+      current.workflowUpdates.slice(0, -1),
+      inherited.workspace.workflowUpdates,
+    );
+    assert.equal(current.workflowUpdates.at(-1).action, 'new_cost_round');
+    assert.equal(current.workflowUpdates.at(-1).costVersion, 'V2');
+
+    // The new round must collect approval before downstream work can resume.
+    complete(repo, 'A', 'START', { application: 'New application' });
+    assert.throws(
+      () => act(repo, 'A', { nodeCode: 'LEGAL', action: 'start' }),
+      /New approval gate/,
+    );
+    assert.throws(() => complete(repo, 'A', 'NEW-GATE'), /approval/);
+    complete(repo, 'A', 'NEW-GATE', { approval: 'New approval evidence' });
+    act(repo, 'A', { nodeCode: 'LEGAL', action: 'start' });
+    assert.deepEqual(
+      payload(repo).versionWorkflows.V1,
+      inherited.workspace.versionWorkflows.V1,
+    );
+    assert.deepEqual(
+      payload(repo).costVersions[0],
+      inherited.workspace.costVersions[0],
+    );
+    assert.deepEqual(
+      payload(repo).workflowUpdates.filter(
+        (event) => event.costVersion === 'V1',
+      ),
+      inherited.workspace.workflowUpdates.filter(
+        (event) => event.costVersion === 'V1',
+      ),
+    );
+  } finally {
+    repo.close();
+  }
+});
+
 test('twelve and fifteen workflow nodes publish, save and sync without losing later critical gates', () => {
   const repo = openWorkspaceRepository(':memory:');
   try {

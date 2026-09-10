@@ -340,6 +340,11 @@
           "maxLength": 200,
           "pattern": "\\S"
         },
+        "buCode": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Optional company code for human reference only; never used as an internal identity or BU matching key."
+        },
         "ratePercent": { "type": "number", "minimum": 0, "maximum": 100 },
         "active": { "type": "boolean" }
       }
@@ -1003,13 +1008,10 @@
       "required": [
         "id",
         "name",
-        "nameZh",
         "clientPattern",
         "documentTitle",
-        "documentTitleZh",
         "validityDays",
         "paymentTerms",
-        "paymentTermsZh",
         "active"
       ],
       "properties": {

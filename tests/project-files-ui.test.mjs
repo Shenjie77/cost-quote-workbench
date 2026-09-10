@@ -332,6 +332,38 @@ test('workflow loading disables both node and general upload controls until the 
   assert.match(html, /Wait for the current update/);
 });
 
+test('archive move sends the reported Windows destination and current path unchanged', async (t) => {
+  const projectPath = String.raw`D:\QuotePlatform\Test Project`;
+  const expectedProjectPath = String.raw`D:\QuotePlatform\Original Project`;
+  const location = {
+    projectId: 'PROJECT A',
+    projectPath,
+    rootPath: String.raw`D:\QuotePlatform`,
+  };
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(
+      new URL(url).pathname,
+      '/api/local/projects/PROJECT%20A/files/location',
+    );
+    assert.equal(options.method, 'PUT');
+    assert.deepEqual(JSON.parse(options.body), {
+      apiVersion: 'cost-workbench/local-v1',
+      kind: 'ProjectArchiveMoveRequest',
+      projectPath,
+      expectedProjectPath,
+    });
+    return response(location);
+  });
+  assert.deepEqual(
+    await client.moveProjectArchive(
+      'PROJECT A',
+      projectPath,
+      expectedProjectPath,
+    ),
+    location,
+  );
+});
+
 test('file transport reads only dedicated project/round/node filters and retries uploads with the same idempotency key', async (t) => {
   const calls = [];
   t.mock.method(globalThis, 'fetch', async (url, options) => {

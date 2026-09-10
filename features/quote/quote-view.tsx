@@ -469,9 +469,9 @@ export function QuoteView({
           <SectionHeading
             index="02"
             title="Client Output Preview"
-            titleZh="客户输出预览"
+            titleZh=""
             description="Preview the currently applied quotation template."
-            descriptionZh="预览当前已引用模板；请在页面顶部选择并点击“引用模板”。"
+            descriptionZh=""
           />
           <div className="p-5">
             <div className="mx-auto max-w-[520px] border border-[#c8c4ba] bg-[#fffefa] p-7 shadow-[0_8px_24px_rgba(23,58,82,0.08)]">
@@ -480,9 +480,6 @@ export function QuoteView({
                   <p className="text-base font-bold tracking-wide text-[#173a52]">
                     {template?.documentTitle || 'SERVICE QUOTATION'}
                   </p>
-                  <p className="mt-1 text-[9px] text-muted-foreground">
-                    {template?.documentTitleZh || '服务报价单'}
-                  </p>
                 </div>
                 <span className="financial-numeral text-[9px] text-muted-foreground">
                   QT-{project.id.replace(/^PRJ-/, '')}-{activeVersion}
@@ -490,7 +487,7 @@ export function QuoteView({
               </div>
               <div className="mt-6">
                 <p className="text-[9px] uppercase tracking-[0.08em] text-muted-foreground">
-                  Prepared for / 客户
+                  Prepared for
                 </p>
                 <p className="mt-1 text-sm font-semibold">{project.client}</p>
                 <p className="mt-1 text-[9px] text-muted-foreground">
@@ -499,49 +496,33 @@ export function QuoteView({
               </div>
               <div className="mt-6 border-y border-border py-5">
                 <div className="flex items-end justify-between gap-4">
-                  <BiText
-                    en="Total Before Tax"
-                    zh="未税总价"
-                    className="text-xs font-medium"
-                  />
+                  <p className="text-xs font-medium">Total Before Tax</p>
                   <p className="financial-numeral text-2xl font-bold text-[#173a52]">
                     {formatSgd(result.quoteBeforeTax)}
                   </p>
                 </div>
                 <div className="mt-3 flex items-end justify-between gap-4 text-muted-foreground">
-                  <BiText
-                    en={`GST ${result.gstPercent.toFixed(2)}%`}
-                    zh="税费"
-                    className="text-[9px]"
-                  />
+                  <p className="text-[9px]">
+                    GST {result.gstPercent.toFixed(2)}%
+                  </p>
                   <p className="financial-numeral text-xs">
                     {formatSgd(result.gstAmount)}
                   </p>
                 </div>
                 <div className="mt-2 flex items-end justify-between gap-4">
-                  <BiText
-                    en="Total After Tax"
-                    zh="含税总价"
-                    className="text-[10px] font-medium"
-                  />
+                  <p className="text-[10px] font-medium">Total After Tax</p>
                   <p className="financial-numeral text-sm font-semibold">
                     {formatSgd(result.quoteAfterTax)}
                   </p>
                 </div>
               </div>
               <div className="mt-5 space-y-2 text-[10px] text-muted-foreground">
-                <p>
-                  • Validity: {template?.validityDays || 30} days / 报价有效期
-                </p>
-                <p>
-                  • Payment: {template?.paymentTerms || 'Not set'} / 付款条件
-                </p>
-                <p>• Cost baseline: {activeVersion} / 成本基线</p>
+                <p>• Validity: {template?.validityDays || 30} days</p>
+                <p>• Payment: {template?.paymentTerms || 'Not set'}</p>
+                <p>• Cost baseline: {activeVersion}</p>
                 {template?.termsAndConditions && (
                   <div className="border-t pt-2">
-                    <p className="font-semibold">
-                      Terms & Conditions / 商务条款
-                    </p>
+                    <p className="font-semibold">Terms & Conditions</p>
                     <p className="whitespace-pre-wrap break-words">
                       {template.termsAndConditions}
                     </p>
@@ -552,9 +533,6 @@ export function QuoteView({
                   .map((row) => (
                     <p className="whitespace-pre-wrap break-words" key={row.id}>
                       • {row.text}
-                      {row.textZh && (
-                        <span className="block">{row.textZh}</span>
-                      )}
                     </p>
                   ))}
               </div>
@@ -613,8 +591,7 @@ export function QuoteView({
             <TableHeader>
               <TableRow className="bg-[#f2f0ea]">
                 <TableHead className="w-24">Include</TableHead>
-                <TableHead>Assumption / 正文（任意语言）</TableHead>
-                <TableHead>Translation / 译文（可选）</TableHead>
+                <TableHead>Assumption</TableHead>
                 <TableHead className="w-20 text-center">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -654,22 +631,6 @@ export function QuoteView({
                           rows.map((row) =>
                             row.id === item.id
                               ? { ...row, text: event.target.value }
-                              : row,
-                          ),
-                        )
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Textarea
-                      aria-label="Quotation assumption translation"
-                      maxLength={2000}
-                      value={item.textZh}
-                      onChange={(event) =>
-                        setQuoteAssumptions((rows) =>
-                          rows.map((row) =>
-                            row.id === item.id
-                              ? { ...row, textZh: event.target.value }
                               : row,
                           ),
                         )

@@ -13,6 +13,9 @@ corresponding global page. Maintaining it does not change the current project.
 2. **Master Data → Quote Templates**: maintain customer, title, validity,
    payment terms, multiline Terms & Conditions and default global assumption IDs.
    Multiple templates may serve one customer. Keep referenced assumptions valid.
+   Template controls and customer-output labels are English. Separate Chinese
+   translation fields are no longer edited or appended to new outputs. Supplied
+   customer/project names, primary clauses and T&C remain in their original language.
 3. A new project captures the global catalog. Existing projects keep their
    adopted catalog until the user explicitly applies a newer global snapshot.
    Reference data is not changed just by opening or returning to Quote.
@@ -92,6 +95,12 @@ This is a field fragment, not a complete template. T&C allows 0–20,000 charact
 of plain text, with line breaks preserved. HTML, Markdown and formulas are not
 executed. The platform does not invent legal clauses. Default IDs must be unique
 and reference the library. Templates: 1–1,000 records; validity: integer 1–3,650.
+Legacy template `nameZh`, `documentTitleZh` and `paymentTermsZh` fields are optional
+and remain readable in saved project/history snapshots. New templates omit them.
+Standard quotation exports and company-template mappings use only `documentTitle`,
+`paymentTerms`, `termsAndConditions`, and assumption `text`. Company quotation
+mappings no longer accept `quote.documentTitleZh`, `quote.paymentTermsZh` or
+assumption `textZh`; existing customer workbook content itself is left intact.
 
 `quoteAssumptions[]` keeps `id`, `text`, `textZh`, `included`, plus optional
 `sourceAssumptionId` (provenance only, not a required live foreign key). Agents

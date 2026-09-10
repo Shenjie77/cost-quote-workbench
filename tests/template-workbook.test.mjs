@@ -160,6 +160,63 @@ test('template filling rejects overlapping targets and insufficient preallocated
     /Expand the original/,
   );
 });
+
+test('company quotation mappings expose only primary fields and preserve the supplied text', async () => {
+  const workspace = setup();
+  workspace.project.name = '客户项目';
+  workspace.quoteTemplates[0].documentTitleZh = '历史标题';
+  workspace.quoteTemplates[0].paymentTermsZh = '历史付款条款';
+  workspace.quoteTemplates[0].termsAndConditions =
+    'Original customer terms. '.repeat(500);
+  workspace.quoteAssumptions[0].text = '客户原文 scope condition';
+  workspace.quoteAssumptions[0].textZh = '隐藏的历史译文';
+  const source = templateData(workspace, 'quote');
+  assert.equal(source.scalars['quote.documentTitleZh'], undefined);
+  assert.equal(source.scalars['quote.paymentTermsZh'], undefined);
+  assert.equal(source.datasets.assumptions[0].textZh, undefined);
+  assert.equal(source.scalars['project.name'], '客户项目');
+  const bytes = await original();
+  const output = await fillTemplateWorkbook(bytes, map, workspace, 'Q-EN');
+  const ExcelJS = (await import('exceljs')).default;
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(output.bytes);
+  assert.equal(
+    book.getWorksheet('Company').getCell('B7').value,
+    workspace.quoteTemplates[0].termsAndConditions,
+  );
+  assert.equal(
+    book.getWorksheet('Company').getCell('A12').value,
+    workspace.quoteAssumptions[0].text,
+  );
+  const text = JSON.stringify(
+    book.worksheets.map((sheet) => sheet.getSheetValues()),
+  );
+  assert.doesNotMatch(text, /历史标题|历史付款条款|隐藏的历史译文/);
+  for (const field of ['quote.documentTitleZh', 'quote.paymentTermsZh']) {
+    await assert.rejects(
+      fillTemplateWorkbook(
+        bytes,
+        {
+          ...map,
+          cells: [...map.cells, { sheet: 'Company', cell: 'B9', field }],
+        },
+        workspace,
+      ),
+      /Unknown scalar field/,
+    );
+  }
+  await assert.rejects(
+    fillTemplateWorkbook(
+      bytes,
+      {
+        ...map,
+        tables: [{ ...map.tables[0], columns: { text: 1, textZh: 2 } }],
+      },
+      workspace,
+    ),
+    /Unknown assumptions field: textZh/,
+  );
+});
 test('CLI standard and company-template quotations persist history and protect source aliases', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'ssr-quote-cli-')),
     database = path.join(dir, 'db.sqlite');

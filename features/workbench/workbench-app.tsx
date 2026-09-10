@@ -146,6 +146,7 @@ import { ProjectView } from '@/features/projects/project-view';
 import { ProjectEditDialog } from '@/features/projects/project-edit-dialog';
 import { applyProjectDetails } from '@/features/projects/project-details';
 import { calculateBuCostAllocation } from '@/features/quote/profit-share';
+import { getBusinessUnitOptions } from '@/features/master-data/business-units';
 import {
   applyLocalWorkflowAction,
   listLocalWorkspaces,
@@ -466,6 +467,14 @@ function ProjectSessionApp({
   const publishedWorkflow = usePublishedWorkflow(
     activeView === 'overview',
     globalMasterData.tabs.workflow?.record,
+  );
+  const loadGlobalMasterData = globalMasterData.load;
+  // Cost selectors use saved global BU definitions, independently of captured pricing rates.
+  useEffect(() => {
+    if (activeView === 'cost') void loadGlobalMasterData('profit-share');
+  }, [activeView, loadGlobalMasterData]);
+  const costBusinessUnits = getBusinessUnitOptions(
+    globalMasterData.tabs['profit-share']?.record?.items,
   );
   const title = viewTitles[activeView];
   const projectScopedView = activeView === 'cost' || activeView === 'quote';
@@ -2161,6 +2170,7 @@ function ProjectSessionApp({
   else if (activeView === 'cost')
     content = (
       <CostView
+        businessUnits={costBusinessUnits}
         onSave={() =>
           isReady && !switchingRef.current && !versionTransitionRef.current
             ? saveNow()

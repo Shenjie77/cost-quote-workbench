@@ -16,6 +16,7 @@ import {
   writeSync,
 } from 'node:fs';
 import path from 'node:path';
+import { syncArchiveDirectory } from './archive-filesystem.mjs';
 
 const fail = (message, code = 'ARCHIVE_MOVE_INVALID') => {
   const error = new Error(message);
@@ -150,18 +151,6 @@ const matches = (root, expected) => {
     return false;
   }
 };
-const syncDirectory = (directory) => {
-  const descriptor = openSync(
-    directory,
-    constants.O_RDONLY | (constants.O_DIRECTORY || 0),
-  );
-  try {
-    fsyncSync(descriptor);
-  } finally {
-    closeSync(descriptor);
-  }
-};
-
 /** Remove only verified owned entries. Never recurse through unrecognized files. */
 const removeVerified = (root, expected) => {
   if (!matches(root, expected)) return false;
@@ -259,8 +248,8 @@ export function stageArchiveMove(sourceAbsolute, destAbsolute) {
       );
     for (const entry of [...staged].reverse())
       if (entry.type === 'directory')
-        syncDirectory(path.join(destination, entry.relative));
-    syncDirectory(path.dirname(destination));
+        syncArchiveDirectory(path.join(destination, entry.relative));
+    syncArchiveDirectory(path.dirname(destination));
   } catch (error) {
     // A failed stage may include another process's changes. Preserve that copy
     // for inspection; rollback is available only after a fully verified stage.

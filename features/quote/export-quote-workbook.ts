@@ -44,16 +44,13 @@ export const buildQuoteWorkbookBuffer = async (input: QuoteWorkbookInput) => {
     size: 18,
     color: { argb: 'FF173A52' },
   };
-  sheet.mergeCells('B3:D3');
-  sheet.getCell('B3').value = input.template.documentTitleZh;
-  sheet.getCell('B3').font = { size: 10, color: { argb: 'FF667078' } };
-
+  // Keep the established cell layout while omitting legacy translation fields.
   const metadata = [
-    ['Quotation No. / 报价编号', input.quoteNumber],
-    ['Client / 客户', input.project.client],
-    ['Project / 项目', input.project.name],
-    ['Cost Version / 成本版本', input.costVersion],
-    ['Currency / 币种', input.project.currency],
+    ['Quotation No.', input.quoteNumber],
+    ['Client', input.project.client],
+    ['Project', input.project.name],
+    ['Cost Version', input.costVersion],
+    ['Currency', input.project.currency],
   ];
   metadata.forEach(([label, value], index) => {
     const row = 5 + index;
@@ -65,14 +62,11 @@ export const buildQuoteWorkbookBuffer = async (input: QuoteWorkbookInput) => {
 
   const pricingStart = 12;
   const pricingRows: Array<[string, number]> = [
-    ['Service Price / 服务价格', input.pricing.listPrice],
-    ['Discount / 折扣', input.pricing.discount],
-    ['Quote Before Tax / 未税报价', input.pricing.quoteBeforeTax],
-    [
-      `GST ${input.pricing.gstPercent.toFixed(2)}% / 税费`,
-      input.pricing.gstAmount,
-    ],
-    ['Total After Tax / 含税总价', input.pricing.quoteAfterTax],
+    ['Service Price', input.pricing.listPrice],
+    ['Discount', input.pricing.discount],
+    ['Quote Before Tax', input.pricing.quoteBeforeTax],
+    [`GST ${input.pricing.gstPercent.toFixed(2)}%`, input.pricing.gstAmount],
+    ['Total After Tax', input.pricing.quoteAfterTax],
   ];
   pricingRows.forEach(([label, amount], index) => {
     const row = pricingStart + index;
@@ -97,22 +91,20 @@ export const buildQuoteWorkbookBuffer = async (input: QuoteWorkbookInput) => {
 
   let row = pricingStart + pricingRows.length + 2;
   sheet.mergeCells(row, 2, row, 4);
-  sheet.getCell(row, 2).value =
-    'Commercial Terms & Assumptions / 商务条款与报价假设';
+  sheet.getCell(row, 2).value = 'Commercial Terms & Assumptions';
   sheet.getCell(row, 2).font = { bold: true, color: { argb: 'FF173A52' } };
   row += 1;
-  const bilingual = (primary: string, translation: string) =>
-    [primary, translation].filter(Boolean).join(' / ');
+  // Use the editable primary content verbatim; legacy translations are never appended.
   const terms = [
-    `Validity: ${input.template.validityDays} days / 有效期 ${input.template.validityDays} 天`,
-    `Payment terms: ${bilingual(input.template.paymentTerms, input.template.paymentTermsZh)}`,
+    `Validity: ${input.template.validityDays} days`,
+    `Payment terms: ${input.template.paymentTerms}`,
     ...(input.template.termsAndConditions
-      ? ['Terms & Conditions / 商务条款', input.template.termsAndConditions]
+      ? ['Terms & Conditions', input.template.termsAndConditions]
       : []),
-    'Quotation Assumptions / 报价假设',
+    'Quotation Assumptions',
     ...input.assumptions
       .filter((item) => item.included)
-      .map((item) => bilingual(item.text, item.textZh)),
+      .map((item) => item.text),
   ];
   // Split long paragraphs into bounded rows so Excel's row-height limit cannot
   // hide T&C. Fit width only: long client documents may print on multiple pages.

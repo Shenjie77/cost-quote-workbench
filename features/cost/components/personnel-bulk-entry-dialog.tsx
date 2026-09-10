@@ -1,7 +1,7 @@
 /** Review a local table before appending a new manual personnel batch. */
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { BusinessUnitSelect } from '@/features/master-data/business-unit-select';
 import {
   Dialog,
   DialogContent,
@@ -281,12 +281,15 @@ export function PersonnelBulkEntryForm({
           version&apos;s rates and allowance.
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <label className="grid gap-1 text-[11px] font-medium">
+          <label
+            htmlFor="bulk-cost-default-bu"
+            className="grid gap-1 text-[11px] font-medium"
+          >
             Default BU
-            <Input
+            <BusinessUnitSelect
+              id="bulk-cost-default-bu"
               aria-label="Bulk default BU"
               value={options.defaultBU || ''}
-              maxLength={200}
               disabled={locked}
               className="h-8 text-xs"
               placeholder="For blank BU cells"

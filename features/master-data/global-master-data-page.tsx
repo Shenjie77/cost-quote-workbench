@@ -77,6 +77,7 @@ const fieldLabels: Record<string, string> = {
   revision: 'Revision / 目录版本',
   item: 'Item / 服务条目',
   bu: 'BU / 业务领域',
+  buCode: 'BU Code / 公司编码',
   ratePercent: 'Profit share rate (%) / 分成比例（%）',
   supplier: 'Supplier / 供应商',
   pricingBasis: 'Pricing basis / 计价依据',
@@ -141,6 +142,17 @@ const workflowFieldLabels: Record<string, string> = {
   finishesWorkflow: 'Complete Workflow',
   autoSkip: 'Skip Optional Step by Default',
 };
+/** Quote-template conflicts show only the fields used by the English customer document. */
+const quoteTemplateFieldLabels: Record<string, string> = {
+  name: 'Template Name',
+  clientPattern: 'Client Pattern',
+  documentTitle: 'Document Title',
+  validityDays: 'Validity Days',
+  paymentTerms: 'Payment Terms',
+  termsAndConditions: 'Terms & Conditions',
+  defaultAssumptionIds: 'Default Assumption References',
+  active: 'Active',
+};
 const displayValue = (value: unknown, workflow = false): string => {
   if (value === true) return workflow ? 'Yes' : 'Yes / 是';
   if (value === false) return workflow ? 'No' : 'No / 否';
@@ -185,6 +197,7 @@ export function globalConflictTitle(
       .join(' · ') || (tab === 'workflow' ? 'Workflow Step' : conflict.key)
   );
 }
+/** Display the saved conflict variant using only the fields relevant to its catalog. */
 export function GlobalConflictFields({
   item,
   tab,
@@ -202,6 +215,12 @@ export function GlobalConflictFields({
     'inputZh',
   ]);
   if (tab === 'workflow') hidden.add('code');
+  if (tab === 'quote-templates') {
+    // Old translations remain stored for history, but are no longer customer-template fields.
+    hidden.add('nameZh');
+    hidden.add('documentTitleZh');
+    hidden.add('paymentTermsZh');
+  }
   if (tab === 'subcontract') {
     hidden.add('supplier');
     hidden.add('pricingBasis');
@@ -213,11 +232,17 @@ export function GlobalConflictFields({
         .map(([key, value]) => (
           <div key={key}>
             <dt className="text-muted-foreground">
-              {(tab === 'workflow' ? workflowFieldLabels : fieldLabels)[key] ||
-                key}
+              {(tab === 'workflow'
+                ? workflowFieldLabels
+                : tab === 'quote-templates'
+                  ? quoteTemplateFieldLabels
+                  : fieldLabels)[key] || key}
             </dt>
             <dd className="mt-0.5 whitespace-pre-wrap break-words font-medium">
-              {displayValue(value, tab === 'workflow')}
+              {displayValue(
+                value,
+                tab === 'workflow' || tab === 'quote-templates',
+              )}
             </dd>
           </div>
         ))}

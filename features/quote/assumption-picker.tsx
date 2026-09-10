@@ -76,9 +76,6 @@ export function AssumptionPicker({
                   </TableCell>
                   <TableCell className="max-w-xl whitespace-pre-wrap">
                     {entry.text}
-                    <small className="block text-muted-foreground">
-                      {entry.textZh}
-                    </small>
                   </TableCell>
                   <TableCell>
                     <Button

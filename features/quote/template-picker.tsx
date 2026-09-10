@@ -40,7 +40,7 @@ export function QuoteTemplatePicker({
       : choices.find((item) => item.id === selectedId) || choices[0];
   const items = choices.map((item) => ({
     value: item.id,
-    label: `${item.name} · ${item.clientPattern.trim() === '*' ? 'Common / 通用' : item.clientPattern}`,
+    label: `${item.name} · ${item.clientPattern.trim() === '*' ? 'Common' : item.clientPattern}`,
   }));
 
   return (
@@ -50,13 +50,10 @@ export function QuoteTemplatePicker({
     >
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="quote-template-heading" className="text-sm font-semibold">
-          Quotation Template{' '}
-          <span className="ml-2 text-xs font-normal text-muted-foreground">
-            引用报价模板
-          </span>
+          Quotation Template
         </h2>
         <span className="text-xs text-muted-foreground">
-          Client / 客户：{client} · {choices.length} available / 个适用模板
+          Client: {client} · {choices.length} available
         </span>
       </div>
       <div className="grid items-end gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto]">
@@ -66,7 +63,7 @@ export function QuoteTemplatePicker({
             htmlFor="quote-template-select"
             className="mb-1 block text-xs text-muted-foreground"
           >
-            Select template / 选择模板
+            Select template
           </label>
           <Select
             items={items}
@@ -79,9 +76,7 @@ export function QuoteTemplatePicker({
               aria-labelledby="quote-template-label"
               className="w-full min-w-0"
             >
-              <SelectValue>
-                {candidate?.name || 'Select template / 选择模板'}
-              </SelectValue>
+              <SelectValue>{candidate?.name || 'Select template'}</SelectValue>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               {items.map((item) => (
@@ -96,11 +91,10 @@ export function QuoteTemplatePicker({
           disabled={!candidate || busy}
           onClick={() => candidate && onApply(candidate.id)}
         >
-          <FileCheck2 /> Apply Template{' '}
-          <span className="text-xs opacity-75">引用模板</span>
+          <FileCheck2 /> Apply Template
         </Button>
         <Button variant="outline" onClick={onManage}>
-          Manage templates <span className="text-xs opacity-65">管理模板</span>
+          Manage templates
         </Button>
       </div>
       <div
@@ -108,34 +102,30 @@ export function QuoteTemplatePicker({
         aria-live="polite"
       >
         <p>
-          Applied / 当前已引用：
+          Applied:{' '}
           <span className="font-medium text-foreground">
-            {selected?.name || 'None / 未引用'}
+            {selected?.name || 'None'}
           </span>
           {!selectedAvailable && (
             <span className="ml-2 text-amber-700">
-              Unavailable / 请重新选择适用模板
+              Unavailable — select an applicable template
             </span>
           )}
         </p>
         {candidate && candidate.id !== selectedId && (
           <p className="text-amber-700">
-            Selection not applied yet — click Apply Template. /
-            尚未引用，请点击“引用模板”。
+            Selection not applied yet — click Apply Template.
           </p>
         )}
         {choices.length ? (
           <p>
             Apply title, payment terms and T&C; append eligible default
-            assumptions without overwriting quote edits. / 引用标题、付款条款及
-            T&C，补入默认假设，保留本次已编辑内容。
+            assumptions without overwriting quote edits.
           </p>
         ) : (
           <p role="alert" className="text-amber-700">
             No active template matches this client. Manage templates to add one
-            or copy from another project. /
-            无适用模板，请进入管理模板新增或从其他项目复制；客户名称需匹配，*
-            为通用。
+            or copy from another project.
           </p>
         )}
       </div>

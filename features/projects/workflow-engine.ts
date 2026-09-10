@@ -50,6 +50,8 @@ export type WorkflowSyncPreview = {
   retained: string[];
   steps: WorkflowStep[];
 };
+// Distinguish inherited progress from actual completion and optional-node skipping.
+const TEMPLATE_SYNC_SKIP = 'template-sync';
 
 /** Treat both explicit completion and recorded skipping as terminal execution. */
 const isTerminalNode = (step: WorkflowStep) =>
@@ -384,7 +386,9 @@ export function workflowActionBlockers(
       (s) =>
         s.required &&
         s.state !== 'completed' &&
-        !['new-cost-round', 'legacy-registration'].includes(s.skippedBy || ''),
+        !['new-cost-round', 'legacy-registration', TEMPLATE_SYNC_SKIP].includes(
+          s.skippedBy || '',
+        ),
     )
     .map((s) => `Complete the mandatory node first: ${s.name || s.nameZh}`);
   // Cost gating follows the workflow's round, which can differ from the selected cost tab.
@@ -908,6 +912,49 @@ const WORKFLOW_RUNTIME_FIELDS = [
   'date',
   'dateZh',
 ] as const;
+
+/** Identify actual execution evidence without treating a future optional skip as progress. */
+function hasRecordedWorkflowProgress(step: WorkflowStep) {
+  return (
+    workflowNodeActive(step) ||
+    step.state === 'paused' ||
+    step.state === 'completed'
+  );
+}
+
+/** Inherit passed phases only for new nodes, leaving existing and current parallel work intact. */
+function inheritPassedWorkflowPhases(
+  steps: WorkflowStep[],
+  existingByCode: Map<string, WorkflowStep>,
+  changes: string[],
+) {
+  const phases = workflowPhaseGroups(steps);
+  let laterPhaseHasProgress = false;
+  // Walk backwards so each phase can use only evidence from existing downstream work.
+  for (const phase of phases.toReversed()) {
+    const existingPeers = phase.steps.flatMap((step) => {
+      const previous = existingByCode.get(step.code);
+      return previous ? [previous] : [];
+    });
+    const phaseHasProgress = existingPeers.some(hasRecordedWorkflowProgress);
+    // New parallel peers inherit a phase only after every existing peer has finished.
+    const phaseHasFinished =
+      phaseHasProgress && existingPeers.every(isTerminalNode);
+    if (laterPhaseHasProgress || phaseHasFinished)
+      for (const step of phase.steps) {
+        if (existingByCode.has(step.code)) continue;
+        step.state = 'skipped';
+        step.skippedBy = TEMPLATE_SYNC_SKIP;
+        step.note =
+          'Automatically passed on workflow publication because this project had already passed the phase. This records inherited progress, not a completion confirmation.';
+        changes.push(
+          `Automatically pass new node: ${step.name || step.nameZh} (phase already passed).`,
+        );
+      }
+    laterPhaseHasProgress ||= phaseHasProgress;
+  }
+}
+
 /** Merge published definitions with runtime/history evidence and report executable-plan blockers. */
 export function previewWorkflowSync(
   workspace: WorkbenchWorkspace,
@@ -1030,7 +1077,9 @@ export function previewWorkflowSync(
       `The merged workflow is not executable: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  // A pending required gate may never be moved/inserted behind recorded progress.
+  // Newly introduced gates inherit passed phases without changing existing execution evidence.
+  inheritPassedWorkflowPhases(steps, existingByCode, changes);
+  // Existing pending required gates still cannot be moved before recorded progress.
   const phases = workflowPhaseGroups(steps);
   for (const [index, phase] of phases.entries())
     for (const step of phase.steps) {
@@ -1038,14 +1087,7 @@ export function previewWorkflowSync(
         if (
           phases
             .slice(index + 1)
-            .some((p) =>
-              p.steps.some(
-                (s) =>
-                  workflowNodeActive(s) ||
-                  s.state === 'paused' ||
-                  s.state === 'completed',
-              ),
-            )
+            .some((p) => p.steps.some(hasRecordedWorkflowProgress))
         )
           blockers.push(
             `Mandatory node ${step.name || step.nameZh} is before recorded progress. Adjust the workflow or complete this node first.`,
@@ -1086,8 +1128,24 @@ export function applyWorkflowTemplate<T extends WorkbenchWorkspace>(
   )
     return draftWorkspace;
   const previousStepCode = draftWorkspace.currentWorkflowStepCode;
+  const existingCodes = new Set(draftWorkspace.processSteps.map((s) => s.code));
   draftWorkspace.processSteps = plan.steps;
   draftWorkspace.workflowTemplateRevision = revision;
+  // Timestamp and audit each inherited node at publication, never during the read-only preview.
+  for (const added of draftWorkspace.processSteps) {
+    if (existingCodes.has(added.code) || added.skippedBy !== TEMPLATE_SYNC_SKIP)
+      continue;
+    added.completedAt = now;
+    added.updatedAt = now;
+    appendWorkflowEvent(
+      draftWorkspace,
+      added,
+      'auto_skip',
+      `Global workflow r${revision}: ${added.note}`,
+      now,
+      previousStepCode,
+    );
+  }
   const step =
     draftWorkspace.processSteps.find((s) => s.code === previousStepCode) ||
     draftWorkspace.processSteps[0];

@@ -18,6 +18,8 @@ import {
 export type ProfitShareRate = {
   id: string;
   bu: string;
+  /** Human-maintained company code only; BU matching and record identity never use it. */
+  buCode?: string;
   ratePercent: number;
   active: boolean;
 };
@@ -46,6 +48,7 @@ const compareKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const finiteMoney = (value: number) =>
   Number.isFinite(value) ? roundMoney(Math.max(0, value)) : 0;
 
+/** Validate governed names/rates and optional company metadata without treating codes as keys. */
 export function validateProfitShareRates(value: unknown): string[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) return ['Profit-share rates must be a list.'];
@@ -64,6 +67,14 @@ export function validateProfitShareRates(value: unknown): string[] {
     if (!bu || bu.length > 200 || bus.has(bu))
       errors.push(
         `Profit-share row ${index + 1} requires a unique BU (max 200 characters).`,
+      );
+    // Optional company codes may be duplicated; they are display metadata, not keys.
+    if (
+      entry.buCode !== undefined &&
+      (typeof entry.buCode !== 'string' || entry.buCode.length > 200)
+    )
+      errors.push(
+        `BU code for ${labelBu(entry.bu) || `row ${index + 1}`} must be text of at most 200 characters.`,
       );
     if (
       typeof entry.ratePercent !== 'number' ||

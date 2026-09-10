@@ -16,6 +16,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { openWorkspaceRepository } from '../server/workspace-repository.mjs';
 import { MAX_PROJECT_FILE_BYTES } from '../server/project-files.mjs';
 import {
@@ -938,6 +939,119 @@ test('project move rejects occupied or nested destinations and rolls back a fail
       binary,
     );
     db.close();
+  } finally {
+    f.close();
+  }
+});
+
+test('pasted destination forms move to the exact intended folder and retain archived and manual files', () => {
+  const f = fixture();
+  try {
+    const saved = create(f.repository);
+    const record = f.repository.files.add('P-ARCHIVE', {
+      originalName: 'scope.pdf',
+      buffer: binary,
+    });
+    const settings = f.repository.files.getSettings();
+    const inputForms = [
+      (folder) => `  "${folder}"  `,
+      (folder) => `'${folder}'`,
+      (folder) => pathToFileURL(folder).href,
+      (folder) => folder.replace(/[ ()&]/g, '\\$&'),
+    ];
+    for (const [index, inputForm] of inputForms.entries()) {
+      const archive = f.repository.files.list('P-ARCHIVE');
+      writeFileSync(
+        path.join(archive.projectPath, 'manual.txt'),
+        'keep original notes',
+      );
+      const destination = path.join(
+        f.directory,
+        `客户 Folder ${index} (A & B)`,
+      );
+      const moved = f.repository.files.moveProject('P-ARCHIVE', {
+        expectedProjectPath: archive.projectPath,
+        projectPath: inputForm(destination),
+      });
+      assert.equal(moved.projectPath, realpathSync(destination));
+      assert.equal(existsSync(archive.projectPath), false);
+      assert.equal(
+        readFileSync(path.join(destination, 'manual.txt'), 'utf8'),
+        'keep original notes',
+      );
+      assert.deepEqual(
+        f.repository.files.read('P-ARCHIVE', record.id).buffer,
+        binary,
+      );
+      assert.deepEqual(f.repository.get('P-ARCHIVE'), saved);
+      assert.deepEqual(f.repository.files.getSettings(), settings);
+    }
+  } finally {
+    f.close();
+  }
+});
+
+test('normalized inputs still reject unsafe destinations without changing the archive or source files', () => {
+  const f = fixture();
+  try {
+    create(f.repository);
+    const record = f.repository.files.add('P-ARCHIVE', {
+      originalName: 'evidence.bin',
+      buffer: binary,
+    });
+    const archive = f.repository.files.list('P-ARCHIVE');
+    const occupied = path.join(f.directory, 'occupied folder');
+    mkdirSync(occupied);
+    writeFileSync(path.join(occupied, 'keep.txt'), 'existing destination data');
+    for (const projectPath of [
+      `"${occupied}"`,
+      pathToFileURL(path.join(archive.projectPath, 'nested')).href,
+      'file:///unusable%00destination',
+      '"relative/folder"',
+    ]) {
+      assert.throws(() =>
+        f.repository.files.moveProject('P-ARCHIVE', {
+          expectedProjectPath: archive.projectPath,
+          projectPath,
+        }),
+      );
+      assert.equal(
+        f.repository.files.list('P-ARCHIVE').projectPath,
+        archive.projectPath,
+      );
+      assert.deepEqual(
+        f.repository.files.read('P-ARCHIVE', record.id).buffer,
+        binary,
+      );
+    }
+    assert.equal(
+      readFileSync(path.join(occupied, 'keep.txt'), 'utf8'),
+      'existing destination data',
+    );
+  } finally {
+    f.close();
+  }
+});
+
+test('archive root settings accept quoted and file URL paths before provisioning new projects', () => {
+  const f = fixture();
+  try {
+    const root = path.join(f.directory, 'Quoted archive root');
+    const settings = f.repository.files.updateSettings(
+      { rootPath: `"${root}"` },
+      1,
+    );
+    assert.equal(settings.rootPath, realpathSync(root));
+    const unchanged = f.repository.files.updateSettings(
+      { rootPath: pathToFileURL(root).href },
+      settings.revision,
+    );
+    assert.deepEqual(unchanged, settings);
+    create(f.repository);
+    assert.equal(
+      f.repository.files.list('P-ARCHIVE').rootPath,
+      settings.rootPath,
+    );
   } finally {
     f.close();
   }

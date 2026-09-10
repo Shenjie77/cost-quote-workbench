@@ -17,6 +17,12 @@
 
 **Project Folder** 显示当前项目的完整文件夹路径。输入新的独立路径，点击 **Apply Folder** 迁移已有归档；它独立于项目信息保存，也不更改其他项目或新项目的默认根目录。未应用的路径修改需要先 Apply 或 Reset，才能保存项目信息。修改项目名称不会自行重命名文件夹。
 
+支持直接粘贴带外层引号的完整路径、`file:///...` 本地文件 URL、`~/...` 主目录路径，以及 macOS Terminal 中带空格转义的路径。服务器会先解析这些输入格式，再检查目标目录。Windows 盘符和 UNC 路径只能由 Windows 服务使用；macOS 上的网络共享应先挂载，再填写 `/Volumes/...` 等本机路径，不能直接填写 `smb://...`。目标应包含新的项目文件夹名，且该文件夹尚不存在。
+
+在原生 Windows 服务中，`D:\QuotePlatform\Test Project` 是有效目标格式，空格及反斜杠会保留。盘符或共享根不可访问时会明确提示目标不可用，父目录查找不会停留在根目录无限重试。若服务运行在 WSL 或容器中，应填写该服务可访问的挂载路径，不能仅按浏览器所在系统判断。
+
+Windows 迁移会刷新写入的文件并校验内容，但跳过 POSIX 只读目录句柄的刷新；旧布局迁移仅以可写句柄刷新新副本，不刷新只读源文件。该差异源于 Windows 的 [FlushFileBuffers](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers) 需要可写句柄。内容验证失败或文件刷新失败时保留原件。
+
 ## 文件组织
 
 ```text

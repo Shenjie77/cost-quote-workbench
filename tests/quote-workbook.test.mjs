@@ -94,4 +94,62 @@ test('quotation workbook contains pricing, template terms, and assumptions', asy
   assert.equal(sheet.getCell('D14').value, 1250);
   assert.equal(sheet.getCell('D16').value, 1362.5);
   assert.match(sheet.getCell('B20').text, /Validity/);
+  assert.doesNotMatch(
+    JSON.stringify(sheet.getSheetValues()),
+    /\p{Script=Han}/u,
+  );
+});
+
+test('new quotation output ignores legacy translations and retains long English primary clauses', async () => {
+  const terms =
+    'Every delivery milestone requires the agreed customer acceptance. '.repeat(
+      240,
+    );
+  const input = {
+    project: {
+      id: 'P-EN',
+      name: 'Service project',
+      client: 'Customer',
+      currency: 'SGD',
+    },
+    quoteNumber: 'Q-EN',
+    costVersion: 'V1',
+    template: {
+      ...initialQuoteTemplates[0],
+      nameZh: '历史模板名',
+      documentTitleZh: '历史中文标题',
+      paymentTermsZh: '历史中文付款条款',
+      termsAndConditions: terms,
+    },
+    assumptions: [
+      {
+        id: 'legacy-clause',
+        text: 'Delivery scope retained.',
+        textZh: '历史中文假设',
+        included: true,
+      },
+    ],
+    pricing: calculatePricing(100, {
+      targetGrossMargin: 20,
+      discount: 0,
+      gstPercent: 9,
+    }),
+  };
+  const before = structuredClone(input);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildQuoteWorkbookBuffer(input));
+  const sheet = workbook.getWorksheet('Quotation');
+  const paragraphs = [];
+  sheet.eachRow((row) => {
+    paragraphs.push(row.getCell(2).text);
+    assert.ok((row.height ?? 15) < 409.5);
+  });
+  const text = JSON.stringify(sheet.getSheetValues());
+  assert.doesNotMatch(
+    text,
+    /\p{Script=Han}|documentTitleZh|paymentTermsZh|textZh/u,
+  );
+  assert.ok(paragraphs.join('').includes(terms));
+  assert.match(text, /Delivery scope retained/);
+  assert.deepEqual(input, before, 'export must preserve saved legacy fields');
 });

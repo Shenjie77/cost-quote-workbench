@@ -24,12 +24,16 @@ export function ProfitShareEditor({
   setItems: React.Dispatch<React.SetStateAction<ProfitShareRate[]>>;
   query: string;
 }) {
+  /** Patch one stable record; editing its company code does not rename the BU. */
   const update = (id: string, patch: Partial<ProfitShareRate>) =>
     setItems((rows) =>
       rows.map((row) => (row.id === id ? { ...row, ...patch } : row)),
     );
   const rows = items.filter((row) =>
-    row.bu.toLowerCase().includes(query.trim().toLowerCase()),
+    [row.bu, row.buCode || '']
+      .join(' ')
+      .toLowerCase()
+      .includes(query.trim().toLowerCase()),
   );
   const errors = validateProfitShareRates(items);
   return (
@@ -50,6 +54,7 @@ export function ProfitShareEditor({
               {
                 id: `profit-share-${crypto.randomUUID()}`,
                 bu: '',
+                buCode: '',
                 ratePercent: 0,
                 active: true,
               },
@@ -64,6 +69,7 @@ export function ProfitShareEditor({
           <TableHeader>
             <TableRow className="bg-[#f2f0ea]">
               <TableHead>BU</TableHead>
+              <TableHead className="w-48">BU Code</TableHead>
               <TableHead className="w-48 text-right">
                 Profit Share Rate (%)
               </TableHead>
@@ -83,6 +89,18 @@ export function ProfitShareEditor({
                     maxLength={200}
                     onChange={(event) =>
                       update(row.id, { bu: event.target.value })
+                    }
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    className="h-8 text-xs"
+                    aria-label={`${row.bu || 'New BU'} BU code`}
+                    value={row.buCode || ''}
+                    placeholder="Company code (optional)"
+                    maxLength={200}
+                    onChange={(event) =>
+                      update(row.id, { buCode: event.target.value })
                     }
                   />
                 </TableCell>
@@ -137,7 +155,7 @@ export function ProfitShareEditor({
             {!rows.length && (
               <TableRow>
                 <TableCell
-                  colSpan={4}
+                  colSpan={5}
                   className="h-24 text-center text-muted-foreground"
                 >
                   {items.length
@@ -160,9 +178,10 @@ export function ProfitShareEditor({
         </div>
       )}
       <p className="border-t px-3 py-2 text-xs text-muted-foreground">
-        Match the BU names used in labor and subcontract costs. Unconfigured or
-        inactive BUs use 0% and are flagged in Pricing Parameters. Apply updated
-        rates explicitly from the quotation page.
+        BU Code is for manual comparison with company records only. Cost inputs
+        and profit sharing continue to use BU names. Unconfigured or inactive
+        BUs use 0% and are flagged in Pricing Parameters. Apply updated rates
+        explicitly from the quotation page.
       </p>
     </>
   );

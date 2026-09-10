@@ -2,6 +2,7 @@
 /** Reusable workbook-column mapping; no changes are applied until preview succeeds. */
 import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
+import { BusinessUnitSelect } from '@/features/master-data/business-unit-select';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -238,10 +239,15 @@ export function CostImportPanel({
                 </SelectContent>
               </Select>
             </label>
-            <label>
+            <label
+              htmlFor={`cost-import-bu-${projectId || 'local'}-${versionCode || 'draft'}`}
+            >
               Default BU / 默认领域
-              <Input
+              <BusinessUnitSelect
+                aria-label="Import default BU"
+                id={`cost-import-bu-${projectId || 'local'}-${versionCode || 'draft'}`}
                 value={mapping.defaultBu}
+                disabled={busy}
                 onChange={(e) => change({ defaultBu: e.target.value })}
               />
             </label>

@@ -17,6 +17,7 @@ import {
   type WorkflowPublishResult,
 } from './workflow-publish-client';
 
+/** Explain inherited progress, retained history and optional active-SLA changes before publication. */
 export function WorkflowPublishImpact({
   preview,
   migratedIds,
@@ -33,6 +34,11 @@ export function WorkflowPublishImpact({
       <p className="text-sm">
         Template Revision {preview.revision} → {preview.nextRevision} ·{' '}
         {preview.projects.length} projects in preview
+      </p>
+      <p className="text-xs text-muted-foreground">
+        New steps in phases a project has already passed are automatically
+        passed with a skip record. Steps in current or future phases remain
+        pending. Completed projects retain their recorded workflow.
       </p>
       {!preview.projects.length && (
         <p className="text-xs text-muted-foreground">

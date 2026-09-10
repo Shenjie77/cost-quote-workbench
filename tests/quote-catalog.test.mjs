@@ -12,6 +12,54 @@ import {
   initialQuoteAssumptions,
   initialQuoteTemplates,
 } from '../features/quote/types.ts';
+import {
+  createBlankWorkspace,
+  projectRecord,
+} from '../features/workbench/workspace-factories.ts';
+import { openWorkspaceRepository } from '../server/workspace-repository.mjs';
+import { validateGlobalMasterDataRows } from '../server/global-master-data.mjs';
+
+test('English-only templates and legacy translation snapshots both remain persistable', () => {
+  const workspace = createBlankWorkspace(
+    projectRecord('P-TEMPLATE-EN', 'Project', 'Customer'),
+  );
+  assert.equal(workspace.quoteTemplates[0].documentTitleZh, undefined);
+  assert.doesNotThrow(() =>
+    validateGlobalMasterDataRows('quote-templates', workspace.quoteTemplates),
+  );
+  const legacy = {
+    ...workspace.quoteTemplates[0],
+    nameZh: '原模板名称',
+    documentTitleZh: '原标题',
+    paymentTermsZh: '原付款条件',
+  };
+  workspace.quoteHistory = [
+    {
+      id: 'legacy-output',
+      quoteNumber: 'Q-OLD',
+      generatedAt: '2026-09-09T01:00:00.000Z',
+      costVersion: 'V1',
+      templateId: legacy.id,
+      status: 'Draft',
+      costAmount: 100,
+      quoteBeforeTax: 125,
+      gstAmount: 0,
+      quoteAfterTax: 125,
+      grossMarginPercent: 20,
+      note: '',
+      templateSnapshot: legacy,
+      assumptionSnapshots: [],
+    },
+  ];
+  const repository = openWorkspaceRepository(':memory:');
+  try {
+    const saved = repository.save(workspace.project.id, workspace, null);
+    assert.equal(saved.workspace.quoteTemplates[0].documentTitleZh, undefined);
+    assert.deepEqual(saved.workspace.quoteHistory[0].templateSnapshot, legacy);
+  } finally {
+    repository.close();
+  }
+});
 
 test('legacy library names trim whitespace without modifying quoted body text', () => {
   const text = ' '.repeat(100) + 'Valid existing clause';

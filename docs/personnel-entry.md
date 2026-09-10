@@ -3,6 +3,14 @@
 Open **Cost Workspace → Cost Input**. The compact grid keeps
 the Y1–Y5 / All Years selector and the Sites / Direct MD mode buttons.
 
+BU fields select from saved, active entries in **Master Data → Profit Share**.
+This directory is shared by personnel rows, bulk and Excel import defaults,
+subcontract items and travel rows. Company BU codes are displayed beside names;
+costs continue to store the BU name. Historical or inactive names remain visible
+as **Saved value** and are never cleared when opening a cost version. New choices
+come from the active directory, and confirmed/locked versions remain read-only.
+Editing the directory does not apply new profit-share rates to existing quotes.
+
 **Groups**, beside Mode, shows a heading and row count for each custom group.
 The editable **Group** column is separate from **Scope**. For example, the group
 `Network Design & Planning` can contain `HLD design` (1 MD), `LLD design` (3 MD)

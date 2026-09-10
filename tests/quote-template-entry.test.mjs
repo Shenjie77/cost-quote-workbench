@@ -11,8 +11,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { initialQuoteTemplates } from '../features/quote/types.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-// Node strips .ts natively, but TSX needs a test-only transform. Resolve only
-// application modules; leave dependency resolution and production builds alone.
+// Transform UI modules and the API client's TypeScript parameter properties for Node.
+// Resolve only application modules; production builds and dependencies are unchanged.
 const hooks = registerHooks({
   resolve(specifier, context, nextResolve) {
     const alias = specifier.startsWith('@/');
@@ -32,7 +32,11 @@ const hooks = registerHooks({
     return nextResolve(specifier, context);
   },
   load(url, context, nextLoad) {
-    if (!url.endsWith('.tsx')) return nextLoad(url, context);
+    if (
+      (!url.endsWith('.tsx') && !url.endsWith('/workspace-client.ts')) ||
+      url.includes('/node_modules/')
+    )
+      return nextLoad(url, context);
     const source = ts.transpileModule(
       readFileSync(fileURLToPath(url), 'utf8'),
       {
@@ -49,12 +53,18 @@ const hooks = registerHooks({
 const { QuoteTemplatePicker } =
   await import('../features/quote/template-picker.tsx');
 const { QuoteView } = await import('../features/quote/quote-view.tsx');
+const { QuoteTemplatesView } =
+  await import('../features/master-data/quote-catalog-view.tsx');
+const { GlobalConflictFields } =
+  await import('../features/master-data/global-master-data-page.tsx');
 hooks.deregister();
 
 const template = {
   ...initialQuoteTemplates[0],
   id: 'internal-template-id',
   name: 'Customer Service Quote',
+  documentTitleZh: '历史报价标题',
+  paymentTermsZh: '历史付款条件',
 };
 const noop = () => {};
 const pickerProps = {
@@ -72,13 +82,59 @@ test('quotation template entry renders a named selector and explicit Apply butto
   );
   assert.match(markup, /Quotation Template/);
   assert.match(markup, /Apply Template/);
-  assert.match(markup, /引用模板/);
+  assert.doesNotMatch(markup, /\p{Script=Han}/u);
   const selector = markup.match(
     /<button[^>]*id="quote-template-select"[^>]*>[\s\S]*?<\/button>/,
   )?.[0];
   assert.ok(selector);
   assert.match(selector, /Customer Service Quote/);
   assert.doesNotMatch(selector, />internal-template-id</);
+});
+
+test('template editor hides legacy translation inputs while retaining original T&C', () => {
+  const legacy = {
+    ...template,
+    nameZh: '旧模板名称',
+    documentTitleZh: '旧标题',
+    paymentTermsZh: '旧付款条款',
+    termsAndConditions: 'Customer original text\n客户原始条款',
+  };
+  const before = structuredClone(legacy);
+  const markup = renderToStaticMarkup(
+    React.createElement(QuoteTemplatesView, {
+      templates: [legacy],
+      setTemplates: noop,
+      library: [],
+      query: '',
+      announce: noop,
+    }),
+  );
+  assert.doesNotMatch(markup, /旧模板名称|旧标题|旧付款条款|Translation|译文/);
+  assert.match(markup, /客户原始条款/);
+  assert.doesNotMatch(markup.replace('客户原始条款', ''), /\p{Script=Han}/u);
+  assert.deepEqual(legacy, before);
+});
+
+test('quotation template conflict previews use English labels and hide legacy translations', () => {
+  const markup = renderToStaticMarkup(
+    React.createElement(GlobalConflictFields, {
+      item: {
+        ...template,
+        nameZh: '历史模板名称',
+        defaultAssumptionIds: ['scope', 'delivery'],
+        termsAndConditions: 'Customer T&C',
+      },
+      tab: 'quote-templates',
+    }),
+  );
+  assert.match(markup, /Document title/i);
+  assert.match(markup, /Payment terms/i);
+  assert.match(markup, /Customer T&amp;C/);
+  assert.match(markup, /scope, delivery/);
+  assert.doesNotMatch(
+    markup,
+    /\p{Script=Han}|nameZh|documentTitleZh|paymentTermsZh/u,
+  );
 });
 
 test('missing customer templates leave an actionable entry instead of hiding it', () => {
@@ -120,7 +176,14 @@ test('quotation template entry precedes pricing and customer preview in the real
       quoteTemplates: [template],
       selectedQuoteTemplateId: template.id,
       setSelectedQuoteTemplateId: trackWrite,
-      quoteAssumptions: [],
+      quoteAssumptions: [
+        {
+          id: 'included',
+          text: 'Included English clause',
+          textZh: '历史假设译文',
+          included: true,
+        },
+      ],
       setQuoteAssumptions: trackWrite,
       quoteHistory: [],
       setQuoteHistory: trackWrite,
@@ -135,6 +198,16 @@ test('quotation template entry precedes pricing and customer preview in the real
       markup.indexOf('Client Output Preview'),
   );
   assert.equal((markup.match(/id="quote-template-select"/g) || []).length, 1);
+  const preview = markup
+    .match(/<section\b[\s\S]*?<\/section>/g)
+    ?.find((section) => section.includes('Client Output Preview'));
+  assert.ok(preview);
+  assert.doesNotMatch(preview, /\p{Script=Han}/u);
+  assert.match(preview, /Included English clause/);
+  assert.doesNotMatch(
+    markup,
+    /历史报价标题|历史付款条件|历史假设译文|Quotation assumption translation/,
+  );
   assert.equal(
     writes,
     0,

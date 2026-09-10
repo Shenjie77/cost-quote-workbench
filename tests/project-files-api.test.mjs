@@ -63,17 +63,18 @@ test('project folder API moves existing attachments with independent path CAS an
     originalName: 'scope.pdf',
     buffer: Buffer.from('scope evidence'),
   });
+  const destination = path.join(directory, 'New location', 'Customer Project');
   const json = {
     apiVersion: 'cost-workbench/local-v1',
     kind: 'ProjectArchiveMoveRequest',
-    projectPath: path.join(directory, 'New location', 'Customer Project'),
+    projectPath: `"${destination}"`,
     expectedProjectPath: original.projectPath,
   };
   const endpoint = '/api/local/projects/FILES-API/files/location';
   const moved = await call(repository, endpoint, { method: 'PUT', json });
   assert.equal(moved.status, 200);
   assert.equal(moved.body.kind, 'ProjectArchiveLocation');
-  assert.equal(moved.body.data.projectPath, realpathSync(json.projectPath));
+  assert.equal(moved.body.data.projectPath, realpathSync(destination));
   const download = await call(
     repository,
     `/api/local/projects/FILES-API/files/${file.id}/content`,

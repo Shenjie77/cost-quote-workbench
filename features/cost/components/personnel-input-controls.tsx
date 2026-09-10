@@ -2,6 +2,7 @@
 import { ArrowDown, ArrowUp, GripVertical, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { BusinessUnitSelect } from '@/features/master-data/business-unit-select';
 import {
   Table,
   TableBody,
@@ -514,28 +515,35 @@ export function PersonnelLinesTable({
                 : 'w-[160px] max-w-[160px]'
           }
         >
-          <Input
-            aria-label={
-              id === 'scope'
-                ? `Scope for row ${row.id}`
-                : `${id === 'groupName' ? 'Group' : 'BU'} for ${row.id}`
-            }
-            className={gridInput}
-            title={value}
-            value={value}
-            maxLength={id === 'scope' ? 500 : 200}
-            disabled={locked}
-            placeholder={
-              id === 'groupName'
-                ? 'Group name'
-                : id === 'scope'
-                  ? 'Scope'
-                  : 'BU'
-            }
-            onChange={(event) =>
-              update(row.id, { field: id, value: event.target.value })
-            }
-          />
+          {id === 'bu' ? (
+            <BusinessUnitSelect
+              aria-label={`BU for ${row.id}`}
+              className={gridSelect}
+              title={value}
+              value={value}
+              disabled={locked}
+              onChange={(event) =>
+                update(row.id, { field: 'bu', value: event.target.value })
+              }
+            />
+          ) : (
+            <Input
+              aria-label={
+                id === 'scope'
+                  ? `Scope for row ${row.id}`
+                  : `Group for ${row.id}`
+              }
+              className={gridInput}
+              title={value}
+              value={value}
+              maxLength={id === 'scope' ? 500 : 200}
+              disabled={locked}
+              placeholder={id === 'groupName' ? 'Group name' : 'Scope'}
+              onChange={(event) =>
+                update(row.id, { field: id, value: event.target.value })
+              }
+            />
+          )}
         </div>
       );
     } else if (id === 'reType') {

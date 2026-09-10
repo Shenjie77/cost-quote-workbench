@@ -196,7 +196,7 @@ export function QuoteTemplatesView({
   const template =
     templates.find((item) => item.id === editingId) || templates[0];
   const rows = templates.filter((row) =>
-    [row.name, row.nameZh, row.clientPattern, row.termsAndConditions]
+    [row.name, row.clientPattern, row.termsAndConditions]
       .join(' ')
       .toLowerCase()
       .includes(query.trim().toLowerCase()),
@@ -218,13 +218,10 @@ export function QuoteTemplatesView({
       : {
           id,
           name: 'New Client Template',
-          nameZh: '',
           clientPattern: '*',
           documentTitle: 'SERVICE QUOTATION',
-          documentTitleZh: '',
           validityDays: 30,
           paymentTerms: '30 days from invoice date',
-          paymentTermsZh: '',
           termsAndConditions: '',
           defaultAssumptionIds: [],
           active: true,
@@ -235,7 +232,7 @@ export function QuoteTemplatesView({
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2 text-xs">
-        <span>{rows.length} templates · 客户模板</span>
+        <span>{rows.length} templates</span>
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -243,10 +240,10 @@ export function QuoteTemplatesView({
             disabled={!template}
             onClick={() => add(template)}
           >
-            <Copy /> Duplicate / 复制
+            <Copy /> Duplicate
           </Button>
           <Button size="sm" onClick={() => add()}>
-            <Plus /> New template / 新建
+            <Plus /> New template
           </Button>
         </div>
       </div>
@@ -255,8 +252,8 @@ export function QuoteTemplatesView({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name / 模板</TableHead>
-                <TableHead>Client / 客户</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Client</TableHead>
                 <TableHead>Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -274,14 +271,12 @@ export function QuoteTemplatesView({
                     >
                       {row.name}
                       <small className="block text-muted-foreground">
-                        {row.active ? 'Active / 启用' : 'Inactive / 停用'}
+                        {row.active ? 'Active' : 'Inactive'}
                       </small>
                     </button>
                   </TableCell>
                   <TableCell>
-                    {row.clientPattern === '*'
-                      ? 'All / 通用'
-                      : row.clientPattern}
+                    {row.clientPattern === '*' ? 'All' : row.clientPattern}
                   </TableCell>
                   <TableCell>
                     <Button
@@ -290,14 +285,12 @@ export function QuoteTemplatesView({
                       aria-label={`Delete ${row.name}`}
                       onClick={() => {
                         if (templates.length <= 1) {
-                          announce(
-                            'Keep at least one template / 至少保留一个模板',
-                          );
+                          announce('Keep at least one template');
                           return;
                         }
                         if (
                           !window.confirm(
-                            `Delete "${row.name}"? Existing history snapshots stay. / 删除模板，历史快照保留。`,
+                            `Delete "${row.name}"? Existing history snapshots stay.`,
                           )
                         )
                           return;
@@ -314,22 +307,17 @@ export function QuoteTemplatesView({
               ))}
             </TableBody>
           </Table>
-          {!rows.length && (
-            <p className="p-3 text-xs">No matching templates / 无匹配模板</p>
-          )}
+          {!rows.length && <p className="p-3 text-xs">No matching templates</p>}
         </div>
         {template && (
           <div className="space-y-3 p-3">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {(
                 [
-                  ['name', 'Name / 模板名称'],
-                  ['nameZh', 'Translation / 译名（可选）'],
-                  ['clientPattern', 'Client / 完整客户名或 *'],
-                  ['documentTitle', 'Document title / 报价标题'],
-                  ['documentTitleZh', 'Title translation / 标题译文（可选）'],
-                  ['paymentTerms', 'Payment terms / 付款条款'],
-                  ['paymentTermsZh', 'Payment translation / 条款译文（可选）'],
+                  ['name', 'Name'],
+                  ['clientPattern', 'Client (full name or *)'],
+                  ['documentTitle', 'Document title'],
+                  ['paymentTerms', 'Payment terms'],
                 ] as const
               ).map(([field, label]) => (
                 <label key={field} className="text-xs text-muted-foreground">
@@ -347,7 +335,7 @@ export function QuoteTemplatesView({
                 htmlFor="template-validity"
                 className="text-xs text-muted-foreground"
               >
-                Validity days / 有效天数
+                Validity days
                 <Input
                   id="template-validity"
                   type="number"
@@ -377,25 +365,23 @@ export function QuoteTemplatesView({
                 checked={template.active}
                 onCheckedChange={(active) => update({ active })}
               />
-              Active / 启用模板
+              Active
             </label>
             <label htmlFor="template-tc" className="block text-xs">
-              Terms & Conditions / 客户 T&C
+              Terms & Conditions
               <Textarea
                 id="template-tc"
                 className="mt-1 min-h-40 text-xs"
                 maxLength={20000}
                 value={template.termsAndConditions}
-                placeholder="Enter this customer's T&C in any language / 按原文输入客户条款，保留换行"
+                placeholder="Enter this customer's original T&C; line breaks are preserved"
                 onChange={(event) =>
                   update({ termsAndConditions: event.target.value })
                 }
               />
             </label>
             <fieldset className="border p-2">
-              <legend className="px-1 text-xs">
-                Default assumptions / 选择模板时引用的假设
-              </legend>
+              <legend className="px-1 text-xs">Default assumptions</legend>
               <div className="grid max-h-48 gap-2 overflow-y-auto py-1 sm:grid-cols-2">
                 {library.map((entry) => {
                   const applicable =
@@ -431,7 +417,7 @@ export function QuoteTemplatesView({
                         {entry.name}
                         <small className="block text-muted-foreground">
                           {entry.clientPattern}
-                          {!applicable ? ' · Unavailable / 不适用' : ''}
+                          {!applicable ? ' · Unavailable' : ''}
                         </small>
                       </span>
                     </label>
@@ -440,15 +426,13 @@ export function QuoteTemplatesView({
               </div>
               {!library.length && (
                 <p className="text-xs text-muted-foreground">
-                  Create library entries in Assumptions first. /
-                  请先在假设库添加内容。
+                  Create library entries in Assumptions first.
                 </p>
               )}
             </fieldset>
             <p className="text-xs text-muted-foreground">
               Exact client match (case-insensitive); * is common. Changes affect
-              future projects. Existing project templates remain unchanged. /
-              客户完整名称匹配，不区分大小写；修改作为未来项目数据来源，已有项目模板不变。
+              future projects. Existing project templates remain unchanged.
             </p>
           </div>
         )}

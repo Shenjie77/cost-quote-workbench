@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   existsSync,
   mkdirSync,
@@ -12,6 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 import { stageArchiveMove } from '../server/project-archive-move.mjs';
@@ -37,6 +39,33 @@ const setup = (t) => {
   return { root, source, destination };
 };
 
+/** Emulate only platform/flush behavior; all copying and integrity checks use real local files. */
+const emulateArchiveFsync = (t, platform, flush) => {
+  const platformProperty = Object.getOwnPropertyDescriptor(process, 'platform');
+  const actualFsync = fs.fsyncSync;
+  const actualOpen = fs.openSync;
+  const descriptorFlags = new Map();
+  const openMock = t.mock.method(fs, 'openSync', (filename, flags, mode) => {
+    const descriptor = actualOpen(filename, flags, mode);
+    descriptorFlags.set(descriptor, flags);
+    return descriptor;
+  });
+  const mock = t.mock.method(fs, 'fsyncSync', (descriptor) =>
+    flush(descriptor, actualFsync, descriptorFlags.get(descriptor)),
+  );
+  Object.defineProperty(process, 'platform', {
+    ...platformProperty,
+    value: platform,
+  });
+  syncBuiltinESMExports();
+  t.after(() => {
+    mock.mock.restore();
+    openMock.mock.restore();
+    syncBuiltinESMExports();
+    Object.defineProperty(process, 'platform', platformProperty);
+  });
+};
+
 test('archive move stages every file and empty directory, retaining source until cleanup', (t) => {
   const { source, destination } = setup(t);
   const staged = stageArchiveMove(source, destination);
@@ -60,6 +89,83 @@ test('archive move stages every file and empty directory, retaining source until
   assert.deepEqual(staged.cleanup(), { sourceRemoved: true });
   assert.deepEqual(staged.rollback(), { destinationRemoved: false });
   assert.equal(existsSync(destination), true);
+});
+
+test('Windows archive migration avoids unsupported directory flushes and still flushes every copied file', (t) => {
+  const { source, destination } = setup(t);
+  let fileFlushes = 0;
+  emulateArchiveFsync(t, 'win32', (descriptor, actualFsync, flags) => {
+    if (
+      fs.fstatSync(descriptor).isDirectory() ||
+      !(flags & (fs.constants.O_WRONLY | fs.constants.O_RDWR))
+    )
+      throw Object.assign(
+        new Error('Windows cannot flush a read-only handle'),
+        { code: 'EPERM' },
+      );
+    fileFlushes += 1;
+    return actualFsync(descriptor);
+  });
+  const staged = stageArchiveMove(source, destination);
+  assert.equal(fileFlushes, 2);
+  assert.equal(existsSync(source), true);
+  for (const relative of [
+    'unindexed-notes.txt',
+    path.join('workflow', 'Design review', 'evidence.pdf'),
+  ])
+    assert.deepEqual(
+      readFileSync(path.join(destination, relative)),
+      readFileSync(path.join(source, relative)),
+    );
+  assert.deepEqual(staged.cleanup(), { sourceRemoved: true });
+  assert.equal(existsSync(source), false);
+  assert.equal(existsSync(destination), true);
+});
+
+test('Windows migration still fails on a copied file flush error and preserves the original documents', (t) => {
+  const { source, destination } = setup(t);
+  const evidence = readFileSync(
+    path.join(source, 'workflow', 'Design review', 'evidence.pdf'),
+  );
+  emulateArchiveFsync(t, 'win32', () => {
+    throw Object.assign(new Error('Disk write failed'), { code: 'EIO' });
+  });
+  assert.throws(
+    () => stageArchiveMove(source, destination),
+    (error) => error.code === 'ARCHIVE_MOVE_IO' && /EIO/.test(error.message),
+  );
+  assert.deepEqual(
+    readFileSync(
+      path.join(source, 'workflow', 'Design review', 'evidence.pdf'),
+    ),
+    evidence,
+  );
+  assert.equal(
+    readFileSync(path.join(source, 'unindexed-notes.txt'), 'utf8'),
+    'User file not present in SQLite',
+  );
+});
+
+test('POSIX migration retains directory flush checks and preserves source on a directory flush failure', (t) => {
+  const { source, destination } = setup(t);
+  let directoryFlushes = 0;
+  emulateArchiveFsync(t, 'linux', (descriptor, actualFsync) => {
+    if (fs.fstatSync(descriptor).isDirectory()) {
+      directoryFlushes += 1;
+      throw Object.assign(new Error('Directory flush failed'), { code: 'EIO' });
+    }
+    return actualFsync(descriptor);
+  });
+  assert.throws(
+    () => stageArchiveMove(source, destination),
+    (error) => error.code === 'ARCHIVE_MOVE_IO',
+  );
+  assert.equal(directoryFlushes, 1);
+  assert.equal(existsSync(source), true);
+  assert.equal(
+    readFileSync(path.join(source, 'unindexed-notes.txt'), 'utf8'),
+    'User file not present in SQLite',
+  );
 });
 
 test('transaction rollback deletes only its staged copy and remains idempotent', (t) => {

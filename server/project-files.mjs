@@ -22,6 +22,8 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { normalizeArchiveFolderPath } from './archive-folder-path.mjs';
+import { syncArchiveDirectory } from './archive-filesystem.mjs';
 import { stageArchiveMove } from './project-archive-move.mjs';
 
 export const MAX_PROJECT_FILE_BYTES = 50 * 1024 * 1024;
@@ -68,10 +70,13 @@ const safeSegment = (value, max = 65) =>
     .replace(/[^\p{L}\p{N}._-]+/gu, '-')
     .replace(/^[.-]+|[.-]+$/g, '')
     .slice(0, max) || 'item';
-const hashRegularFile = (filename) => {
+/** Preserve read-only source access; Windows needs write access to flush copied bytes. */
+const hashRegularFile = (filename, { flushWrites = false } = {}) => {
   const descriptor = openSync(
     filename,
-    constants.O_RDONLY | constants.O_NOFOLLOW,
+    (flushWrites && process.platform === 'win32'
+      ? constants.O_RDWR
+      : constants.O_RDONLY) | constants.O_NOFOLLOW,
   );
   try {
     const before = fstatSync(descriptor);
@@ -93,7 +98,7 @@ const hashRegularFile = (filename) => {
       before.ctimeMs !== after.ctimeMs
     )
       fail('An archive file changed during migration.', 409, 'FILE_INTEGRITY');
-    fsyncSync(descriptor);
+    if (flushWrites) fsyncSync(descriptor);
     return digest.digest('hex');
   } finally {
     closeSync(descriptor);
@@ -143,6 +148,15 @@ const ioError = (error) => {
     500,
     'ARCHIVE_IO',
   );
+};
+/** Normalize user input once; stored archive paths and CAS baselines stay literal. */
+const requestedFolderPath = (value, label) => {
+  try {
+    return normalizeArchiveFolderPath(text(value, label, 4096));
+  } catch (error) {
+    if (error instanceof ProjectFileError) throw error;
+    fail(error.message, 400, 'ARCHIVE_PATH_INVALID');
+  }
 };
 // Canonicalize user-selected ancestor aliases (e.g. macOS /tmp) once, but never
 // accept a symbolic link as the archive root or any project/file descendant.
@@ -485,16 +499,11 @@ export const makeProjectFileStore = (db, databasePath) => {
         // COPYFILE_EXCL preserves any pre-existing file. Verify both copies before
         // removing the old name; non-indexed user files remain non-indexed.
         copyFileSync(source, destination, constants.COPYFILE_EXCL);
-        if (hashRegularFile(source) === hashRegularFile(destination)) {
-          const descriptor = openSync(
-            path.dirname(destination),
-            constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-          );
-          try {
-            fsyncSync(descriptor);
-          } finally {
-            closeSync(descriptor);
-          }
+        if (
+          hashRegularFile(source) ===
+          hashRegularFile(destination, { flushWrites: true })
+        ) {
+          syncArchiveDirectory(path.dirname(destination));
           unlinkSync(source);
         }
       }
@@ -608,6 +617,9 @@ export const makeProjectFileStore = (db, databasePath) => {
         if (existsSync(absolute)) {
           try {
             verifyFile(archive, target, row.sha256, row.size_bytes);
+            // A matching copy may come from an interrupted move; flush it before retiring the source.
+            if (hashRegularFile(absolute, { flushWrites: true }) !== row.sha256)
+              fail('The existing archive copy changed during verification.');
           } catch {
             target = path.join(
               ...parts,
@@ -634,15 +646,7 @@ export const makeProjectFileStore = (db, databasePath) => {
           }
         }
         verifyFile(archive, target, row.sha256, row.size_bytes);
-        const directoryDescriptor = openSync(
-          path.dirname(absolute),
-          constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-        );
-        try {
-          fsyncSync(directoryDescriptor);
-        } finally {
-          closeSync(directoryDescriptor);
-        }
+        syncArchiveDirectory(path.dirname(absolute));
         db.prepare(
           'INSERT INTO project_file_moves (id, project_id, source_path, target_path, sha256, size_bytes) VALUES (?, ?, ?, ?, ?, ?)',
         ).run(
@@ -758,10 +762,7 @@ export const makeProjectFileStore = (db, databasePath) => {
   const store = {
     getSettings,
     updateSettings(input, expectedRevision) {
-      const requested = input?.rootPath;
-      text(requested, 'rootPath', 4096);
-      if (!path.isAbsolute(requested))
-        fail('rootPath must be an absolute folder path.');
+      const requested = requestedFolderPath(input?.rootPath, 'rootPath');
       db.exec('BEGIN IMMEDIATE');
       try {
         const current = getSettings();
@@ -795,9 +796,11 @@ export const makeProjectFileStore = (db, databasePath) => {
         'expectedProjectPath',
         4096,
       );
-      const requested = text(input?.projectPath, 'projectPath', 4096);
-      if (!path.isAbsolute(expected) || !path.isAbsolute(requested))
-        fail('Project folder paths must be absolute.');
+      const requested = requestedFolderPath(input?.projectPath, 'projectPath');
+      if (!path.isAbsolute(expected))
+        fail(
+          'The current project folder path must be absolute. Reload before moving it.',
+        );
       const current = mapping(id);
       if (!current || location(current).projectPath !== expected)
         fail(
@@ -808,8 +811,18 @@ export const makeProjectFileStore = (db, databasePath) => {
       let existingParent = path.dirname(path.resolve(requested));
       const missingParents = [];
       while (!existsSync(existingParent)) {
+        const parent = path.dirname(existingParent);
+        // Missing drive/UNC roots resolve to themselves; stop before the walk can loop.
+        if (parent === existingParent)
+          fail(
+            'The destination drive or share is unavailable: ' +
+              existingParent +
+              '. Check that it is connected and accessible to the workbench.',
+            400,
+            'ARCHIVE_DESTINATION_UNAVAILABLE',
+          );
         missingParents.unshift(path.basename(existingParent));
-        existingParent = path.dirname(existingParent);
+        existingParent = parent;
       }
       const destinationInput = path.join(
         realpathSync(existingParent),

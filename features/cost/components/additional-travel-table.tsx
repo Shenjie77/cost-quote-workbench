@@ -3,6 +3,7 @@
 import { Plane, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { BusinessUnitSelect } from '@/features/master-data/business-unit-select';
 import {
   Select,
   SelectContent,
@@ -121,7 +122,7 @@ export function AdditionalTravelTable({
       {
         id: 'TR-' + String(current.length + 1).padStart(3, '0'),
         scope: 'Select Scope',
-        bu: 'Select BU',
+        bu: '',
         destination: 'Destination',
         expenseType: 'Other',
         unitBasis: 'lump sum',
@@ -269,7 +270,7 @@ export function AdditionalTravelTable({
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <BusinessUnitSelect
                       aria-label={'Travel BU for ' + row.id}
                       title={row.bu}
                       className={inputClass}

@@ -253,8 +253,9 @@ export function ProjectEditDialog({
               }}
             />
             <p className="text-[11px] text-muted-foreground">
-              Change the full folder path, then apply to move this project&apos;s
-              documents. Other projects keep their folders.
+              Enter a new project folder on the computer running the workbench,
+              then apply to move its documents. Pasted quoted paths, file URLs
+              and ~/ paths are supported. The destination folder must not exist.
             </p>
             {folderDirty && (
               <div className="flex items-center gap-2">

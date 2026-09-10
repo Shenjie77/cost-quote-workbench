@@ -13,6 +13,8 @@ import {
   type SubcontractCost,
 } from '@/features/cost/subcontract-domain';
 import type { SubcontractItem } from '@/features/master-data/types';
+import { BusinessUnitsProvider } from '@/features/master-data/business-unit-select';
+import type { BusinessUnitOption } from '@/features/master-data/business-units';
 import { HQTravelPanel } from '@/features/cost/components/hq-travel-panel';
 import { RateAssumptions } from '@/features/cost/components/rate-assumptions';
 import { CostSummaryView } from '@/features/cost/cost-summary-view';
@@ -38,7 +40,9 @@ import type { CostViewKey } from '@/features/cost/ui-types';
 import { ContextBand } from '@/features/projects/project-context-band';
 import { formatSgd } from '@/lib/formatters';
 
+/** Compose the current version's cost inputs, summaries and export controls. */
 export function CostView({
+  businessUnits = [],
   lockedReason = null,
   versionLockReasons = {},
   versionDeletionReasons = {},
@@ -75,6 +79,7 @@ export function CostView({
   onProposalNumberChange,
   announce,
 }: {
+  businessUnits?: BusinessUnitOption[];
   lockedReason?: string | null;
   versionLockReasons?: Record<string, string>;
   versionDeletionReasons?: Record<string, string>;
@@ -250,7 +255,7 @@ export function CostView({
         }),
     });
 
-  return (
+  const content = (
     <div className="space-y-3">
       {lockedReason && (
         <output className="border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
@@ -583,5 +588,11 @@ export function CostView({
         />
       ) : null}
     </div>
+  );
+  // Share the saved directory and lock without copying either into persisted cost data.
+  return (
+    <BusinessUnitsProvider options={businessUnits} disabled={!!lockedReason}>
+      {content}
+    </BusinessUnitsProvider>
   );
 }

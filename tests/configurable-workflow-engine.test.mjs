@@ -309,14 +309,196 @@ test('template publication changes future work, retains active SLA unless explic
     node('required-before', { required: true, autoSkip: false }),
     ...next,
   ];
-  assert.match(
-    previewWorkflowSync(w, insertion).blockers.join(' '),
-    /before recorded progress/,
-  );
+  const insertionPlan = previewWorkflowSync(w, insertion);
+  assert.deepEqual(insertionPlan.blockers, []);
+  assert.equal(insertionPlan.steps[0].state, 'skipped');
+  assert.equal(insertionPlan.steps[0].skippedBy, 'template-sync');
   const removed = [node('new-start', { roundStart: true }), ...next.slice(1)];
   assert.match(
     previewWorkflowSync(w, removed).blockers.join(' '),
     /Cannot delete/,
+  );
+});
+
+test('new earlier nodes inherit active, paused or completed downstream progress with immutable audit and cost history', () => {
+  for (const state of ['in_progress', 'paused', 'completed']) {
+    let w = applyWorkflowAction(
+      confirmed(completeScope(fixture())),
+      { nodeCode: 'review-a', action: 'start' },
+      now,
+    );
+    if (state === 'paused')
+      w = applyWorkflowAction(
+        w,
+        {
+          nodeCode: 'review-a',
+          action: 'pause',
+          reason: 'Waiting for customer',
+          followUpDate: '2026-09-08',
+        },
+        now,
+      );
+    if (state === 'completed')
+      for (const code of ['review-a', 'review-b'])
+        w = applyWorkflowAction(
+          w,
+          { nodeCode: code, action: 'complete', confirmed: true },
+          now,
+        );
+    // Capture an older round to verify publication updates only the executing round.
+    w.versionWorkflows.ARCHIVED = structuredClone(w.versionWorkflows.V1);
+    const before = structuredClone(w);
+    const next = defs();
+    next.splice(
+      2,
+      0,
+      node('new-required', {
+        required: true,
+        autoSkip: false,
+        requiredFields: ['approval'],
+      }),
+      node('new-optional', { autoSkip: false }),
+    );
+    const plan = previewWorkflowSync(w, next);
+    assert.deepEqual(plan.blockers, [], state);
+    assert.match(plan.changes.join(' '), /Automatically pass new node/);
+    assert.deepEqual(w, before, 'preview does not mutate stored execution');
+    const published = applyWorkflowTemplate(w, next, 12, {}, now);
+    for (const code of ['new-required', 'new-optional']) {
+      const added = published.processSteps.find((step) => step.code === code);
+      assert.equal(added.state, 'skipped');
+      assert.equal(added.skippedBy, 'template-sync');
+      assert.equal(added.completedAt, now);
+      assert.equal(added.updatedAt, now);
+      assert.equal(added.startedAt, '');
+      assert.equal(added.dueAt, '');
+      assert.deepEqual(added.fieldValues, {});
+      assert.match(added.note, /inherited progress/);
+      const event = published.workflowUpdates.find(
+        (entry) => entry.action === 'auto_skip' && entry.nodeCode === code,
+      );
+      assert.match(event.note, /Global workflow r12/);
+      assert.equal(event.costVersion, 'V1');
+      assert.equal(event.updatedAt, now);
+      assert.deepEqual(event.fields, {});
+    }
+    assert.deepEqual(published.costVersions, before.costVersions);
+    assert.deepEqual(
+      published.versionWorkflows.ARCHIVED,
+      before.versionWorkflows.ARCHIVED,
+    );
+    assert.deepEqual(
+      published.workflowUpdates.slice(0, before.workflowUpdates.length),
+      before.workflowUpdates,
+    );
+    assert.deepEqual(
+      applyWorkflowTemplate(published, next, 12, {}, now),
+      published,
+      'repeating the same publication must not append another skip event',
+    );
+    if (state === 'completed')
+      assert.equal(
+        applyWorkflowAction(
+          published,
+          { nodeCode: 'finish', action: 'start' },
+          now,
+        ).currentWorkflowStepCode,
+        'finish',
+        'an inherited required node must not block later execution',
+      );
+  }
+});
+
+test('new parallel peers remain pending in the current phase and inherit only fully finished phases', () => {
+  let w = applyWorkflowAction(
+    confirmed(completeScope(fixture())),
+    { nodeCode: 'review-a', action: 'start' },
+    now,
+  );
+  const next = defs();
+  next.splice(
+    3,
+    0,
+    node('review-new', {
+      parallelGroup: '并行评审',
+      required: true,
+      autoSkip: false,
+    }),
+  );
+  const pending = applyWorkflowTemplate(w, next, 12, {}, now);
+  assert.equal(
+    pending.processSteps.find((step) => step.code === 'review-new').state,
+    'not_started',
+  );
+  assert.throws(
+    () =>
+      applyWorkflowAction(
+        pending,
+        { nodeCode: 'finish', action: 'start' },
+        now,
+      ),
+    /review-new/,
+  );
+  w = applyWorkflowAction(
+    w,
+    { nodeCode: 'review-a', action: 'complete', confirmed: true },
+    now,
+  );
+  assert.equal(
+    previewWorkflowSync(w, next).steps.find(
+      (step) => step.code === 'review-new',
+    ).state,
+    'not_started',
+    'one completed peer is insufficient while another peer is still active',
+  );
+  w = applyWorkflowAction(
+    w,
+    { nodeCode: 'review-b', action: 'complete', confirmed: true },
+    now,
+  );
+  const passed = applyWorkflowTemplate(w, next, 12, {}, now);
+  assert.equal(
+    passed.processSteps.find((step) => step.code === 'review-new').skippedBy,
+    'template-sync',
+  );
+  assert.equal(
+    applyWorkflowAction(passed, { nodeCode: 'finish', action: 'start' }, now)
+      .currentWorkflowStepCode,
+    'finish',
+  );
+});
+
+test('future phases and manually skipped future options do not grant inherited progress to new nodes', () => {
+  const w = applyWorkflowAction(
+    fixture(),
+    { nodeCode: 'optional', action: 'skip', reason: 'Not needed' },
+    now,
+  );
+  const next = defs();
+  next.splice(
+    1,
+    0,
+    node('future-required', { required: true, autoSkip: false }),
+  );
+  const published = applyWorkflowTemplate(w, next, 12, {}, now);
+  const added = published.processSteps.find(
+    (step) => step.code === 'future-required',
+  );
+  assert.equal(added.state, 'not_started');
+  assert.equal(added.skippedBy, '');
+  assert.throws(
+    () =>
+      applyWorkflowAction(
+        confirmed(completeScope(published)),
+        { nodeCode: 'review-a', action: 'start' },
+        now,
+      ),
+    /future-required/,
+  );
+  const reset = resetWorkflowRoundSteps(published.processSteps, now);
+  assert.equal(
+    reset.find((step) => step.code === 'future-required').state,
+    'not_started',
   );
 });
 

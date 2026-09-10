@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { BusinessUnitSelect } from '@/features/master-data/business-unit-select';
 import {
   Dialog,
   DialogContent,
@@ -226,9 +227,13 @@ export function SubcontractItemForm({
             onChange={(event) => update({ ...draft, code: event.target.value })}
           />
         </label>
-        <label className="grid gap-1.5 text-xs font-medium">
+        <label
+          htmlFor={`subcontract-item-bu-${draft.id}`}
+          className="grid gap-1.5 text-xs font-medium"
+        >
           Business unit
-          <Input
+          <BusinessUnitSelect
+            id={`subcontract-item-bu-${draft.id}`}
             aria-label="Item business unit"
             className="bg-white font-normal"
             value={draft.bu}

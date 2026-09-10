@@ -12,13 +12,16 @@ export type QuoteProfitShareSnapshot = Pick<
 export type QuoteTemplate = {
   id: string;
   name: string;
-  nameZh: string;
+  /** Legacy translation retained only to read existing project/history snapshots. */
+  nameZh?: string;
   clientPattern: string;
   documentTitle: string;
-  documentTitleZh: string;
+  /** Legacy translation; current editors and customer outputs use documentTitle. */
+  documentTitleZh?: string;
   validityDays: number;
   paymentTerms: string;
-  paymentTermsZh: string;
+  /** Legacy translation; current editors and customer outputs use paymentTerms. */
+  paymentTermsZh?: string;
   /** Free-form client T&C, preserved verbatim; no mandatory translation. */
   termsAndConditions: string;
   /** Suggested library rows copied when the user applies this template. */
@@ -73,13 +76,10 @@ export const initialQuoteTemplates: QuoteTemplate[] = [
   {
     id: 'quote-template-standard',
     name: 'Standard Service Quotation',
-    nameZh: '标准服务报价单',
     clientPattern: '*',
     documentTitle: 'SERVICE QUOTATION',
-    documentTitleZh: '服务报价单',
     validityDays: 30,
     paymentTerms: '30 days from invoice date',
-    paymentTermsZh: '发票日起 30 天内付款',
     termsAndConditions: '',
     defaultAssumptionIds: [],
     active: true,

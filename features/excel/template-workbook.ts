@@ -81,9 +81,7 @@ export function templateData(
   if (quote) {
     for (const key of [
       'documentTitle',
-      'documentTitleZh',
       'paymentTerms',
-      'paymentTermsZh',
       'termsAndConditions',
       'validityDays',
     ] as const)
@@ -116,7 +114,15 @@ export function templateData(
   const assumptions: Record<string, string | number>[] =
     workspace.quoteAssumptions
       .filter((a) => a.included)
-      .map((a) => ({ id: a.id, text: a.text, textZh: a.textZh }));
+      // Customer mappings expose primary text only; internal mappings stay compatible.
+      .map((assumption) => {
+        const fields: Record<string, string | number> = {
+          id: assumption.id,
+          text: assumption.text,
+        };
+        if (purpose === 'cost') fields.textZh = assumption.textZh;
+        return fields;
+      });
   costRows.push(
     ...subcontractCostDetails(version.subcontractCost).map((line) => ({
       scope: line.description,
