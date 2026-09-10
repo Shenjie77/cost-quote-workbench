@@ -214,7 +214,7 @@ export function WorkbenchApp() {
   const [globalNotice, setGlobalNotice] = useOperationNotice();
   if (masterDataOnly)
     return (
-      <main className="min-h-screen space-y-4 bg-background p-6">
+      <main className="min-h-screen space-y-5 bg-background p-4 sm:p-6">
         <Button variant="outline" onClick={() => setMasterDataOnly(false)}>
           Project List / 项目列表
         </Button>
@@ -2422,77 +2422,87 @@ function ProjectSessionApp({
         onDownloadBackup={downloadWorkspaceBackup}
       />
       <div className="min-h-screen lg:pl-[244px]">
-        <header className="sticky top-0 z-50 border-b border-border bg-[#f8f6f1]/95 backdrop-blur">
-          <div className="flex min-h-[74px] items-center gap-4 px-4 sm:px-6 xl:px-8">
+        <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-md">
+          <div className="flex min-h-[84px] flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3 sm:gap-x-4 sm:px-6 xl:px-8">
             <Button
               variant="outline"
               size="icon"
               className="lg:hidden"
               onClick={() => setMobileNavOpen((open) => !open)}
               aria-label="Open navigation"
+              aria-expanded={mobileNavOpen}
+              aria-controls="mobile-workbench-navigation"
             >
               {mobileNavOpen ? <X /> : <Menu />}
             </Button>
-            <div className="min-w-0 flex-1">
-              <p className="financial-numeral text-[9px] font-semibold uppercase tracking-[0.11em] text-[#a86432]">
+            <div className="min-w-0 flex-1 basis-[calc(100%-64px)] sm:basis-48">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-accent-foreground">
                 {pageEyebrow}
               </p>
-              <div className="mt-1 flex min-w-0 items-baseline gap-3">
-                <h1 className="truncate text-lg font-semibold tracking-[-0.02em] sm:text-xl">
+              <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                <h1 className="text-xl font-semibold leading-snug tracking-[-0.025em] sm:text-[22px]">
                   {title.title}
                 </h1>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
+                <span className="shrink-0 text-[11px] text-muted-foreground">
                   {title.titleZh}
                 </span>
                 <p className="hidden truncate text-xs text-muted-foreground 2xl:block">
                   {pageSubtitle}
                 </p>
               </div>
-              <p className="mt-0.5 hidden text-[9px] text-muted-foreground sm:block 2xl:hidden">
+              <p className="mt-1 hidden text-[11px] text-muted-foreground sm:block 2xl:hidden">
                 {pageSubtitleZh}
               </p>
             </div>
-            <div className="relative hidden w-[280px] xl:block">
+            <div className="relative hidden w-[220px] shrink-0 xl:block">
               <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="bg-white pl-8"
+                className="bg-muted/50 pl-8"
+                aria-label="Search project, client, or version"
                 placeholder="Search project, client, or version / 搜索"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
             </div>
-            <div className="hidden items-center gap-2 text-[9px] text-muted-foreground sm:flex">
+            <div className="hidden items-center gap-2 text-[11px] text-muted-foreground xl:flex">
               <span className="size-1.5 rounded-full bg-[#377054]" />
-              Local Data <span className="text-[8px]">本地数据</span>
+              Local Data <span className="text-[10px]">本地数据</span>
             </div>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Open project follow-up reminders"
-              onClick={() => navigate('agent')}
-            >
-              <Bell />
-            </Button>
-            <Button onClick={() => setPanel({ type: 'new-project' })}>
-              <Plus />
-              New Project{' '}
-              <span className="text-[9px] opacity-60">新建项目</span>
-            </Button>
+            <div className="ml-auto flex items-center gap-2 sm:ml-0">
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Open project follow-up reminders"
+                onClick={() => navigate('agent')}
+              >
+                <Bell />
+              </Button>
+              <Button onClick={() => setPanel({ type: 'new-project' })}>
+                <Plus />
+                New Project{' '}
+                <span className="text-[10px] opacity-70">新建项目</span>
+              </Button>
+            </div>
           </div>
           {mobileNavOpen ? (
-            <div className="workbench-scrollbar flex gap-2 overflow-x-auto border-t border-border px-4 py-3 lg:hidden">
+            <nav
+              id="mobile-workbench-navigation"
+              aria-label="Main navigation"
+              className="workbench-scrollbar flex gap-2 overflow-x-auto border-t border-border bg-muted/40 px-4 py-3 lg:hidden"
+            >
               {navItems.map((item) => (
                 <Button
                   key={item.key}
                   variant={activeView === item.key ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => navigate(item.key)}
+                  aria-current={activeView === item.key ? 'page' : undefined}
                 >
                   {item.label}
-                  <span className="text-[8px] opacity-60">{item.labelZh}</span>
+                  <span className="text-[10px] opacity-70">{item.labelZh}</span>
                 </Button>
               ))}
-            </div>
+            </nav>
           ) : null}
           {activeView === 'project' ||
           activeView === 'cost' ||
@@ -2522,7 +2532,7 @@ function ProjectSessionApp({
             />
           ) : null}
         </header>
-        <div className="relative z-0 isolate mx-auto w-full max-w-[1780px] px-4 py-5 sm:px-6 xl:px-8 xl:py-6">
+        <div className="relative z-0 isolate mx-auto min-w-0 w-full max-w-[1780px] px-4 py-5 sm:px-6 sm:py-6 xl:px-8">
           {activeView !== 'master-data' && activeView !== 'workflow' && (
             <WorkspaceToolbar
               persistenceStatus={persistenceStatus}

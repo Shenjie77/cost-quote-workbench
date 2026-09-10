@@ -24,6 +24,7 @@ import {
 import type { BreakdownItem } from '@/features/cost/ui-types';
 import { formatSgd } from '@/lib/formatters';
 
+/** Present the current cost totals and all existing reporting dimensions. */
 export function CostSummaryView({
   readOnly = false,
   rows,
@@ -65,7 +66,7 @@ export function CostSummaryView({
   ).size;
   const averageCost =
     totalMandays > 0 ? statementValues.totalWithRisk / totalMandays : 0;
-  const palette = ['#173a52', '#2e6f77', '#a86432', '#81918b', '#657e98'];
+  const palette = ['#183c51', '#177c80', '#5488ab', '#83a3ad', '#6a7996'];
   const statementRows = buildCostStatementRows(
     rows,
     resourceTypes,
@@ -107,8 +108,8 @@ export function CostSummaryView({
     buildSubcontractScopeSummary(rows, resourceTypes, subcontractCost),
   );
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+    <div className="wb-page-stack min-w-0">
+      <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Total Cost with Risk"
           labelZh="含风险总成本"
@@ -145,24 +146,29 @@ export function CostSummaryView({
           tone="gray"
         />
       </div>
-      <section className="border border-border bg-card">
+      <section className="wb-panel min-w-0 overflow-hidden">
         <Tabs defaultValue="statement">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3">
+          <div className="flex min-w-0 flex-col gap-4 border-b border-border px-5 py-4">
             <div>
-              <p className="text-[11px] font-semibold text-[#a86432]">02</p>
+              <p className="text-[11px] font-semibold tracking-wider text-primary">
+                02
+              </p>
               <h2 className="mt-0.5 text-[15px] font-semibold">
                 Multidimensional Summary{' '}
                 <span className="ml-1 text-[10px] font-normal text-muted-foreground">
                   多维成本汇总
                 </span>
               </h2>
-              <p className="mt-1 text-[10px] text-muted-foreground">
+              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
                 Dimensions include risk and reference Cost Statement accounts;
                 Subcon shows the 2.3.2 breakdown. /
                 各维度含风险并引用报表科目；分包页对应 2.3.2。
               </p>
             </div>
-            <TabsList variant="line">
+            <TabsList
+              variant="line"
+              className="h-auto max-w-full flex-wrap justify-start gap-x-2 gap-y-1"
+            >
               <TabsTrigger value="statement">
                 Cost Statement{' '}
                 <span className="text-[9px] opacity-60">成本报表</span>
@@ -203,7 +209,7 @@ export function CostSummaryView({
             {subcontractBreakdown.length ? (
               <BreakdownTable items={subcontractBreakdown} />
             ) : (
-              <p className="p-5 text-sm text-muted-foreground">
+              <p className="wb-empty-state">
                 No subcontract costs in this version.
               </p>
             )}

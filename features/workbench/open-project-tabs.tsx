@@ -21,9 +21,9 @@ export function OpenProjectTabs({
   return (
     <nav
       aria-label="Open Projects"
-      className="workbench-scrollbar flex items-end gap-1 overflow-x-auto border-t border-border bg-[#eeeae2] px-4 pt-1.5 sm:px-6 xl:px-8"
+      className="workbench-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto border-t border-border/70 bg-muted/50 px-4 py-2 sm:px-6 xl:px-8"
     >
-      <span className="mb-2 mr-2 shrink-0 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+      <span className="mr-2 shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         Open Projects <span className="normal-case">已打开项目</span>
       </span>
       {openProjectIds.map((projectId) => {
@@ -34,10 +34,10 @@ export function OpenProjectTabs({
           <div
             key={projectId}
             className={
-              'flex h-8 min-w-[190px] max-w-[280px] items-center border border-b-0 ' +
+              'flex h-11 min-w-[190px] max-w-[280px] items-center rounded-lg border transition-colors ' +
               (active
-                ? 'border-border bg-background text-[#173a52]'
-                : 'border-transparent bg-[#e3dfd6] text-muted-foreground hover:bg-[#e9e6de]')
+                ? 'border-ring/35 bg-card text-primary shadow-xs'
+                : 'border-transparent bg-transparent text-muted-foreground hover:border-border hover:bg-card/80')
             }
           >
             <button
@@ -50,14 +50,16 @@ export function OpenProjectTabs({
               }}
               title={`${project.id} · ${project.name}`}
             >
-              <span className="financial-numeral block truncate text-[9px] font-semibold">
+              <span className="financial-numeral block truncate text-[10px] font-medium">
                 {project.id}
               </span>
-              <span className="block truncate text-[8px]">{project.name}</span>
+              <span className="block truncate text-xs font-medium">
+                {project.name}
+              </span>
             </button>
             <button
               type="button"
-              className="mr-1.5 rounded-sm p-1 hover:bg-black/5 disabled:cursor-wait disabled:opacity-60"
+              className="mr-1 flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-muted disabled:cursor-wait disabled:opacity-60"
               disabled={disabled}
               onClick={() => {
                 if (!disabled) void onClose(projectId);

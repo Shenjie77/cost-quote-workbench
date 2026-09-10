@@ -29,6 +29,7 @@ import {
 } from '@/features/cost/domain';
 import { formatSgd } from '@/lib/formatters';
 
+/** Compare stored versions without changing their independent calculation basis. */
 export function VersionComparisonView({
   lockReasons = {},
   deletionReasons = {},
@@ -91,7 +92,7 @@ export function VersionComparisonView({
   });
 
   return (
-    <section className="overflow-hidden border border-border bg-card">
+    <section className="wb-panel min-w-0 overflow-hidden">
       <SectionHeading
         index="03"
         title="Version Comparison"
@@ -99,9 +100,9 @@ export function VersionComparisonView({
         description="Each row is calculated from that version's stored cost inputs."
         descriptionZh="每一行均使用该版本独立保存的成本输入重新计算。"
       />
-      <Table>
+      <Table className="min-w-[840px]">
         <TableHeader>
-          <TableRow className="bg-[#f2f0ea] hover:bg-[#f2f0ea]">
+          <TableRow className="bg-muted/40 hover:bg-muted/40">
             <TableHead className="px-4">
               <BiText en="Version" zh="版本" />
             </TableHead>
@@ -132,10 +133,10 @@ export function VersionComparisonView({
         <TableBody>
           {records.map((record) => (
             <TableRow key={record.code} className="h-12">
-              <TableCell className="financial-numeral px-4 font-semibold text-[#173a52]">
+              <TableCell className="financial-numeral px-4 font-semibold text-primary">
                 {record.code}
                 {record.code === activeVersion ? (
-                  <span className="ml-2 text-[8px] text-[#2e6f77]">
+                  <span className="ml-2 text-[8px] text-primary">
                     ACTIVE · 当前
                   </span>
                 ) : null}
@@ -159,7 +160,7 @@ export function VersionComparisonView({
                 >
                   <SelectTrigger
                     size="sm"
-                    className="min-w-[122px] bg-white text-[10px]"
+                    className="min-w-[122px] bg-background text-xs"
                     aria-label={`${record.code} version status`}
                   >
                     <SelectValue />
@@ -203,8 +204,8 @@ export function VersionComparisonView({
                 className={
                   'financial-numeral pr-4 text-right font-semibold ' +
                   (Number(record.delta || 0) > 0
-                    ? 'text-[#a86432]'
-                    : 'text-[#377054]')
+                    ? 'text-amber-700'
+                    : 'text-emerald-700')
                 }
               >
                 {record.delta === null

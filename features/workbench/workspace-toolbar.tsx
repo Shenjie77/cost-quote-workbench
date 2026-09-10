@@ -49,27 +49,32 @@ export function WorkspaceToolbar({
   const presentation = persistencePresentation(persistenceStatus.phase);
   const StatusIcon = presentation.icon;
   return (
-    <div className="mb-4 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-        <Badge variant="outline" className={'h-5 ' + presentation.className}>
+    <div className="mb-5 flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border border-border/70 bg-card/65 px-3 py-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-[11px] text-muted-foreground">
+        <Badge
+          variant="outline"
+          className={
+            'h-6 rounded-full px-2.5 text-[11px] ' + presentation.className
+          }
+        >
           <StatusIcon className={presentation.iconClassName} />
-          Local SQLite <span className="ml-1 text-[8px]">本地数据库</span>
+          Local SQLite <span className="ml-1 text-[10px]">本地数据库</span>
         </Badge>
-        <span
-          className="max-w-[760px] truncate"
+        <output
+          className="max-w-full break-words sm:max-w-[min(50vw,760px)]"
           title={persistenceStatus.message}
         >
           {persistenceStatus.message}
-        </span>
+        </output>
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 px-2 text-[9px]"
+          className="h-8 px-2.5 text-[11px]"
           onClick={onSave}
           disabled={persistenceStatus.phase === 'saving'}
         >
           <Save className="size-3" /> Save{' '}
-          <span className="text-[8px]">保存</span>
+          <span className="text-[10px]">保存</span>
         </Button>
         {['conflict', 'error', 'offline'].includes(persistenceStatus.phase) && (
           <Button variant="outline" size="sm" onClick={onBackupAndReload}>
@@ -79,16 +84,16 @@ export function WorkspaceToolbar({
         {activeView === 'cost' ? (
           <Button
             size="sm"
-            className="h-6 px-2 text-[9px]"
+            className="h-8 px-2.5 text-[11px]"
             onClick={onNewVersion}
             disabled={newVersionDisabled}
           >
             <Plus className="size-3" /> New Version{' '}
-            <span className="text-[8px] opacity-60">创建版本</span>
+            <span className="text-[10px] opacity-60">创建版本</span>
           </Button>
         ) : null}
       </div>
-      <span className="financial-numeral hidden text-[10px] text-muted-foreground sm:block">
+      <span className="financial-numeral hidden text-[11px] text-muted-foreground sm:block">
         {displayDate}
       </span>
     </div>

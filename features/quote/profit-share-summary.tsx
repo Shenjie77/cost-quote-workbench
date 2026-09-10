@@ -33,11 +33,11 @@ export function ProfitShareSummary({
         <div>
           <p className="font-semibold">
             Profit Share Rate{' '}
-            <span className="financial-numeral ml-2 text-[#173a52]">
+            <span className="financial-numeral ml-2 text-primary">
               {result.weightedProfitShareRate.toFixed(2)}%
             </span>
           </p>
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             {masterDataRevision === undefined
               ? 'No master data revision applied'
               : `Applied Master Data · Revision ${masterDataRevision}`}
@@ -47,7 +47,7 @@ export function ProfitShareSummary({
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-[10px]"
+            className="h-7 text-xs"
             disabled={disabled || applying}
             onClick={onManage}
           >
@@ -57,7 +57,7 @@ export function ProfitShareSummary({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-[10px]"
+              className="h-7 text-xs"
               disabled={disabled || applying}
               onClick={() => void onApply()}
             >
@@ -68,8 +68,8 @@ export function ProfitShareSummary({
         </div>
       </div>
       {!!result.profitShareBreakdown.length && (
-        <div className="mt-3 overflow-x-auto">
-          <Table className="min-w-[420px] text-[10px]">
+        <div className="mt-3 wb-table-scroll">
+          <Table className="min-w-[420px] text-xs">
             <TableHeader>
               <TableRow>
                 <TableHead className="h-7 pl-4">BU</TableHead>
@@ -119,13 +119,13 @@ export function ProfitShareSummary({
           {formatSgd(result.profitShareAmount)}
         </span>
       </div>
-      <p className="px-4 pb-2 text-[10px] text-muted-foreground">
+      <p className="px-4 pb-2 text-xs text-muted-foreground">
         Rates are weighted by BU cost. Costs without a BU, including EHS and
         Risk, are assigned to the largest BU. Sales GP = (price − cost − profit
         share) / price.
       </p>
       {!!result.warnings.length && (
-        <output className="mx-4 mb-3 block border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-900">
+        <output className="mx-4 mb-3 block border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
           {result.warnings.map((warning) => (
             <p key={warning}>{warning}</p>
           ))}

@@ -118,17 +118,17 @@ export function CpqView({
       ),
     });
   return (
-    <div className="space-y-5 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="wb-page-stack text-sm">
+      <div className="wb-toolbar justify-between rounded-lg">
         <p>输入简短范围，筛选条目后计算服务数量。设备数量保持固定。</p>
         <Button variant="outline" onClick={() => setShowCatalog(!showCatalog)}>
           Catalog / 条目目录 ({value.catalog.length})
         </Button>
       </div>
       {showCatalog && (
-        <section className="space-y-3 rounded-xl border bg-card p-4">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="font-semibold">
+        <section className="wb-panel space-y-4 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-base font-semibold text-primary">
               Captured CPQ catalog / 项目采用的 CPQ 目录快照
             </h3>
             {onOpenCatalog && (
@@ -153,7 +153,7 @@ export function CpqView({
               Apply global catalog to this draft / 将全局目录应用到本草稿
             </Button>
           )}
-          <div className="overflow-x-auto">
+          <div className="wb-table-scroll">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -187,8 +187,10 @@ export function CpqView({
           </div>
         </section>
       )}
-      <section className="space-y-3 rounded-xl border bg-card p-4">
-        <h3 className="font-semibold">1. Brief & candidates / 简述与候选</h3>
+      <section className="wb-panel space-y-4 p-5">
+        <h3 className="text-base font-semibold text-primary">
+          1. Brief & candidates / 简述与候选
+        </h3>
         <Textarea
           aria-label="Brief scope"
           placeholder="例如：10 台设备部署，含联调和验收"
@@ -255,8 +257,10 @@ export function CpqView({
           </TableBody>
         </Table>
       </section>
-      <section className="space-y-3 rounded-xl border bg-card p-4">
-        <h3 className="font-semibold">2. Confirm items / 确认条目与固定数量</h3>
+      <section className="wb-panel space-y-4 p-5">
+        <h3 className="text-base font-semibold text-primary">
+          2. Confirm items / 确认条目与固定数量
+        </h3>
         <Table>
           <TableHeader>
             <TableRow>
@@ -362,10 +366,12 @@ export function CpqView({
           </span>
         </div>
       </section>
-      <section className="space-y-3 rounded-xl border bg-card p-4">
-        <h3 className="font-semibold">3. Calculate & archive / 计算与归档</h3>
-        <div className="grid gap-3 md:grid-cols-3">
-          <label>
+      <section className="wb-panel space-y-4 p-5">
+        <h3 className="text-base font-semibold text-primary">
+          3. Calculate & archive / 计算与归档
+        </h3>
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="block space-y-2 text-xs font-medium">
             Cost version / 成本版本
             <Input readOnly value={draft.costVersion} />
             <Button
@@ -382,7 +388,7 @@ export function CpqView({
               Use {baseline.code} · {money(totalCost)}
             </Button>
           </label>
-          <label>
+          <label className="block space-y-2 text-xs font-medium">
             Target cost / 目标成本
             <Input
               type="number"
@@ -392,7 +398,7 @@ export function CpqView({
               onChange={(e) => update({ targetCost: Number(e.target.value) })}
             />
           </label>
-          <label>
+          <label className="block space-y-2 text-xs font-medium">
             Tolerance / 允许差额
             <Input
               type="number"
@@ -402,14 +408,14 @@ export function CpqView({
               onChange={(e) => update({ tolerance: Number(e.target.value) })}
             />
           </label>
-          <label>
+          <label className="block space-y-2 text-xs font-medium">
             Target basis / 目标口径
             <Input
               value={draft.targetBasis}
               onChange={(e) => update({ targetBasis: e.target.value })}
             />
           </label>
-          <label className="md:col-span-2">
+          <label className="block space-y-2 text-xs font-medium md:col-span-2">
             Allocation basis / 数量分配依据
             <Input
               value={draft.allocationBasis}
@@ -417,7 +423,7 @@ export function CpqView({
             />
           </label>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="wb-toolbar rounded-lg">
           <Button
             variant="outline"
             onClick={() =>
@@ -513,12 +519,15 @@ export function CpqView({
         )}
       </section>
       {error && (
-        <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">
+        <p
+          role="alert"
+          className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-destructive"
+        >
           {error}
         </p>
       )}
-      <section className="space-y-3 rounded-xl border bg-card p-4">
-        <h3 className="font-semibold">
+      <section className="wb-panel space-y-4 p-5">
+        <h3 className="text-base font-semibold text-primary">
           Archived configurations / 历史配置 ({value.archives.length})
         </h3>
         {value.archives
@@ -527,7 +536,7 @@ export function CpqView({
           .map((archive) => (
             <div
               key={archive.id}
-              className="flex flex-wrap items-center justify-between gap-3 border-b py-2"
+              className="wb-toolbar justify-between rounded-lg border-b py-2"
             >
               <span>
                 {archive.costVersion} · {archive.draft.brief} ·{' '}

@@ -172,11 +172,11 @@ export function SubcontractCatalogSelection({
   const hasActiveItems = uniqueCatalog(catalog).some((item) => item.active);
   return (
     <section
-      className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white"
+      className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-white"
       aria-label="Subcontract catalogue selection"
       aria-busy={refreshing}
     >
-      <header className="space-y-3 border-b border-slate-100 bg-gradient-to-br from-indigo-50/60 to-teal-50/60 px-4 py-3">
+      <header className="space-y-3 border-b border-border/60 bg-muted/30 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-slate-900">
@@ -209,7 +209,7 @@ export function SubcontractCatalogSelection({
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
           <Input
-            className="h-10 rounded-lg border-slate-200 bg-white pl-9 pr-9 text-sm"
+            className="h-10 rounded-lg border-border bg-white pl-9 pr-9 text-sm"
             aria-label="Search subcontract catalogue"
             placeholder="Search item, code or BU"
             value={query}
@@ -229,7 +229,7 @@ export function SubcontractCatalogSelection({
           )}
         </div>
       </header>
-      <div className="flex min-h-10 items-center justify-between gap-2 border-b border-slate-100 px-4 py-1.5 text-xs">
+      <div className="flex min-h-10 items-center justify-between gap-2 border-b border-border/60 px-4 py-1.5 text-xs">
         <span className="text-slate-500">
           {matches.length} {matches.length === 1 ? 'item' : 'items'}
           {query.trim() ? ' found' : ' available'}
@@ -320,7 +320,7 @@ export function SubcontractCatalogSelection({
           </div>
         )}
       </div>
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/80 px-4 py-3">
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-slate-50/80 px-4 py-3">
         <output className="min-w-0 text-xs">
           <span className="flex items-center gap-1.5 font-semibold text-slate-800">
             <Check className="size-3.5 text-teal-700" />
@@ -344,7 +344,7 @@ export function SubcontractCatalogSelection({
           <Button
             type="button"
             size="sm"
-            className="bg-[#2e6f77] text-white hover:bg-[#255c63]"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={refreshing || disabled || selected.length === 0}
             onClick={() => {
               if (!refreshing && !disabled && selected.length > 0) onAdd();
@@ -378,7 +378,7 @@ export function SubcontractCatalogOption({
   const unpriced = item.unitPrice === null || item.unitPrice === undefined;
   return (
     <label
-      className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 rounded-lg border px-3 py-3 transition-colors sm:grid-cols-[auto_minmax(0,1fr)_auto] ${restriction ? 'cursor-not-allowed border-slate-100 bg-slate-50/70' : selected ? 'border-teal-600/40 bg-teal-50/70 ring-1 ring-teal-600/10' : 'border-slate-200 bg-white hover:border-teal-400/70 hover:bg-teal-50/30'}`}
+      className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 rounded-lg border px-3 py-3 transition-colors sm:grid-cols-[auto_minmax(0,1fr)_auto] ${restriction ? 'cursor-not-allowed border-border/60 bg-slate-50/70' : selected ? 'border-teal-600/40 bg-teal-50/70 ring-1 ring-teal-600/10' : 'border-border bg-white hover:border-teal-400/70 hover:bg-teal-50/30'}`}
     >
       <Checkbox
         aria-label={`Select ${item.code} from catalogue`}

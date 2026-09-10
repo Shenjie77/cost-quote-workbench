@@ -16,7 +16,7 @@ export function BiText({
       <span>{en}</span>
       <span
         className={
-          'mt-0.5 text-[9px] font-normal leading-3 text-muted-foreground ' +
+          'mt-0.5 text-[10px] font-normal leading-4 text-muted-foreground ' +
           zhClassName
         }
       >
@@ -30,7 +30,7 @@ export function BiInline({ en, zh }: { en: string; zh: string }) {
   return (
     <span>
       {en}
-      <span className="ml-1 text-[9px] font-normal opacity-70">/ {zh}</span>
+      <span className="ml-1 text-[10px] font-normal opacity-70">/ {zh}</span>
     </span>
   );
 }

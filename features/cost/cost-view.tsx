@@ -256,9 +256,9 @@ export function CostView({
     });
 
   const content = (
-    <div className="space-y-3">
+    <div className="wb-page-stack min-w-0 gap-4">
       {lockedReason && (
-        <output className="border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        <output className="block rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
           {lockedReason} 可查看和导出。
         </output>
       )}
@@ -271,26 +271,30 @@ export function CostView({
         versionStatus={version?.state || 'Draft'}
       />
       {version?.calculationNote ? (
-        <output className="block border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+        <output className="block rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
           {version.calculationNote}
         </output>
       ) : null}
       <section
-        className="overflow-hidden border border-border bg-card"
+        className="wb-panel overflow-hidden"
         aria-label="Cost version information"
       >
         <div className="grid grid-cols-2 gap-px bg-border min-[480px]:grid-cols-3 lg:grid-cols-5">
-          <div className="min-w-0 bg-card px-3 py-2">
-            <p className="text-[10px] text-muted-foreground">Version Total</p>
-            <p className="financial-numeral mt-1 text-base font-semibold">
+          <div className="min-w-0 bg-card px-4 py-3">
+            <p className="text-[11px] font-medium text-muted-foreground">
+              Version Total
+            </p>
+            <p className="financial-numeral mt-1.5 text-xl font-semibold tracking-tight text-primary">
               {version ? versionTotal(version) : formatSgd(0)}
             </p>
           </div>
-          <div className="min-w-0 bg-card px-3 py-2">
-            <p className="text-[10px] text-muted-foreground">Version Delta</p>
+          <div className="min-w-0 bg-card px-4 py-3">
+            <p className="text-[11px] font-medium text-muted-foreground">
+              Cost Version
+            </p>
             <select
               aria-label="View cost version"
-              className="mt-1 h-7 w-full rounded border border-border bg-card px-2 text-[11px]"
+              className="mt-1.5 h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
               value={activeVersion}
               disabled={!versions.length}
               onChange={(event) =>
@@ -306,7 +310,7 @@ export function CostView({
             <p
               className={
                 'financial-numeral mt-1 text-[10px] font-medium ' +
-                'text-[#377054]'
+                'text-primary'
               }
             >
               {version?.sourceVersion
@@ -314,29 +318,29 @@ export function CostView({
                 : 'Initial version'}
             </p>
           </div>
-          <div className="min-w-0 bg-card px-3 py-2">
-            <p className="text-[10px] text-muted-foreground">
+          <div className="min-w-0 bg-card px-4 py-3">
+            <p className="text-[11px] font-medium text-muted-foreground">
               Input Completeness
             </p>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="financial-numeral text-base font-semibold">
+            <div className="mt-1.5 flex items-center gap-3">
+              <span className="financial-numeral text-xl font-semibold tracking-tight text-primary">
                 {inputCompleteness}%
               </span>
               <Progress
                 value={inputCompleteness}
-                className="h-1.5 min-w-0 max-w-20 flex-1 [&_[data-slot=progress-indicator]]:bg-[#377054]"
+                className="h-2 min-w-0 max-w-24 flex-1 [&_[data-slot=progress-indicator]]:bg-primary"
               />
             </div>
           </div>
-          <div className="min-w-0 bg-card px-3 py-2 min-[480px]:col-span-2 lg:col-span-1">
+          <div className="min-w-0 bg-card px-4 py-3 min-[480px]:col-span-2 lg:col-span-1">
             <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-[11px] font-medium text-muted-foreground">
                 Calculation Basis
               </p>
               <Button
                 size="sm"
                 variant="outline"
-                className="h-6 px-2 text-[10px]"
+                className="h-8 px-2.5 text-[11px]"
                 disabled={!!lockedReason || version?.state !== 'Draft'}
                 title={
                   lockedReason
@@ -366,11 +370,13 @@ export function CostView({
               </span>
             </div>
           </div>
-          <div className="min-w-0 bg-card px-3 py-2">
-            <p className="text-[10px] text-muted-foreground">Version Status</p>
+          <div className="min-w-0 bg-card px-4 py-3">
+            <p className="text-[11px] font-medium text-muted-foreground">
+              Version Status
+            </p>
             <select
               aria-label="Current version status"
-              className="mt-1 h-7 w-full rounded border border-border bg-card px-2 text-[11px] disabled:opacity-60"
+              className="mt-1.5 h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:bg-muted/40 disabled:opacity-60"
               value={version?.state || 'Draft'}
               disabled={!version || version.state === 'Confirmed'}
               onChange={(event) => {
@@ -392,7 +398,7 @@ export function CostView({
               <option value="Confirmed">Confirmed</option>
             </select>
             <p
-              className="mt-1 text-[9px] text-muted-foreground"
+              className="mt-1.5 text-[11px] text-muted-foreground"
               title={`Confirmation locks Cost ${activeVersion} only.`}
             >
               Locks on confirmation
@@ -401,7 +407,7 @@ export function CostView({
               <Button
                 size="sm"
                 variant="ghost"
-                className="mt-1 h-6 text-[10px] text-red-700"
+                className="mt-1.5 h-8 text-[11px] text-destructive"
                 disabled={!!versionDeletionReasons[activeVersion]}
                 title={
                   versionDeletionReasons[activeVersion]
@@ -416,12 +422,13 @@ export function CostView({
           </div>
         </div>
       </section>
-      <div
-        className="min-w-0 overflow-x-auto border border-border bg-card px-2 py-1.5"
-        aria-label="Cost tools"
-      >
-        <div className="flex min-w-max items-center justify-between gap-3">
-          <fieldset className="flex shrink-0 gap-0.5" aria-label="Cost views">
+      {/* Keep navigation and save/export actions visible when the toolbar wraps. */}
+      <div className="wb-panel min-w-0 p-2" aria-label="Cost tools">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+          <fieldset
+            className="flex min-w-0 max-w-full flex-wrap gap-1 rounded-lg bg-muted/50 p-1"
+            aria-label="Cost views"
+          >
             {[
               {
                 key: 'input' as CostViewKey,
@@ -448,7 +455,7 @@ export function CostView({
                 key={item.key}
                 variant={costView === item.key ? 'default' : 'ghost'}
                 size="sm"
-                className="px-2 text-[11px]"
+                className="h-8 px-3 text-xs"
                 aria-label={item.title}
                 aria-pressed={costView === item.key}
                 title={item.title}
@@ -458,14 +465,16 @@ export function CostView({
               </Button>
             ))}
           </fieldset>
-          <div className="flex shrink-0 items-center gap-1.5 border-l border-border pl-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {personnelTableView.isViewDirty && (
-              <span className="text-[10px] text-amber-700">View not saved</span>
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800">
+                View not saved
+              </span>
             )}
             <Button
               size="sm"
               variant="outline"
-              className="px-2 text-[11px]"
+              className="h-8 px-3 text-xs"
               onClick={() => void saveConfiguration()}
               disabled={isSavingConfiguration || !personnelTableView.ready}
               aria-label="Save cost configuration"
@@ -476,7 +485,7 @@ export function CostView({
             </Button>
             <Button
               size="sm"
-              className="px-2 text-[11px]"
+              className="h-8 px-3 text-xs"
               onClick={exportSimpleWorkbook}
               disabled={isExporting || !personnelTableView.columnSettings.ready}
               title="Cost Detail follows the current groups, row order, columns and year view. Summaries include all five years."
@@ -486,7 +495,7 @@ export function CostView({
             </Button>
             <Button
               size="sm"
-              className="px-2 text-[11px]"
+              className="h-8 px-3 text-xs"
               variant="outline"
               onClick={exportWorkbook}
               disabled={isExporting}
@@ -500,7 +509,7 @@ export function CostView({
         </div>
       </div>
       {costView === 'input' ? (
-        <div className="min-w-0 space-y-3">
+        <div className="wb-page-stack min-w-0 gap-4">
           <RateAssumptions
             locked={!!lockedReason}
             settings={rateSettings}

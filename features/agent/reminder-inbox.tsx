@@ -55,8 +55,8 @@ export function ReminderInbox({
   const active = items.filter((i) => i.active),
     unread = active.filter((i) => !i.acknowledged);
   return (
-    <section className="mb-4 rounded border bg-card p-3">
-      <div className="flex items-center justify-between gap-2">
+    <section className="wb-panel mb-4 px-4 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Button variant="ghost" onClick={() => setOpen(!open)}>
           跟进提醒 · {unread.length} 条未读 / {active.length} 条待处理
         </Button>
@@ -72,10 +72,10 @@ export function ReminderInbox({
           {active.map((r) => (
             <div
               key={r.id}
-              className="flex items-center justify-between gap-3 rounded border p-3"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-4"
             >
               <button
-                className="text-left text-sm"
+                className="min-w-0 flex-1 rounded-md text-left text-sm focus-visible:outline-2 focus-visible:outline-ring"
                 onClick={() =>
                   onOpen(
                     r.item.projectId,

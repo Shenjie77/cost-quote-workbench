@@ -18,18 +18,20 @@ export function SectionHeading({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-      <div>
-        <div className="flex items-baseline gap-2">
+    <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 rounded-t-xl border-b border-border px-4 py-4 sm:px-5">
+      <div className="min-w-0 flex-1 basis-60">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
           {index ? (
-            <span className="financial-numeral text-[11px] font-semibold text-[#a86432]">
+            <span className="financial-numeral inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground">
               {index}
             </span>
           ) : null}
-          <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+          <h2 className="text-base font-semibold tracking-[-0.015em] text-foreground">
             {title}
           </h2>
-          <span className="text-[10px] text-muted-foreground">{titleZh}</span>
+          <span className="text-[11px] font-normal text-muted-foreground">
+            {titleZh}
+          </span>
         </div>
         {description ? (
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -37,12 +39,16 @@ export function SectionHeading({
           </p>
         ) : null}
         {descriptionZh ? (
-          <p className="text-[9px] leading-4 text-muted-foreground">
+          <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
             {descriptionZh}
           </p>
         ) : null}
       </div>
-      {action}
+      {action ? (
+        <div className="flex max-w-full flex-wrap items-center gap-2">
+          {action}
+        </div>
+      ) : null}
     </div>
   );
 }

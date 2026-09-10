@@ -26,28 +26,28 @@ export function ContextBand({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border border-[#c9c5bb] bg-[#e9e6de] px-3 py-2 text-xs whitespace-nowrap">
-      <div className="flex items-center gap-2 font-semibold text-[#173a52]">
+    <div className="wb-panel flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3 text-xs">
+      <div className="flex items-center gap-2 rounded-lg bg-primary/5 px-3 py-2 font-semibold text-[#183c51]">
         <Briefcase className="size-3.5" /> {project.id}
       </div>
       <div>
-        <span className="text-[10px] text-muted-foreground">Client</span>
-        <span className="ml-2 font-medium">{project.client}</span>
+        <span className="text-[11px] text-muted-foreground">Client</span>
+        <span className="ml-2 break-words font-medium">{project.client}</span>
       </div>
       <div>
-        <span className="text-[10px] text-muted-foreground">Currency</span>
+        <span className="text-[11px] text-muted-foreground">Currency</span>
         <span className="financial-numeral ml-2 font-medium">
           {project.currency ?? 'SGD'}
         </span>
       </div>
       <label className="flex items-center gap-2">
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-[11px] text-muted-foreground">
           Proposal Number
         </span>
         {onProposalNumberChange ? (
           <Input
             aria-label="Proposal Number / Proposal 编号"
-            className="h-7 w-32 bg-white/60 text-xs"
+            className="h-9 w-40 bg-white text-xs"
             value={proposalNumber}
             onChange={(event) => onProposalNumberChange(event.target.value)}
             placeholder="Not set"
@@ -58,7 +58,7 @@ export function ContextBand({
         )}
       </label>
       <div>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-[11px] text-muted-foreground">
           Current Version
         </span>
         <span className="financial-numeral ml-2 font-semibold">
@@ -70,17 +70,17 @@ export function ContextBand({
           className={
             costVersion === latestCostVersion
               ? ''
-              : 'border border-[#dfc99e] bg-[#f8f1e4] px-2 py-1'
+              : 'rounded-lg border border-amber-200 bg-amber-50 px-3 py-2'
           }
         >
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground">
             Latest Version
           </span>
-          <span className="financial-numeral ml-2 font-bold text-[#173a52]">
+          <span className="financial-numeral ml-2 font-bold text-[#183c51]">
             {latestCostVersion}
           </span>
           {costVersion !== latestCostVersion ? (
-            <span className="ml-2 text-[9px] font-semibold text-[#8d5b12]">
+            <span className="ml-2 text-[11px] font-semibold text-[#8d5b12]">
               Historical
             </span>
           ) : null}
@@ -88,10 +88,10 @@ export function ContextBand({
       ) : null}
       {stage ? (
         <div>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground">
             Current Stage
           </span>
-          <span className="ml-2 font-semibold text-[#173a52]">{stage}</span>
+          <span className="ml-2 font-semibold text-[#183c51]">{stage}</span>
         </div>
       ) : (
         <StatusBadge
@@ -107,7 +107,9 @@ export function ContextBand({
         </StatusBadge>
       )}
       {action && (
-        <div className="ml-auto flex items-center gap-3">{action}</div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {action}
+        </div>
       )}
     </div>
   );

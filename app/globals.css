@@ -48,47 +48,44 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-body {
-  font-family: var(--font-workbench-sans);
-}
-
+/* Shared application palette and typography keep every editor on the same visual scale. */
 :root {
   --font-workbench-sans:
-    'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', Inter, Arial,
-    sans-serif;
+    Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', Arial, sans-serif;
   --font-workbench-mono:
     'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  --background: #f3f1ec;
-  --foreground: #18232d;
-  --card: #fbfaf7;
-  --card-foreground: #18232d;
-  --popover: #fffefb;
-  --popover-foreground: #18232d;
-  --primary: #173a52;
+  --background: #f4f6f8;
+  --foreground: #203142;
+  --card: #ffffff;
+  --card-foreground: #203142;
+  --popover: #ffffff;
+  --popover-foreground: #203142;
+  --primary: #183c51;
   --primary-foreground: #f8fbfc;
-  --secondary: #e8ecec;
-  --secondary-foreground: #173a52;
-  --muted: #eae8e2;
-  --muted-foreground: #667078;
-  --accent: #dce9e8;
-  --accent-foreground: #225860;
-  --destructive: #ad4643;
-  --border: #d8d5cd;
-  --input: #cfcbc1;
-  --ring: #2e6f77;
-  --chart-1: #173a52;
-  --chart-2: #2e6f77;
+  --secondary: #edf2f6;
+  --secondary-foreground: #25455b;
+  --muted: #f0f3f6;
+  --muted-foreground: #647587;
+  --accent: #e7f3f2;
+  --accent-foreground: #126a70;
+  --destructive: #b5454d;
+  --border: #dfe6ed;
+  --input: #ced8e1;
+  --ring: #177c80;
+  --chart-1: #183c51;
+  --chart-2: #177c80;
   --chart-3: #a86432;
   --chart-4: #6f817b;
   --chart-5: #9b9386;
-  --radius: 0.42rem;
-  --sidebar: #132c3d;
+  --radius: 0.75rem;
+  --sidebar: #142d3e;
   --sidebar-foreground: #eaf0f2;
-  --sidebar-primary: #d9e7e7;
-  --sidebar-primary-foreground: #132c3d;
-  --sidebar-accent: #1d4257;
+  --sidebar-primary: #e6f3f2;
+  --sidebar-primary-foreground: #163f50;
+  --sidebar-accent: #213e50;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #2f4d5e;
+  --sidebar-border: #2a4659;
   --sidebar-ring: #77a8aa;
 }
 
@@ -134,6 +131,9 @@ body {
     @apply bg-background text-foreground;
     margin: 0;
     min-width: 320px;
+    font-family: var(--font-workbench-sans);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
   }
   html {
     @apply font-sans;
@@ -146,43 +146,105 @@ body {
   [role='button'][aria-disabled='true'] {
     cursor: not-allowed;
   }
+  /* Native controls and custom navigation retain a visible keyboard focus target. */
+  :where(
+    button,
+    a,
+    input,
+    select,
+    textarea,
+    [role='button'],
+    [role='tab']
+  ):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
 }
 
-.financial-numeral {
-  font-family: var(--font-workbench-mono);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
+/* Feature pages share surfaces without coupling their state or business actions. */
+@layer components {
+  .wb-panel {
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card);
+    box-shadow: 0 2px 4px rgb(27 51 72 / 3%);
+  }
 
-.workbench-scrollbar {
-  scrollbar-color: #78909e55 transparent;
-  scrollbar-width: thin;
-}
+  .wb-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: color-mix(in srgb, var(--muted) 45%, var(--card));
+  }
 
-.workbench-scrollbar::-webkit-scrollbar {
-  height: 6px;
-  width: 6px;
-}
+  .wb-table-scroll {
+    min-width: 0;
+    max-width: 100%;
+    overflow: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-color: #bac8d3 transparent;
+    scrollbar-width: thin;
+  }
 
-.workbench-scrollbar::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: #78909e55;
+  .wb-page-stack {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .wb-empty-state {
+    border: 1px dashed var(--input);
+    border-radius: var(--radius);
+    padding: 2rem 1.25rem;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    text-align: center;
+    line-height: 1.75;
+  }
 }
 
 @layer utilities {
   .financial-numeral {
     font-family: var(--font-workbench-mono);
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.02em;
   }
 
   .workbench-scrollbar {
-    scrollbar-color: #b8b4aa transparent;
+    scrollbar-color: #bac8d3 transparent;
     scrollbar-width: thin;
   }
 }
 
+.workbench-scrollbar::-webkit-scrollbar {
+  height: 7px;
+  width: 7px;
+}
+
+.workbench-scrollbar::-webkit-scrollbar-thumb {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #bac8d3;
+  background-clip: padding-box;
+}
+
+/* Respect reduced motion without altering any interaction or async progress state. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 ::selection {
-  background: #c7dada;
-  color: #173a52;
+  background: #d6eeec;
+  color: #163f50;
 }

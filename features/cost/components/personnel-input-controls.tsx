@@ -628,7 +628,7 @@ export function PersonnelLinesTable({
           />
         );
       } else {
-        className = `${cell} bg-[#f5f7f5]`;
+        className = `${cell} bg-muted/35`;
         content =
           field === 'sites'
             ? '—'
@@ -753,7 +753,7 @@ export function PersonnelLinesTable({
         directly.
       </caption>
       <TableHeader>
-        <TableRow className="h-8 bg-[#e9e6de]">
+        <TableRow className="h-8 bg-muted">
           {segments.map((segment, segmentIndex) =>
             segment.index === undefined ? (
               <TableHead
@@ -765,7 +765,7 @@ export function PersonnelLinesTable({
                   minWidth: columnWidth(segment.ids[0]),
                   maxWidth: columnWidth(segment.ids[0]),
                 }}
-                className={`h-8 border-r border-border px-2 ${segment.ids[0] === 'action' ? 'sticky right-0 z-20 border-l bg-[#e9e6de]' : segment.ids[0] === 'scope' && columns[0] === 'scope' ? 'sticky left-0 z-20 bg-[#e9e6de]' : ''}`}
+                className={`h-8 border-r border-border px-2 ${segment.ids[0] === 'action' ? 'sticky right-0 z-20 border-l bg-muted' : segment.ids[0] === 'scope' && columns[0] === 'scope' ? 'sticky left-0 z-20 bg-muted' : ''}`}
               >
                 {getPersonnelColumnSpec(segment.ids[0])?.label}
               </TableHead>
@@ -784,7 +784,7 @@ export function PersonnelLinesTable({
           )}
         </TableRow>
         {hasAnnual && (
-          <TableRow className="h-7 bg-[#f2f0ea]">
+          <TableRow className="h-7 bg-muted">
             {columns
               .filter((id) => annualColumn(id))
               .map((id) => {
@@ -823,7 +823,7 @@ export function PersonnelLinesTable({
               <TableRow
                 key={`group:${entry.groupName}`}
                 data-personnel-group={entry.groupName}
-                className="h-8 bg-[#e8efed] hover:bg-[#e8efed] data-[drop-position=group]:bg-[#bcd9cf]"
+                className="h-8 bg-secondary hover:bg-secondary data-[drop-position=group]:bg-primary/15"
                 onDragOver={(event) => {
                   if (allowDrop(event))
                     event.currentTarget.setAttribute?.(
@@ -875,7 +875,7 @@ export function PersonnelLinesTable({
                       title={title}
                       maxLength={200}
                       disabled={locked || !onRenameGroup}
-                      className="h-7 w-[260px] rounded-sm border-transparent bg-transparent px-1 text-[11px] font-semibold text-[#315764] focus-visible:bg-white"
+                      className="h-7 w-[260px] rounded-sm border-transparent bg-transparent px-1 text-[11px] font-semibold text-primary focus-visible:bg-white"
                     />
                     <Button
                       type="submit"
@@ -903,7 +903,7 @@ export function PersonnelLinesTable({
             <TableRow
               key={`row:${row.id}`}
               data-personnel-row={row.id}
-              className="h-8 data-[drop-position=before]:border-t-2 data-[drop-position=before]:border-t-[#315764] data-[drop-position=after]:border-b-2 data-[drop-position=after]:border-b-[#315764]"
+              className="h-8 data-[drop-position=before]:border-t-2 data-[drop-position=before]:border-t-primary data-[drop-position=after]:border-b-2 data-[drop-position=after]:border-b-primary"
               onDragOver={(event) => {
                 if (!allowDrop(event)) return;
                 const rect = event.currentTarget.getBoundingClientRect();
@@ -951,7 +951,7 @@ export function PersonnelLinesTable({
           </TableRow>
         )}
         {!!rows.length && (
-          <TableRow className="bg-[#eeece6] font-semibold">
+          <TableRow className="bg-muted font-semibold">
             {columns.map((id) => {
               const annual = annualColumn(id);
               let value: string =
@@ -990,9 +990,9 @@ export function PersonnelLinesTable({
                   data-personnel-column={id}
                   className={
                     id === 'action'
-                      ? 'sticky right-0 z-10 border-l border-border bg-[#eeece6] px-1 py-0'
+                      ? 'sticky right-0 z-10 border-l border-border bg-muted px-1 py-0'
                       : id === 'scope' && columns[0] === 'scope'
-                        ? 'sticky left-0 z-10 border-r border-border bg-[#eeece6] px-2 py-0'
+                        ? 'sticky left-0 z-10 border-r border-border bg-muted px-2 py-0'
                         : cell
                   }
                 >

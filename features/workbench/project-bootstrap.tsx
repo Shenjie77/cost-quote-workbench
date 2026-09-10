@@ -105,9 +105,11 @@ export function ProjectBootstrap({
     }
   };
   return (
-    <main className="min-h-screen bg-background p-8">
-      <section className="mx-auto max-w-lg space-y-4 rounded-xl border bg-card p-6">
-        <h1 className="text-xl font-semibold">Cost & Quote Workbench</h1>
+    <main className="min-h-screen bg-background px-4 py-8 sm:py-16">
+      <section className="wb-panel mx-auto max-w-xl space-y-5 p-5 sm:p-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-primary">
+          Cost & Quote Workbench
+        </h1>
         {onOpenMasterData && (
           <Button variant="outline" onClick={onOpenMasterData}>
             Global Master Data / 全局主数据

@@ -302,7 +302,7 @@ export function GlobalMasterDataPage({
     (change) =>
       store.setItems(tab, change);
   return (
-    <div className="space-y-3" data-master-data-scope="global">
+    <div className="wb-page-stack" data-master-data-scope="global">
       {publication && (
         <WorkflowPublishDialog
           steps={publication.steps}
@@ -318,11 +318,11 @@ export function GlobalMasterDataPage({
           }}
         />
       )}
-      <output className="flex flex-wrap items-center gap-3 border bg-card p-3 text-xs">
-        <strong>
+      <output className="wb-panel wb-toolbar text-xs">
+        <strong className="mr-auto text-sm text-primary">
           {workflow ? 'Global Master Data' : 'Global Master Data / 全局主数据'}
         </strong>
-        <span>
+        <span className="rounded-full bg-muted px-3 py-1 font-medium text-muted-foreground">
           {state.loading
             ? workflow
               ? 'Loading'
@@ -338,7 +338,7 @@ export function GlobalMasterDataPage({
                   : 'Not loaded / 尚未载入'}
         </span>
         {isGlobalTabDirty(state) && (
-          <span className="text-amber-800">
+          <span className="rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-800">
             {workflow ? 'Unsaved changes' : 'Unsaved changes / 未保存修改'}
           </span>
         )}
@@ -364,7 +364,7 @@ export function GlobalMasterDataPage({
       {(state.error || dependencyState?.error) && (
         <div
           role="alert"
-          className="border border-red-300 bg-red-50 p-3 text-sm text-red-800"
+          className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"
         >
           {state.error || dependencyState?.error}
           <p className="mt-1 text-xs">
@@ -384,7 +384,7 @@ export function GlobalMasterDataPage({
         </div>
       )}
       {!!state.record?.conflicts.length && (
-        <section className="space-y-2 border border-amber-300 bg-amber-50 p-3 text-sm">
+        <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm">
           <h2 className="font-semibold">
             {workflow
               ? 'Resolve Source Differences'
@@ -396,8 +396,11 @@ export function GlobalMasterDataPage({
               : '迁移保留了不同来源的值。请核对并选择未来项目采用的值，然后保存当前页签；已有项目快照保持不变。'}
           </p>
           {state.record.conflicts.map((conflict) => (
-            <details key={conflict.key} className="border bg-white p-2">
-              <summary>
+            <details
+              key={conflict.key}
+              className="rounded-lg border bg-card p-3"
+            >
+              <summary className="cursor-pointer font-medium focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
                 {globalConflictTitle(conflict, activeTab)} ·{' '}
                 {conflict.variants.length}{' '}
                 {workflow ? 'source values' : 'source values / 个来源值'}

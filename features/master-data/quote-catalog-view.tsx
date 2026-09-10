@@ -20,7 +20,7 @@ import type {
 import { matchesClient } from '@/features/quote/catalog-domain';
 
 const cellClass =
-  'h-8 rounded-none border-0 bg-transparent shadow-none focus-visible:bg-white';
+  'h-9 rounded-md border border-transparent bg-transparent shadow-none hover:border-input hover:bg-background focus-visible:bg-background';
 type Setter<T> = React.Dispatch<React.SetStateAction<T[]>>;
 
 /** Deletion detaches template defaults but never touches copied quote/history text. */
@@ -49,7 +49,7 @@ export function AssumptionLibraryView({
     );
   return (
     <>
-      <div className="flex items-center justify-between gap-3 border-b px-3 py-2 text-xs">
+      <div className="wb-toolbar justify-between border-b text-xs">
         <p>{rows.length} global assumptions · 全局假设库</p>
         <Button
           size="sm"
@@ -75,7 +75,7 @@ export function AssumptionLibraryView({
         Client: exact name or * for all. Quotes keep independent copies. /
         客户填完整名称，* 通用；引用后独立保存，可输入任意语言。
       </p>
-      <div className="overflow-x-auto">
+      <div className="wb-table-scroll">
         <Table className="min-w-[1000px]">
           <TableHeader>
             <TableRow>
@@ -231,7 +231,7 @@ export function QuoteTemplatesView({
   };
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2 text-xs">
+      <div className="wb-toolbar justify-between border-b text-xs">
         <span>{rows.length} templates</span>
         <div className="flex gap-2">
           <Button
@@ -248,7 +248,7 @@ export function QuoteTemplatesView({
         </div>
       </div>
       <div className="grid min-w-0 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)]">
-        <div className="overflow-x-auto border-r">
+        <div className="wb-table-scroll border-b lg:border-b-0 lg:border-r">
           <Table>
             <TableHeader>
               <TableRow>
@@ -261,7 +261,7 @@ export function QuoteTemplatesView({
               {rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className={template?.id === row.id ? 'bg-[#edf4f3]' : ''}
+                  className={template?.id === row.id ? 'bg-accent/60' : ''}
                 >
                   <TableCell>
                     <button
@@ -307,11 +307,13 @@ export function QuoteTemplatesView({
               ))}
             </TableBody>
           </Table>
-          {!rows.length && <p className="p-3 text-xs">No matching templates</p>}
+          {!rows.length && (
+            <p className="wb-empty-state text-xs">No matching templates</p>
+          )}
         </div>
         {template && (
-          <div className="space-y-3 p-3">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="space-y-5 p-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {(
                 [
                   ['name', 'Name'],
@@ -320,7 +322,10 @@ export function QuoteTemplatesView({
                   ['paymentTerms', 'Payment terms'],
                 ] as const
               ).map(([field, label]) => (
-                <label key={field} className="text-xs text-muted-foreground">
+                <label
+                  key={field}
+                  className="space-y-2 text-xs text-muted-foreground"
+                >
                   {label}
                   <Input
                     maxLength={2000}
@@ -333,7 +338,7 @@ export function QuoteTemplatesView({
               ))}
               <label
                 htmlFor="template-validity"
-                className="text-xs text-muted-foreground"
+                className="space-y-2 text-xs text-muted-foreground"
               >
                 Validity days
                 <Input
@@ -380,7 +385,7 @@ export function QuoteTemplatesView({
                 }
               />
             </label>
-            <fieldset className="border p-2">
+            <fieldset className="rounded-lg border bg-muted/20 p-4">
               <legend className="px-1 text-xs">Default assumptions</legend>
               <div className="grid max-h-48 gap-2 overflow-y-auto py-1 sm:grid-cols-2">
                 {library.map((entry) => {
@@ -398,7 +403,7 @@ export function QuoteTemplatesView({
                   return (
                     <label
                       key={entry.id}
-                      className="flex items-start gap-2 text-xs"
+                      className="flex items-start gap-2 rounded-md p-2 text-xs hover:bg-muted/40"
                     >
                       <Checkbox
                         checked={checked}
@@ -425,12 +430,12 @@ export function QuoteTemplatesView({
                 })}
               </div>
               {!library.length && (
-                <p className="text-xs text-muted-foreground">
+                <p className="space-y-2 text-xs text-muted-foreground">
                   Create library entries in Assumptions first.
                 </p>
               )}
             </fieldset>
-            <p className="text-xs text-muted-foreground">
+            <p className="space-y-2 text-xs text-muted-foreground">
               Exact client match (case-insensitive); * is common. Changes affect
               future projects. Existing project templates remain unchanged.
             </p>

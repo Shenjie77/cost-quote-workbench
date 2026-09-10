@@ -27,36 +27,37 @@ export function KpiCard({
     green: 'bg-[#e9f2ed] text-[#377054]',
     amber: 'bg-[#f7efe0] text-[#8d5b12]',
     red: 'bg-[#f7e9e8] text-[#9f3e3b]',
-    gray: 'bg-[#eeece7] text-[#68737c]',
+    gray: 'bg-muted text-muted-foreground',
   }[tone];
   return (
-    <div className="border border-border bg-card px-3 py-2.5">
+    <div className="wb-panel flex h-full flex-col px-4 py-4 sm:px-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <BiText
             en={label}
             zh={labelZh}
-            className="text-[10px] font-medium text-muted-foreground"
-            zhClassName="text-[8px] leading-3"
+            className="text-xs font-medium text-muted-foreground"
+            zhClassName="text-[10px] leading-4"
           />
-          <p className="financial-numeral mt-1 text-[18px] font-semibold leading-none">
-            {value}
-          </p>
         </div>
         <span
           className={
-            'flex size-7 items-center justify-center rounded-md ' + iconTone
+            'flex size-9 shrink-0 items-center justify-center rounded-xl ' +
+            iconTone
           }
         >
-          <Icon className="size-3.5" />
+          <Icon className="size-4" />
         </span>
       </div>
+      <p className="financial-numeral mt-2 break-words text-[22px] font-semibold leading-tight tracking-tight text-foreground sm:text-[25px]">
+        {value}
+      </p>
       <p
-        className="mt-1.5 truncate text-[9px] leading-4 text-muted-foreground"
+        className="mt-3 text-[11px] leading-4 text-muted-foreground"
         title={`${note} / ${noteZh}`}
       >
         {note}
-        <span className="ml-1 text-[8px]">/ {noteZh}</span>
+        <span className="mt-0.5 block text-[10px]">{noteZh}</span>
       </p>
     </div>
   );

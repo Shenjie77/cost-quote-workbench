@@ -10,6 +10,7 @@ import {
   type RateSettings,
 } from '@/features/cost/domain';
 
+/** Edit delivery dates and optionally expand annual labour assumptions. */
 export function RateAssumptions({
   settings,
   setSettings,
@@ -25,16 +26,16 @@ export function RateAssumptions({
   const factors = getLabourRateFactors(settings);
   const y1IsBaseYear = y1Year !== null && y1Year === settings.baseYear;
   const inputClass =
-    'mt-1.5 h-8 min-w-0 w-full rounded-md bg-white px-2 text-xs shadow-none';
+    'mt-1.5 h-8 min-w-0 w-full rounded-lg bg-background px-2.5 text-xs shadow-none disabled:bg-muted/40';
   const change: React.Dispatch<React.SetStateAction<RateSettings>> = (next) => {
     if (!locked) setSettings(next);
   };
   return (
     <section
-      className="overflow-hidden rounded-lg border bg-card"
+      className="wb-panel min-w-0 overflow-hidden"
       aria-label="Delivery and labour rate assumptions"
     >
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2.5">
+      <header className="wb-toolbar justify-between border-b border-border py-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="text-sm font-semibold">Delivery & Rates</h2>
           <span
@@ -49,7 +50,7 @@ export function RateAssumptions({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 px-2 text-[11px]"
+          className="h-8 px-2.5 text-xs"
           aria-expanded={annualDetailsOpen}
           aria-controls="annual-rate-details"
           onClick={() => setAnnualDetailsOpen(!annualDetailsOpen)}
@@ -61,7 +62,7 @@ export function RateAssumptions({
         </Button>
       </header>
       <div className="overflow-x-auto">
-        <div className="grid min-w-[540px] grid-cols-[minmax(64px,0.65fr)_minmax(76px,0.8fr)_repeat(3,minmax(110px,1fr))] gap-2 px-3 py-3">
+        <div className="grid min-w-0 grid-cols-2 gap-3 px-4 py-3 sm:grid-cols-3 xl:grid-cols-[minmax(64px,0.65fr)_minmax(76px,0.8fr)_repeat(3,minmax(110px,1fr))]">
           <label
             className="flex min-w-0 flex-col whitespace-nowrap text-[11px] font-medium text-muted-foreground"
             htmlFor="rate-base-year"
@@ -140,7 +141,7 @@ export function RateAssumptions({
       </div>
       {annualDetailsOpen && (
         <div id="annual-rate-details" className="border-t">
-          <div className="grid grid-cols-5 gap-2 px-3 py-3">
+          <div className="grid grid-cols-2 gap-3 px-4 py-3 sm:grid-cols-5">
             {actualYears.map((year, index) => (
               <div key={index} className="min-w-0">
                 <p className="whitespace-nowrap text-[10px] font-medium text-muted-foreground">

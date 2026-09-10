@@ -56,14 +56,14 @@ export function ProjectWorkflowFields({
   const completed = value.currentWorkflowStepCode === QUOTE_COMPLETED;
   return (
     <div className="space-y-3">
-      <label className="block space-y-1 text-xs">
+      <label className="block space-y-1.5 text-xs font-medium">
         Current Workflow
         <select
           aria-label="Current Workflow"
           value={value.currentWorkflowStepCode}
           disabled={busy}
           required
-          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          className="h-10 w-full rounded-lg border border-input bg-white px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
           onChange={(event) => {
             const target = steps.find(
               (step) => step.code === event.target.value,
@@ -85,7 +85,7 @@ export function ProjectWorkflowFields({
         </select>
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1 text-xs">
+        <label className="block space-y-1.5 text-xs font-medium">
           Owner
           <Input
             aria-label="Workflow Owner"
@@ -98,7 +98,7 @@ export function ProjectWorkflowFields({
             }
           />
         </label>
-        <label className="block space-y-1 text-xs">
+        <label className="block space-y-1.5 text-xs font-medium">
           Next Follow-up
           <Input
             aria-label="Next Follow-up"
@@ -112,13 +112,13 @@ export function ProjectWorkflowFields({
         </label>
       </div>
       <p
-        className={`text-xs ${completed ? 'text-[#2e6f77]' : 'text-muted-foreground'}`}
+        className={`text-xs ${completed ? 'text-[#177c80]' : 'text-muted-foreground'}`}
       >
         {completed
           ? 'Project reminders stop after the quotation is complete. A new cost round restarts the workflow.'
           : 'Record actual progress from the company platform. Projects without a follow-up date are flagged for scheduling.'}
       </p>
-      <label className="block space-y-1 text-xs">
+      <label className="block space-y-1.5 text-xs font-medium">
         Progress / Follow-up Note
         <textarea
           aria-label="Workflow Note"
@@ -126,7 +126,7 @@ export function ProjectWorkflowFields({
           disabled={busy}
           rows={3}
           maxLength={10000}
-          className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm"
+          className="w-full resize-y rounded-lg border border-input bg-white px-3 py-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
           placeholder="Example: PM submitted DRB on the company platform; awaiting the result. Reference: DRB-2026-001."
           onChange={(event) => onChange({ ...value, note: event.target.value })}
         />
@@ -164,16 +164,19 @@ export function ProjectWorkflowHistory({
     b.lastUpdatedAt.localeCompare(a.lastUpdatedAt),
   );
   return (
-    <details className="rounded-md border border-border px-3 py-2">
-      <summary className="cursor-pointer text-xs font-semibold">
+    <details className="wb-panel px-5 py-4">
+      <summary className="cursor-pointer rounded-md text-sm font-semibold text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
         Workflow History (Read Only)
       </summary>
-      <div className="mt-3 max-h-60 space-y-3 overflow-y-auto text-xs">
+      <div className="mt-4 max-h-80 space-y-4 overflow-y-auto text-xs leading-5">
         {!updates.length && !submissions.length && !gates.length && (
           <p className="text-muted-foreground">No history recorded.</p>
         )}
         {updates.map((entry) => (
-          <article key={entry.id} className="border-b border-border pb-2">
+          <article
+            key={entry.id}
+            className="rounded-lg border border-border bg-muted/15 p-4"
+          >
             <p className="font-medium">
               {entry.costVersion} · {label(entry.toStepCode, entry.costVersion)}
             </p>
@@ -225,7 +228,10 @@ export function ProjectWorkflowHistory({
           </article>
         ))}
         {submissions.map((entry) => (
-          <article key={entry.id} className="border-b border-border pb-2">
+          <article
+            key={entry.id}
+            className="rounded-lg border border-border bg-muted/15 p-4"
+          >
             <p className="font-medium">
               Historical Review · {entry.costBaseline.code} · {entry.kind}
               {entry.domain ? ` · ${entry.domain}` : ''}
@@ -263,7 +269,10 @@ export function ProjectWorkflowHistory({
           </article>
         ))}
         {gates.map((entry) => (
-          <article key={entry.id} className="border-b border-border pb-2">
+          <article
+            key={entry.id}
+            className="rounded-lg border border-border bg-muted/15 p-4"
+          >
             <p className="font-medium">
               Historical Checkpoint ·{' '}
               {entry.costVersion || 'Version not recorded'} ·{' '}
@@ -383,8 +392,8 @@ export function ProjectWorkflowDialog({
               busy={disabled}
             />
           )}
-          <details className="rounded-md border border-border px-3 py-2">
-            <summary className="cursor-pointer text-xs font-semibold">
+          <details className="wb-panel px-5 py-4">
+            <summary className="cursor-pointer rounded-md text-sm font-semibold text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
               Project References
             </summary>
             <div className="mt-3 space-y-3">
@@ -395,7 +404,10 @@ export function ProjectWorkflowDialog({
                   ['technicalBasis', 'Technical Document Version'],
                 ] as const
               ).map(([key, label]) => (
-                <label key={key} className="block space-y-1 text-xs">
+                <label
+                  key={key}
+                  className="block space-y-1.5 text-xs font-medium"
+                >
                   {label}
                   <Input
                     value={meta[key]}
@@ -407,14 +419,14 @@ export function ProjectWorkflowDialog({
                   />
                 </label>
               ))}
-              <label className="block space-y-1 text-xs">
+              <label className="block space-y-1.5 text-xs font-medium">
                 Scope Brief
                 <textarea
                   value={meta.scopeBrief}
                   disabled={disabled}
                   rows={3}
                   maxLength={10000}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input bg-white px-3 py-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
                   onChange={(event) =>
                     setMeta({ ...meta, scopeBrief: event.target.value })
                   }

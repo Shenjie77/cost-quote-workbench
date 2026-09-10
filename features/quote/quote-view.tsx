@@ -247,7 +247,7 @@ export function QuoteView({
   const addManualHistory = () => setShowManualHistory(true);
 
   return (
-    <div className="space-y-4">
+    <div className="wb-page-stack">
       <ContextBand
         proposalNumber={proposalNumber}
         onProposalNumberChange={onProposalNumberChange}
@@ -269,8 +269,8 @@ export function QuoteView({
         onManage={() => onOpenMasterData('quote-templates')}
         busy={exportInProgress}
       />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
-        <section className="border border-border bg-card">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
+        <section className="wb-panel">
           <SectionHeading
             index="01"
             title="Pricing Parameters"
@@ -279,7 +279,7 @@ export function QuoteView({
             descriptionZh="定价参数随项目保存，并基于当前成本版本实时重算。"
           />
           <div className="divide-y divide-border text-xs">
-            <div className="grid grid-cols-[1fr_180px] items-center gap-4 px-4 py-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_180px] px-4 py-3">
               <BiText
                 en="Cost with Risk"
                 zh="含风险项目总成本"
@@ -326,7 +326,7 @@ export function QuoteView({
             />
             <label
               htmlFor="target-gross-margin"
-              className="grid grid-cols-[1fr_180px] items-center gap-4 px-4 py-2.5"
+              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_180px] px-4 py-2.5"
             >
               <BiText
                 en="Target Sales GP (%)"
@@ -343,10 +343,10 @@ export function QuoteView({
                 onChange={(event) =>
                   updateNumber('targetGrossMargin', event.target.value)
                 }
-                className="h-8 text-right financial-numeral"
+                className="h-10 text-right financial-numeral"
               />
             </label>
-            <div className="grid grid-cols-[1fr_180px] items-center gap-4 bg-[#f4f2ed] px-4 py-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_180px] bg-muted/40 px-4 py-3">
               <BiText
                 en="Target List Price"
                 zh="目标报价（折扣前）"
@@ -358,7 +358,7 @@ export function QuoteView({
             </div>
             <label
               htmlFor="pricing-discount"
-              className="grid grid-cols-[1fr_180px] items-center gap-4 px-4 py-2.5"
+              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_180px] px-4 py-2.5"
             >
               <BiText
                 en="Discount (SGD)"
@@ -374,12 +374,12 @@ export function QuoteView({
                 onChange={(event) =>
                   updateNumber('discount', event.target.value)
                 }
-                className="h-8 text-right financial-numeral"
+                className="h-10 text-right financial-numeral"
               />
             </label>
             <label
               htmlFor="pricing-gst"
-              className="grid grid-cols-[1fr_180px] items-center gap-4 px-4 py-2.5"
+              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_180px] px-4 py-2.5"
             >
               <BiText en="GST (%)" zh="税率（%）" className="font-medium" />
               <Input
@@ -392,22 +392,22 @@ export function QuoteView({
                 onChange={(event) =>
                   updateNumber('gstPercent', event.target.value)
                 }
-                className="h-8 text-right financial-numeral"
+                className="h-10 text-right financial-numeral"
               />
             </label>
-            <div className="grid grid-cols-2 divide-x divide-border bg-[#edf4f3]">
+            <div className="grid grid-cols-2 divide-x divide-border bg-accent/60">
               <div className="px-4 py-3">
                 <BiText
                   en="Actual Sales GP"
                   zh="销售毛利率（扣除分成）"
-                  className="text-[10px] text-[#557276]"
+                  className="text-xs text-muted-foreground"
                 />
-                <p className="financial-numeral mt-1 text-lg font-bold text-[#173a52]">
+                <p className="financial-numeral mt-1 text-lg font-bold text-primary">
                   {result.valid
                     ? `${result.grossMarginPercent.toFixed(2)}%`
                     : '—'}
                 </p>
-                <p className="financial-numeral mt-1 text-[10px] text-[#557276]">
+                <p className="financial-numeral mt-1 text-xs text-muted-foreground">
                   {result.valid ? formatSgd(result.salesGrossProfit) : '—'}
                 </p>
               </div>
@@ -415,15 +415,15 @@ export function QuoteView({
                 <BiText
                   en="Quote Before Tax"
                   zh="未税报价"
-                  className="items-end text-[10px] text-[#557276]"
+                  className="items-end text-xs text-muted-foreground"
                 />
-                <p className="financial-numeral mt-1 text-lg font-bold text-[#173a52]">
+                <p className="financial-numeral mt-1 text-lg font-bold text-primary">
                   {formatSgd(result.quoteBeforeTax)}
                 </p>
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap justify-end gap-2 border-t border-border p-3">
+          <div className="wb-toolbar justify-end border-t border-border">
             <Button
               variant="outline"
               disabled={isApplyingRates}
@@ -436,7 +436,7 @@ export function QuoteView({
               }
             >
               <Save /> Save Pricing{' '}
-              <span className="text-[9px] opacity-60">保存定价</span>
+              <span className="text-[11px] opacity-60">保存定价</span>
             </Button>
             <Button
               onClick={generateDraft}
@@ -456,7 +456,7 @@ export function QuoteView({
             >
               {isExporting ? <Download /> : <FileCheck2 />}
               {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
-              <span className="text-[9px] opacity-60">生成报价</span>
+              <span className="text-[11px] opacity-60">生成报价</span>
             </Button>
           </div>
           {outputErrors.length > 0 ? (
@@ -465,7 +465,7 @@ export function QuoteView({
             </p>
           ) : null}
         </section>
-        <section className="border border-border bg-card">
+        <section className="wb-panel">
           <SectionHeading
             index="02"
             title="Client Output Preview"
@@ -473,50 +473,50 @@ export function QuoteView({
             description="Preview the currently applied quotation template."
             descriptionZh=""
           />
-          <div className="p-5">
-            <div className="mx-auto max-w-[520px] border border-[#c8c4ba] bg-[#fffefa] p-7 shadow-[0_8px_24px_rgba(23,58,82,0.08)]">
-              <div className="flex items-start justify-between border-b-2 border-[#173a52] pb-5">
+          <div className="bg-muted/20 p-4 sm:p-6">
+            <div className="wb-panel mx-auto max-w-[520px] p-5 shadow-sm sm:p-7">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-primary pb-5">
                 <div>
-                  <p className="text-base font-bold tracking-wide text-[#173a52]">
+                  <p className="text-base font-bold tracking-wide text-primary">
                     {template?.documentTitle || 'SERVICE QUOTATION'}
                   </p>
                 </div>
-                <span className="financial-numeral text-[9px] text-muted-foreground">
+                <span className="financial-numeral text-[11px] text-muted-foreground">
                   QT-{project.id.replace(/^PRJ-/, '')}-{activeVersion}
                 </span>
               </div>
               <div className="mt-6">
-                <p className="text-[9px] uppercase tracking-[0.08em] text-muted-foreground">
+                <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
                   Prepared for
                 </p>
                 <p className="mt-1 text-sm font-semibold">{project.client}</p>
-                <p className="mt-1 text-[9px] text-muted-foreground">
+                <p className="mt-1 text-[11px] text-muted-foreground">
                   {project.name}
                 </p>
               </div>
               <div className="mt-6 border-y border-border py-5">
-                <div className="flex items-end justify-between gap-4">
+                <div className="flex flex-wrap items-end justify-between gap-3">
                   <p className="text-xs font-medium">Total Before Tax</p>
-                  <p className="financial-numeral text-2xl font-bold text-[#173a52]">
+                  <p className="financial-numeral text-xl font-bold tracking-tight text-primary sm:text-2xl">
                     {formatSgd(result.quoteBeforeTax)}
                   </p>
                 </div>
-                <div className="mt-3 flex items-end justify-between gap-4 text-muted-foreground">
-                  <p className="text-[9px]">
+                <div className="mt-3 flex flex-wrap items-end justify-between gap-3 text-muted-foreground">
+                  <p className="text-[11px]">
                     GST {result.gstPercent.toFixed(2)}%
                   </p>
                   <p className="financial-numeral text-xs">
                     {formatSgd(result.gstAmount)}
                   </p>
                 </div>
-                <div className="mt-2 flex items-end justify-between gap-4">
-                  <p className="text-[10px] font-medium">Total After Tax</p>
+                <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+                  <p className="text-xs font-medium">Total After Tax</p>
                   <p className="financial-numeral text-sm font-semibold">
                     {formatSgd(result.quoteAfterTax)}
                   </p>
                 </div>
               </div>
-              <div className="mt-5 space-y-2 text-[10px] text-muted-foreground">
+              <div className="mt-5 space-y-2 text-xs text-muted-foreground">
                 <p>• Validity: {template?.validityDays || 30} days</p>
                 <p>• Payment: {template?.paymentTerms || 'Not set'}</p>
                 <p>• Cost baseline: {activeVersion}</p>
@@ -541,7 +541,7 @@ export function QuoteView({
         </section>
       </div>
 
-      <section className="border border-border bg-card">
+      <section className="wb-panel">
         <SectionHeading
           index="03"
           title="Quote Assumptions"
@@ -556,7 +556,7 @@ export function QuoteView({
                 onClick={() => onOpenMasterData('assumptions')}
               >
                 Manage library{' '}
-                <span className="text-[10px] opacity-60">管理假设库</span>
+                <span className="text-xs opacity-60">管理假设库</span>
               </Button>
               <Button
                 size="sm"
@@ -574,7 +574,7 @@ export function QuoteView({
                 }
               >
                 <Plus /> Add for this quote{' '}
-                <span className="text-[10px] opacity-60">本次新增</span>
+                <span className="text-xs opacity-60">本次新增</span>
               </Button>
             </div>
           }
@@ -586,10 +586,10 @@ export function QuoteView({
           assumptions={quoteAssumptions}
           setAssumptions={setQuoteAssumptions}
         />
-        <div className="overflow-x-auto">
+        <div className="wb-table-scroll">
           <Table className="min-w-[900px]">
             <TableHeader>
-              <TableRow className="bg-[#f2f0ea]">
+              <TableRow className="bg-muted/60">
                 <TableHead className="w-24">Include</TableHead>
                 <TableHead>Assumption</TableHead>
                 <TableHead className="w-20 text-center">Action</TableHead>
@@ -657,7 +657,7 @@ export function QuoteView({
         </div>
       </section>
 
-      <section className="border border-border bg-card">
+      <section className="wb-panel">
         <SectionHeading
           index="04"
           title="Quotation History"
@@ -682,10 +682,10 @@ export function QuoteView({
             }}
           />
         ) : null}
-        <div className="overflow-x-auto">
+        <div className="wb-table-scroll">
           <Table className="min-w-[1180px]">
             <TableHeader>
-              <TableRow className="bg-[#f2f0ea]">
+              <TableRow className="bg-muted/60">
                 <TableHead>Quote No.</TableHead>
                 <TableHead>Generated</TableHead>
                 <TableHead>Cost Version</TableHead>
@@ -730,7 +730,7 @@ export function QuoteView({
                         </details>
                       )}
                     </TableCell>
-                    <TableCell className="financial-numeral text-[10px]">
+                    <TableCell className="financial-numeral text-xs">
                       {new Date(record.generatedAt).toLocaleString('en-SG')}
                     </TableCell>
                     <TableCell>{record.costVersion}</TableCell>

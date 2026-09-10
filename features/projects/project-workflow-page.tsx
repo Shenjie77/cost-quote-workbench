@@ -356,7 +356,7 @@ export function ProjectWorkflowPage({
   return (
     <section
       ref={pageRef}
-      className="space-y-4"
+      className="wb-page-stack"
       aria-label="Project Workflow Page"
     >
       <ProjectWorkflowHeader
@@ -377,11 +377,11 @@ export function ProjectWorkflowPage({
         holdDisabled={complete && !onHold}
         onSetHold={onSetHold ? setHold : undefined}
       />
-      <details className="rounded-xl border bg-card p-3">
-        <summary className="cursor-pointer text-sm font-semibold">
+      <details className="wb-panel px-5 py-4">
+        <summary className="cursor-pointer rounded-md text-sm font-semibold text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
           Project Files &amp; Archive
         </summary>
-        <div className="mt-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.6fr)_minmax(260px,1fr)]">
+        <div className="mt-5 grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]">
           <ProjectFilesPanel
             projectId={project.id}
             disabled={busy || working}
@@ -392,7 +392,7 @@ export function ProjectWorkflowPage({
           <ArchiveSettingsPanel />
         </div>
       </details>
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-white/70 px-4 py-3 text-xs leading-5">
         <p
           className={
             onHold
@@ -434,7 +434,7 @@ export function ProjectWorkflowPage({
           {localError || error}
         </p>
       )}
-      <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]">
         <WorkflowTaskSelect
           steps={workspace.processSteps}
           selectedCode={visibleCode}
@@ -444,9 +444,9 @@ export function ProjectWorkflowPage({
         />
         <nav
           aria-label="Workflow Steps"
-          className="hidden space-y-2 rounded-xl border bg-card p-3 lg:sticky lg:top-4 lg:block lg:max-h-[75vh] lg:overflow-y-auto"
+          className="hidden wb-panel space-y-2 p-3 lg:sticky lg:top-4 lg:block lg:max-h-[75vh] lg:overflow-y-auto"
         >
-          <div className="mb-3 flex items-center justify-between px-1 text-xs font-semibold">
+          <div className="mb-3 flex items-center justify-between border-b border-border px-2 pb-3 pt-1 text-xs font-semibold">
             <span>Steps</span>
             <span className="text-muted-foreground">
               {workspace.processSteps.filter(isDone).length} /{' '}
@@ -463,7 +463,7 @@ export function ProjectWorkflowPage({
               }
             >
               {phase.parallel && (
-                <p className="px-1 pb-1 text-[11px] font-semibold text-[#2e6f77]">
+                <p className="px-1 pb-1 text-[11px] font-semibold text-[#177c80]">
                   {index + 1}. {phase.name} · Parallel
                 </p>
               )}
@@ -475,10 +475,10 @@ export function ProjectWorkflowPage({
                   aria-current={selectedCode === step.code ? 'step' : undefined}
                   disabled={disabled || documentsUploading}
                   onClick={() => choose(step.code)}
-                  className={`flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left transition-colors disabled:opacity-60 ${selectedCode === step.code ? 'bg-[#173a52] text-white' : 'hover:bg-muted/60'}`}
+                  className={`flex w-full items-start gap-3 rounded-lg px-3 py-3.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60 ${selectedCode === step.code ? 'bg-[#183c51] text-white shadow-sm' : 'hover:bg-muted/60'}`}
                 >
                   <span
-                    className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] ${selectedCode === step.code ? 'bg-white/15' : 'bg-muted'}`}
+                    className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] ${selectedCode === step.code ? 'bg-white/15' : 'bg-muted'}`}
                   >
                     {step.state === 'completed' ? (
                       <Check className="size-3" />
@@ -494,7 +494,7 @@ export function ProjectWorkflowPage({
                       {dirtyCodes.includes(step.code) ? ' *' : ''}
                     </span>
                     <span
-                      className={`mt-1 block text-[10px] ${selectedCode === step.code ? 'text-white/75' : 'text-muted-foreground'}`}
+                      className={`mt-1 block text-[11px] ${selectedCode === step.code ? 'text-white/75' : 'text-muted-foreground'}`}
                     >
                       {stateLabels[step.state]}
                       {step.owner ? ` · ${step.owner}` : ''}
@@ -505,7 +505,7 @@ export function ProjectWorkflowPage({
             </div>
           ))}
         </nav>
-        <div className="min-w-0 space-y-4">
+        <div className="min-w-0 space-y-6">
           {selected && (
             <ProjectFilesPanel
               projectId={project.id}
@@ -549,7 +549,7 @@ export function ProjectWorkflowPage({
               busy={disabled || onHold}
             />
           ) : (
-            <p className="rounded-xl border bg-card p-6 text-sm">
+            <p className="wb-panel wb-empty-state">
               No workflow steps are configured.
             </p>
           )}
@@ -585,14 +585,14 @@ export function WorkflowTaskSelect({
     </option>
   );
   return (
-    <div className="space-y-2 rounded-xl border bg-card p-3 lg:hidden">
+    <div className="wb-panel space-y-3 p-4 lg:hidden">
       <label className="block space-y-1.5 text-xs font-medium">
         Workflow Step
         <select
           aria-label="Select Workflow Step"
           value={selectedCode}
           disabled={busy || !steps.length}
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          className="h-11 w-full rounded-lg border border-input bg-white px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
           onChange={(event) => onChange(event.target.value)}
         >
           {phases.map((phase) =>
@@ -607,7 +607,7 @@ export function WorkflowTaskSelect({
         </select>
       </label>
       {selectedPhase?.parallel && (
-        <p className="text-[11px] text-[#2e6f77]">
+        <p className="text-[11px] text-[#177c80]">
           {selectedPhase.name} · {selectedPhase.steps.length} parallel tasks
         </p>
       )}
@@ -667,7 +667,7 @@ export function WorkflowTaskFields({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1 text-xs">
+        <label className="block space-y-1.5 text-xs font-medium">
           Owner
           <Input
             aria-label="Task Owner"
@@ -679,7 +679,7 @@ export function WorkflowTaskFields({
             }
           />
         </label>
-        <label className="block space-y-1 text-xs">
+        <label className="block space-y-1.5 text-xs font-medium">
           {step.state === 'paused' ? 'Planned Resume Date' : 'Next Follow-up'}
           <Input
             aria-label="Task Follow-up"
@@ -693,10 +693,13 @@ export function WorkflowTaskFields({
         </label>
       </div>
       {(step.requiredFields || []).length > 0 && (
-        <div className="space-y-3 rounded-lg border bg-muted/15 p-3">
+        <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-4">
           <p className="text-xs font-medium">Required to Complete</p>
           {(step.requiredFields || []).map((field) => (
-            <label key={field} className="block space-y-1 text-xs">
+            <label
+              key={field}
+              className="block space-y-1.5 text-xs font-medium"
+            >
               {field}
               <Input
                 aria-label={`Task Information: ${field}`}
@@ -714,7 +717,7 @@ export function WorkflowTaskFields({
           ))}
         </div>
       )}
-      <label className="block space-y-1 text-xs">
+      <label className="block space-y-1.5 text-xs font-medium">
         Progress Note
         <textarea
           aria-label="Task Progress Note"
@@ -723,7 +726,7 @@ export function WorkflowTaskFields({
           value={value.note}
           disabled={busy}
           placeholder="Record the latest progress, decision, or company-platform reference."
-          className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm"
+          className="w-full resize-y rounded-lg border border-input bg-white px-3 py-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
           onChange={(event) => onChange({ ...value, note: event.target.value })}
         />
       </label>
@@ -845,11 +848,11 @@ function WorkflowTaskEditor({
   const done = isDone(step);
   const urgency = onHold ? 'none' : workflowUrgency(step);
   return (
-    <article className="overflow-hidden rounded-xl border bg-card">
-      <div className="space-y-3 border-b bg-muted/15 p-5">
+    <article className="wb-panel overflow-hidden">
+      <div className="space-y-4 border-b border-border bg-muted/20 p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">
+            <h2 className="text-xl font-semibold tracking-tight text-primary">
               {step.name || step.nameZh}
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -864,7 +867,7 @@ function WorkflowTaskEditor({
             </p>
           </div>
           <span
-            className={`rounded-full px-3 py-1 text-xs font-medium ${done ? 'bg-emerald-50 text-emerald-800' : urgency === 'urgent' ? 'bg-red-50 text-red-700' : urgency === 'immediate' || step.state === 'paused' ? 'bg-amber-50 text-amber-800' : 'bg-[#e9f1f2] text-[#2e6f77]'}`}
+            className={`rounded-full px-3 py-1 text-xs font-medium ${done ? 'bg-emerald-50 text-emerald-800' : urgency === 'urgent' ? 'bg-red-50 text-red-700' : urgency === 'immediate' || step.state === 'paused' ? 'bg-amber-50 text-amber-800' : 'bg-[#e9f1f2] text-[#177c80]'}`}
           >
             {stateLabels[step.state]}
           </span>
@@ -911,7 +914,7 @@ function WorkflowTaskEditor({
           </div>
         )}
       </div>
-      <div className="space-y-4 p-5">
+      <div className="space-y-5 p-5 sm:p-6">
         {done || complete ? (
           <div className="space-y-3 text-sm">
             <p className="text-xs text-muted-foreground">
@@ -945,7 +948,7 @@ function WorkflowTaskEditor({
         )}
         {!complete && (
           <details className="border-t pt-3">
-            <summary className="cursor-pointer text-xs text-muted-foreground">
+            <summary className="cursor-pointer rounded-md py-1 text-xs font-medium text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
               More Actions
             </summary>
             <div className="mt-3 flex flex-wrap gap-2">

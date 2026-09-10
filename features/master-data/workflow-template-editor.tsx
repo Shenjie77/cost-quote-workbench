@@ -159,7 +159,7 @@ export function WorkflowTemplateEditor({
   };
   return (
     <section>
-      <div className="flex items-center justify-between gap-3 border-b bg-[#f8f7f3] px-4 py-3">
+      <div className="wb-toolbar justify-between border-b">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold">Workflow Template</p>
@@ -188,7 +188,7 @@ export function WorkflowTemplateEditor({
               key={`${phase.id}:${phaseIndex}`}
               className={
                 phase.parallel
-                  ? 'space-y-2 rounded-xl border border-[#bdd3d1] bg-[#f1f7f6] p-3'
+                  ? 'space-y-2 rounded-xl border border-primary/20 bg-accent/40 p-3'
                   : 'space-y-2'
               }
             >
@@ -242,7 +242,7 @@ export function WorkflowTemplateEditor({
                     key={step.code}
                     className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-4 py-3"
                   >
-                    <span className="financial-numeral flex size-7 shrink-0 items-center justify-center rounded-full bg-[#edf3f3] text-xs text-[#2e6f77]">
+                    <span className="financial-numeral flex size-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs text-accent-foreground">
                       {index + 1}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -256,7 +256,7 @@ export function WorkflowTemplateEditor({
                           : 'Calendar Days'}{' '}
                         · {step.required ? 'Required Step' : 'Optional Step'}
                       </p>
-                      <p className="mt-1 text-[10px] text-[#2e6f77]">
+                      <p className="mt-1 text-xs text-accent-foreground">
                         {[
                           step.roundStart && 'Round Start',
                           step.requiresConfirmedCost &&
@@ -354,7 +354,7 @@ export function WorkflowTemplateEditor({
           </p>
         )}
       </div>
-      <div className="flex items-center justify-between gap-3 border-t bg-[#f8f7f3] px-4 py-3">
+      <div className="wb-toolbar justify-between border-t">
         <p className="text-xs text-muted-foreground">
           Add another step, then Preview &amp; Publish to sync projects.
         </p>

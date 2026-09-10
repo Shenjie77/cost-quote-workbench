@@ -33,7 +33,7 @@ export function GlobalCpqCatalog({
   );
   return (
     <>
-      <div className="flex items-center justify-between border-b bg-muted/20 px-3 py-2 text-xs">
+      <div className="wb-toolbar justify-between border-b text-xs">
         <span>Global CPQ catalog / 全局 CPQ 目录 · 项目配置保存独立副本</span>
         <Button
           size="sm"
@@ -61,7 +61,7 @@ export function GlobalCpqCatalog({
           <Plus /> Add / 新增
         </Button>
       </div>
-      <div className="overflow-x-auto">
+      <div className="wb-table-scroll">
         <Table className="min-w-[1500px] text-xs">
           <TableHeader>
             <TableRow>
@@ -120,7 +120,7 @@ export function GlobalCpqCatalog({
                 </TableCell>
                 <TableCell>
                   <select
-                    className="h-8 border bg-transparent"
+                    className="h-9 rounded-md border border-input bg-background px-2"
                     aria-label={`${row.code} kind`}
                     value={row.kind}
                     onChange={(e) =>

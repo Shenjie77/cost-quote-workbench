@@ -55,7 +55,7 @@ function ReferenceLink({ label, value }: { label: string; value?: string }) {
       rel="noopener noreferrer"
       aria-label={`Open ${label} in a new tab`}
       title={href}
-      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-primary underline-offset-4 hover:bg-primary/5 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+      className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-primary underline-offset-4 hover:bg-primary/5 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
     >
       {label}
       <ArrowUpRight className="size-3" aria-hidden="true" />
@@ -118,19 +118,19 @@ export function ProjectWorkflowInfoFields({
   return (
     <form
       aria-label="Edit Project Info"
-      className="mt-2 border-t border-border pt-3"
+      className="mt-4 border-t border-border pt-4"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
         if (canSave) void onSave();
       }}
     >
-      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <label className="grid gap-1 text-xs font-medium">
           Proposal Number
           <Input
             aria-label="Proposal Number"
-            className="h-8"
+            className="h-10"
             value={value.proposalNumber}
             maxLength={300}
             disabled={busy}
@@ -151,7 +151,7 @@ export function ProjectWorkflowInfoFields({
               aria-label={label}
               type="text"
               inputMode="url"
-              className="h-8"
+              className="h-10"
               value={value[field] || ''}
               maxLength={10000}
               placeholder="https://…"
@@ -179,7 +179,7 @@ export function ProjectWorkflowInfoFields({
           Technical Document Version
           <Input
             aria-label="Technical Document Version"
-            className="h-8"
+            className="h-10"
             value={value.technicalBasis}
             maxLength={10000}
             disabled={busy}
@@ -192,7 +192,7 @@ export function ProjectWorkflowInfoFields({
           Scope Brief
           <textarea
             aria-label="Scope Brief"
-            className="min-h-16 w-full resize-y rounded-sm border border-input bg-[#fffdf9] px-2.5 py-1.5 text-xs font-normal outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/45 disabled:opacity-55"
+            className="min-h-24 w-full resize-y rounded-lg border border-input bg-white px-3 py-2.5 text-sm font-normal leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-55"
             rows={2}
             value={value.scopeBrief}
             maxLength={10000}
@@ -203,7 +203,7 @@ export function ProjectWorkflowInfoFields({
           />
         </label>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button type="submit" size="sm" disabled={!canSave}>
           Save Info
         </Button>
@@ -353,9 +353,9 @@ export function ProjectWorkflowHeader({
   return (
     <section
       aria-label="Project Workflow Info"
-      className="min-w-0 rounded-lg border border-border bg-white px-3 py-2.5"
+      className="wb-panel min-w-0 px-5 py-4"
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+      <div className="flex flex-wrap items-center gap-3">
         <Button
           variant="ghost"
           size="icon-sm"
@@ -366,10 +366,10 @@ export function ProjectWorkflowHeader({
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
         </Button>
-        <h2 className="min-w-0 flex-1 break-words text-base font-semibold leading-6">
+        <h2 className="min-w-0 flex-1 basis-48 break-words text-xl font-semibold leading-7 tracking-tight text-primary">
           {project.name || project.nameZh || project.id}
         </h2>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {onSetHold && (
             <ProjectWorkflowHoldControl
               onHold={onHold}
@@ -396,7 +396,7 @@ export function ProjectWorkflowHeader({
           </Button>
         </div>
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 text-xs">
         <dl className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
           {[
             ['Project ID', project.id],
@@ -429,7 +429,7 @@ export function ProjectWorkflowHeader({
         </Button>
       </div>
       {!editing && (
-        <div className="mt-1.5 grid min-w-0 gap-x-5 gap-y-0.5 border-t border-border/60 pt-1.5 lg:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)]">
+        <div className="mt-4 grid min-w-0 gap-x-6 gap-y-2 border-t border-border pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)]">
           <ReferenceText label="Scope Brief" value={value.scopeBrief} />
           <ReferenceText
             label="Technical Document Version"

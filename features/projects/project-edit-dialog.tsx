@@ -145,7 +145,7 @@ export function ProjectEditDialog({
     label: string,
     required = false,
   ) => (
-    <label className="block space-y-1 text-xs">
+    <label className="block space-y-1.5 text-xs font-medium">
       {label}
       <Input
         value={details[key]}
@@ -175,13 +175,13 @@ export function ProjectEditDialog({
           <DialogDescription>{project.id}</DialogDescription>
         </DialogHeader>
         <form
-          className="space-y-4"
+          className="space-y-5"
           onSubmit={(event) => {
             event.preventDefault();
             void save();
           }}
         >
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             {field('name', 'Project Name', true)}
             {field('client', 'Client', true)}
             {field('proposalNumber', 'Proposal Number')}
@@ -189,16 +189,19 @@ export function ProjectEditDialog({
             {field('companyUrl', 'iSales Link')}
             {field('cpqUrl', 'CPQ Link')}
           </div>
-          <details className="rounded-lg border px-3 py-2">
-            <summary className="cursor-pointer text-xs font-medium">
+          <details className="rounded-xl border border-border bg-muted/15 px-4 py-3">
+            <summary className="cursor-pointer rounded-md text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
               Scope & Technical Basis
             </summary>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {(['scopeBrief', 'technicalBasis'] as const).map((key) => (
-                <label key={key} className="block space-y-1 text-xs">
+                <label
+                  key={key}
+                  className="block space-y-1.5 text-xs font-medium"
+                >
                   {key === 'scopeBrief' ? 'Scope Brief' : 'Technical Basis'}
                   <textarea
-                    className="min-h-20 w-full rounded-md border bg-background p-2 text-sm"
+                    className="min-h-24 w-full rounded-lg border border-input bg-white px-3 py-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
                     value={details[key]}
                     disabled={busy || !baseline}
                     maxLength={4000}
@@ -215,7 +218,7 @@ export function ProjectEditDialog({
           </details>
           <section
             aria-label="Project Folder"
-            className="space-y-2 rounded-lg border bg-muted/20 p-3"
+            className="space-y-3 rounded-xl border border-border bg-muted/20 p-4"
           >
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-xs font-semibold">
@@ -265,7 +268,7 @@ export function ProjectEditDialog({
               and ~/ paths are supported. The destination folder must not exist.
             </p>
             {folderDirty && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   type="button"
                   size="sm"

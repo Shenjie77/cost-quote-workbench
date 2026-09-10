@@ -75,7 +75,7 @@ export function AdditionalTravelTable({
       excluded: 0,
     });
   const inputClass =
-    'h-8 rounded-sm border-[#d8d5cd] bg-[#fffdf9] px-2 text-xs shadow-none focus-visible:ring-1';
+    'h-8 rounded-sm border-input bg-background px-2 text-xs shadow-none focus-visible:ring-1';
 
   const updateText = (
     id: string,
@@ -135,7 +135,7 @@ export function AdditionalTravelTable({
     ]);
 
   return (
-    <section className="overflow-hidden border border-border bg-card">
+    <section className="wb-panel min-w-0 overflow-hidden">
       <SectionHeading
         index="03"
         title="Travel & Expenses"
@@ -150,7 +150,7 @@ export function AdditionalTravelTable({
         }
       />
       <div className="grid gap-px border-b border-border bg-border sm:grid-cols-2 xl:grid-cols-4">
-        <div className="bg-[#f7f5f0] px-3 py-2.5">
+        <div className="bg-muted/30 px-3 py-2.5">
           <BiText
             en="Included Travel"
             zh="计入固定价成本"
@@ -160,17 +160,17 @@ export function AdditionalTravelTable({
             {formatSgd(treatmentTotals.included)}
           </p>
         </div>
-        <div className="bg-[#f7f5f0] px-3 py-2.5">
+        <div className="bg-muted/30 px-3 py-2.5">
           <BiText
             en="Reimbursable"
             zh="实报实销"
             className="text-[10px] text-muted-foreground"
           />
-          <p className="financial-numeral mt-1 text-lg font-semibold text-[#376b8a]">
+          <p className="financial-numeral mt-1 text-lg font-semibold text-primary">
             {formatSgd(treatmentTotals.reimbursable)}
           </p>
         </div>
-        <div className="bg-[#f7f5f0] px-3 py-2.5">
+        <div className="bg-muted/30 px-3 py-2.5">
           <BiText
             en="Excluded"
             zh="报价排除"
@@ -180,18 +180,18 @@ export function AdditionalTravelTable({
             {formatSgd(treatmentTotals.excluded)}
           </p>
         </div>
-        <label className="bg-[#edf4f3] px-3 py-2.5" htmlFor="travel-uplift">
+        <label className="bg-secondary/50 px-3 py-2.5" htmlFor="travel-uplift">
           <BiText
             en="Travel Annual Uplift"
             zh="差旅年度浮动"
-            className="text-[10px] text-[#557276]"
+            className="text-[10px] text-muted-foreground"
           />
           <div className="relative mt-2 max-w-[140px]">
             <Input
               id="travel-uplift"
               type="number"
               step="0.1"
-              className="h-8 rounded-sm border-[#aac4c4] bg-white pr-7 text-right text-xs shadow-none focus-visible:ring-1"
+              className="h-8 rounded-sm border-input bg-white pr-7 text-right text-xs shadow-none focus-visible:ring-1"
               value={travelUplift}
               onChange={(event) => setTravelUplift(Number(event.target.value))}
             />
@@ -199,7 +199,7 @@ export function AdditionalTravelTable({
               %
             </span>
           </div>
-          <p className="mt-1 text-[8px] text-[#557276]">
+          <p className="mt-1 text-[8px] text-muted-foreground">
             Separate from labour / 与人力浮动分开
           </p>
         </label>
@@ -207,7 +207,7 @@ export function AdditionalTravelTable({
       <div className="workbench-scrollbar overflow-x-auto">
         <Table className="min-w-[1660px]">
           <TableHeader>
-            <TableRow className="bg-[#e9e6de] hover:bg-[#e9e6de]">
+            <TableRow className="bg-muted hover:bg-muted">
               <TableHead className="w-[190px] min-w-[190px] px-3">
                 <BiText en="Scope" zh="服务范围" />
               </TableHead>
@@ -257,7 +257,7 @@ export function AdditionalTravelTable({
             {rows.map((row) => {
               const treatment = treatmentLabels[row.treatment];
               return (
-                <TableRow key={row.id} className="bg-card hover:bg-[#f5f4ef]">
+                <TableRow key={row.id} className="bg-card hover:bg-muted/20">
                   <TableCell className="px-3">
                     <Input
                       aria-label={'Travel scope for ' + row.id}
@@ -392,7 +392,7 @@ export function AdditionalTravelTable({
                       }
                     >
                       <SelectTrigger
-                        className="w-full rounded-sm bg-[#fffdf9] text-xs"
+                        className="w-full rounded-sm bg-background text-xs"
                         aria-label={'Treatment for ' + row.id}
                       >
                         <SelectValue />
@@ -426,9 +426,9 @@ export function AdditionalTravelTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-[#f7f5f0] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-3">
         <div className="flex items-center gap-2 text-[10px] leading-4 text-muted-foreground">
-          <Plane className="size-4 text-[#376b8a]" />
+          <Plane className="size-4 text-primary" />
           Included travel enters the cost baseline; reimbursable and excluded
           items remain separate.
           <span className="text-[9px]">

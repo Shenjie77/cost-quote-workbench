@@ -121,7 +121,7 @@ export function PersonnelColumnSettingsPanel({
           type="button"
           variant="outline"
           size="sm"
-          className="h-7 px-2 text-[11px]"
+          className="h-8 px-2.5 text-xs"
           disabled={!ready}
           onClick={() => {
             if (ready) onReset();
@@ -144,7 +144,7 @@ export function PersonnelColumnSettings(props: PersonnelColumnSettingsProps) {
             type="button"
             variant="outline"
             size="sm"
-            className="h-7 px-2 text-[11px]"
+            className="h-8 px-2.5 text-xs"
             disabled={props.ready === false}
           />
         }

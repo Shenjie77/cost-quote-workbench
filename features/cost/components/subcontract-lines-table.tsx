@@ -486,9 +486,7 @@ export function SubcontractLinesTable({
     >
       <TableHeader>
         <TableRow className="bg-muted/35 hover:bg-muted/35">
-          <TableHead
-            className={`${itemClass} ${allYears ? 'bg-[#f4f3ef]' : ''}`}
-          >
+          <TableHead className={`${itemClass} ${allYears ? 'bg-muted' : ''}`}>
             Item
           </TableHead>
           <TableHead className="min-w-24 text-right">Unit Price</TableHead>

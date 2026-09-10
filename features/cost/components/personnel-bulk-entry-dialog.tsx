@@ -200,7 +200,7 @@ export function PersonnelBulkEntryForm({
   return (
     <>
       <div className="space-y-3">
-        <div className="grid gap-2 rounded-md border border-border bg-[#f5f7f5] p-3 sm:grid-cols-[220px_1fr]">
+        <div className="grid gap-2 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-[220px_1fr]">
           <label className="grid content-start gap-1 text-[11px] font-medium">
             Input format
             <select
@@ -473,7 +473,7 @@ export function PersonnelBulkEntryForm({
             )}
             {!!preview.notices.length && (
               <details
-                className="rounded-md bg-[#f7f5f0] p-2 text-[11px]"
+                className="rounded-md bg-muted/30 p-2 text-[11px]"
                 open={preview.notices.length <= 5}
               >
                 <summary className="cursor-pointer font-medium">
@@ -500,7 +500,7 @@ export function PersonnelBulkEntryForm({
             {!!preview.entries.length && (
               <div className="max-h-80 overflow-auto border border-border">
                 <table className="w-full min-w-[840px] text-[11px]">
-                  <thead className="sticky top-0 z-10 bg-[#e9e6de]">
+                  <thead className="sticky top-0 z-10 bg-muted">
                     <tr>
                       {[
                         'Row',

@@ -74,18 +74,18 @@ export function ReviewsView({
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
   return (
-    <div className="space-y-4">
-      <section className="flex flex-wrap items-start justify-between gap-3 border border-[#c7d9d8] bg-[#edf4f3] px-4 py-3">
+    <div className="wb-page-stack">
+      <section className="wb-panel flex flex-wrap items-start justify-between gap-3 bg-accent/60 px-5 py-4">
         <BiText
           en="One persisted queue for owners, deadlines, blockers, evidence, and follow-up records."
           zh="统一维护负责人、期限、阻塞项、完成依据和每次跟进记录。"
-          className="text-[11px] font-medium text-[#355e62]"
+          className="text-[11px] font-medium text-accent-foreground"
         />
         <StatusBadge tone="green">
           <BiInline en="Live SQLite data" zh="实时本地数据" />
         </StatusBadge>
       </section>
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <KpiCard
           label="Open Gates"
           labelZh="待处理节点"
@@ -122,8 +122,8 @@ export function ReviewsView({
           tone="gray"
         />
       </div>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_390px]">
-        <section className="border border-border bg-card">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.45fr)_390px]">
+        <section className="wb-panel">
           <SectionHeading
             index="01"
             title="Review Gates"
@@ -187,10 +187,10 @@ export function ReviewsView({
                         projectId: review.projectId,
                       })
                     }
-                    className="grid w-full grid-cols-[12px_minmax(0,1fr)_120px_110px_18px] items-center gap-4 px-5 py-4 text-left hover:bg-[#f5f4ef] max-sm:grid-cols-[12px_minmax(0,1fr)_18px]"
+                    className="grid w-full grid-cols-[12px_minmax(0,1fr)_120px_110px_18px] items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/50 focus-visible:bg-accent/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-sm:grid-cols-[12px_minmax(0,1fr)_18px]"
                   >
                     <span
-                      className={`size-2.5 rounded-full ${timing.tone === 'red' ? 'bg-[#ad4643]' : timing.tone === 'amber' ? 'bg-[#a36b18]' : timing.tone === 'blue' ? 'bg-[#376b8a]' : timing.tone === 'green' ? 'bg-[#377054]' : 'bg-[#8a8f91]'}`}
+                      className={`size-2.5 rounded-full ${timing.tone === 'red' ? 'bg-destructive' : timing.tone === 'amber' ? 'bg-amber-600' : timing.tone === 'blue' ? 'bg-blue-600' : timing.tone === 'green' ? 'bg-emerald-600' : 'bg-muted-foreground'}`}
                     />
                     <span className="min-w-0">
                       <span className="flex items-center gap-2">
@@ -201,7 +201,7 @@ export function ReviewsView({
                           <BiInline en={status.en} zh={status.zh} />
                         </StatusBadge>
                       </span>
-                      <span className="mt-1 block truncate text-[9px] text-muted-foreground">
+                      <span className="mt-1 block truncate text-[11px] text-muted-foreground">
                         {review.gateZh} · {project?.name || review.projectId}
                         {review.costVersion
                           ? ` · 成本 ${review.costVersion}`
@@ -212,7 +212,7 @@ export function ReviewsView({
                       <BiText
                         en="Owner"
                         zh="负责人"
-                        className="text-[9px] text-muted-foreground"
+                        className="text-[11px] text-muted-foreground"
                       />
                       <span className="mt-1 block text-xs font-medium">
                         {review.owner}
@@ -222,10 +222,10 @@ export function ReviewsView({
                       <BiText
                         en={timing.en}
                         zh={timing.zh}
-                        className="items-end text-[9px] text-muted-foreground"
+                        className="items-end text-[11px] text-muted-foreground"
                       />
                       <span
-                        className={`financial-numeral mt-1 block text-xs font-medium ${timing.overdue ? 'text-[#ad4643]' : ''}`}
+                        className={`financial-numeral mt-1 block text-xs font-medium ${timing.overdue ? 'text-destructive' : ''}`}
                       >
                         {review.dueDate}
                       </span>
@@ -235,14 +235,14 @@ export function ReviewsView({
                 );
               })
             ) : (
-              <div className="px-5 py-12 text-center text-xs text-muted-foreground">
+              <div className="wb-empty-state">
                 No review gates match this filter. Use “New Gate” to create one.
                 / 当前筛选无评审节点，可点击“新增”。
               </div>
             )}
           </div>
         </section>
-        <section className="border border-border bg-card">
+        <section className="wb-panel">
           <SectionHeading
             index="02"
             title="Follow-up Rhythm"
@@ -252,12 +252,12 @@ export function ReviewsView({
           />
           <div className="space-y-5 p-5">
             <div className="flex items-center gap-3">
-              <span className="flex size-9 items-center justify-center rounded-md bg-[#e5ecef] text-[#173a52]">
+              <span className="flex size-9 items-center justify-center rounded-md bg-secondary text-primary">
                 <Bell className="size-4" />
               </span>
               <div>
                 <p className="text-xs font-semibold">Daily Digest Ready</p>
-                <p className="financial-numeral mt-1 text-[9px] text-muted-foreground">
+                <p className="financial-numeral mt-1 text-[11px] text-muted-foreground">
                   Agent/CLI may query at any scheduled time / Agent 可按计划查询
                 </p>
               </div>
@@ -277,15 +277,15 @@ export function ReviewsView({
                 ],
               ].map(([en, zh]) => (
                 <div key={en} className="flex items-center gap-2">
-                  <Check className="size-3.5 text-[#377054]" />
+                  <Check className="size-3.5 text-emerald-700" />
                   <BiText en={en} zh={zh} />
                 </div>
               ))}
             </div>
-            <div className="border border-[#c7d9d8] bg-[#edf4f3] p-3 text-[10px] leading-5 text-[#355e62]">
+            <div className="rounded-lg border border-border bg-accent/60 p-4 text-xs leading-5 text-accent-foreground">
               The Agent never invents progress. With no new record, it reports
               “Status confirmation required.”
-              <span className="block text-[9px]">
+              <span className="block text-[11px]">
                 Agent 不会推断真实进展；没有新记录时只标记“状态待确认”。
               </span>
             </div>

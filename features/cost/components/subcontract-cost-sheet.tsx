@@ -49,7 +49,8 @@ const money = (amount: number) =>
   });
 const yearLabel = (years: (number | null)[], index: number) =>
   `${YEAR_BUCKETS[index]}${years[index] ? ` · ${years[index]}` : ''}`;
-const selectClass = 'h-8 min-w-0 rounded-md border bg-background px-2 text-xs';
+const selectClass =
+  'h-9 min-w-0 rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20';
 
 /** Catalogue values are copied once; future catalogue edits cannot reprice a BOQ. */
 export function copySubcontractCatalogLine(
@@ -331,9 +332,9 @@ export function SubcontractCostSheet({
             catalogTarget?.kind === 'site' && site.id === catalogTarget.id,
         )?.lines ?? []);
   return (
-    <section className="min-w-0 space-y-3" aria-label="Subcontract cost">
-      <div className="overflow-hidden rounded-lg border bg-card">
-        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-3.5 py-3">
+    <section className="wb-page-stack min-w-0" aria-label="Subcontract cost">
+      <div className="wb-panel min-w-0 overflow-hidden">
+        <header className="wb-toolbar justify-between">
           <div>
             <h2 className="text-sm font-semibold">
               Subcontract Cost{' '}
@@ -345,7 +346,7 @@ export function SubcontractCostSheet({
               Unit prices saved with this cost version.
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-4">
             <label className="space-y-1 text-[10px] font-medium text-muted-foreground">
               <span className="block">Cost Model</span>
               <select
@@ -378,15 +379,15 @@ export function SubcontractCostSheet({
               <p className="text-[10px] font-medium text-muted-foreground">
                 {unpriced ? 'Priced Subtotal' : 'Total'} · SGD
               </p>
-              <p className="mt-0.5 text-xl font-semibold leading-7 tracking-tight tabular-nums text-[#245e65]">
+              <p className="mt-0.5 text-xl font-semibold leading-7 tracking-tight tabular-nums text-primary">
                 {money(total)}
               </p>
             </div>
           </div>
         </header>
-        <div className="grid grid-cols-5 divide-x border-t bg-muted/20">
+        <div className="grid grid-cols-2 gap-px border-t bg-border sm:grid-cols-5">
           {years.map((amount, index) => (
-            <div key={index} className="min-w-0 px-2.5 py-2">
+            <div key={index} className="min-w-0 bg-card px-4 py-3">
               <p className="whitespace-nowrap text-[10px] text-muted-foreground">
                 {yearLabel(actualYears, index)}
               </p>
@@ -411,10 +412,10 @@ export function SubcontractCostSheet({
       )}
       {value.mode === 'site-types' && (
         <section
-          className="overflow-hidden rounded-lg border bg-card"
+          className="wb-panel min-w-0 overflow-hidden"
           aria-label="Site configuration"
         >
-          <div className="flex items-center gap-2 border-b bg-muted/20 px-3 py-2.5">
+          <div className="wb-toolbar border-b border-border">
             <label
               htmlFor="subcontract-site-type"
               className="shrink-0 text-xs font-medium"
@@ -424,7 +425,7 @@ export function SubcontractCostSheet({
             <select
               id="subcontract-site-type"
               aria-label="Select subcontract site type"
-              className={`${selectClass} flex-1`}
+              className={`${selectClass} w-full flex-1 basis-40`}
               value={selectedSite?.id ?? ''}
               onChange={(event) => setSelectedSiteId(event.target.value)}
             >
@@ -570,7 +571,7 @@ export function SubcontractCostSheet({
                 }
                 announce={announce}
               />
-              <div className="flex items-center justify-between gap-3 border-t bg-muted/10 px-3 py-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-4 py-3 text-xs">
                 <span className="text-muted-foreground">
                   Cost per Site
                   {selectedSite.lines.some((line) => line.unitPrice === null)
@@ -597,7 +598,7 @@ export function SubcontractCostSheet({
                     year.
                   </p>
                 )}
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                   {selectedSite.sites.map((count, index) => (
                     <div key={index} className="min-w-0 space-y-1.5">
                       <p className="whitespace-nowrap text-[10px] font-medium text-muted-foreground">
@@ -627,7 +628,7 @@ export function SubcontractCostSheet({
               </div>
             </>
           ) : (
-            <div className="px-4 py-8 text-center">
+            <div className="wb-empty-state">
               <p className="text-sm font-medium">
                 Build your first site configuration
               </p>
@@ -649,7 +650,7 @@ export function SubcontractCostSheet({
         </section>
       )}
       {value.mode === 'site-types' && value.siteTypes.length > 1 && (
-        <details className="overflow-hidden rounded-lg border bg-card">
+        <details className="wb-panel min-w-0 overflow-hidden">
           <summary className="cursor-pointer px-3 py-2.5 text-xs font-medium hover:bg-muted/20">
             All site types · Annual breakdown{' '}
             <span className="ml-2 font-normal text-muted-foreground">
@@ -679,7 +680,7 @@ export function SubcontractCostSheet({
                     <TableCell>
                       <button
                         type="button"
-                        className="text-left text-xs font-medium text-[#245e65] underline-offset-2 hover:underline"
+                        className="text-left text-xs font-medium text-primary underline-offset-2 hover:underline"
                         onClick={() => setSelectedSiteId(site.id)}
                       >
                         {site.name}
@@ -708,7 +709,7 @@ export function SubcontractCostSheet({
           </Table>
         </details>
       )}
-      <section className="overflow-hidden rounded-lg border bg-card">
+      <section className="wb-panel min-w-0 overflow-hidden">
         {value.mode === 'site-types' ? (
           <button
             type="button"
@@ -966,13 +967,13 @@ function AddLineActions({
   onManual: () => void;
 }) {
   return (
-    <div className="flex shrink-0 items-center gap-1.5">
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
       <Button
         type="button"
         size="sm"
         disabled={locked}
         onClick={onCatalog}
-        className="h-8 bg-[#2e6f77] px-2.5 text-xs text-white hover:bg-[#245e65]"
+        className="h-8 bg-primary px-2.5 text-xs text-white hover:bg-primary/90"
       >
         <Search className="size-3.5" />
         Add from Catalog
@@ -1004,7 +1005,7 @@ export function LegacySubcontractCosts({
   onRemove?: (id: string) => void;
 }) {
   return (
-    <section className="border bg-card">
+    <section className="wb-panel min-w-0 overflow-hidden">
       <div className="border-b p-3">
         <h3 className="text-sm font-semibold">Legacy Subcontract Costs</h3>
         <p className="mt-1 text-xs text-muted-foreground">

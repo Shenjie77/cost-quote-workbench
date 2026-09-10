@@ -38,7 +38,7 @@ export function ProfitShareEditor({
   const errors = validateProfitShareRates(items);
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/20 px-3 py-2 text-xs">
+      <div className="wb-toolbar justify-between border-b text-xs">
         <div>
           <p className="font-medium">BU Profit Share Rates</p>
           <p className="mt-1 text-muted-foreground">
@@ -64,10 +64,10 @@ export function ProfitShareEditor({
           <Plus /> Add BU
         </Button>
       </div>
-      <div className="overflow-x-auto">
+      <div className="wb-table-scroll">
         <Table className="min-w-[580px] text-xs">
           <TableHeader>
-            <TableRow className="bg-[#f2f0ea]">
+            <TableRow className="bg-muted/60">
               <TableHead>BU</TableHead>
               <TableHead className="w-48">BU Code</TableHead>
               <TableHead className="w-48 text-right">

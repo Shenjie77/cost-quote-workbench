@@ -78,7 +78,7 @@ export function CostStatementTable({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-[#f7f5f0] px-4 py-2 text-[10px] text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-2 text-[10px] text-muted-foreground">
         <span>
           Auto-linked: in-house labour, subcontract/partner cost, and HQ travel.
           <span className="ml-1 text-[9px]">
@@ -86,7 +86,7 @@ export function CostStatementTable({
             计算或手动录入。
           </span>
         </span>
-        <span className="financial-numeral font-semibold text-[#173a52]">
+        <span className="financial-numeral font-semibold text-primary">
           Total with risk ·{' '}
           {values.totalWithRisk ? formatSgd(values.totalWithRisk) : '-'}
         </span>
@@ -94,7 +94,7 @@ export function CostStatementTable({
       {unmappedRows.length > 0 ? (
         <div
           role="alert"
-          className="border-b border-[#dfc99e] bg-[#fff8e8] px-4 py-2 text-[10px] text-[#7a5318]"
+          className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[10px] text-amber-900"
         >
           {unmappedRows.length} cost line(s) totaling {formatSgd(unmappedCost)}
           have no valid RE Type and are excluded from this statement. /{' '}
@@ -110,16 +110,16 @@ export function CostStatementTable({
             leaf rows are manually editable.
           </caption>
           <TableHeader>
-            <TableRow className="h-9 bg-[#17437a] text-white hover:bg-[#17437a]">
-              <TableHead className="w-[55%] border-r border-[#3d6290] px-3 text-white">
+            <TableRow className="h-9 bg-primary text-white hover:bg-primary">
+              <TableHead className="w-[55%] border-r border-primary-foreground/20 px-3 text-white">
                 Report Item (SGD){' '}
-                <span className="text-[9px] font-normal text-[#cddbeb]">
+                <span className="text-[9px] font-normal text-primary-foreground/70">
                   报表项
                 </span>
               </TableHead>
-              <TableHead className="w-[27%] border-r border-[#3d6290] px-3 text-white">
+              <TableHead className="w-[27%] border-r border-primary-foreground/20 px-3 text-white">
                 Source{' '}
-                <span className="text-[9px] font-normal text-[#cddbeb]">
+                <span className="text-[9px] font-normal text-primary-foreground/70">
                   来源
                 </span>
               </TableHead>
@@ -139,14 +139,14 @@ export function CostStatementTable({
                     : 0;
               const rowClass =
                 row.mode === 'grand-total'
-                  ? 'bg-[#17437a] text-white hover:bg-[#17437a]'
+                  ? 'bg-primary text-white hover:bg-primary'
                   : row.mode === 'section'
-                    ? 'bg-[#efe0d1] hover:bg-[#efe0d1]'
+                    ? 'bg-secondary hover:bg-secondary'
                     : row.code === '15'
-                      ? 'bg-[#f4e5d9] hover:bg-[#f4e5d9]'
+                      ? 'bg-primary/10 hover:bg-primary/10'
                       : row.mode === 'subtotal'
-                        ? 'bg-[#e3f0ef] hover:bg-[#e3f0ef]'
-                        : 'bg-card hover:bg-[#f2f7f6]';
+                        ? 'bg-secondary/70 hover:bg-secondary/70'
+                        : 'bg-card hover:bg-muted/30';
               return (
                 <TableRow
                   key={row.code || row.en}
@@ -168,7 +168,7 @@ export function CostStatementTable({
                           className={
                             'ml-1 text-[9px] font-normal ' +
                             (row.mode === 'grand-total'
-                              ? 'text-[#d9e6f3]'
+                              ? 'text-primary-foreground/75'
                               : 'text-muted-foreground')
                           }
                         >
@@ -181,7 +181,7 @@ export function CostStatementTable({
                     className={
                       'border-r px-3 text-[9px] ' +
                       (row.mode === 'grand-total'
-                        ? 'border-[#3d6290] text-[#d9e6f3]'
+                        ? 'border-primary-foreground/20 text-primary-foreground/75'
                         : 'border-border text-muted-foreground')
                     }
                   >
@@ -225,7 +225,7 @@ export function CostStatementTable({
                           step={
                             row.manualKey === 'otherService' ? '0.01' : '100'
                           }
-                          className="financial-numeral h-9 rounded-none border-0 bg-transparent pl-7 pr-2 text-right text-[11px] shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-white focus-visible:ring-1"
+                          className="financial-numeral h-9 rounded-none border-0 bg-background pl-7 pr-2 text-right text-[11px] shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-background focus-visible:ring-1 disabled:bg-muted/40"
                           value={manualAmount || ''}
                           placeholder="-"
                           onChange={(event) =>
@@ -259,7 +259,7 @@ export function CostStatementTable({
           </TableBody>
         </Table>
       </div>
-      <div className="border-t border-border bg-[#f7f5f0] px-4 py-2 text-[9px] leading-4 text-muted-foreground">
+      <div className="border-t border-border bg-muted/30 px-4 py-3 text-[11px] leading-5 text-muted-foreground">
         Non-in-house labour and Subcontract Cost are mutually exclusive: use
         Non-in-house for time-and-material external people, and Subcontract for
         deliverable or fixed-price packages. /

@@ -121,8 +121,8 @@ export function OverviewView({
   );
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+    <div className="wb-page-stack">
+      <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Active Projects"
           labelZh="进行中项目"
@@ -170,8 +170,8 @@ export function OverviewView({
           tone="red"
         />
       </div>
-      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.72fr)_390px]">
-        <section className="overflow-hidden border border-border bg-card">
+      <div className="grid min-w-0 gap-6">
+        <section className="wb-panel overflow-hidden">
           <SectionHeading
             index="01"
             title="Project Portfolio"
@@ -179,12 +179,12 @@ export function OverviewView({
             description="One workflow record for each project."
             descriptionZh="统一登记项目流程、负责人和跟进日期。"
             action={
-              <div className="flex items-center gap-2">
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 <Select
                   value={activeWorkflowFilter}
                   onValueChange={(value) => setWorkflowFilter(value ?? 'all')}
                 >
-                  <SelectTrigger size="sm" className="w-44">
+                  <SelectTrigger size="sm" className="w-full min-w-44 sm:w-52">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -219,13 +219,13 @@ export function OverviewView({
             onQuote={onOpenQuote}
             onTrackWorkflow={onTrackWorkflow}
           />
-          <div className="border-t border-border bg-[#f7f5f0] px-4 py-3 text-xs text-muted-foreground">
+          <div className="border-t border-border bg-[#f6f8fa] px-4 py-3 text-xs text-muted-foreground">
             Showing {visibleProjects.length} of {projects.length} local projects
             / 显示 {visibleProjects.length} 个项目
           </div>
         </section>
-        <div className="space-y-4">
-          <section className="border border-border bg-card">
+        <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,1fr)]">
+          <section className="wb-panel overflow-hidden">
             <SectionHeading
               index="02"
               title="Project Follow-ups"
@@ -243,17 +243,17 @@ export function OverviewView({
                     <details
                       key={group.projectId}
                       data-workflow-project-group={group.projectId}
-                      className="group px-4 py-3"
+                      className="group px-5 py-4 transition-colors open:bg-muted/25"
                       open={group.severity === 'red'}
                     >
-                      <summary className="flex cursor-pointer list-none items-center gap-3 text-xs">
+                      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 rounded-md text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
                         <span
                           className={`size-2 shrink-0 rounded-full ${group.severity === 'red' ? 'bg-[#ad4643]' : group.severity === 'amber' ? 'bg-[#a36b18]' : 'bg-[#376b8a]'}`}
                         />
                         <span className="min-w-0 flex-1 font-semibold">
                           {project?.name || group.projectId}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {group.severity === 'red'
                             ? '紧急'
                             : group.severity === 'amber'
@@ -263,7 +263,7 @@ export function OverviewView({
                         </span>
                         <ChevronRight className="size-3.5 group-open:rotate-90" />
                       </summary>
-                      <div className="mt-2 space-y-1 pl-5">
+                      <div className="mt-3 space-y-1 pl-5">
                         {group.items.map((item) => (
                           <button
                             key={item.id}
@@ -277,12 +277,12 @@ export function OverviewView({
                                 setView('project');
                               }
                             }}
-                            className="block w-full rounded px-2 py-2 text-left hover:bg-[#f5f4ef]"
+                            className="block w-full rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-[#f0f5f7] focus-visible:outline-2 focus-visible:outline-ring"
                           >
                             <span className="block text-xs font-medium">
                               {item.titleZh}
                             </span>
-                            <span className="mt-1 block text-[10px] text-muted-foreground">
+                            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
                               {item.detailZh}
                             </span>
                           </button>
@@ -292,32 +292,33 @@ export function OverviewView({
                   );
                 })
               ) : (
-                <div className="px-4 py-10 text-center text-[10px] text-muted-foreground">
+                <div className="wb-empty-state">
                   No projects need follow-up / 当前没有需要跟进的项目
                 </div>
               )}
             </div>
             <button
               onClick={() => setView('project')}
-              className="flex w-full items-center justify-center gap-1 border-t border-border px-4 py-3 text-xs font-medium text-[#2e6f77] hover:bg-[#f5f4ef]"
+              className="flex w-full items-center justify-center gap-1 border-t border-border px-4 py-3 text-xs font-medium text-[#177c80] hover:bg-[#f0f5f7]"
             >
-              Open project list <span className="text-[9px]">查看项目列表</span>
+              Open project list{' '}
+              <span className="text-[11px]">查看项目列表</span>
               <ArrowRight className="size-3.5" />
             </button>
           </section>
-          <section className="border border-[#b9cece] bg-[#edf4f3]">
-            <div className="flex items-center justify-between border-b border-[#c7d9d8] px-4 py-3">
+          <section className="overflow-hidden rounded-xl border border-[#cce2e1] bg-[#eff8f7] shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d6e8e7] px-5 py-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-[#225860]">
                 <Sparkles className="size-4" />
                 Daily Agent Digest{' '}
-                <span className="text-[9px] font-normal">每日摘要</span>
+                <span className="text-[11px] font-normal">每日摘要</span>
               </div>
-              <span className="financial-numeral text-[10px] text-[#557276]">
+              <span className="financial-numeral text-[11px] text-[#557276]">
                 {digest.asOf}
               </span>
             </div>
-            <div className="space-y-3 p-4">
-              <p className="text-xs leading-5 text-[#355e62]">
+            <div className="space-y-4 p-5">
+              <p className="text-sm leading-6 text-[#355e62]">
                 {followUpProjects.length} 个项目、{digest.items.length}{' '}
                 个节点需要跟进。Agent 按各并行节点的 SLA
                 和跟进安排提醒，阶段衔接时提示待启动；项目完成后停止提醒。
@@ -329,14 +330,14 @@ export function OverviewView({
                 onClick={() => setView('agent')}
               >
                 Open full digest{' '}
-                <span className="text-[9px] opacity-60">完整摘要</span>
+                <span className="text-[11px] opacity-60">完整摘要</span>
                 <ArrowRight />
               </Button>
             </div>
           </section>
         </div>
       </div>
-      <section className="border border-border bg-card">
+      <section className="wb-panel overflow-hidden">
         <SectionHeading
           index="03"
           title="Project Workflow Distribution"
@@ -350,7 +351,7 @@ export function OverviewView({
           </output>
         )}
         {workflowDefinitionRevision !== undefined && (
-          <p className="border-b px-5 py-2 text-[10px] text-muted-foreground">
+          <p className="border-b px-5 py-2 text-[11px] text-muted-foreground">
             Published workflow · Revision {workflowDefinitionRevision}
           </p>
         )}
@@ -383,32 +384,32 @@ export function WorkflowDistributionNodes({
   onSelect: (code: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {entries.map(({ step, count, legacy }) => (
         <button
           key={step.code}
           data-workflow-distribution-node={step.code}
           data-recorded-node={legacy || undefined}
           onClick={() => onSelect(step.code)}
-          className="group relative px-5 py-4 text-left hover:bg-[#f5f4ef]"
+          className="group relative min-h-32 rounded-xl border border-border bg-muted/20 px-4 py-4 pr-8 text-left transition-colors hover:border-[#b8d4d5] hover:bg-[#eff7f7] focus-visible:outline-2 focus-visible:outline-ring"
         >
-          <span className="financial-numeral text-xl font-semibold text-[#173a52]">
+          <span className="financial-numeral text-2xl font-semibold text-[#183c51]">
             {count}
           </span>
           <span className="mt-1 block text-xs font-semibold">
             {step.name || step.nameZh}
           </span>
           {step.name && step.nameZh && (
-            <span className="mt-1 block text-[9px] text-muted-foreground">
+            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
               {step.nameZh}
             </span>
           )}
           {step.parallelGroup && (
-            <span className="mt-2 block text-[9px] text-[#2e6f77]">
+            <span className="mt-2 block text-[11px] text-[#177c80]">
               Parallel · {step.parallelGroup}
             </span>
           )}
-          <ChevronRight className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#b4b0a6]" />
+          <ChevronRight className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 transition-transform group-hover:translate-x-0.5" />
         </button>
       ))}
     </div>

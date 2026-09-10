@@ -39,7 +39,7 @@ export function ManualHistoryForm({
   ] as const;
   return (
     <form
-      className="grid gap-3 border-b bg-muted/20 p-3 md:grid-cols-3"
+      className="grid gap-4 border-b bg-muted/30 p-5 md:grid-cols-3"
       onSubmit={(event) => {
         event.preventDefault();
         const cost = roundMoney(Number(values.costAmount));
@@ -78,7 +78,7 @@ export function ManualHistoryForm({
       }}
     >
       {fields.map(([key, label, type]) => (
-        <label key={key} className="text-xs">
+        <label key={key} className="block space-y-2 text-xs font-medium">
           {label}
           <Input
             type={type}

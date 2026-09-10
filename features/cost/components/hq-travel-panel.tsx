@@ -63,10 +63,10 @@ export function HQTravelPanel({
   ];
   return (
     <section
-      className="overflow-hidden rounded-lg border bg-card"
+      className="wb-panel min-w-0 overflow-hidden"
       aria-label="HQ travel cost"
     >
-      <header className="flex items-center justify-between gap-3 px-3 py-3">
+      <header className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
         <div>
           <label className="flex items-center gap-2 text-sm font-semibold">
             <Checkbox
@@ -91,7 +91,7 @@ export function HQTravelPanel({
         </div>
         <div className="shrink-0 text-right">
           <p className="text-[10px] text-muted-foreground">HQ Travel · SGD</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-[#245e65]">
+          <p className="mt-0.5 text-lg font-semibold tabular-nums text-primary">
             {summary.totalCost.toLocaleString('en-SG', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
@@ -120,7 +120,7 @@ export function HQTravelPanel({
       </div>
       {enabled && (
         <>
-          <div className="grid grid-cols-3 gap-3 border-t px-3 py-3">
+          <div className="grid grid-cols-2 gap-4 border-t px-4 py-4 sm:grid-cols-3">
             {(
               [
                 [
@@ -152,7 +152,7 @@ export function HQTravelPanel({
                   min={0}
                   max={key === 'trips' ? COST_LIMITS.trips : COST_LIMITS.money}
                   step={key === 'trips' ? 1 : 'any'}
-                  className="h-8 w-full bg-white px-2 text-right text-xs tabular-nums"
+                  className="h-9 w-full bg-background px-2.5 text-right text-xs tabular-nums disabled:bg-muted/40"
                   value={settings[key]}
                   disabled={locked}
                   onChange={(event) => updateAmount(key, event.target.value)}

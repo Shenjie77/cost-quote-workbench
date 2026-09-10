@@ -58,7 +58,7 @@ export function QuoteCatalogImport({
     };
   }, []);
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b bg-muted/20 p-3 text-xs">
+    <div className="wb-toolbar border-b text-xs">
       <span>Project-owned library / 当前项目库 · Copy from / 复制来源</span>
       <Select
         value={sourceId}

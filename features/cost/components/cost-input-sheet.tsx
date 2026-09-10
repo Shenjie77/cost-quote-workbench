@@ -181,8 +181,8 @@ export function CostInputSheet({
   };
 
   return (
-    <section className="min-w-0 overflow-hidden border border-border bg-card">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2.5">
+    <section className="wb-panel min-w-0 overflow-hidden">
+      <div className="wb-toolbar justify-between border-b border-border">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold">Cost Input</h2>
           {locked ? (
@@ -193,12 +193,12 @@ export function CostInputSheet({
             </StatusBadge>
           )}
         </div>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="h-7 px-2 text-[11px]"
+            className="h-8 px-2.5 text-xs"
             disabled={locked}
             onClick={() => {
               if (!locked) setShowImport(!showImport);
@@ -210,7 +210,7 @@ export function CostInputSheet({
           <Button
             type="button"
             size="sm"
-            className="h-7 px-2 text-[11px]"
+            className="h-8 px-2.5 text-xs"
             disabled={locked || !resources.some((resource) => resource.active)}
             onClick={openNew}
           >
@@ -220,19 +220,19 @@ export function CostInputSheet({
         </div>
       </div>
       <div className="grid grid-cols-2 gap-px border-b border-border bg-border min-[480px]:grid-cols-3">
-        <div className="bg-[#f7f5f0] px-3 py-2">
+        <div className="bg-card px-4 py-3">
           <p className="text-[10px] text-muted-foreground">Cost · All Years</p>
           <p className="mt-0.5 text-base font-semibold tabular-nums">
             {formatSgd(totalCost)}
           </p>
         </div>
-        <div className="bg-[#f7f5f0] px-3 py-2">
+        <div className="bg-card px-4 py-3">
           <p className="text-[10px] text-muted-foreground">Total Mandays</p>
           <p className="mt-0.5 text-base font-semibold tabular-nums">
             {totalMd.toLocaleString('en-SG', { maximumFractionDigits: 4 })} MD
           </p>
         </div>
-        <div className="col-span-2 bg-[#f7f5f0] px-3 py-2 min-[480px]:col-span-1">
+        <div className="col-span-2 bg-card px-4 py-3 min-[480px]:col-span-1">
           <p className="text-[10px] text-muted-foreground">Included Travel</p>
           <p className="mt-0.5 text-base font-semibold tabular-nums">
             {formatSgd(includedTravelCost)}
@@ -256,10 +256,11 @@ export function CostInputSheet({
           });
         }}
       />
-      <div className="overflow-x-auto border-b border-border bg-[#f8f7f3] px-3 py-2">
-        <div className="flex min-w-max items-center gap-3">
+      {/* Toolbar controls wrap independently of the dense, horizontally scrollable cost grid. */}
+      <div className="border-b border-border bg-muted/30 px-4 py-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <div
-            className="flex shrink-0 gap-0.5"
+            className="flex max-w-full flex-wrap gap-1 rounded-lg border border-border bg-card p-1"
             aria-label="Cost delivery year"
           >
             {[
@@ -274,7 +275,7 @@ export function CostInputSheet({
                 type="button"
                 size="sm"
                 variant={yearIndex === year.value ? 'default' : 'ghost'}
-                className="h-7 px-2 text-[11px]"
+                className="h-8 px-2.5 text-xs"
                 aria-pressed={yearIndex === year.value}
                 onClick={() => setYearIndex(year.value)}
               >
@@ -283,7 +284,7 @@ export function CostInputSheet({
             ))}
           </div>
           <fieldset
-            className="flex shrink-0 items-center gap-1.5 border-l border-border pl-3"
+            className="flex min-w-0 flex-wrap items-center gap-2"
             aria-label="Cost input mode"
           >
             <span className="text-[11px] text-muted-foreground">Mode</span>
@@ -299,7 +300,7 @@ export function CostInputSheet({
                   type="button"
                   size="sm"
                   variant={inputMode === mode ? 'default' : 'ghost'}
-                  className="h-6 px-2 text-[11px]"
+                  className="h-8 px-2.5 text-[11px]"
                   aria-pressed={inputMode === mode}
                   disabled={locked}
                   title={`Set all cost rows to ${label}`}
@@ -313,12 +314,12 @@ export function CostInputSheet({
               <span className="text-[10px] text-muted-foreground">Mixed</span>
             )}
           </fieldset>
-          <div className="flex shrink-0 items-center gap-1.5 border-l border-border pl-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Button
               type="button"
               size="sm"
               variant={grouped ? 'default' : 'outline'}
-              className="h-7 px-2 text-[11px]"
+              className="h-8 px-2.5 text-xs"
               aria-pressed={grouped}
               onClick={() => setGrouped((current) => !current)}
             >
@@ -329,7 +330,7 @@ export function CostInputSheet({
               type="button"
               size="sm"
               variant="outline"
-              className="h-7 px-2 text-[11px]"
+              className="h-8 px-2.5 text-xs"
               disabled={
                 locked || !resources.some((resource) => resource.active)
               }
@@ -391,7 +392,7 @@ export function CostInputSheet({
         }}
         onDelete={deleteRow}
       />
-      <div className="border-t border-border bg-[#f7f5f0] px-3 py-2 text-[10px] leading-4 text-muted-foreground">
+      <div className="border-t border-border bg-muted/20 px-4 py-3 text-[11px] leading-5 text-muted-foreground">
         Sites × MD/Site or Direct MD → RE rate × annual uplift × selected
         allowance. MD/Site applies to all years for that row. Draft changes save
         automatically. Subcontract costs are managed in Subcon.

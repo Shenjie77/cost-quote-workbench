@@ -37,13 +37,13 @@ export function ProjectTable({
 }) {
   const hasActions = Boolean(onEditProject || onDeleteProject);
   return (
-    <Table className="min-w-[1400px]">
+    <Table className="min-w-[1280px]">
       <TableHeader>
-        <TableRow className="bg-[#f2f0ea] hover:bg-[#f2f0ea]">
-          <TableHead className="w-[285px] px-3">
+        <TableRow className="bg-[#f4f6f8] hover:bg-[#f4f6f8]">
+          <TableHead className="sm:sticky sm:left-0 z-10 w-[265px] bg-[#f4f6f8] px-5">
             <BiText en="Project" zh="项目名称" />
           </TableHead>
-          <TableHead className="w-[295px]">
+          <TableHead className="w-[295px] px-4">
             <BiText en="Project Workflow" zh="项目流程" />
           </TableHead>
           <TableHead className="text-right">
@@ -72,6 +72,13 @@ export function ProjectTable({
         </TableRow>
       </TableHeader>
       <TableBody>
+        {!projects.length && (
+          <TableRow>
+            <TableCell colSpan={hasActions ? 9 : 8} className="wb-empty-state">
+              No projects to display / 暂无项目
+            </TableCell>
+          </TableRow>
+        )}
         {projects.map((project) => {
           const currentStep = project.workflowSteps?.find(
             (step) => step.code === project.currentWorkflowStepCode,
@@ -81,36 +88,39 @@ export function ProjectTable({
           return (
             <TableRow
               key={project.id}
-              className="h-[54px] bg-card hover:bg-[#f7f5f0]"
+              className="group h-20 bg-card hover:bg-[#f6f8fa]"
             >
-              <TableCell className="px-3 py-1.5">
+              <TableCell className="sm:sticky sm:left-0 z-10 bg-card px-5 py-4 group-hover:bg-[#f6f8fa]">
                 <button
-                  className="block max-w-[270px] text-left"
+                  className="block w-full max-w-[245px] rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
                   onClick={() => onProject(project)}
                   title="Open project cost workspace / 打开项目成本工作区"
                 >
-                  <span className="block truncate text-[12px] font-semibold text-[#173a52] hover:underline">
+                  <span
+                    className="block truncate text-sm font-semibold text-[#183c51] hover:underline"
+                    title={project.name}
+                  >
                     {project.name}
                   </span>
                   {onHold && (
-                    <span className="mt-1 inline-flex rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-900">
+                    <span className="mt-1 inline-flex rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
                       On Hold / 已挂起
                     </span>
                   )}
-                  <span className="financial-numeral mt-0.5 block truncate text-[9px] text-muted-foreground">
+                  <span className="financial-numeral mt-1.5 block truncate text-[11px] text-muted-foreground">
                     {project.id} · {project.client}
                   </span>
                 </button>
               </TableCell>
-              <TableCell className="py-2">
+              <TableCell className="px-4 py-4 whitespace-normal">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-[11px] font-semibold text-[#173a52]">
+                    <p className="text-xs font-semibold leading-5 text-[#183c51]">
                       {currentStep
                         ? `${currentStep.name} · ${currentStep.nameZh}`
                         : project.stage || '待登记流程'}
                     </p>
-                    <p className="mt-1 text-[10px] text-muted-foreground">
+                    <p className="mt-1 text-[11px] text-muted-foreground">
                       {onHold
                         ? 'On Hold · Workflow monitoring paused'
                         : completed
@@ -119,7 +129,7 @@ export function ProjectTable({
                     </p>
                     {currentStep?.note && (
                       <p
-                        className="mt-1 max-w-[220px] truncate text-[10px] text-muted-foreground"
+                        className="mt-1 max-w-[220px] truncate text-[11px] text-muted-foreground"
                         title={currentStep.note}
                       >
                         {currentStep.note}
@@ -130,7 +140,7 @@ export function ProjectTable({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 shrink-0 px-2 text-[10px]"
+                      className="shrink-0 px-2.5 text-xs"
                       onClick={() => onTrackWorkflow(project)}
                       aria-label={`更新项目流程 ${project.name}`}
                     >
@@ -139,49 +149,49 @@ export function ProjectTable({
                   )}
                 </div>
               </TableCell>
-              <TableCell className="financial-numeral py-1.5 text-right text-[11px]">
+              <TableCell className="financial-numeral py-4 text-right text-xs">
                 {formatSgd(Number(project.serviceCost || 0))}
               </TableCell>
-              <TableCell className="financial-numeral py-1.5 text-right text-[11px]">
+              <TableCell className="financial-numeral py-4 text-right text-xs">
                 {formatSgd(Number(project.subcontractCost || 0))}
               </TableCell>
-              <TableCell className="py-1.5 text-right">
+              <TableCell className="py-4 text-right">
                 <button
-                  className="financial-numeral text-[11px] font-semibold text-[#2e6f77] hover:underline"
+                  className="financial-numeral rounded-sm text-xs font-semibold text-[#177c80] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                   onClick={() => onCost(project)}
                   title="Open Cost Workspace / 打开成本界面"
                 >
                   {formatSgd(Number(project.totalCost || 0))}
                 </button>
-                <span className="financial-numeral mt-0.5 block text-[8px] text-muted-foreground">
+                <span className="financial-numeral mt-0.5 block text-[11px] text-muted-foreground">
                   {project.version}
                 </span>
               </TableCell>
-              <TableCell className="financial-numeral py-1.5 text-right text-[11px]">
+              <TableCell className="financial-numeral py-4 text-right text-xs">
                 {Number(project.totalMandays || 0).toLocaleString('en-SG', {
                   maximumFractionDigits: 4,
                 })}
               </TableCell>
-              <TableCell className="py-1.5 text-right">
+              <TableCell className="py-4 text-right">
                 <button
-                  className="financial-numeral text-[11px] font-semibold text-[#2e6f77] hover:underline"
+                  className="financial-numeral rounded-sm text-xs font-semibold text-[#177c80] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                   onClick={() => onQuote(project)}
                   title="Open Pricing & Quote / 打开报价界面"
                 >
                   {formatSgd(Number(project.totalQuote || 0))}
                 </button>
               </TableCell>
-              <TableCell className="financial-numeral py-1.5 pr-3 text-right text-[11px] font-semibold">
+              <TableCell className="financial-numeral py-4 pr-4 text-right text-xs font-semibold">
                 {Number(project.grossMarginPercent || 0).toFixed(2)}%
               </TableCell>
               {hasActions && (
-                <TableCell className="py-1.5 pr-3">
+                <TableCell className="py-4 pr-4">
                   <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                     {onEditProject && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 gap-1 px-2 text-xs"
+                        className="gap-1.5 px-2.5 text-xs"
                         onClick={() => onEditProject(project)}
                         aria-label={`编辑项目 ${project.name}`}
                       >
@@ -193,7 +203,7 @@ export function ProjectTable({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 gap-1 px-2 text-xs text-destructive"
+                        className="gap-1.5 px-2.5 text-xs text-destructive hover:bg-destructive/5"
                         onClick={() => onDeleteProject(project)}
                         aria-label={`删除项目 ${project.name}`}
                       >

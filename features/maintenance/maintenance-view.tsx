@@ -88,15 +88,15 @@ export function MaintenanceView({
     }
   };
   return (
-    <div className="space-y-4">
-      <section className="space-y-3 rounded border bg-card p-5">
-        <h2 className="font-semibold">BOQ 维保配置</h2>
+    <div className="wb-page-stack">
+      <section className="wb-panel space-y-4 p-5">
+        <h2 className="text-base font-semibold text-primary">BOQ 维保配置</h2>
         <p className="text-sm text-muted-foreground">
           按同型号查看各客户历史单台年价，选择参考后填写本次
           SLA、年价与选价依据。输出为维保报价草稿，正式报价仍需整理税费、T&C
           并完成公司决策。
         </p>
-        <label className="text-sm">
+        <label className="block space-y-2 text-sm">
           维保期限（月）
           <Input
             type="number"
@@ -107,8 +107,8 @@ export function MaintenanceView({
             }
           />
         </label>
-        <details>
-          <summary className="cursor-pointer text-sm">
+        <details className="rounded-lg border bg-muted/20 p-4">
+          <summary className="cursor-pointer text-sm font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring">
             从产品 BOQ Excel 导入设备
           </summary>
           <fieldset disabled={busy} className="space-y-2 pt-3">
@@ -134,8 +134,8 @@ export function MaintenanceView({
                 }
               }}
             />
-            <div className="grid gap-2 md:grid-cols-5">
-              <label>
+            <div className="grid gap-4 md:grid-cols-5">
+              <label className="block space-y-2 text-xs font-medium">
                 工作表
                 <select
                   value={sheet}
@@ -143,7 +143,7 @@ export function MaintenanceView({
                     setSheet(e.target.value);
                     setPreview([]);
                   }}
-                  className="block h-9 w-full border"
+                  className="block h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring"
                 >
                   {sheets.map((s) => (
                     <option key={s}>{s}</option>
@@ -167,7 +167,7 @@ export function MaintenanceView({
                   />
                 </label>
               ))}
-              <label>
+              <label className="block space-y-2 text-xs font-medium">
                 排除行号
                 <Input
                   value={excluded}
@@ -306,11 +306,11 @@ export function MaintenanceView({
         </Button>
       </section>
       {value.boq.map((row) => (
-        <section key={row.id} className="space-y-3 rounded border bg-card p-4">
+        <section key={row.id} className="wb-panel space-y-4 p-5">
           <div className="grid gap-3 md:grid-cols-4">
             {(['model', 'quantity', 'serviceLevel', 'site'] as const).map(
               (k, i) => (
-                <label className="text-sm" key={k}>
+                <label className="block space-y-2 text-sm" key={k}>
                   {['设备型号', 'BOQ 实际数量', '本次 SLA', '站点'][i]}
                   <Input
                     type={k === 'quantity' ? 'number' : 'text'}
@@ -331,7 +331,7 @@ export function MaintenanceView({
           <label className="block text-sm">
             同型号的客户历史参考
             <select
-              className="mt-1 block h-9 w-full border bg-background"
+              className="mt-1 block h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring"
               value={row.referenceId}
               onChange={(e) => {
                 const ref = maintenanceCandidates(records, row.model).find(
@@ -355,7 +355,7 @@ export function MaintenanceView({
             </select>
           </label>
           <div className="grid gap-3 md:grid-cols-3">
-            <label className="text-sm">
+            <label className="block space-y-2 text-sm">
               本次单台年价 SGD
               <Input
                 type="number"
@@ -394,7 +394,7 @@ export function MaintenanceView({
           </Button>
         </section>
       ))}
-      <div className="flex gap-2">
+      <div className="wb-panel wb-toolbar">
         <Button
           variant="outline"
           onClick={() =>
@@ -420,12 +420,12 @@ export function MaintenanceView({
         </Button>
       </div>
       {value.archives.length > 0 && (
-        <section className="space-y-2 rounded border bg-card p-4">
-          <h2 className="font-semibold">维保配置历史</h2>
+        <section className="wb-panel space-y-3 p-5">
+          <h2 className="text-base font-semibold text-primary">维保配置历史</h2>
           {[...value.archives].reverse().map((a) => (
             <div
               key={a.id}
-              className="flex items-center justify-between gap-3 text-sm"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3 text-sm"
             >
               <span>
                 {a.createdAt.slice(0, 10)} · {a.client} · {a.coverageMonths} 月

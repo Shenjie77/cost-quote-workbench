@@ -29,7 +29,7 @@ export function CostConfirmationBody({
 }) {
   return (
     <div className="space-y-4">
-      <dl className="grid grid-cols-2 gap-2 text-sm">
+      <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-x-4 gap-y-3 rounded-xl border border-border bg-muted/30 p-4 text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:break-words">
         <dt>项目</dt>
         <dd>
           {details.projectName} · {details.projectId}
@@ -47,7 +47,7 @@ export function CostConfirmationBody({
         。此操作不会替代公司的评审结果。
       </p>
       {details.issues.length > 0 && (
-        <ul className="max-h-40 overflow-auto text-sm">
+        <ul className="max-h-40 space-y-2 overflow-auto rounded-lg border border-border p-3 text-sm">
           {details.issues.map((issue, index) => (
             <li
               key={index}

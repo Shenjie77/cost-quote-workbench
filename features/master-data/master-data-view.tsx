@@ -104,8 +104,9 @@ type Props = {
   announce: (message: string) => void;
 };
 
+/** Editable cells stay compact while exposing a clear hover and keyboard-focus target. */
 const denseInput =
-  'h-8 min-w-20 rounded-none border-0 bg-transparent px-2 text-[11px] shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-white focus-visible:ring-1';
+  'h-9 min-w-20 rounded-md border border-transparent bg-transparent px-2 text-xs shadow-none hover:border-input hover:bg-background focus-visible:relative focus-visible:z-20 focus-visible:bg-background focus-visible:ring-2';
 
 /** Browser-generated IDs remain unique after rows are deleted and re-added. */
 const newRecordId = (prefix: string) =>
@@ -200,7 +201,7 @@ export function ResourceIdentityCells({
           <option value="subcontract">Subcontract / 分包</option>
         </select>
         {issue && (
-          <p role="alert" className="max-w-60 px-2 text-[10px] text-red-700">
+          <p role="alert" className="max-w-60 px-2 text-xs text-red-700">
             {issue}
           </p>
         )}
@@ -636,8 +637,8 @@ export function MasterDataView(props: Props) {
   };
 
   return (
-    <div className="min-w-0 space-y-4">
-      <section className="border border-border bg-card">
+    <div className="wb-page-stack min-w-0">
+      <section className="wb-panel">
         <SectionHeading
           index="01"
           title="Master Data"
@@ -670,13 +671,13 @@ export function MasterDataView(props: Props) {
             </Button>
           }
         />
-        <p className="border-t bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        <p className="border-t bg-muted/30 px-5 py-3 text-xs leading-5 text-muted-foreground">
           {workflow
             ? 'Publishing updates pending steps in ongoing projects. Active deadlines are retained unless explicitly recalculated; completed history and cost snapshots remain unchanged.'
             : 'Global / 全局共享 · 新项目取得独立副本。已有 Draft 也不会自动更新汇率；如需采用新汇率，请在目标成本版本明确应用。'}
         </p>
       </section>
-      <section className="min-w-0 overflow-hidden border border-border bg-card">
+      <section className="min-w-0 overflow-hidden wb-panel">
         <Tabs
           value={activeTab === 'status' ? 'workflow' : activeTab}
           onValueChange={(value) => {
@@ -685,17 +686,17 @@ export function MasterDataView(props: Props) {
             setQuery('');
           }}
         >
-          <div className="border-b border-border px-3 py-2">
-            <div className="flex items-center justify-between gap-3 pb-2">
-              <p className="text-xs text-muted-foreground">
+          <div className="border-b border-border p-4 sm:p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-primary">
                 {workflow
                   ? 'Reference Libraries'
                   : 'Reference Libraries / 基础数据与模板库'}
               </p>
-              <div className="relative w-[260px] max-w-[60%]">
+              <div className="relative w-full sm:w-72">
                 <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  className="h-8 rounded-sm bg-white pl-8 text-xs"
+                  className="h-10 bg-background pl-8 text-sm"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   aria-label="Search current master-data tab"
@@ -707,11 +708,11 @@ export function MasterDataView(props: Props) {
                 />
               </div>
             </div>
-            <div className="overflow-x-auto pb-1">
+            <div className="wb-table-scroll pb-1">
               <TabsList
-                variant="line"
+                variant="default"
                 aria-label="Master Data libraries"
-                className="min-w-max justify-start"
+                className="min-w-max justify-start gap-1 rounded-xl bg-muted/50 p-1 group-data-horizontal/tabs:h-auto"
               >
                 {masterDataTabs
                   .filter((tab) => tab.value !== 'status')
@@ -719,15 +720,15 @@ export function MasterDataView(props: Props) {
                     <TabsTrigger
                       key={tab.value}
                       value={tab.value}
-                      className="h-8 px-2"
+                      className="h-11 flex-none gap-2 rounded-lg px-3 text-xs data-active:bg-primary data-active:text-primary-foreground"
                     >
                       {tab.label}
-                      <span className="text-[10px] opacity-60">
+                      <span className="text-[11px] opacity-70">
                         {workflow && tab.value === 'workflow'
                           ? ''
                           : tab.labelZh}
                       </span>
-                      <span className="financial-numeral rounded-sm bg-muted px-1 text-[10px]">
+                      <span className="financial-numeral rounded-md bg-current/10 px-1.5 py-0.5 text-[11px]">
                         {tabCounts[tab.value]}
                       </span>
                     </TabsTrigger>
@@ -753,7 +754,7 @@ export function MasterDataView(props: Props) {
               />
             </TabsContent>
             <TabsContent value="status" className="mt-0">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+              <div className="wb-toolbar justify-between border-b text-xs text-muted-foreground">
                 <span>Default status definitions / 默认项目状态字典</span>
                 <div className="flex items-center gap-2">
                   <StatusBadge tone="blue">
@@ -761,7 +762,7 @@ export function MasterDataView(props: Props) {
                   </StatusBadge>
                   <Button
                     size="sm"
-                    className="h-7 text-[10px]"
+                    className="h-9 text-xs"
                     onClick={addProjectStatusDefinition}
                   >
                     <Plus />
@@ -769,10 +770,10 @@ export function MasterDataView(props: Props) {
                   </Button>
                 </div>
               </div>
-              <div className="overflow-x-auto">
+              <div className="wb-table-scroll">
                 <Table className="min-w-[820px] text-[11px]">
                   <TableHeader>
-                    <TableRow className="bg-[#f2f0ea] hover:bg-[#f2f0ea]">
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
                       <TableHead className="w-60">Code / 系统编码</TableHead>
                       <TableHead>Status Name / 英文名称</TableHead>
                       <TableHead>中文名称</TableHead>
@@ -786,7 +787,7 @@ export function MasterDataView(props: Props) {
                     {statuses.map((status) => (
                       <TableRow key={status.code} className="h-9">
                         <TableCell>
-                          <code className="text-[10px] text-muted-foreground">
+                          <code className="text-xs text-muted-foreground">
                             {status.code}
                           </code>
                         </TableCell>
@@ -847,7 +848,7 @@ export function MasterDataView(props: Props) {
                   </TableBody>
                 </Table>
               </div>
-              <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+              <p className="border-t bg-muted/30 px-4 py-3 text-xs leading-5 text-muted-foreground">
                 English and Chinese names are editable. The code stays stable
                 for CLI and Agent operations; inactive options are hidden from
                 new selections. /
@@ -856,7 +857,7 @@ export function MasterDataView(props: Props) {
             </TabsContent>
             <TabsContent value="resources" className="mt-0">
               <div className="min-w-0">
-                <div className="flex items-center justify-between border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                <div className="wb-toolbar justify-between border-b text-xs text-muted-foreground">
                   <span>
                     Internal / 自有 · Subcontract / 分包 · LOCAL / ARP / HQ /
                     OTHER · L0–L4 · SGD/MD
@@ -865,7 +866,7 @@ export function MasterDataView(props: Props) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-[10px]"
+                      className="h-9 text-xs"
                       onClick={addResource}
                     >
                       <Plus />
@@ -873,7 +874,7 @@ export function MasterDataView(props: Props) {
                     </Button>
                     <Button
                       size="sm"
-                      className="h-7 text-[10px]"
+                      className="h-9 text-xs"
                       onClick={async () =>
                         announce(
                           (await onSave())
@@ -887,10 +888,10 @@ export function MasterDataView(props: Props) {
                     </Button>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="wb-table-scroll">
                   <Table className="min-w-[1480px] text-[11px]">
                     <TableHeader>
-                      <TableRow className="bg-[#f2f0ea]">
+                      <TableRow className="bg-muted/60">
                         {[
                           'Code / 编码',
                           'Name / 名称',
@@ -909,7 +910,7 @@ export function MasterDataView(props: Props) {
                         ].map((label) => (
                           <TableHead
                             key={label}
-                            className="h-9 whitespace-nowrap px-2 text-[10px]"
+                            className="h-9 whitespace-nowrap px-2 text-xs"
                           >
                             {label}
                           </TableHead>
@@ -1021,7 +1022,7 @@ export function MasterDataView(props: Props) {
                     </TableBody>
                   </Table>
                 </div>
-                <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                <p className="border-t bg-muted/30 px-4 py-3 text-xs leading-5 text-muted-foreground">
                   MM rate = MD rate × MD/MM. Hour rate = MD rate ÷ Hour/MD. HQ
                   rows automatically enable travel. Classification changes keep
                   the code unchanged. / 人月、人时汇率自动换算；自有人员可选择
@@ -1033,10 +1034,10 @@ export function MasterDataView(props: Props) {
             </TabsContent>
             <TabsContent value="subcontract" className="mt-0">
               <TableToolbar count={subcontract.length} onAdd={addSubcontract} />
-              <div className="overflow-x-auto">
+              <div className="wb-table-scroll">
                 <Table className="min-w-[1000px]">
                   <TableHeader>
-                    <TableRow className="bg-[#f2f0ea]">
+                    <TableRow className="bg-muted/60">
                       {[
                         'Code',
                         'Item / 条目',
@@ -1146,7 +1147,7 @@ export function MasterDataView(props: Props) {
                     ))}
                   </TableBody>
                 </Table>
-                <p className="border-t bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+                <p className="border-t bg-muted/30 px-4 py-3 text-xs leading-5 text-muted-foreground">
                   Unit Price is a reference price in the listed currency. Blank
                   means not priced; 0 means zero cost. Catalogue edits do not
                   create or update project costs. /
@@ -1160,10 +1161,10 @@ export function MasterDataView(props: Props) {
                 count={supplemental.length}
                 onAdd={addSupplemental}
               />
-              <div className="overflow-x-auto">
+              <div className="wb-table-scroll">
                 <Table className="min-w-[900px]">
                   <TableHeader>
-                    <TableRow className="bg-[#f2f0ea]">
+                    <TableRow className="bg-muted/60">
                       {[
                         'Code',
                         'Name / 名称',
@@ -1274,7 +1275,7 @@ export function MasterDataView(props: Props) {
               </div>
             </TabsContent>
             <TabsContent value="maintenance" className="mt-0">
-              <div className="flex items-center justify-between border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+              <div className="wb-toolbar justify-between border-b text-xs text-muted-foreground">
                 <span>{maintenance.length} records / 条记录</span>
                 <div className="flex gap-2">
                   <input
@@ -1291,24 +1292,24 @@ export function MasterDataView(props: Props) {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 text-[10px]"
+                    className="h-9 text-xs"
                     onClick={() => maintenanceImportRef.current?.click()}
                   >
                     <Upload /> Import JSON/XLSX / 导入
                   </Button>
                   <Button
                     size="sm"
-                    className="h-7 text-[10px]"
+                    className="h-9 text-xs"
                     onClick={addMaintenance}
                   >
                     <Plus /> Add row / 新增
                   </Button>
                 </div>
               </div>
-              <div className="overflow-x-auto">
+              <div className="wb-table-scroll">
                 <Table className="min-w-[1400px]">
                   <TableHeader>
-                    <TableRow className="bg-[#f2f0ea]">
+                    <TableRow className="bg-muted/60">
                       {[
                         'Client',
                         'Service',
@@ -1514,9 +1515,9 @@ export function MasterDataView(props: Props) {
 /** Shared compact toolbar for editable reference tables. */
 function TableToolbar({ count, onAdd }: { count: number; onAdd: () => void }) {
   return (
-    <div className="flex items-center justify-between border-b bg-[#f8f7f3] px-3 py-2 text-[10px] text-muted-foreground">
+    <div className="wb-toolbar justify-between border-b text-xs text-muted-foreground">
       <span>{count} records / 条记录</span>
-      <Button size="sm" className="h-7 text-[10px]" onClick={onAdd}>
+      <Button size="sm" className="h-9 text-xs" onClick={onAdd}>
         <Plus />
         Add row / 新增
       </Button>

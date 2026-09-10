@@ -46,7 +46,7 @@ export function QuoteTemplatePicker({
   return (
     <section
       aria-labelledby="quote-template-heading"
-      className="min-w-0 border border-border border-l-4 border-l-[#173a52] bg-card p-3"
+      className="wb-panel min-w-0 border-l-4 border-l-primary p-4"
     >
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="quote-template-heading" className="text-sm font-semibold">
@@ -56,7 +56,7 @@ export function QuoteTemplatePicker({
           Client: {client} · {choices.length} available
         </span>
       </div>
-      <div className="grid items-end gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+      <div className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
         <div className="min-w-0">
           <label
             id="quote-template-label"

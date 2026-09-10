@@ -55,7 +55,7 @@ export function ProjectWorkflowExecution({
   return (
     <section className="space-y-4">
       <div
-        className={`rounded-lg border p-3 ${complete ? 'border-emerald-200 bg-emerald-50' : 'bg-muted/20'}`}
+        className={`rounded-xl border p-4 ${complete ? 'border-emerald-200 bg-emerald-50' : 'bg-muted/20'}`}
       >
         <p className="text-sm font-semibold">
           {complete
@@ -70,7 +70,7 @@ export function ProjectWorkflowExecution({
       </div>
       {phases.map((phase, index) => (
         <section key={phase.id} className="space-y-2">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#173a52]">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#183c51]">
             <span className="financial-numeral flex size-6 items-center justify-center rounded-full bg-[#e5eeee]">
               {index + 1}
             </span>
@@ -166,7 +166,7 @@ export function WorkflowExecutionNode({
   return (
     <article
       ref={card}
-      className={`rounded-lg border bg-card p-3 ${focused ? 'ring-2 ring-[#2e6f77]/30' : ''} ${urgency === 'urgent' ? 'border-red-300' : urgency === 'immediate' ? 'border-amber-300' : 'border-border'}`}
+      className={`rounded-xl border bg-card p-5 shadow-sm ${focused ? 'ring-2 ring-[#177c80]/30' : ''} ${urgency === 'urgent' ? 'border-red-300' : urgency === 'immediate' ? 'border-amber-300' : 'border-border'}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -176,11 +176,11 @@ export function WorkflowExecutionNode({
             {step.required ? 'Required Step' : 'Optional Step'}
           </p>
         </div>
-        <span className="shrink-0 rounded bg-muted px-2 py-1 text-[10px]">
+        <span className="shrink-0 rounded bg-muted px-2 py-1 text-[11px]">
           {stateLabels[step.state]}
         </span>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+      <div className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
         <p>Started: {dateTime(step.startedAt)}</p>
         <p className={urgency === 'urgent' ? 'font-semibold text-red-700' : ''}>
           Due: {dateTime(step.dueAt)}
@@ -218,7 +218,7 @@ export function WorkflowExecutionNode({
       {!mode && Object.keys(step.fieldValues || {}).length > 0 && (
         <dl className="mt-2 space-y-1 rounded border bg-muted/20 p-2 text-xs">
           {Object.entries(step.fieldValues || {}).map(([field, value]) => (
-            <div key={field} className="flex gap-2">
+            <div key={field} className="flex flex-wrap gap-2">
               <dt className="shrink-0 font-medium">{field}</dt>
               <dd className="whitespace-pre-wrap">{value}</dd>
             </div>
@@ -398,7 +398,7 @@ export function WorkflowNodeActionForm({
   return (
     <div className="mt-3 space-y-3 border-t pt-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1 text-xs">
+        <label className="block space-y-1.5 text-xs font-medium">
           Owner
           <Input
             aria-label="Step Owner"
@@ -409,7 +409,7 @@ export function WorkflowNodeActionForm({
             }
           />
         </label>
-        <label className="block space-y-1 text-xs">
+        <label className="block space-y-1.5 text-xs font-medium">
           {mode === 'pause'
             ? 'Planned Resume Date (Required)'
             : 'Next Follow-up Date'}
@@ -426,7 +426,7 @@ export function WorkflowNodeActionForm({
       </div>
       {mode !== 'reopen' &&
         (step.requiredFields || []).map((field) => (
-          <label key={field} className="block space-y-1 text-xs">
+          <label key={field} className="block space-y-1.5 text-xs font-medium">
             {field}
             {mode === 'complete' ? ' (Required to complete)' : ''}
             <Input
@@ -442,19 +442,19 @@ export function WorkflowNodeActionForm({
             />
           </label>
         ))}
-      <label className="block space-y-1 text-xs">
+      <label className="block space-y-1.5 text-xs font-medium">
         Progress Note
         <textarea
           aria-label="Step Progress Note"
           rows={3}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-input bg-white px-3 py-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
           value={note}
           disabled={disabled}
           onChange={(event) => onChange({ ...value, note: event.target.value })}
         />
       </label>
       {requiresReason && (
-        <label className="block space-y-1 text-xs">
+        <label className="block space-y-1.5 text-xs font-medium">
           {mode === 'pause'
             ? 'Reason for Pausing'
             : mode === 'skip'
@@ -487,7 +487,7 @@ export function WorkflowNodeActionForm({
           </span>
         </label>
       )}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           size="sm"

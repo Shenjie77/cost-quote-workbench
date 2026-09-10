@@ -24,7 +24,7 @@ function NativeSelect({
       <select
         data-slot="native-select"
         data-size={size}
-        className="border-input placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 dark:hover:bg-input/50 focus-visible:border-ring focus-visible:ring-ring/45 aria-invalid:ring-destructive/25 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 h-9 w-full min-w-0 appearance-none rounded-sm border bg-[#fffdf9] py-1 pr-8 pl-2.5 text-xs shadow-none transition-colors select-none focus-visible:ring-1 aria-invalid:ring-1 data-[size=sm]:h-7 data-[size=sm]:rounded-sm data-[size=sm]:py-0.5 outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
+        className="border-input placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 dark:hover:bg-input/50 focus-visible:border-ring focus-visible:ring-ring/15 aria-invalid:ring-destructive/25 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 h-9 w-full min-w-0 appearance-none rounded-md border bg-card py-1 pr-8 pl-2.5 text-[13px] shadow-xs transition-colors select-none focus-visible:ring-2 aria-invalid:ring-1 data-[size=sm]:h-7 data-[size=sm]:rounded-md data-[size=sm]:py-0.5 outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
         {...props}
       />
       <ChevronDownIcon

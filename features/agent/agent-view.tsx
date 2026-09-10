@@ -194,18 +194,18 @@ export function AgentView({
   };
 
   return (
-    <div className="space-y-4">
-      <section className="border border-[#c7d9d8] bg-[#edf4f3]">
+    <div className="wb-page-stack">
+      <section className="wb-panel bg-accent/60">
         <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
           <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-md bg-[#225860] text-white">
+            <span className="flex size-10 items-center justify-center rounded-md bg-primary text-white">
               <Sparkles className="size-5" />
             </span>
             <div>
-              <p className="text-sm font-semibold text-[#225860]">
+              <p className="text-sm font-semibold text-primary">
                 Agent Digest · Project Follow-up
               </p>
-              <p className="mt-1 text-[9px] text-[#557276]">
+              <p className="mt-1 text-[11px] text-muted-foreground">
                 按 Project Workflow 按节点 SLA
                 和负责人跟进并行待办；节点关闭提醒或项目完成后停止提示。
               </p>
@@ -215,18 +215,18 @@ export function AgentView({
             <StatusBadge tone="green">
               <BiInline en="Live governed data" zh="实时受控数据" />
             </StatusBadge>
-            <span className="financial-numeral text-[9px] text-[#557276]">
+            <span className="financial-numeral text-[11px] text-muted-foreground">
               As of {digest.asOf}
             </span>
           </div>
         </div>
       </section>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {groups.map((group, index) => {
           const Icon = group.icon;
           const items = group.items;
           return (
-            <section key={group.id} className="border border-border bg-card">
+            <section key={group.id} className="wb-panel">
               <SectionHeading
                 index={'0' + (index + 1)}
                 title={group.title}
@@ -246,10 +246,10 @@ export function AgentView({
                     <button
                       key={item.id}
                       onClick={() => openItem(item)}
-                      className="flex w-full items-center gap-3 px-5 py-4 text-left text-xs hover:bg-[#f5f4ef]"
+                      className="flex w-full items-center gap-3 px-5 py-4 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:bg-accent/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                     >
                       <Icon
-                        className={`size-4 shrink-0 ${group.tone === 'red' ? 'text-[#ad4643]' : group.tone === 'amber' ? 'text-[#a36b18]' : group.tone === 'blue' ? 'text-[#376b8a]' : 'text-[#68737c]'}`}
+                        className={`size-4 shrink-0 ${group.tone === 'red' ? 'text-destructive' : group.tone === 'amber' ? 'text-amber-700' : group.tone === 'blue' ? 'text-blue-700' : 'text-muted-foreground'}`}
                       />
                       <span className="min-w-0 flex-1">
                         <BiText
@@ -260,14 +260,14 @@ export function AgentView({
                         <BiText
                           en={item.detail}
                           zh={item.detailZh}
-                          className="mt-1 text-[9px] text-muted-foreground"
+                          className="mt-1 text-[11px] text-muted-foreground"
                         />
                       </span>
                       <ChevronRight className="size-4 text-muted-foreground" />
                     </button>
                   ))
                 ) : (
-                  <div className="px-5 py-8 text-center text-[10px] text-muted-foreground">
+                  <div className="wb-empty-state">
                     No follow-ups in this category / 本分类暂无跟进事项
                   </div>
                 )}
@@ -276,7 +276,7 @@ export function AgentView({
           );
         })}
       </div>
-      <section className="border border-border bg-card">
+      <section className="wb-panel">
         <SectionHeading
           index="03"
           title="Follow-up Rules"
@@ -308,13 +308,13 @@ export function AgentView({
             ],
           ].map(([name, detail, detailZh]) => (
             <div key={name} className="bg-card p-4">
-              <code className="financial-numeral text-[11px] font-semibold text-[#2e6f77]">
+              <code className="financial-numeral text-[11px] font-semibold text-accent-foreground">
                 {name}
               </code>
               <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
                 {detail}
               </p>
-              <p className="mt-1 text-[9px] text-muted-foreground">
+              <p className="mt-1 text-[11px] text-muted-foreground">
                 {detailZh}
               </p>
             </div>
