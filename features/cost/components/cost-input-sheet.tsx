@@ -43,6 +43,7 @@ import {
   type PersonnelYear,
 } from './personnel-input-controls';
 
+/** Arrange cost settings above the grid and keep its entry actions beside the table. */
 export function CostInputSheet({
   projectId,
   versionCode,
@@ -193,31 +194,6 @@ export function CostInputSheet({
             </StatusBadge>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 px-2.5 text-xs"
-            disabled={locked}
-            onClick={() => {
-              if (!locked) setShowImport(!showImport);
-            }}
-          >
-            <Upload className="size-3" />
-            Import
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="h-8 px-2.5 text-xs"
-            disabled={locked || !resources.some((resource) => resource.active)}
-            onClick={openNew}
-          >
-            <Plus className="size-3" />
-            Add Row
-          </Button>
-        </div>
       </div>
       <div className="grid grid-cols-2 gap-px border-b border-border bg-border min-[480px]:grid-cols-3">
         <div className="bg-card px-4 py-3">
@@ -326,19 +302,6 @@ export function CostInputSheet({
               <ListTree className="size-3" />
               Groups
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 px-2.5 text-xs"
-              disabled={
-                locked || !resources.some((resource) => resource.active)
-              }
-              onClick={() => setShowBulkEntry(true)}
-            >
-              <ClipboardPaste className="size-3" />
-              Bulk Entry
-            </Button>
             <PersonnelColumnSettings
               preferences={columnSettings.preferences}
               onSetVisible={columnSettings.setVisible}
@@ -348,9 +311,6 @@ export function CostInputSheet({
               storageAvailable={columnSettings.storageAvailable}
             />
           </div>
-          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-            {rows.length} rows
-          </span>
         </div>
       </div>
       {showImport && !locked && (
@@ -366,6 +326,46 @@ export function CostInputSheet({
           onClose={() => setShowImport(false)}
         />
       )}
+      {/* Keep row entry actions directly above the table, even while import is expanded. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2">
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 px-2.5 text-xs"
+          disabled={locked || !resources.some((resource) => resource.active)}
+          onClick={openNew}
+        >
+          <Plus className="size-3" />
+          Add Row
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 px-2.5 text-xs"
+          disabled={locked || !resources.some((resource) => resource.active)}
+          onClick={() => setShowBulkEntry(true)}
+        >
+          <ClipboardPaste className="size-3" />
+          Bulk Entry
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 px-2.5 text-xs"
+          disabled={locked}
+          onClick={() => {
+            if (!locked) setShowImport(!showImport);
+          }}
+        >
+          <Upload className="size-3" />
+          Import
+        </Button>
+        <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+          {rows.length} rows
+        </span>
+      </div>
       <PersonnelLinesTable
         rows={rows}
         resources={resources}
