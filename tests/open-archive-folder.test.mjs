@@ -70,7 +70,7 @@ test('relative paths, URLs, drive-relative paths and control characters cannot b
   );
 });
 
-test('Windows confirms Explorer startup without waiting for a long-lived window process', async () => {
+test('Windows requests a visible Explorer window without waiting for a long-lived process', async () => {
   const process = launcher([['spawn']]);
   const folder = String.raw`D:\QuotePlatform\Test Project`;
   assert.deepEqual(
@@ -85,7 +85,8 @@ test('Windows confirms Explorer startup without waiting for a long-lived window 
     [
       'explorer.exe',
       [folder],
-      { shell: false, detached: true, stdio: 'ignore', windowsHide: true },
+      // Hiding a native GUI child can suppress Explorer even when spawn succeeds.
+      { shell: false, detached: true, stdio: 'ignore', windowsHide: false },
     ],
   ]);
   assert.equal(process.child.unrefCount, 1);

@@ -30,3 +30,11 @@
 Open Folder 打开的是运行工作台本地 API 的电脑上的目录。Windows 使用 Explorer，macOS 使用 Finder，Linux 使用系统桌面文件管理器。
 
 完整代码已保存在本仓库，详细操作见 [项目文件与节点文档归档](project-files.md)。
+
+## Windows 文件夹入口后续修复
+
+- 用户反馈 macOS 正常，但 Windows 点击没有可见窗口。检查确认启动 Explorer 时错误使用了 `windowsHide: true`；[libuv 官方实现](https://github.com/libuv/libuv/blob/v1.x/src/win/process.c) 会将其映射为 GUI 的 `SW_HIDE`，并不只隐藏命令行窗口。
+- 改为 `windowsHide: false`，让 Windows 正常显示 Explorer。仍使用独立的完整路径参数及 `shell: false`，macOS 和 Linux 的打开方式保持不变。
+- 保留 Windows 在进程启动后确认请求已发出的行为：[Explorer 可能将请求交给现有实例后退出](https://devblogs.microsoft.com/oldnewthing/20110325-00/?p=11133)，不能用启动进程的退出状态判断目录窗口是否可见。
+- 回归测试先验证旧配置失败，修复后文件打开、文件 API 和界面相关的 33 项测试全部通过。Windows 窗口显示仍需在用户的 Windows 桌面验证；当前环境为 macOS。
+- 更新代码后需重启运行本地 API 的进程；通过 `npm run dev` 启动的工作台可停止后重新运行该命令。

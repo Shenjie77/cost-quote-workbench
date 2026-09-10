@@ -103,7 +103,8 @@ export async function openArchiveFolder(
         shell: false,
         detached: true,
         stdio: 'ignore',
-        windowsHide: true,
+        // libuv maps windowsHide to SW_HIDE for GUI children too; Explorer must be visible.
+        windowsHide: false,
       });
     } catch (cause) {
       reject(launchError(cause));
