@@ -40,6 +40,7 @@ import type { ReviewGate } from '@/features/reviews/types';
 import type { PanelState, ViewKey } from '@/features/workbench/types';
 import { formatSgd } from '@/lib/formatters';
 
+/** Prioritize current workflow tasks, followed by portfolio totals and project details. */
 export function OverviewView({
   projects,
   reviews,
@@ -67,6 +68,7 @@ export function OverviewView({
   onTrackWorkflow?: (project: Project, nodeCode?: string) => void;
 }) {
   const [workflowFilter, setWorkflowFilter] = useState('all');
+  const [pendingOnly, setPendingOnly] = useState(false);
   const [now, setNow] = useState(() => new Date().toISOString());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date().toISOString()), 60000);
@@ -79,13 +81,23 @@ export function OverviewView({
   )
     ? workflowFilter
     : 'all';
+  // Pending tiles and the portfolio share the same recorded task membership.
+  const selectedWorkflow = workflowOptions.find(
+    (entry) => entry.step.code === activeWorkflowFilter,
+  );
+  const pendingTaskCount = workflowOptions.reduce(
+    (total, entry) => total + entry.pendingCount,
+    0,
+  );
   const visibleProjects =
     activeWorkflowFilter === 'all'
       ? projects
       : projects.filter((project) =>
-          currentProjectWorkflowNodeCodes(project).includes(
-            activeWorkflowFilter,
-          ),
+          pendingOnly
+            ? selectedWorkflow?.pendingProjectIds.includes(project.id)
+            : currentProjectWorkflowNodeCodes(project).includes(
+                activeWorkflowFilter,
+              ),
         );
   const digest = useMemo(
     () =>
@@ -122,6 +134,76 @@ export function OverviewView({
 
   return (
     <div className="wb-page-stack">
+      {/* Keep pending counts above the KPI cards and preserve published workflow order. */}
+      <section
+        className="wb-panel overflow-hidden"
+        aria-label="Project Workflow Distribution"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold">
+              Project Workflow Distribution
+            </h2>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              当前待办 · 含待启动，点击流程查看项目
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold tabular-nums text-amber-800"
+              title="Current unresolved tasks and the next ready phase; completed rounds and projects on hold are excluded."
+            >
+              {pendingTaskCount} Pending
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => {
+                setWorkflowFilter('all');
+                setPendingOnly(false);
+              }}
+            >
+              All projects
+            </Button>
+            {workflowDefinitionRevision !== undefined && (
+              <span className="text-[10px] text-muted-foreground">
+                Published workflow · Revision {workflowDefinitionRevision}
+              </span>
+            )}
+          </div>
+        </div>
+        {workflowDefinitionError && (
+          <output className="block border-b px-4 py-2 text-xs text-amber-800">
+            {workflowDefinitionError}
+          </output>
+        )}
+        <WorkflowDistributionNodes
+          entries={distribution.nodes}
+          selectedCode={pendingOnly ? activeWorkflowFilter : undefined}
+          onSelect={(code) => {
+            setWorkflowFilter(code);
+            setPendingOnly(true);
+          }}
+        />
+        {distribution.retained.length > 0 && (
+          <div className="border-t border-border">
+            <p className="px-4 pt-2 text-[10px] text-muted-foreground">
+              Other recorded nodes · Retained progress from earlier workflow
+              definitions
+            </p>
+            <WorkflowDistributionNodes
+              entries={distribution.retained}
+              selectedCode={pendingOnly ? activeWorkflowFilter : undefined}
+              onSelect={(code) => {
+                setWorkflowFilter(code);
+                setPendingOnly(true);
+              }}
+            />
+          </div>
+        )}
+      </section>
       <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Active Projects"
@@ -182,7 +264,10 @@ export function OverviewView({
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 <Select
                   value={activeWorkflowFilter}
-                  onValueChange={(value) => setWorkflowFilter(value ?? 'all')}
+                  onValueChange={(value) => {
+                    setWorkflowFilter(value ?? 'all');
+                    setPendingOnly(false);
+                  }}
                 >
                   <SelectTrigger size="sm" className="w-full min-w-44 sm:w-52">
                     <SelectValue />
@@ -220,6 +305,7 @@ export function OverviewView({
             onTrackWorkflow={onTrackWorkflow}
           />
           <div className="border-t border-border bg-[#f6f8fa] px-4 py-3 text-xs text-muted-foreground">
+            {pendingOnly && activeWorkflowFilter !== 'all' ? 'Pending · ' : ''}
             Showing {visibleProjects.length} of {projects.length} local projects
             / 显示 {visibleProjects.length} 个项目
           </div>
@@ -337,79 +423,53 @@ export function OverviewView({
           </section>
         </div>
       </div>
-      <section className="wb-panel overflow-hidden">
-        <SectionHeading
-          index="03"
-          title="Project Workflow Distribution"
-          titleZh="项目流程分布"
-          description="Published node names and order, with counts from actual project progress. Parallel tasks can appear under multiple nodes."
-          descriptionZh="节点名称和顺序跟随已发布配置；数量按项目实际进度统计，含待启动及已完成轮次。"
-        />
-        {workflowDefinitionError && (
-          <output className="block border-b px-5 py-2 text-xs text-amber-800">
-            {workflowDefinitionError}
-          </output>
-        )}
-        {workflowDefinitionRevision !== undefined && (
-          <p className="border-b px-5 py-2 text-[11px] text-muted-foreground">
-            Published workflow · Revision {workflowDefinitionRevision}
-          </p>
-        )}
-        <WorkflowDistributionNodes
-          entries={distribution.nodes}
-          onSelect={setWorkflowFilter}
-        />
-        {distribution.retained.length > 0 && (
-          <div className="border-t">
-            <p className="px-5 py-3 text-xs text-muted-foreground">
-              Other recorded nodes · Retained progress from earlier workflow
-              definitions
-            </p>
-            <WorkflowDistributionNodes
-              entries={distribution.retained}
-              onSelect={setWorkflowFilter}
-            />
-          </div>
-        )}
-      </section>
     </div>
   );
 }
 
+/** Render compact task-count filters without changing the configured node order. */
 export function WorkflowDistributionNodes({
   entries,
   onSelect,
+  selectedCode,
 }: {
   entries: ReturnType<typeof buildWorkflowDistribution>['nodes'];
   onSelect: (code: string) => void;
+  selectedCode?: string;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-      {entries.map(({ step, count, legacy }) => (
+    <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 xl:grid-cols-5">
+      {entries.map(({ step, pendingCount, legacy }) => (
         <button
           key={step.code}
+          type="button"
           data-workflow-distribution-node={step.code}
           data-recorded-node={legacy || undefined}
+          aria-label={`${step.name || step.nameZh}: ${pendingCount} pending tasks`}
+          aria-pressed={selectedCode === step.code}
+          title={`${step.name || step.nameZh} · ${pendingCount} Pending${step.parallelGroup ? ` · Parallel · ${step.parallelGroup}` : ''}`}
           onClick={() => onSelect(step.code)}
-          className="group relative min-h-32 rounded-xl border border-border bg-muted/20 px-4 py-4 pr-8 text-left transition-colors hover:border-[#b8d4d5] hover:bg-[#eff7f7] focus-visible:outline-2 focus-visible:outline-ring"
+          className={`grid min-h-16 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-ring ${
+            selectedCode === step.code
+              ? 'border-primary bg-accent ring-1 ring-primary/20'
+              : pendingCount > 0
+                ? 'border-amber-200 bg-amber-50/70 hover:border-amber-400'
+                : 'border-border bg-muted/20 hover:border-ring/40 hover:bg-accent/50'
+          }`}
         >
-          <span className="financial-numeral text-2xl font-semibold text-[#183c51]">
-            {count}
+          <span
+            className={`row-span-2 text-xl font-semibold tabular-nums ${pendingCount > 0 ? 'text-amber-800' : 'text-muted-foreground/70'}`}
+          >
+            {pendingCount}
           </span>
-          <span className="mt-1 block text-xs font-semibold">
+          <span className="text-[11px] font-semibold leading-4 [overflow-wrap:anywhere]">
             {step.name || step.nameZh}
           </span>
           {step.name && step.nameZh && (
-            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+            <span className="col-start-2 text-[10px] leading-4 text-muted-foreground [overflow-wrap:anywhere]">
               {step.nameZh}
             </span>
           )}
-          {step.parallelGroup && (
-            <span className="mt-2 block text-[11px] text-[#177c80]">
-              Parallel · {step.parallelGroup}
-            </span>
-          )}
-          <ChevronRight className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 transition-transform group-hover:translate-x-0.5" />
         </button>
       ))}
     </div>

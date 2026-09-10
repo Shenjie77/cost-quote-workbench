@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildWorkflowDistribution,
   currentProjectWorkflowNodeCodes,
+  pendingProjectWorkflowNodeCodes,
 } from '../features/overview/workflow-distribution.ts';
 const step = (code, name = code, extra = {}) => ({
   code,
@@ -135,4 +136,110 @@ test('removed nodes remain separate only when they still carry actual current or
     [['GONE', 1]],
   );
   assert.deepEqual(p.workflowSteps[0].name, 'Recorded final');
+});
+
+test('pending counts exclude finished rounds and whole-project holds while preserving recorded position counts', () => {
+  const active = project('active', [step('A', 'A', { state: 'in_progress' })]);
+  const held = {
+    ...project('held', [step('A', 'A', { state: 'awaiting_review' })]),
+    workflowHold: { startedAt: '2026-09-10T00:00:00Z' },
+  };
+  const finished = project('finished', [
+    step('A', 'A', { state: 'in_progress' }),
+    step('END', 'End', { finishesWorkflow: true, state: 'completed' }),
+  ]);
+  const projects = [active, held, finished];
+  const before = structuredClone(projects);
+  const result = buildWorkflowDistribution(projects, [step('A'), step('END')]);
+
+  assert.deepEqual(
+    result.nodes.map(({ count, pendingCount }) => [count, pendingCount]),
+    [
+      [2, 1],
+      [1, 0],
+    ],
+  );
+  assert.deepEqual(result.nodes[0].projectIds, ['active', 'held']);
+  assert.deepEqual(result.nodes[0].pendingProjectIds, ['active']);
+  assert.deepEqual(pendingProjectWorkflowNodeCodes(held), []);
+  assert.deepEqual(pendingProjectWorkflowNodeCodes(finished), []);
+  assert.deepEqual(projects, before);
+});
+
+test('pending tasks include parallel active and paused nodes and only the immediate ready phase', () => {
+  const parallel = project('parallel', [
+    step('A', 'A', { state: 'in_progress', parallelGroup: 'Checks' }),
+    step('B', 'B', { state: 'paused', parallelGroup: 'Checks' }),
+    step('FUTURE'),
+  ]);
+  const ready = project('ready', [
+    step('DONE', 'Done', { state: 'completed' }),
+    step('SKIPPED', 'Skipped', { state: 'skipped' }),
+    step('A', 'A', { parallelGroup: 'Checks' }),
+    step('B', 'B', { parallelGroup: 'Checks' }),
+    step('FUTURE'),
+  ]);
+  const result = buildWorkflowDistribution(
+    [parallel, ready],
+    [step('DONE'), step('SKIPPED'), step('A'), step('B'), step('FUTURE')],
+  );
+
+  assert.deepEqual(pendingProjectWorkflowNodeCodes(parallel), ['A', 'B']);
+  assert.deepEqual(pendingProjectWorkflowNodeCodes(ready), ['A', 'B']);
+  assert.deepEqual(
+    result.nodes.map((entry) => entry.pendingCount),
+    [0, 0, 2, 2, 0],
+  );
+  assert.deepEqual(result.nodes[2].pendingProjectIds, ['parallel', 'ready']);
+});
+
+test('pending completion follows workflow ownership for legacy projects and reopened engine rounds', () => {
+  const legacy = {
+    id: 'legacy',
+    workflowMode: 'project',
+    currentWorkflowStepCode: 'A',
+    projectStatus: 'completed',
+  };
+  const finishedLegacy = {
+    ...legacy,
+    currentWorkflowStepCode: 'QUOTE_COMPLETED',
+  };
+  const finishedStatus = { ...legacy, workflowMode: undefined };
+  const activeStatus = { ...finishedStatus, projectStatus: 'costing' };
+  const reopened = {
+    ...project('reopened', [step('A', 'A', { state: 'blocked' })]),
+    projectStatus: 'completed',
+  };
+
+  assert.deepEqual(pendingProjectWorkflowNodeCodes(legacy), ['A']);
+  assert.deepEqual(pendingProjectWorkflowNodeCodes(finishedLegacy), []);
+  assert.deepEqual(pendingProjectWorkflowNodeCodes(finishedStatus), []);
+  assert.deepEqual(pendingProjectWorkflowNodeCodes(activeStatus), ['A']);
+  assert.deepEqual(pendingProjectWorkflowNodeCodes(reopened), ['A']);
+});
+
+test('retained pending nodes use stable IDs without losing historical completion or counting duplicate records', () => {
+  const active = project('active', [
+    step('REMOVED', 'Old active', { state: 'blocked' }),
+  ]);
+  const finished = project('finished', [
+    step('OLD_END', 'Old end', { state: 'completed', finishesWorkflow: true }),
+  ]);
+  const result = buildWorkflowDistribution(
+    [active, active, finished],
+    [step('NEW')],
+  );
+
+  assert.deepEqual(
+    result.retained.map(({ step, count, pendingCount, pendingProjectIds }) => [
+      step.code,
+      count,
+      pendingCount,
+      pendingProjectIds,
+    ]),
+    [
+      ['REMOVED', 1, 1, ['active']],
+      ['OLD_END', 1, 0, []],
+    ],
+  );
 });

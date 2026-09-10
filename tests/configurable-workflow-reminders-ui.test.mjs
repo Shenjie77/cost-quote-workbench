@@ -55,6 +55,12 @@ const { AgentView } = await import('../features/agent/agent-view.tsx');
 const { projects } = await import('../features/projects/demo-data.ts');
 hooks.deregister();
 const noop = () => {};
+// Scope distribution assertions to the widget now that it precedes the portfolio.
+const distributionMarkup = (html) => {
+  const start = html.indexOf('aria-label="Project Workflow Distribution"');
+  assert.ok(start >= 0);
+  return html.slice(start, html.indexOf('</section>', start));
+};
 const step = (code, extra = {}) => ({
   code,
   no: '01',
@@ -151,9 +157,7 @@ test('Today keeps an untimed next phase visible and does not expose future pendi
   assert.match(html, /更新流程节点 Parallel Delivery · READY 项/);
   assert.match(html, /待启动\/待登记，尚未开始计时/);
   assert.doesNotMatch(html, /更新流程节点 Parallel Delivery · FUTURE 项/);
-  const distribution = html.slice(
-    html.indexOf('Project Workflow Distribution'),
-  );
+  const distribution = distributionMarkup(html);
   assert.match(distribution, />1<\/span><span[^>]*>READY<\/span>/);
   assert.match(distribution, />0<\/span><span[^>]*>FUTURE<\/span>/);
 });
@@ -178,7 +182,7 @@ test('Today distribution renders published node names/order and count filters us
       workflowDefinitionRevision: 9,
     }),
   );
-  const section = html.slice(html.indexOf('Project Workflow Distribution'));
+  const section = distributionMarkup(html);
   assert.ok(
     section.indexOf('New published node') <
       section.indexOf('Renamed published node'),
@@ -192,8 +196,10 @@ test('Today distribution renders published node names/order and count filters us
       {
         step: definitions[1],
         count: 1,
+        pendingCount: 1,
         legacy: false,
         projectIds: [project.id],
+        pendingProjectIds: [project.id],
       },
     ],
     onSelect: (code) => {
@@ -202,4 +208,46 @@ test('Today distribution renders published node names/order and count filters us
   });
   tree.props.children[0].props.onClick();
   assert.equal(selected, 'OLD_ID');
+});
+
+test('Today leads with pending tasks without counting completed or held projects as pending', () => {
+  const active = {
+    ...p(),
+    id: 'active',
+    name: 'Active project',
+    workflowSteps: [step('WORK')],
+  };
+  const held = {
+    ...active,
+    id: 'held',
+    name: 'Held project',
+    workflowHold: { startedAt: '2026-09-01T00:00:00Z', reason: 'Waiting' },
+  };
+  const completed = {
+    ...active,
+    id: 'completed',
+    name: 'Finished project',
+    workflowSteps: [
+      step('WORK', { state: 'completed' }),
+      step('DONE', { state: 'completed', finishesWorkflow: true }),
+    ],
+  };
+  const html = renderToStaticMarkup(
+    React.createElement(OverviewView, {
+      ...props(active),
+      projects: [active, held, completed],
+      workflowDefinitions: [step('WORK'), step('DONE')],
+    }),
+  );
+  const distribution = distributionMarkup(html);
+  assert.match(distribution, /WORK: 1 pending tasks/);
+  assert.match(distribution, /DONE: 0 pending tasks/);
+  assert.match(distribution, /1 Pending/);
+  assert.ok(
+    html.indexOf('Project Workflow Distribution') <
+      html.indexOf('Active Projects'),
+  );
+  for (const name of ['Active project', 'Held project', 'Finished project'])
+    assert.ok(html.includes(name));
+  assert.match(html, /Showing 3 of 3 local projects/);
 });
