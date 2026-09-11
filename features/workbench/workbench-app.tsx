@@ -13,9 +13,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Bell, Menu, Plus, Search, X } from 'lucide-react';
+import { Bell, Menu, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -40,9 +39,20 @@ import { WorkspaceToolbar } from './workspace-toolbar';
 import {
   calculateWorkspaceMetrics,
   countIncompleteCostRows,
-  filterPortfolioProjects,
   mergeWorkflowProjection,
 } from './workspace-projections';
+import { ProjectSearch } from './project-search.tsx';
+import {
+  clearWorkbenchNavigation,
+  readWorkbenchNavigation,
+  restoreWorkbenchNavigation,
+  rememberWorkbenchNavigation,
+} from './navigation-state';
+import {
+  createNavigationIntents,
+  loadWorkflowNavigation,
+  workflowRestoreFeedback,
+} from './workflow-navigation.ts';
 import { OpenProjectTabs } from './open-project-tabs';
 import { runVersionTransition } from '../cost/version-transition';
 import {
@@ -209,13 +219,47 @@ type PendingCostConfirmation = {
 export function WorkbenchApp() {
   const globalMasterData = useGlobalMasterData();
   const [masterDataOnly, setMasterDataOnly] = useState(false);
-  const [masterDataTab, setMasterDataTab] =
-    useState<MasterDataTab>('resources');
+  const [masterDataTab, setMasterDataTab] = useState<MasterDataTab>(
+    () => readWorkbenchNavigation()?.masterDataTab ?? 'resources',
+  );
   const [globalNotice, setGlobalNotice] = useOperationNotice();
+  // Standalone catalogs also survive refresh on an empty installation; defer browser-only restoration after hydration.
+  useEffect(() => {
+    const saved = readWorkbenchNavigation();
+    let cancelled = false;
+    if (
+      saved?.standaloneMasterData &&
+      !parseWorkflowPageHash(window.location.hash)
+    )
+      queueMicrotask(() => {
+        if (!cancelled) setMasterDataOnly(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  useEffect(() => {
+    if (masterDataOnly)
+      rememberWorkbenchNavigation({
+        version: 1,
+        view: 'master-data',
+        projectId: '',
+        openProjectIds: [],
+        costView: 'input',
+        masterDataTab,
+        standaloneMasterData: true,
+      });
+  }, [masterDataOnly, masterDataTab]);
   if (masterDataOnly)
     return (
       <main className="min-h-screen space-y-5 bg-background p-4 sm:p-6">
-        <Button variant="outline" onClick={() => setMasterDataOnly(false)}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            clearWorkbenchNavigation();
+            setMasterDataOnly(false);
+          }}
+        >
           Project List / 项目列表
         </Button>
         <OperationNotice
@@ -260,6 +304,15 @@ function ProjectSessionApp({
   masterDataTab: MasterDataTab;
   setMasterDataTab: (tab: MasterDataTab) => void;
 }) {
+  // Bootstrap renders this session only after the authoritative project index is loaded.
+  // Restore identity before useLocalWorkspace starts, avoiding a temporary load/save of another project.
+  const [initialNavigation] = useState(() =>
+    restoreWorkbenchNavigation(
+      initialProjects,
+      readWorkbenchNavigation(),
+      typeof window === 'undefined' ? '' : window.location.hash,
+    ),
+  );
   // Project, workflow, and version state stay here so view changes cannot reset drafts.
   const [projectList, setProjectList] = useState<Project[]>(initialProjects);
   const [masterDataRevisions, setMasterDataRevisions] =
@@ -289,6 +342,8 @@ function ProjectSessionApp({
   const [workflowPageKey, setWorkflowPageKey] = useState(0);
   const workflowRouteHandler = useRef<() => void>(() => {});
   const initialWorkflowRouteHandled = useRef(false);
+  const workflowNavigationIntents = useRef(createNavigationIntents());
+  const pendingWorkflowLocation = useRef(false);
   const workflowUiRef = useRef({
     target: workflowTarget,
     saving: workflowSaving,
@@ -360,10 +415,12 @@ function ProjectSessionApp({
     return () => window.removeEventListener('beforeunload', warnPendingExport);
   }, []);
   const [isProjectSwitching, setProjectSwitching] = useState(false);
-  const [activeProjectId, setActiveProjectId] = useState(initialProjects[0].id);
-  const [openProjectIds, setOpenProjectIds] = useState<string[]>([
-    initialProjects[0].id,
-  ]);
+  const [activeProjectId, setActiveProjectId] = useState(
+    initialNavigation.projectId,
+  );
+  const [openProjectIds, setOpenProjectIds] = useState<string[]>(
+    initialNavigation.openProjectIds,
+  );
   const activeProject =
     projectList.find((item) => item.id === activeProjectId) ??
     initialProjects[0];
@@ -377,7 +434,7 @@ function ProjectSessionApp({
     }),
     [activeProject],
   );
-  const [activeView, setActiveView] = useState<ViewKey>('overview');
+  const [activeView, setActiveView] = useState<ViewKey>(initialNavigation.view);
   // New pages start at their primary controls; workflow pages locate the requested task instead.
   useEffect(() => {
     if (activeView !== 'workflow') window.scrollTo({ top: 0, left: 0 });
@@ -395,7 +452,9 @@ function ProjectSessionApp({
   >(createProjectStatusDefinitions);
   const [reviewGates, setReviewGates] = useState<ReviewGate[]>([]);
   const [activeVersion, setActiveVersion] = useState('V3');
-  const [costView, setCostView] = useState<CostViewKey>('input');
+  const [costView, setCostView] = useState<CostViewKey>(
+    initialNavigation.costView,
+  );
   const [subcontractCost, setSubcontractCost] = useState<
     SubcontractCost | undefined
   >();
@@ -468,7 +527,6 @@ function ProjectSessionApp({
   const [panel, setPanel] = useState<PanelState>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notice, setNotice] = useOperationNotice();
-  const [searchQuery, setSearchQuery] = useState('');
   const publishedWorkflow = usePublishedWorkflow(
     activeView === 'overview',
     globalMasterData.tabs.workflow?.record,
@@ -522,6 +580,7 @@ function ProjectSessionApp({
           )),
         name: workspace.project.name,
         client: workspace.project.client,
+        proposalNumber: workspace.ssr?.proposalNumber || '',
       };
       return existing
         ? current.map((item) => (item.id === project.id ? project : item))
@@ -1221,6 +1280,7 @@ function ProjectSessionApp({
         project.id === activeProjectId
           ? {
               ...project,
+              proposalNumber: ssr.proposalNumber || '',
               projectStatus,
               workflowEngineVersion,
               workflowTemplateRevision,
@@ -1253,6 +1313,7 @@ function ProjectSessionApp({
       ),
     [
       activeMetrics,
+      ssr.proposalNumber,
       workspace.ssr,
       workflowEngineVersion,
       workflowTemplateRevision,
@@ -1599,11 +1660,8 @@ function ProjectSessionApp({
     () => portfolioProjects.flatMap((project) => project.reviewGates || []),
     [portfolioProjects],
   );
-  /** Header search filters portfolio surfaces without changing saved records. */
-  const visiblePortfolioProjects = useMemo(
-    () => filterPortfolioProjects(portfolioProjects, searchQuery),
-    [portfolioProjects, searchQuery],
-  );
+  // Global search selects context through its dropdown; portfolio views keep their own data visible.
+  const visiblePortfolioProjects = portfolioProjects;
   const displayDate = new Intl.DateTimeFormat('en-SG', {
     timeZone: 'Asia/Singapore',
     year: 'numeric',
@@ -1619,9 +1677,12 @@ function ProjectSessionApp({
       return;
     }
     const next = view === 'ssr' || view === 'reviews' ? 'project' : view;
+    // A newer page choice wins over workflow saves/loads that are still awaiting the API.
+    workflowNavigationIntents.current.cancel();
+    pendingWorkflowLocation.current = false;
     if (parseWorkflowPageHash(window.location.hash))
       window.history.pushState(
-        { workbenchView: next },
+        { ...window.history.state, workbenchView: next },
         '',
         window.location.pathname + window.location.search,
       );
@@ -1660,7 +1721,7 @@ function ProjectSessionApp({
     ) {
       if (fromLocation && workflowTarget)
         window.history.replaceState(
-          null,
+          window.history.state,
           '',
           workflowPageHash(
             workflowTarget.project.id,
@@ -1669,25 +1730,20 @@ function ProjectSessionApp({
         );
       return false;
     }
+    const intent = workflowNavigationIntents.current.begin();
     workflowOpeningRef.current = true;
     setWorkflowLoading(true);
     setWorkflowError('');
     try {
-      if (project.id === activeProjectId && !(await saveNow()))
-        throw new Error(
-          'Save the current cost edits or resolve their conflict first.',
-        );
-      const record = await getLocalWorkspace(project.id);
-      if (!record)
-        throw new Error(
-          'This project no longer exists. Refresh the project list.',
-        );
       // Workflow and Cost share the same active project and open-tab session.
       // The standard switch flushes outgoing cost edits before changing IDs.
-      if (!(await selectProject(project)))
-        throw new Error(
-          'Project switch cancelled. Resolve the current save or export first.',
-        );
+      const record = await loadWorkflowNavigation({
+        intent,
+        saveCurrent: project.id === activeProjectId ? saveNow : undefined,
+        load: () => getLocalWorkspace(project.id),
+        select: () => selectProject(project),
+      });
+      if (!record || !intent.isCurrent()) return false;
       adoptRemoteIfClean(record);
       updateWorkflowProjection(record);
       const preserveDrafts =
@@ -1736,9 +1792,14 @@ function ProjectSessionApp({
       setMobileNavOpen(false);
       const hash = workflowPageHash(project.id, focus);
       if (!fromLocation && window.location.hash !== hash)
-        window.history.pushState({ workbenchView: 'workflow' }, '', hash);
+        window.history.pushState(
+          { ...window.history.state, workbenchView: 'workflow' },
+          '',
+          hash,
+        );
       return true;
     } catch (error) {
+      if (!intent.isCurrent()) return false;
       setNotice(
         error instanceof Error
           ? error.message
@@ -1746,7 +1807,7 @@ function ProjectSessionApp({
       );
       if (fromLocation) {
         window.history.replaceState(
-          null,
+          window.history.state,
           '',
           window.location.pathname + window.location.search,
         );
@@ -1815,8 +1876,15 @@ function ProjectSessionApp({
   // Restoring a link only selects a project/task. It never starts or completes a node.
   useEffect(() => {
     workflowRouteHandler.current = () => {
-      if (!isReady || workflowOpeningRef.current) return;
+      if (!isReady) return;
       const route = parseWorkflowPageHash(window.location.hash);
+      const wasOpening = workflowOpeningRef.current;
+      if (wasOpening) {
+        workflowNavigationIntents.current.cancel();
+        // The latest workflow URL will replay after the old request releases its loading guard.
+        pendingWorkflowLocation.current = Boolean(route);
+        if (route) return;
+      }
       if (route) {
         const project = portfolioProjects.find(
           (item) => item.id === route.projectId,
@@ -1825,13 +1893,13 @@ function ProjectSessionApp({
         else {
           setNotice('The linked project is unavailable.');
           window.history.replaceState(
-            null,
+            window.history.state,
             '',
             window.location.pathname + window.location.search,
           );
           setActiveView('project');
         }
-      } else if (activeView === 'workflow') {
+      } else if (activeView === 'workflow' || wasOpening) {
         const previous = window.history.state?.workbenchView;
         setActiveView(
           previous &&
@@ -1846,8 +1914,71 @@ function ProjectSessionApp({
   useEffect(() => {
     if (!isReady || initialWorkflowRouteHandled.current) return;
     initialWorkflowRouteHandled.current = true;
+    // A page chosen during hydration supersedes refresh restoration instead of being pulled back to Workflow.
+    if (activeView !== initialNavigation.view) return;
+    // Existing workflow deep links win. A saved workflow view without a hash restores its own route.
+    if (!window.location.hash && initialNavigation.view === 'workflow')
+      window.history.replaceState(
+        window.history.state,
+        '',
+        workflowPageHash(
+          initialNavigation.projectId,
+          initialNavigation.workflowNodeCode,
+        ),
+      );
     queueMicrotask(() => workflowRouteHandler.current());
-  }, [isReady]);
+  }, [isReady, initialNavigation, activeView]);
+  useEffect(() => {
+    if (
+      !isReady ||
+      workflowLoading ||
+      workflowOpeningRef.current ||
+      !pendingWorkflowLocation.current
+    )
+      return;
+    pendingWorkflowLocation.current = false;
+    queueMicrotask(() => workflowRouteHandler.current());
+  }, [isReady, workflowLoading]);
+
+  // Persist only after hydration, and never overwrite a workflow route while its project is loading.
+  useEffect(() => {
+    if (
+      !isReady ||
+      isProjectSwitching ||
+      workflowLoading ||
+      (activeView === 'workflow' &&
+        workflowTarget?.project.id !== activeProjectId)
+    )
+      return;
+    rememberWorkbenchNavigation({
+      version: 1,
+      view: activeView,
+      projectId: activeProjectId,
+      openProjectIds,
+      costView,
+      masterDataTab,
+      ...(activeView === 'workflow' && workflowTarget?.focusNodeCode
+        ? { workflowNodeCode: workflowTarget.focusNodeCode }
+        : {}),
+    });
+  }, [
+    isReady,
+    isProjectSwitching,
+    workflowLoading,
+    activeView,
+    activeProjectId,
+    openProjectIds,
+    costView,
+    masterDataTab,
+    workflowTarget,
+  ]);
+
+  /** Dropdown selection changes the project context, preserving the current page and cost subview. */
+  const selectSearchProject = async (project: Project): Promise<boolean> => {
+    if (activeView === 'workflow') return openProjectWorkflow(project);
+    // The standard switch already saves business edits; optional display preferences never block it.
+    return selectProject(project);
+  };
 
   /** Validate fresh workflow evidence, confirm costs when required, and save one audited action. */
   const handleWorkflowAction = async (
@@ -2116,6 +2247,11 @@ function ProjectSessionApp({
   };
 
   // Feature views receive explicit data and callbacks; session lifecycles remain above.
+  const workflowFeedback = workflowRestoreFeedback(
+    isReady,
+    persistenceStatus.phase,
+    persistenceStatus.message,
+  );
   let content: ReactNode;
   if (activeView === 'overview')
     content = (
@@ -2472,14 +2608,19 @@ function ProjectSessionApp({
               </div>
               <p className="sr-only">{pageSubtitleZh}</p>
             </div>
-            <div className="relative hidden w-[220px] shrink-0 xl:block">
-              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="h-8 bg-muted/30 pl-8"
-                aria-label="Search project, client, or version"
-                placeholder="Search project, client, or version / 搜索"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
+            <div className="order-last w-full min-w-0 sm:order-none sm:w-[260px] xl:w-[320px]">
+              <ProjectSearch
+                projects={portfolioProjects}
+                activeProjectId={activeProjectId}
+                onSelect={selectSearchProject}
+                disabled={
+                  !isReady ||
+                  isProjectSwitching ||
+                  isVersionTransitioning ||
+                  workflowSaving ||
+                  workflowLoading ||
+                  quoteExporting
+                }
               />
             </div>
             <div className="sr-only">
@@ -2550,8 +2691,7 @@ function ProjectSessionApp({
                   await openProjectWorkflow(project);
                   return;
                 }
-                if (!(await selectProject(project))) return;
-                if (activeView === 'project') setActiveView('cost');
+                await selectProject(project);
               }}
               onClose={closeProjectTab}
             />
@@ -2577,6 +2717,20 @@ function ProjectSessionApp({
               }}
               onNewVersion={createNewCostVersion}
             />
+          )}
+          {activeView === 'workflow' && !workflowTarget && (
+            <div className="flex flex-wrap items-center gap-2 p-3 text-sm text-muted-foreground">
+              {workflowFeedback.failed ? (
+                <p role="alert">{workflowFeedback.message}</p>
+              ) : (
+                <output>{workflowFeedback.message}</output>
+              )}
+              {workflowFeedback.failed && (
+                <Button size="sm" variant="outline" onClick={retryLoad}>
+                  Retry workflow loading / 重试加载
+                </Button>
+              )}
+            </div>
           )}
           <div
             inert={
@@ -2664,7 +2818,7 @@ function ProjectSessionApp({
                     );
                     if (activeView === 'workflow')
                       window.history.replaceState(
-                        { workbenchView: 'workflow' },
+                        { ...window.history.state, workbenchView: 'workflow' },
                         '',
                         workflowPageHash(workflowTarget.project.id, code),
                       );

@@ -43,6 +43,7 @@ import {
 } from '../quote/types.ts';
 import {
   WORKSPACE_SCHEMA_VERSION,
+  type LocalWorkspaceIndexItem,
   type WorkbenchWorkspace,
 } from './workspace-types.ts';
 
@@ -111,6 +112,37 @@ export const projectRecord = (
   totalQuote: 0,
   grossMarginPercent: 0,
   incompleteCostRows: 0,
+});
+
+/** Projects the persisted index into UI records without loading inactive workspaces. */
+export const projectFromIndex = (item: LocalWorkspaceIndexItem): Project => ({
+  ...projectRecord(item.projectId, item.name, item.client),
+  proposalNumber: item.proposalNumber ?? '',
+  revision: item.revision ?? undefined,
+  workflowHold: item.workflowHold,
+  workflowEngineVersion: item.workflowEngineVersion,
+  workflowTemplateRevision: item.workflowTemplateRevision,
+  projectStatus: item.projectStatus,
+  workflowMode: item.workflowMode,
+  workflowVersion: item.workflowVersion,
+  ...(item.statusDefinitions?.length
+    ? { statusDefinitions: item.statusDefinitions }
+    : {}),
+  reviewGates: item.reviewGates || [],
+  ...(item.currentWorkflowStepCode
+    ? { currentWorkflowStepCode: item.currentWorkflowStepCode }
+    : {}),
+  ...(item.workflowSteps?.length ? { workflowSteps: item.workflowSteps } : {}),
+  version: item.activeVersion || 'V1',
+  versionState: item.versionState || 'Draft',
+  serviceCost: item.serviceCost,
+  subcontractCost: item.subcontractCost,
+  totalCost: item.totalCost,
+  totalMandays: item.totalMandays,
+  totalQuote: item.totalQuote,
+  grossMarginPercent: item.grossMarginPercent,
+  incompleteCostRows: item.incompleteCostRows,
+  ssrAttention: item.ssrAttention,
 });
 
 /** Creates one independent cost input snapshot for a project version. */

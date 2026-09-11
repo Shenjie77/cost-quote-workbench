@@ -115,6 +115,7 @@ export function mergeWorkflowProjection(
       revision: record.revision,
       name: workspace.project.name,
       client: workspace.project.client,
+      proposalNumber: workspace.ssr?.proposalNumber ?? '',
       workflowEngineVersion: workspace.workflowEngineVersion,
       workflowTemplateRevision: workspace.workflowTemplateRevision,
       workflowMode: workspace.workflowMode,

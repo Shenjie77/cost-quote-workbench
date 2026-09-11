@@ -2289,6 +2289,9 @@
         "client": {
           "$ref": "#/$defs/nonBlankText"
         },
+        "proposalNumber": {
+          "type": "string"
+        },
         "currency": {
           "const": "SGD"
         },

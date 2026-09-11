@@ -80,6 +80,8 @@ export type Project = {
   nameZh: string;
   client: string;
   clientZh: string;
+  /** Display/search projection of SSR metadata; never an internal project identity. */
+  proposalNumber?: string;
   stage: string;
   stageZh: string;
   version: string;

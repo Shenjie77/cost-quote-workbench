@@ -138,6 +138,8 @@ export type LocalWorkspaceIndexItem = {
   projectId: string;
   name: string;
   client: string;
+  /** Commercial reference from workspace.ssr, including projects not currently open. */
+  proposalNumber?: string;
   currency: 'SGD';
   revision: number | null;
   updatedAt: string;

@@ -4,42 +4,15 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { listLocalWorkspaces } from './workspace-client';
-import { projectRecord } from './workspace-factories';
+import { projectFromIndex, projectRecord } from './workspace-factories';
 import { NewProjectIdField } from './new-project-id-field';
 import { projectIdError, resolveNewProjectId } from './project-creation';
 import { createProjectFromGlobalMasterData } from '@/features/master-data/global-client';
 import type { Project } from '../projects/types';
-import type { LocalWorkspaceIndexItem } from './workspace-types';
 import { ArchiveSettingsPanel } from '../projects/project-files-panel';
 
-export const projectFromIndex = (item: LocalWorkspaceIndexItem): Project => ({
-  ...projectRecord(item.projectId, item.name, item.client),
-  revision: item.revision ?? undefined,
-  workflowHold: item.workflowHold,
-  workflowEngineVersion: item.workflowEngineVersion,
-  workflowTemplateRevision: item.workflowTemplateRevision,
-  projectStatus: item.projectStatus,
-  workflowMode: item.workflowMode,
-  workflowVersion: item.workflowVersion,
-  ...(item.statusDefinitions?.length
-    ? { statusDefinitions: item.statusDefinitions }
-    : {}),
-  reviewGates: item.reviewGates || [],
-  ...(item.currentWorkflowStepCode
-    ? { currentWorkflowStepCode: item.currentWorkflowStepCode }
-    : {}),
-  ...(item.workflowSteps?.length ? { workflowSteps: item.workflowSteps } : {}),
-  version: item.activeVersion || 'V1',
-  versionState: item.versionState || 'Draft',
-  serviceCost: item.serviceCost,
-  subcontractCost: item.subcontractCost,
-  totalCost: item.totalCost,
-  totalMandays: item.totalMandays,
-  totalQuote: item.totalQuote,
-  grossMarginPercent: item.grossMarginPercent,
-  incompleteCostRows: item.incompleteCostRows,
-  ssrAttention: item.ssrAttention,
-});
+// Keep the shell's existing import stable while the projection remains independently testable.
+export { projectFromIndex } from './workspace-factories';
 
 /** Persisted index is authoritative. Empty/deleted databases never seed demo projects. */
 export function ProjectBootstrap({

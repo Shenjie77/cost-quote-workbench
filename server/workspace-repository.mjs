@@ -184,6 +184,8 @@ const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
     ...(workspace.workflowHold
       ? { workflowHold: structuredClone(workspace.workflowHold) }
       : {}),
+    // Commercial references stay in SSR; the index exposes a read-only search projection.
+    proposalNumber: workspace.ssr?.proposalNumber ?? '',
     workflowEngineVersion: workspace.workflowEngineVersion,
     workflowTemplateRevision: workspace.workflowTemplateRevision,
     workflowMode: workspace.workflowMode,
