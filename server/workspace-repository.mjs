@@ -59,6 +59,7 @@ import {
   LOCAL_DATABASE_STATEMENTS,
 } from '../db/schema.ts';
 import {
+  getY1Year,
   getCostStatementValues,
   getHQTravelSummary,
   roundMoney,
@@ -147,6 +148,7 @@ const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
     travelCost,
     workspace.manualCosts || {},
     workspace.subcontractCost,
+    getY1Year(workspace.rateSettings),
   );
   const totalMandays = (workspace.costRows || []).reduce(
     (sum, row) => sum + totalRowMandays(row),
@@ -157,6 +159,7 @@ const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
     workspace.pricing || initialPricingSettings,
     calculateBuCostAllocation({
       costRows: rows,
+      rateSettings: workspace.rateSettings,
       resourceTypes: resources,
       travelSettings: workspace.travelSettings,
       manualCosts: workspace.manualCosts || {},

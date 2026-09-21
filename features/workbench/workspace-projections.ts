@@ -1,5 +1,6 @@
 /** Pure display projections shared by the session and its regression tests. */
 import {
+  getY1Year,
   getCostStatementValues,
   getHQTravelSummary,
   roundMoney,
@@ -18,6 +19,7 @@ type WorkspaceMetricInputs = Pick<
   | 'travelSettings'
   | 'manualCosts'
   | 'subcontractCost'
+  | 'rateSettings'
   | 'pricing'
 >;
 
@@ -35,6 +37,7 @@ export function calculateWorkspaceMetrics(
     travelSettings,
     manualCosts,
     subcontractCost,
+    rateSettings,
     pricing,
   } = inputs;
   // Preserve the statement's rounding boundaries before applying quotation pricing.
@@ -49,6 +52,7 @@ export function calculateWorkspaceMetrics(
     travelCost,
     manualCosts,
     subcontractCost,
+    rateSettings ? getY1Year(rateSettings) : undefined,
   );
   const quote = calculatePricing(
     statement.totalWithRisk,

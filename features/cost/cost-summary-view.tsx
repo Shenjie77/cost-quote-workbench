@@ -32,6 +32,7 @@ export function CostSummaryView({
   travelCost,
   manualCosts,
   subcontractCost,
+  subcontractStartYear,
   setManualCosts,
 }: {
   readOnly?: boolean;
@@ -40,6 +41,7 @@ export function CostSummaryView({
   travelCost: number;
   manualCosts: ManualCostInputs;
   subcontractCost?: SubcontractCost;
+  subcontractStartYear?: number | null;
   setManualCosts: React.Dispatch<React.SetStateAction<ManualCostInputs>>;
 }) {
   const statementValues = getCostStatementValues(
@@ -48,20 +50,23 @@ export function CostSummaryView({
     travelCost,
     manualCosts,
     subcontractCost,
+    subcontractStartYear,
   );
   const totalMandays = rows.reduce((sum, row) => sum + totalRowMandays(row), 0);
   const scopeCount = new Set(
     [
       ...rows.map((row) => row.scope.trim()),
-      ...subcontractCostDetails(subcontractCost).map((line) =>
-        line.scope.trim(),
+      ...subcontractCostDetails(subcontractCost, subcontractStartYear).map(
+        (line) => line.scope.trim(),
       ),
     ].filter(Boolean),
   ).size;
   const buCount = new Set(
     [
       ...rows.map((row) => row.bu.trim()),
-      ...subcontractCostDetails(subcontractCost).map((line) => line.bu.trim()),
+      ...subcontractCostDetails(subcontractCost, subcontractStartYear).map(
+        (line) => line.bu.trim(),
+      ),
     ].filter(Boolean),
   ).size;
   const averageCost =
@@ -73,6 +78,7 @@ export function CostSummaryView({
     travelCost,
     manualCosts,
     subcontractCost,
+    subcontractStartYear,
   );
   const toBreakdown = (grouped: CostDimensionSummary[]): BreakdownItem[] =>
     grouped.map((item, index) => ({
@@ -98,6 +104,7 @@ export function CostSummaryView({
       manualCosts,
       subcontractCost,
       { includeRisk: true },
+      subcontractStartYear,
     );
     return toBreakdown(grouped);
   };
@@ -105,7 +112,12 @@ export function CostSummaryView({
   const buBreakdown = makeBreakdown('bu');
   const resourceBreakdown = makeBreakdown('resourceType');
   const subcontractBreakdown = toBreakdown(
-    buildSubcontractScopeSummary(rows, resourceTypes, subcontractCost),
+    buildSubcontractScopeSummary(
+      rows,
+      resourceTypes,
+      subcontractCost,
+      subcontractStartYear,
+    ),
   );
   return (
     <div className="wb-page-stack min-w-0">
@@ -222,6 +234,7 @@ export function CostSummaryView({
               travelCost={travelCost}
               manualCosts={manualCosts}
               subcontractCost={subcontractCost}
+              subcontractStartYear={subcontractStartYear}
               setManualCosts={setManualCosts}
             />
           </TabsContent>

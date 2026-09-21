@@ -1,8 +1,14 @@
 /** Readable BOQ and site-deployment sheets shared by both cost exports. */
 import type { CostExportSnapshot } from './contracts.ts';
-import { YEAR_BUCKETS, getActualYears, roundQuantity } from './domain.ts';
+import {
+  getY1Year,
+  YEAR_BUCKETS,
+  getActualYears,
+  roundQuantity,
+} from './domain.ts';
 import {
   calculateSubcontractCost,
+  getSubcontractRateFactors,
   subcontractCostDetails,
 } from './subcontract-domain.ts';
 
@@ -10,7 +16,12 @@ export function addSubcontractWorkbookSheets(
   workbook: import('exceljs').Workbook,
   snapshot: CostExportSnapshot,
 ) {
-  const details = subcontractCostDetails(snapshot.subcontractCost);
+  // Export assumptions even when the BOQ is empty so the captured pricing basis is reviewable.
+  addSubcontractRateSheet(workbook, snapshot);
+  const details = subcontractCostDetails(
+    snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
+  );
   if (!details.length) return;
   const years = getActualYears(snapshot.rateSettings);
   const sheet = workbook.addWorksheet('Subcon Detail');
@@ -18,7 +29,9 @@ export function addSubcontractWorkbookSheets(
     `${snapshot.project.name} · ${snapshot.costVersion.code} · Subcontract BOQ / 分包明细`,
   ]);
   sheet.addRow([
-    'Version unit prices in SGD; costs feed 2.3.2 / 本版本单价，自动汇总至 2.3.2',
+    snapshot.subcontractCost?.rateSettings
+      ? `Base-year ${snapshot.subcontractCost.rateSettings.baseYear} unit prices in SGD; annual costs include Subcon uplifts and feed 2.3.2.`
+      : 'Version unit prices in SGD; costs feed 2.3.2 / 本版本单价，自动汇总至 2.3.2',
   ]);
   sheet.addRow([]);
   sheet.addRow([
@@ -26,13 +39,13 @@ export function addSubcontractWorkbookSheets(
     'Item / 条目',
     'BU',
     'Unit',
-    'Unit Price / 单价',
+    'Base Unit Price / 基准单价',
     'Qty / Site',
     'Total Qty',
     'Total Cost',
     ...YEAR_BUCKETS.flatMap((bucket, index) => [
       `${bucket} ${years[index] ?? ''} Qty`,
-      `${bucket} Cost`,
+      `${bucket} ${years[index] ?? ''} Cost`,
     ]),
   ]);
   details.forEach((line) => {
@@ -48,7 +61,10 @@ export function addSubcontractWorkbookSheets(
       ...line.years.flatMap((value, index) => [line.quantities[index], value]),
     ]);
   });
-  const totals = calculateSubcontractCost(snapshot.subcontractCost);
+  const totals = calculateSubcontractCost(
+    snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
+  );
   sheet.addRow([
     'Total / 合计',
     '',
@@ -79,11 +95,11 @@ export function addSubcontractWorkbookSheets(
     sites.addRow([]);
     sites.addRow([
       'Site Type / 站型',
-      'Cost / Site',
+      'Base Cost / Site',
       'Total Cost',
       ...YEAR_BUCKETS.flatMap((bucket, index) => [
         `${bucket} ${years[index] ?? ''} Sites`,
-        `${bucket} Cost`,
+        `${bucket} ${years[index] ?? ''} Cost`,
       ]),
     ]);
     snapshot.subcontractCost.siteTypes.forEach((site, index) => {
@@ -103,6 +119,45 @@ export function addSubcontractWorkbookSheets(
   }
 }
 
+/** Keeps the independent Subcon rate baseline beside annual calculated costs in both workbook formats. */
+function addSubcontractRateSheet(
+  workbook: import('exceljs').Workbook,
+  snapshot: CostExportSnapshot,
+) {
+  const settings = snapshot.subcontractCost?.rateSettings;
+  if (!settings) return;
+  const years = getActualYears(snapshot.rateSettings);
+  const factors = getSubcontractRateFactors(
+    settings,
+    getY1Year(snapshot.rateSettings),
+  );
+  const sheet = workbook.addWorksheet('Subcon Rates');
+  sheet.addRow([
+    `${snapshot.project.name} · ${snapshot.costVersion.code} · Subcontract Annual Rates`,
+  ]);
+  sheet.addRow([
+    'Subcon base year is independent of personnel rates. Annual uplifts compound into the project delivery years shown below.',
+  ]);
+  sheet.addRow([]);
+  sheet.addRow([
+    'Assumption',
+    'Base Year',
+    'Default Uplift (%)',
+    ...YEAR_BUCKETS.map((bucket, index) => `${bucket} ${years[index] ?? ''}`),
+  ]);
+  sheet.addRow([
+    'Annual Uplift (%)',
+    settings.baseYear,
+    settings.defaultUplift,
+    ...settings.annualUplifts,
+  ]);
+  sheet.addRow(['Price Factor', null, null, ...factors]);
+  style(sheet, [30, 16, 24, ...YEAR_BUCKETS.map(() => 20)], []);
+  for (let column = 4; column <= 8; column += 1)
+    sheet.getCell(6, column).numFmt = '0.000000';
+}
+
+/** Applies the same compact workbook layout to BOQ, site deployment and rate assumptions. */
 function style(
   sheet: import('exceljs').Worksheet,
   widths: number[],

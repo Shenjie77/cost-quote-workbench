@@ -14,6 +14,7 @@ import {
 import {
   getCostStatementValues,
   getOtherServiceCost,
+  getOtherServiceCostBase,
   getHQTravelSummary,
   getY1Year,
   validatePersonnelAllowanceSelection,
@@ -351,7 +352,11 @@ export const validateCostExportSnapshot = (
     }
   });
 
-  const subcontractIssues = validateSubcontractCost(snapshot.subcontractCost);
+  const subcontractIssues = validateSubcontractCost(
+    snapshot.subcontractCost,
+    true,
+    getY1Year(snapshot.rateSettings),
+  );
   subcontractIssues.forEach((issue) =>
     add('error', issue.code, issue.path, issue.message),
   );
@@ -652,6 +657,7 @@ export const validateCostExportSnapshot = (
     travel.totalCost,
     snapshot.manualCosts,
     snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
   );
   const derivedNumbers = [
     travel.hqMandays,
@@ -698,7 +704,10 @@ export const validateCostExportSnapshot = (
     snapshot.manualCosts.nonInHouseLabour +
     snapshot.manualCosts.settlement +
     snapshot.manualCosts.carFee +
-    getOtherServiceCost(statement.labour, snapshot.manualCosts);
+    getOtherServiceCost(
+      getOtherServiceCostBase(statement, snapshot.manualCosts),
+      snapshot.manualCosts,
+    );
   if (manualSalesCost + travel.totalCost > 0) {
     add(
       'warning',

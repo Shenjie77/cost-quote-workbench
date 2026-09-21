@@ -1,9 +1,11 @@
 /** Customer-facing line construction and manual pricing validation. */
 import type { CostExportSnapshot } from '../cost/contracts.ts';
 import {
+  getY1Year,
   getCostStatementValues,
   getHQTravelSummary,
   getOtherServiceCost,
+  getOtherServiceCostBase,
   roundMoney,
   totalRowCost,
 } from '../cost/domain.ts';
@@ -132,6 +134,7 @@ function costQuoteLeaves(snapshot: CostExportSnapshot): WeightedLine[] {
     travel,
     snapshot.manualCosts,
     snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
   );
   // Customer descriptions retain entered Scope/BOQ text without resource rates or internal identifiers.
   const leaves: WeightedLine[] = rows.map((row) => ({
@@ -140,7 +143,10 @@ function costQuoteLeaves(snapshot: CostExportSnapshot): WeightedLine[] {
     weight: totalRowCost(row),
   }));
   leaves.push(
-    ...subcontractCostDetails(snapshot.subcontractCost).map((line) => ({
+    ...subcontractCostDetails(
+      snapshot.subcontractCost,
+      getY1Year(snapshot.rateSettings),
+    ).map((line) => ({
       id: `subcontract:${line.id}`,
       description: line.description.trim() || 'Project services',
       weight: line.total,
@@ -157,7 +163,7 @@ function costQuoteLeaves(snapshot: CostExportSnapshot): WeightedLine[] {
     [
       'other-services',
       'Other services',
-      getOtherServiceCost(statement.labour, manual),
+      getOtherServiceCost(getOtherServiceCostBase(statement, manual), manual),
     ],
     ['travel', 'Travel services', travel],
   ];

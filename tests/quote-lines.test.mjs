@@ -155,6 +155,7 @@ test('subcontract BOQs, manual services and HQ travel retain distinct descriptio
     trips: 1,
   };
   input.manualCosts.inlandLogistics = 10;
+  input.manualCosts.settlement = 10;
   input.manualCosts.otherServiceRate = 0.1;
   input.manualCosts.riskContingency = 500;
   input.subcontractCost = {
@@ -199,12 +200,19 @@ test('subcontract BOQs, manual services and HQ travel retain distinct descriptio
       'Installation',
       'Cabling',
       'Inland logistics',
+      'Settlement services',
       'Other services',
       'Travel services',
     ],
   );
   assert.deepEqual(validateQuoteLines(lines, 1234.56), []);
   assert.doesNotMatch(JSON.stringify(lines), /risk|mandays|mandayRate|cost|HQ/);
+  // At the 241 cost-weight total, each price exposes its exact allocation weight.
+  // EHS = (100 labour + 50 HQ travel + 50 subcontract + 10 settlement) × 10%.
+  assert.deepEqual(
+    buildQuoteLines(input, 'item', 241).map((line) => line.amount),
+    [100, 20, 30, 10, 10, 21, 50],
+  );
 });
 
 test('empty, zero-cost and risk-only projects still produce a reconciled quote', () => {

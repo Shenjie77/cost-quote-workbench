@@ -38,8 +38,8 @@ const cellInput =
   'h-8 rounded-md border-border/70 bg-white px-2 text-xs shadow-none';
 const yearLabel = (years: (number | null)[], index: number) =>
   `${YEAR_BUCKETS[index]}${years[index] ? ` · ${years[index]}` : ''}`;
-const annualCost = (line: SubcontractCostLine, index: number) =>
-  roundMoney((line.unitPrice ?? 0) * line.quantities[index]);
+const annualCost = (line: SubcontractCostLine, index: number, factor = 1) =>
+  roundMoney((line.unitPrice ?? 0) * line.quantities[index] * factor);
 
 /** Include allocation values so metadata editing cannot restore stale quantities. */
 const itemFingerprint = (line: ItemLine) =>
@@ -454,6 +454,7 @@ export function SubcontractLinesTable({
   project = false,
   announce,
   yearIndex = 0,
+  rateFactors = [1, 1, 1, 1, 1],
   deleteConfirmation,
 }: {
   lines: ItemLine[];
@@ -464,6 +465,7 @@ export function SubcontractLinesTable({
   project?: boolean;
   announce: (message: string) => void;
   yearIndex?: number | 'all';
+  rateFactors?: number[];
   deleteConfirmation?: (line: ItemLine) => string;
 }) {
   const allYears = project && yearIndex === 'all';
@@ -525,9 +527,9 @@ export function SubcontractLinesTable({
                   {line.description || 'Untitled item'}
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] leading-4 text-muted-foreground">
-                  <span className="min-w-0 max-w-full break-all font-mono">
+                  <strong className="min-w-0 max-w-full break-all font-mono font-bold text-foreground">
                     {line.code || 'No code'}
-                  </span>
+                  </strong>
                   <span aria-hidden="true">·</span>
                   <span>{line.bu || 'No BU'}</span>
                   <span aria-hidden="true">·</span>
@@ -566,7 +568,7 @@ export function SubcontractLinesTable({
                       <span className="mt-1 block text-right text-[10px] tabular-nums text-muted-foreground">
                         {line.unitPrice === null
                           ? 'Not priced'
-                          : money(annualCost(line, index))}
+                          : money(annualCost(line, index, rateFactors[index]))}
                       </span>
                     )}
                   </TableCell>
@@ -596,11 +598,17 @@ export function SubcontractLinesTable({
                       ? allYears
                         ? roundMoney(
                             line.quantities.reduce(
-                              (sum, _, index) => sum + annualCost(line, index),
+                              (sum, _, index) =>
+                                sum +
+                                annualCost(line, index, rateFactors[index]),
                               0,
                             ),
                           )
-                        : annualCost(line, selectedYear)
+                        : annualCost(
+                            line,
+                            selectedYear,
+                            rateFactors[selectedYear],
+                          )
                       : roundMoney(line.unitPrice * line.quantityPerSite),
                   )
                 )}

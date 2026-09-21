@@ -83,4 +83,4 @@ response examples, errors, exit statuses, Agent workflow, and v1 migration.
 
 `cost delete --project-id ID --version Vn --expected-revision R` removes an unlocked Suspended version from the working list, preserving immutable history and at least one visible version. List archives with `cost get --project-id ID --section deleted-versions`; retrieve one using `--section archive --version Vn`. Codes are never reused.
 
-`cost update --section settings` supports `manualCosts.otherServiceRate:0.01` for 2.3.4.2 = 1% × 2.3.1. Setting only `manualCosts.otherService` switches to manual amount. Master Data resource classifications are explicit; custom RE codes are accepted with valid category/pool/level fields.
+`cost update --section settings` supports `manualCosts.otherServiceRate:0.01` for 2.3.4.2 = 1% × (2.3.1 + 2.3.2 + 2.3.3). Setting only `manualCosts.otherService` switches to manual amount. Master Data resource classifications are explicit; custom RE codes are accepted with valid category/pool/level fields.

@@ -23,7 +23,7 @@ derived as `Mandays × version MD rate × cumulative uplift`. Changing direct ma
 MD/site or delivery/uplift assumptions recalculates it immediately. The same
 normalization runs on workspace saves. New package costs use the version-owned
 Subcon BOQ: project annual quantities × unit prices, or site-type BOQ per-site
-cost × annual site counts, plus shared project items. The result feeds 2.3.2 once.
+cost × annual site counts, plus shared project items. Optional version-owned Subcon annual uplifts use their own base year and compound against project delivery years. Missing Subcon rate settings preserve flat prices. The result feeds 2.3.2 once.
 Legacy RE subcontract rows retain their stored amounts for historical reads;
 they cannot be newly entered or repriced through Cost Input. See
 [Subcontract costing](subcontract-cost-design.md).
@@ -126,4 +126,4 @@ Parent rows are always calculated and cannot be entered directly.
 
 ## Other service cost (2.3.4.2)
 
-New blank costs default to 1% of 2.3.1 Labour Cost: in-house labour + non-in-house labour + HQ travel, excluding subcontract. Round the labour subtotal and the calculated charge to SGD cents. 2.3.1 remains an automatic subtotal. The optional `manualCosts.otherServiceRate` is a fraction (0.01 = 1%); when absent, `otherService` is the saved manual amount. Historical snapshots are not backfilled. Clones retain their source mode. Editing the 2.3.4.2 amount switches to manual; Use 1% restores automatic calculation. Cost totals, dimension residuals, pricing and both workbook exports use the shared statement calculation.
+New blank costs default to 1% of **2.3.1 Labour Cost + 2.3.2 Subcontract Cost + 2.3.3 Settlement Cost**. Labour includes in-house labour, non-in-house labour and HQ travel; subcontract includes legacy packages and the annual project/site BOQ totals. Use the rounded statement account amounts as the base, then round the calculated charge to SGD cents. Equipment, logistics, car fees, EHS itself and risk are excluded from this base. The optional `manualCosts.otherServiceRate` is a fraction (0.01 = 1%); when absent, `otherService` is the saved manual amount. No migration backfills historical inputs or manual amounts. Existing automatic versions use the corrected formula when read, and clones retain their source mode. Editing the 2.3.4.2 amount switches to manual; Use 1% restores automatic calculation. Cost totals, dimensions, pricing and both workbook exports use the shared statement calculation. Peer service accounts 2.3.1–2.3.4 share the same row styling; 2.3.3 remains manually editable.

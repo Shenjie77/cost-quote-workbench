@@ -24,6 +24,7 @@ import type { CostExportSnapshot } from '@/features/cost/contracts';
 import { useCostWorkbookExport } from '@/features/cost/use-cost-workbook-export';
 import { usePersonnelTableView } from '@/features/cost/use-personnel-table-view';
 import {
+  getY1Year,
   getCostStatementValues,
   getActualYears,
   getHQTravelSummary,
@@ -184,6 +185,7 @@ export function CostView({
       hqTravelCost,
       manualCosts,
       subcontractCost,
+      getY1Year(rateSettings),
     ).totalWithRisk,
   );
   const actualYears = getActualYears(rateSettings);
@@ -200,13 +202,15 @@ export function CostView({
         (year) => year.sites > 0 || (year.mandays ?? 0) > 0 || year.cost > 0,
       ),
     ]),
-    ...subcontractCostDetails(subcontractCost).flatMap((line) => [
-      Boolean(line.description.trim() && line.code.trim()),
-      Boolean(line.bu.trim()),
-      Boolean(line.unit.trim()),
-      line.unitPrice !== null && Number.isFinite(line.unitPrice),
-      line.quantities.some((qty) => qty > 0),
-    ]),
+    ...subcontractCostDetails(subcontractCost, getY1Year(rateSettings)).flatMap(
+      (line) => [
+        Boolean(line.description.trim() && line.code.trim()),
+        Boolean(line.bu.trim()),
+        Boolean(line.unit.trim()),
+        line.unitPrice !== null && Number.isFinite(line.unitPrice),
+        line.quantities.some((qty) => qty > 0),
+      ],
+    ),
   ];
   const inputCompleteness = completenessChecks.length
     ? Math.round(
@@ -233,6 +237,7 @@ export function CostView({
         travel,
         item.manualCosts,
         item.subcontractCost,
+        getY1Year(item.rateSettings),
       ).totalWithRisk,
     );
   };
@@ -554,6 +559,7 @@ export function CostView({
           travelCost={hqTravelCost}
           manualCosts={manualCosts}
           subcontractCost={subcontractCost}
+          subcontractStartYear={getY1Year(rateSettings)}
           setManualCosts={writeIfUnlocked(setManualCosts)}
         />
       ) : null}

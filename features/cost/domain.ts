@@ -135,7 +135,7 @@ export type ManualCostInputs = {
   settlement: number;
   carFee: number;
   otherService: number;
-  /** Absent preserves a saved manual amount; present applies this fraction to 2.3.1. */
+  /** Absent preserves a manual amount; present applies to 2.3.1 + 2.3.2 + 2.3.3. */
   otherServiceRate?: number;
   riskContingency: number;
 };
@@ -194,6 +194,10 @@ export type CostStatementRow = {
   source: string;
   manualKey?: keyof ManualCostInputs;
 };
+
+/** Style peer service accounts alike without changing their automatic/manual input behavior. */
+export const isCostStatementGroupRow = (row: CostStatementRow): boolean =>
+  row.mode === 'subtotal' || row.code === '2.3.2' || row.code === '2.3.3';
 
 export type CostDimension = 'scope' | 'bu' | 'resourceType';
 
@@ -439,6 +443,7 @@ export const getCostStatementValues = (
   travelCost: number,
   manual: ManualCostInputs,
   subcontractCost?: SubcontractCost,
+  subcontractStartYear?: number | null,
 ): CostStatementValues => {
   // Normalize every monetary leaf before roll-up. This makes the arithmetic
   // agree with the two-decimal values visible in the statement and workbook.
@@ -455,7 +460,7 @@ export const getCostStatementValues = (
   );
   const subcontract = roundMoney(
     sumResourceCategoryCosts(rows, resourceTypes, 'subcontract') +
-      calculateSubcontractCost(subcontractCost).total,
+      calculateSubcontractCost(subcontractCost, subcontractStartYear).total,
   );
   // Follow statement hierarchy in order; each subtotal retains its own cent rounding.
   const logistics = roundMoney(inlandLogistics + countryWarehousing);
@@ -463,7 +468,11 @@ export const getCostStatementValues = (
   const labour = roundMoney(
     inHouseLabour + nonInHouseLabour + normalizedTravelCost,
   );
-  const otherServiceCost = getOtherServiceCost(labour, manual);
+  // EHS covers labour, subcontract and settlement, excluding EHS itself and all other accounts.
+  const otherServiceCost = getOtherServiceCost(
+    getOtherServiceCostBase({ labour, subcontract }, manual),
+    manual,
+  );
   const otherService = roundMoney(carFee + otherServiceCost);
   const service = roundMoney(labour + subcontract + settlement + otherService);
   const sales = roundMoney(equipment + period + service);
@@ -481,12 +490,24 @@ export const getCostStatementValues = (
   };
 };
 
-/** Applies a configured labour fraction, or retains the saved manual amount when absent. */
-export const getOtherServiceCost = (labour: number, manual: ManualCostInputs) =>
+/** Reconcile the EHS base to the rounded amounts displayed for the three eligible accounts. */
+export const getOtherServiceCostBase = (
+  statement: Pick<CostStatementValues, 'labour' | 'subcontract'>,
+  manual: ManualCostInputs,
+) =>
+  roundMoney(
+    statement.labour + statement.subcontract + roundMoney(manual.settlement),
+  );
+
+/** Applies the configured fraction to the eligible base; absent rates preserve manual amounts. */
+export const getOtherServiceCost = (
+  costBase: number,
+  manual: ManualCostInputs,
+) =>
   roundMoney(
     manual.otherServiceRate === undefined
       ? manual.otherService
-      : labour * manual.otherServiceRate,
+      : costBase * manual.otherServiceRate,
   );
 
 /** Saves a nonnegative manual override and removes the percentage to prevent recalculation. */
@@ -512,6 +533,7 @@ export const buildCostStatementRows = (
   travelCost: number,
   manualCosts: ManualCostInputs,
   subcontractCost?: SubcontractCost,
+  subcontractStartYear?: number | null,
 ): CostStatementRow[] => {
   const values = getCostStatementValues(
     rows,
@@ -519,6 +541,7 @@ export const buildCostStatementRows = (
     travelCost,
     manualCosts,
     subcontractCost,
+    subcontractStartYear,
   );
   return [
     {
@@ -670,11 +693,14 @@ export const buildCostStatementRows = (
       zh: '其他服务成本_其他',
       level: 2,
       mode: 'manual',
-      amount: getOtherServiceCost(values.labour, manualCosts),
+      amount: getOtherServiceCost(
+        getOtherServiceCostBase(values, manualCosts),
+        manualCosts,
+      ),
       source:
         manualCosts.otherServiceRate === undefined
           ? 'Manual input / 手动录入'
-          : `2.3.1 × ${manualCosts.otherServiceRate * 100}% / 人力成本比例，可手动修改`,
+          : `(2.3.1 + 2.3.2 + 2.3.3) × ${manualCosts.otherServiceRate * 100}% / 可手动修改`,
       manualKey: 'otherService',
     },
     {
@@ -773,6 +799,7 @@ export const buildCostDimensionSummary = (
   dimension: CostDimension,
   resourceTypes: ResourceType[],
   subcontractCost?: SubcontractCost,
+  subcontractStartYear?: number | null,
 ): CostDimensionSummary[] => {
   const groups = new Map<string, CostDimensionTotals>();
 
@@ -799,7 +826,10 @@ export const buildCostDimensionSummary = (
   }
 
   // BOQ leaves add money to the same business groups; their quantities are not labour effort.
-  for (const line of subcontractCostDetails(subcontractCost)) {
+  for (const line of subcontractCostDetails(
+    subcontractCost,
+    subcontractStartYear,
+  )) {
     const key = getCostDimensionKey(
       line.scope,
       line.bu,
@@ -846,12 +876,14 @@ export const buildReconciledCostDimensionSummary = (
   manualCosts: ManualCostInputs,
   subcontractCost?: SubcontractCost,
   options: { includeRisk?: boolean } = {},
+  subcontractStartYear?: number | null,
 ): CostDimensionSummary[] => {
   const items = buildCostDimensionSummary(
     rows,
     dimension,
     resourceTypes,
     subcontractCost,
+    subcontractStartYear,
   ).map(({ shareRatio: _shareRatio, ...item }) => item);
   const statementRows = buildCostStatementRows(
     rows,
@@ -859,6 +891,7 @@ export const buildReconciledCostDimensionSummary = (
     travelCost,
     manualCosts,
     subcontractCost,
+    subcontractStartYear,
   );
   // Add only non-overlapping positive statement accounts; risk remains explicitly opt-in.
   for (const code of SUMMARY_STATEMENT_CODES) {
@@ -883,6 +916,7 @@ export const buildSubcontractScopeSummary = (
   rows: CostInputRow[],
   resourceTypes: ResourceType[],
   subcontractCost?: SubcontractCost,
+  subcontractStartYear?: number | null,
 ): CostDimensionSummary[] =>
   buildCostDimensionSummary(
     rows.filter(
@@ -893,4 +927,5 @@ export const buildSubcontractScopeSummary = (
     'scope',
     resourceTypes,
     subcontractCost,
+    subcontractStartYear,
   );

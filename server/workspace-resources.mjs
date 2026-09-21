@@ -32,6 +32,7 @@ import {
   projectRecord,
 } from '../features/workbench/workspace-factories.ts';
 import {
+  getY1Year,
   recalculateCostRows,
   getHQTravelSummary,
   getCostStatementValues,
@@ -337,7 +338,7 @@ function locateCostResource(workspace, options) {
           siteTypes: [],
         },
       ),
-      fields: ['mode', 'lines', 'siteTypes'],
+      fields: ['mode', 'lines', 'siteTypes', 'rateSettings'],
       version,
     };
   if (section === 'settings')
@@ -374,6 +375,7 @@ function locateCostResource(workspace, options) {
         travel,
         costVersion.manualCosts,
         costVersion.subcontractCost,
+        getY1Year(costVersion.rateSettings),
       ),
       version,
       readonly: true,

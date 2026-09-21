@@ -1,6 +1,13 @@
 /** Version-owned subcontract BOQs with focused quantity entry and staged catalogue selection. */
 import { useState } from 'react';
-import { Copy, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import {
+  Copy,
+  ClipboardPaste,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,12 +29,19 @@ import type { SubcontractItem } from '@/features/master-data/types';
 import { YEAR_BUCKETS, roundMoney, type CostInputRow } from '../domain';
 import {
   calculateSubcontractCost,
+  getSubcontractRateFactors,
   type SubcontractCost,
   type SubcontractLineBase,
   type SubcontractCostLine,
   type SubcontractSiteLine,
   type SubcontractSiteType,
 } from '../subcontract-domain';
+import { SubcontractRateAssumptions } from './subcontract-rate-assumptions';
+import { SubcontractBulkEntryDialog } from './subcontract-bulk-entry-dialog';
+import {
+  appendSubcontractBulkLines,
+  subcontractBulkBasisFingerprint,
+} from '../subcontract-bulk-entry';
 import { SubcontractCatalogPicker } from './subcontract-catalog-picker';
 import {
   SubcontractItemDialog,
@@ -207,6 +221,7 @@ export function SubcontractCostSheet({
   const [catalogTarget, setCatalogTarget] = useState<SubcontractTarget | null>(
     null,
   );
+  const [bulkTarget, setBulkTarget] = useState<SubcontractTarget | null>(null);
   const [manualDraft, setManualDraft] = useState<{
     target: SubcontractTarget;
     line: SubcontractCostLine | SubcontractSiteLine;
@@ -226,7 +241,11 @@ export function SubcontractCostSheet({
   const selectedSite =
     value.siteTypes.find((site) => site.id === selectedSiteId) ||
     value.siteTypes[0];
-  const summary = calculateSubcontractCost(value);
+  const summary = calculateSubcontractCost(value, actualYears[0]);
+  const rateFactors = getSubcontractRateFactors(
+    value.rateSettings,
+    actualYears[0],
+  );
   const selectedSummary = summary.siteTypes.find(
     (site) => site.id === selectedSite?.id,
   );
@@ -398,6 +417,12 @@ export function SubcontractCostSheet({
           ))}
         </div>
       </div>
+      <SubcontractRateAssumptions
+        settings={value.rateSettings}
+        actualYears={actualYears}
+        locked={locked}
+        onChange={(rateSettings) => change({ ...value, rateSettings })}
+      />
       {locked && (
         <output className="block rounded-md border bg-muted/30 px-3 py-2 text-xs">
           Read only · {lockedReason}
@@ -544,6 +569,10 @@ export function SubcontractCostSheet({
                   onManual={() =>
                     openManual({ kind: 'site', id: selectedSite.id })
                   }
+                  onBulk={() => {
+                    if (!locked)
+                      setBulkTarget({ kind: 'site', id: selectedSite.id });
+                  }}
                 />
               </div>
               <SubcontractLinesTable
@@ -778,6 +807,9 @@ export function SubcontractCostSheet({
                 locked={locked}
                 onCatalog={() => openCatalog({ kind: 'project' })}
                 onManual={() => openManual({ kind: 'project' })}
+                onBulk={() => {
+                  if (!locked) setBulkTarget({ kind: 'project' });
+                }}
               />
             </div>
             <SubcontractLinesTable
@@ -786,6 +818,7 @@ export function SubcontractCostSheet({
               locked={locked}
               project
               yearIndex={projectYear}
+              rateFactors={rateFactors}
               onChange={(line) =>
                 change({
                   ...value,
@@ -875,6 +908,43 @@ export function SubcontractCostSheet({
           </DialogContent>
         </Dialog>
       )}
+      {bulkTarget && (
+        <SubcontractBulkEntryDialog
+          value={value}
+          target={bulkTarget}
+          catalog={
+            refreshedCatalog?.source === catalog
+              ? refreshedCatalog.items
+              : catalog
+          }
+          actualYears={actualYears}
+          defaultYear={typeof projectYear === 'number' ? projectYear : 0}
+          locked={locked}
+          announce={announce}
+          onClose={() => setBulkTarget(null)}
+          onConfirm={(lines, fingerprint) => {
+            const basis = {
+              value,
+              target: bulkTarget,
+              actualYears,
+              catalog:
+                refreshedCatalog?.source === catalog
+                  ? refreshedCatalog.items
+                  : catalog,
+            };
+            if (
+              locked ||
+              fingerprint !== subcontractBulkBasisFingerprint(basis)
+            )
+              return false;
+            change(appendSubcontractBulkLines(value, lines, bulkTarget));
+            announce(
+              `${lines.length} subcontract item(s) added to the selected BOQ.`,
+            );
+            return true;
+          }}
+        />
+      )}
       {manualDraft && (
         <SubcontractItemDialog
           key={manualDraft.line.id}
@@ -961,10 +1031,12 @@ function AddLineActions({
   locked,
   onCatalog,
   onManual,
+  onBulk,
 }: {
   locked: boolean;
   onCatalog: () => void;
   onManual: () => void;
+  onBulk: () => void;
 }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -988,6 +1060,17 @@ function AddLineActions({
       >
         <Plus className="size-3.5" />
         Manual Item
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-8 px-2.5 text-xs"
+        disabled={locked}
+        onClick={onBulk}
+      >
+        <ClipboardPaste className="size-3.5" />
+        Bulk Entry
       </Button>
     </div>
   );

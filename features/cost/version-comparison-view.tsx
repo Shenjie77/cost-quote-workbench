@@ -20,6 +20,7 @@ import {
 import { BiInline, BiText } from '@/components/workbench/bilingual-text';
 import { SectionHeading } from '@/components/workbench/section-heading';
 import {
+  getY1Year,
   getCostStatementValues,
   getHQTravelSummary,
   totalRowMandays,
@@ -61,6 +62,7 @@ export function VersionComparisonView({
       travel,
       version.manualCosts,
       version.subcontractCost,
+      getY1Year(version.rateSettings),
     ).totalWithRisk;
     const previous = versions.find(
       (item) => item.code === version.sourceVersion,
@@ -78,6 +80,7 @@ export function VersionComparisonView({
         previousTravel,
         previous.manualCosts,
         previous.subcontractCost,
+        getY1Year(previous.rateSettings),
       ).totalWithRisk;
     }
     return {

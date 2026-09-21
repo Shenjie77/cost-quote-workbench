@@ -24,10 +24,18 @@ export type SubcontractSiteType = {
   sites: number[];
   lines: SubcontractSiteLine[];
 };
+/** Version-owned price assumptions, independent of the personnel rate baseline. */
+export type SubcontractRateSettings = {
+  baseYear: number;
+  defaultUplift: number;
+  annualUplifts: number[];
+};
 export type SubcontractCost = {
   mode: 'project' | 'site-types';
   lines: SubcontractCostLine[];
   siteTypes: SubcontractSiteType[];
+  /** Absent on older versions: all prices retain their original, flat value. */
+  rateSettings?: SubcontractRateSettings;
 };
 
 const fiveYears = () => [0, 0, 0, 0, 0];
@@ -39,11 +47,39 @@ export const emptySubcontractCost = (): SubcontractCost => ({
   siteTypes: [],
 });
 
+/**
+ * Compound the independent Subcon baseline into the project's delivery years.
+ * Y1 uses its uplift for the gap from base year; later buckets compound once
+ * after that baseline. Years on/before the baseline retain the quoted price.
+ * A missing baseline or delivery year preserves flat prices.
+ */
+export function getSubcontractRateFactors(
+  settings?: SubcontractRateSettings,
+  startYear?: number | null,
+) {
+  if (!settings || !startYear) return [1, 1, 1, 1, 1];
+  let factor = 1;
+  return fiveYears().map((_, index) => {
+    if (startYear + index <= settings.baseYear) return 1;
+    const uplift = settings.annualUplifts[index] ?? settings.defaultUplift;
+    const periods =
+      index === 0 ? Math.max(0, startYear - settings.baseYear) : 1;
+    factor *= Math.pow(1 + uplift / 100, periods);
+    return factor;
+  });
+}
+
 /** Each annual item is rounded to cents before any annual or statement roll-up. */
-export function calculateSubcontractCost(data?: SubcontractCost) {
+export function calculateSubcontractCost(
+  data?: SubcontractCost,
+  startYear?: number | null,
+) {
+  const factors = getSubcontractRateFactors(data?.rateSettings, startYear);
   const lines = (data?.lines ?? []).map((line) => {
     const years = fiveYears().map((_, year) =>
-      roundMoney((line.unitPrice ?? 0) * (line.quantities[year] ?? 0)),
+      roundMoney(
+        (line.unitPrice ?? 0) * (line.quantities[year] ?? 0) * factors[year],
+      ),
     );
     return { id: line.id, years, total: total(years) };
   });
@@ -54,7 +90,7 @@ export function calculateSubcontractCost(data?: SubcontractCost) {
           (line.unitPrice ?? 0) * line.quantityPerSite,
         );
         const years = fiveYears().map((_, year) =>
-          roundMoney(unitCost * (site.sites[year] ?? 0)),
+          roundMoney(unitCost * (site.sites[year] ?? 0) * factors[year]),
         );
         return { id: line.id, unitCost, years, total: total(years) };
       });
@@ -85,9 +121,12 @@ export function calculateSubcontractCost(data?: SubcontractCost) {
 }
 
 /** Flat calculated leaves for dimensional reporting and export, never labour rows. */
-export function subcontractCostDetails(data?: SubcontractCost) {
+export function subcontractCostDetails(
+  data?: SubcontractCost,
+  startYear?: number | null,
+) {
   if (!data) return [];
-  const calculated = calculateSubcontractCost(data);
+  const calculated = calculateSubcontractCost(data, startYear);
   const project = data.lines.map((line, index) => ({
     ...line,
     scope: line.description,
@@ -122,6 +161,7 @@ export function subcontractCostDetails(data?: SubcontractCost) {
 export function validateSubcontractCost(
   data: SubcontractCost | undefined,
   requirePrices = true,
+  startYear?: number | null,
 ) {
   const issues: Array<{ code: string; path: string; message: string }> = [];
   if (!data) return issues;
@@ -132,6 +172,38 @@ export function validateSubcontractCost(
     Number.isFinite(value) &&
     value >= 0 &&
     value <= maximum;
+  // Optional assumptions remain strict whenever present, including draft saves.
+  if (data.rateSettings !== undefined) {
+    const settings = data.rateSettings;
+    const validUplift = (value: unknown) =>
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      value >= -100 &&
+      value <= 1000;
+    if (
+      !settings ||
+      !Number.isInteger(settings.baseYear) ||
+      settings.baseYear < 2000 ||
+      settings.baseYear > 2200
+    )
+      add(
+        'INVALID_SUBCONTRACT_BASE_YEAR',
+        '/rateSettings/baseYear',
+        'Enter a Subcon base year between 2000 and 2200.',
+      );
+    if (
+      !settings ||
+      !validUplift(settings.defaultUplift) ||
+      !Array.isArray(settings.annualUplifts) ||
+      settings.annualUplifts.length !== 5 ||
+      settings.annualUplifts.some((value) => !validUplift(value))
+    )
+      add(
+        'INVALID_SUBCONTRACT_UPLIFT',
+        '/rateSettings',
+        'Enter five Subcon annual uplifts between -100% and 1000%.',
+      );
+  }
   const quantities = (values: number[], path: string, integer = false) => {
     if (
       !Array.isArray(values) ||
@@ -276,7 +348,7 @@ export function validateSubcontractCost(
       );
   });
   if (!issues.some((issue) => issue.code.startsWith('INVALID_'))) {
-    const result = calculateSubcontractCost(data);
+    const result = calculateSubcontractCost(data, startYear);
     if (!amount(result.total) || result.years.some((value) => !amount(value)))
       add(
         'SUBCONTRACT_TOTAL_OUT_OF_RANGE',

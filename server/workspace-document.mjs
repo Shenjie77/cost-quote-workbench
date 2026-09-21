@@ -13,6 +13,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import { validateQuoteExcelMapping } from '../features/quote/excel-template-mapping.ts';
 import {
   recalculateCostRows,
+  getY1Year,
   validatePersonnelAllowanceSelection,
 } from '../features/cost/domain.ts';
 import { validateSubcontractCost } from '../features/cost/subcontract-domain.ts';
@@ -593,8 +594,12 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
     active.resourceTypes || workspace.resourceTypes,
     '/costRows',
   );
-  const assertSubcontract = (value, confirmed, location) => {
-    const issue = validateSubcontractCost(value, confirmed)[0];
+  const assertSubcontract = (value, confirmed, location, rateSettings) => {
+    const issue = validateSubcontractCost(
+      value,
+      confirmed,
+      getY1Year(rateSettings),
+    )[0];
     if (issue)
       throw new WorkspaceValidationError(
         issue.message,
@@ -605,6 +610,7 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
     workspace.subcontractCost,
     active.state === 'Confirmed',
     '',
+    workspace.rateSettings,
   );
   [
     ...workspace.costVersions,
@@ -627,6 +633,7 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
       version.subcontractCost,
       version.state === 'Confirmed',
       `/costVersions/${index}`,
+      version.rateSettings,
     );
     if (
       version.sourceVersion &&

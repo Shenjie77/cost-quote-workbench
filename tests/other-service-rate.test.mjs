@@ -9,6 +9,7 @@ import {
   getCostStatementValues,
   getHQTravelSummary,
   getOtherServiceCost,
+  getOtherServiceCostBase,
   overrideOtherServiceCost,
   recalculateCostRows,
   roundMoney,
@@ -91,11 +92,13 @@ const amounts = (snapshot) => {
     snapshot.resourceTypes,
     travel.totalCost,
     snapshot.manualCosts,
+    snapshot.subcontractCost,
+    Number(snapshot.rateSettings.tdStart.slice(0, 4)),
   );
   return { travel, statement };
 };
 
-test('default 1% uses 2.3.1 labour including internal, non-in-house and HQ travel, excluding subcontract', () => {
+test('default EHS is 1% of labour, subcontract and settlement, excluding other accounts', () => {
   const snapshot = fixture();
   const before = structuredClone(snapshot);
   const { travel, statement } = amounts(snapshot);
@@ -103,43 +106,102 @@ test('default 1% uses 2.3.1 labour including internal, non-in-house and HQ trave
   assert.equal(statement.inHouseLabour, 2000);
   assert.equal(statement.labour, 2500);
   assert.equal(statement.subcontract, 500);
-  assert.equal(getOtherServiceCost(statement.labour, snapshot.manualCosts), 25);
-  assert.equal(statement.otherService, 65); // Car 40 + 1% labour 25.
-  assert.equal(statement.sales, 3101);
-  assert.equal(statement.totalWithRisk, 3116);
+  assert.equal(getOtherServiceCostBase(statement, snapshot.manualCosts), 3010);
+  assert.equal(statement.otherService, 70.1); // Car 40 + eligible base 3010 × 1%.
+  assert.equal(statement.sales, 3106.1);
+  assert.equal(statement.totalWithRisk, 3121.1);
   const rows = buildCostStatementRows(
     snapshot.costRows,
     snapshot.resourceTypes,
     travel.totalCost,
     snapshot.manualCosts,
   );
-  assert.equal(rows.find((row) => row.code === '2.3.4.2').amount, 25);
+  assert.equal(rows.find((row) => row.code === '2.3.4.2').amount, 30.1);
+  assert.match(
+    rows.find((row) => row.code === '2.3.4.2').source,
+    /2\.3\.1 \+ 2\.3\.2 \+ 2\.3\.3/,
+  );
   assert.equal(rows.find((row) => row.code === '2.3.1').amount, 2500);
   assert.deepEqual(snapshot, before);
+  const ehs = () =>
+    getOtherServiceCost(
+      getOtherServiceCostBase(
+        amounts(snapshot).statement,
+        snapshot.manualCosts,
+      ),
+      snapshot.manualCosts,
+    );
   snapshot.costRows[2].years[0].cost = 1500;
-  assert.equal(
-    getOtherServiceCost(
-      amounts(snapshot).statement.labour,
-      snapshot.manualCosts,
-    ),
-    25,
-  );
+  assert.equal(ehs(), 40.1);
   snapshot.manualCosts.nonInHouseLabour = 400;
-  assert.equal(
-    getOtherServiceCost(
-      amounts(snapshot).statement.labour,
-      snapshot.manualCosts,
-    ),
-    26,
-  );
+  assert.equal(ehs(), 41.1);
   snapshot.travelSettings.trips = 4;
-  assert.equal(
-    getOtherServiceCost(
-      amounts(snapshot).statement.labour,
-      snapshot.manualCosts,
-    ),
-    27,
+  assert.equal(ehs(), 42.1);
+  snapshot.manualCosts.settlement = 20;
+  assert.equal(ehs(), 42.2);
+  for (const key of [
+    'localPurchasedEquipment',
+    'inlandLogistics',
+    'countryWarehousing',
+    'carFee',
+    'riskContingency',
+  ])
+    snapshot.manualCosts[key] += 1000;
+  assert.equal(ehs(), 42.2);
+});
+
+test('EHS includes project and site BOQs, respects cent rounding and leaves locked snapshots untouched', () => {
+  const snapshot = fixture();
+  snapshot.subcontractCost = {
+    mode: 'site-types',
+    lines: [
+      {
+        id: 'project',
+        code: 'P',
+        description: 'Project service',
+        bu: 'A',
+        unit: 'lot',
+        currency: 'SGD',
+        unitPrice: 100,
+        quantities: [1, 0, 0, 0, 0],
+      },
+    ],
+    siteTypes: [
+      {
+        id: 'site',
+        name: 'Site',
+        sites: [2, 0, 0, 0, 0],
+        lines: [
+          {
+            id: 'item',
+            code: 'S',
+            description: 'Site service',
+            bu: 'A',
+            unit: 'lot',
+            currency: 'SGD',
+            unitPrice: 50,
+            quantityPerSite: 2,
+          },
+        ],
+      },
+    ],
+  };
+  for (const status of ['Draft', 'Confirmed', 'Suspended']) {
+    snapshot.costVersion.status = status;
+    const before = structuredClone(snapshot);
+    const { statement } = amounts(snapshot);
+    assert.equal(statement.subcontract, 800);
+    assert.equal(statement.otherService, 73.1);
+    assert.deepEqual(snapshot, before);
+  }
+  const base = getOtherServiceCostBase(
+    { labour: 10.01, subcontract: 20.02 },
+    { ...snapshot.manualCosts, settlement: 0.001 },
   );
+  assert.equal(base, 30.04);
+  assert.equal(getOtherServiceCost(base, snapshot.manualCosts), 0.31);
+  snapshot.manualCosts = overrideOtherServiceCost(snapshot.manualCosts, 7.01);
+  assert.equal(amounts(snapshot).statement.otherService, 47.01);
 });
 
 test('manual override disables the rate until an explicit restore and uses shared money rounding', () => {
@@ -288,7 +350,7 @@ test('all shared dimensions and serialized nine-sheet formula caches include the
     cost = header(sheet, 'Cost (SGD)');
   for (const [key, expected] of [
     ['2.3.1', 2500],
-    ['2.3.4.2', 25],
+    ['2.3.4.2', 30.1],
     ['2', statement.sales],
   ]) {
     assert.equal(
@@ -304,11 +366,11 @@ test('all shared dimensions and serialized nine-sheet formula caches include the
   );
   assert.equal(
     detail.getCell(generatedRow, header(detail, 'Direct Cost')).value,
-    25,
+    30.1,
   );
   assert.equal(
     formulaResult(detail.getCell(generatedRow, header(detail, 'Total Cost'))),
-    25,
+    30.1,
   );
   for (const name of [
     '02_Summary_Scope',

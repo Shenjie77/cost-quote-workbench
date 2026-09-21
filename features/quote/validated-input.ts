@@ -1,7 +1,11 @@
 /** Shared validated customer quotation input for programmatic exports. */
 import { assertQuoteDecision, commercialBasisKey } from '../ssr/domain.ts';
 import type { WorkbenchWorkspace } from '../workbench/workspace-types.ts';
-import { getCostStatementValues, getHQTravelSummary } from '../cost/domain.ts';
+import {
+  getY1Year,
+  getCostStatementValues,
+  getHQTravelSummary,
+} from '../cost/domain.ts';
 import { validateCostExportSnapshot } from '../cost/validation.ts';
 import { calculatePricing, validatePricingSettings } from './domain.ts';
 import { calculateBuCostAllocation } from './profit-share.ts';
@@ -51,6 +55,7 @@ export function validatedQuoteInput(
       .totalCost,
     version.manualCosts,
     version.subcontractCost,
+    getY1Year(version.rateSettings),
   ).totalWithRisk;
   const allocation = calculateBuCostAllocation(snapshot);
   const pricing = calculatePricing(total, workspace.pricing, allocation);

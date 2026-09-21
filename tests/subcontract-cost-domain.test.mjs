@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs';
 import {
   calculateSubcontractCost,
   emptySubcontractCost,
+  getSubcontractRateFactors,
   subcontractCostDetails,
   validateSubcontractCost,
 } from '../features/cost/subcontract-domain.ts';
@@ -95,8 +96,8 @@ test('project quantity and site BOQ × annual deployments produce one annual 2.3
   snapshot.manualCosts.otherServiceRate = 0.01;
   assert.equal(statement(snapshot).subcontract, 216050);
   assert.equal(statement(snapshot).labour, 0);
-  assert.equal(statement(snapshot).otherService, 0);
-  assert.equal(statement(snapshot).totalWithRisk, 216050);
+  assert.equal(statement(snapshot).otherService, 2160.5);
+  assert.equal(statement(snapshot).totalWithRisk, 218210.5);
   assert.equal(
     buildCostStatementRows(
       [],
@@ -106,6 +107,107 @@ test('project quantity and site BOQ × annual deployments produce one annual 2.3
       snapshot.subcontractCost,
     ).find((row) => row.code === '2.3.2').amount,
     216050,
+  );
+});
+
+test('Subcon compounds its own base year and annual uplifts while legacy prices remain flat', () => {
+  const rates = {
+    baseYear: 2024,
+    defaultUplift: 5,
+    annualUplifts: [10, 20, 0, -50, 100],
+  };
+  assert.deepEqual(getSubcontractRateFactors(undefined, 2026), [1, 1, 1, 1, 1]);
+  assert.deepEqual(getSubcontractRateFactors(rates, null), [1, 1, 1, 1, 1]);
+  assert.deepEqual(
+    getSubcontractRateFactors({ ...rates, baseYear: 2028 }, 2026),
+    [1, 1, 1, 0.5, 1],
+  );
+  assert.deepEqual(
+    getSubcontractRateFactors(rates, 2024),
+    [1, 1.2, 1.2, 0.6, 1.2],
+  );
+  const data = {
+    mode: 'project',
+    lines: [line('work', 100, { quantities: [1, 1, 1, 1, 1] })],
+    siteTypes: [],
+    rateSettings: rates,
+  };
+  assert.deepEqual(
+    calculateSubcontractCost(data, 2026).years,
+    [121, 145.2, 145.2, 72.6, 145.2],
+  );
+  assert.equal(data.lines[0].unitPrice, 100);
+  delete data.rateSettings;
+  assert.deepEqual(
+    calculateSubcontractCost(data, 2026).years,
+    [100, 100, 100, 100, 100],
+  );
+});
+
+test('Subcon uplift adjusts site deployments and project lines once, keeping base unit prices intact', () => {
+  const data = boq();
+  data.rateSettings = {
+    baseYear: 2025,
+    defaultUplift: 10,
+    annualUplifts: [10, 10, 10, 10, 10],
+  };
+  const result = calculateSubcontractCost(data, 2026);
+  assert.deepEqual(result.years, [79255, 174240, 0, 0, 0]);
+  assert.equal(result.siteTypes[0].unitCost, 360);
+  assert.equal(result.siteTypes[0].lines[0].years[0], 22000);
+  const details = subcontractCostDetails(data, 2026);
+  assert.equal(
+    roundMoney(details.reduce((sum, entry) => sum + entry.total, 0)),
+    result.total,
+  );
+  assert.equal(details[0].unitPrice, 50);
+  assert.equal(validateSubcontractCost(data, true, 2026).length, 0);
+});
+
+test('Subcon rate validation rejects partial, nonfinite and out-of-range assumptions and compounded overflow', () => {
+  const valid = {
+    baseYear: 2026,
+    defaultUplift: 0,
+    annualUplifts: [0, 0, 0, 0, 0],
+  };
+  for (const rateSettings of [
+    null,
+    { ...valid, baseYear: 0 },
+    { ...valid, baseYear: 2026.5 },
+    { ...valid, defaultUplift: Infinity },
+    { ...valid, annualUplifts: [1] },
+    { ...valid, annualUplifts: [0, -101, 0, 0, 0] },
+  ]) {
+    const errors = validateSubcontractCost(
+      { ...boq(), rateSettings },
+      false,
+      2026,
+    );
+    assert.ok(
+      errors.some((issue) => issue.code.startsWith('INVALID_SUBCONTRACT_')),
+    );
+  }
+  const zero = {
+    ...boq(),
+    rateSettings: {
+      ...valid,
+      baseYear: 2025,
+      annualUplifts: [-100, 0, 0, 0, 0],
+    },
+  };
+  assert.equal(calculateSubcontractCost(zero, 2026).total, 0);
+  const overflow = {
+    ...boq(),
+    rateSettings: {
+      ...valid,
+      baseYear: 2000,
+      annualUplifts: [1000, 1000, 1000, 1000, 1000],
+    },
+  };
+  assert.ok(
+    validateSubcontractCost(overflow, false, 2200).some(
+      (issue) => issue.code === 'SUBCONTRACT_TOTAL_OUT_OF_RANGE',
+    ),
   );
 });
 

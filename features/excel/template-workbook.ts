@@ -1,5 +1,6 @@
 /** Fill only explicit cells and preallocated table columns in an existing XLSX. */
 import {
+  getY1Year,
   yearRowMandays,
   totalRowMandays,
   totalRowCost,
@@ -57,6 +58,7 @@ export function templateData(
       .totalCost,
     version.manualCosts,
     version.subcontractCost,
+    getY1Year(version.rateSettings),
   );
   const quote =
     purpose === 'quote'
@@ -124,7 +126,10 @@ export function templateData(
         return fields;
       });
   costRows.push(
-    ...subcontractCostDetails(version.subcontractCost).map((line) => ({
+    ...subcontractCostDetails(
+      version.subcontractCost,
+      getY1Year(version.rateSettings),
+    ).map((line) => ({
       scope: line.description,
       bu: line.bu,
       resource: 'Subcontract',

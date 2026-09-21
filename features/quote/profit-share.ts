@@ -1,5 +1,6 @@
 /** BU allocation and governed profit-share rates, shared by UI, API and CLI. */
 import {
+  getY1Year,
   getCostStatementValues,
   getHQTravelSummary,
   roundMoney,
@@ -8,6 +9,7 @@ import {
   type CostInputRow,
   type ManualCostInputs,
   type ResourceType,
+  type RateSettings,
   type TravelSettings,
 } from '../cost/domain.ts';
 import {
@@ -108,6 +110,8 @@ export type BuCostAllocation = {
   warnings: string[];
 };
 export type ProfitShareCostSnapshot = {
+  /** Captured delivery dates anchor version-owned Subcon annual prices. */
+  rateSettings?: RateSettings;
   costRows: CostInputRow[];
   resourceTypes: ResourceType[];
   travelSettings: TravelSettings;
@@ -153,6 +157,7 @@ export function calculateBuCostAllocation(
     travelSettings,
     manualCosts,
     subcontractCost,
+    rateSettings,
   } = snapshot;
   const travel = getHQTravelSummary(costRows, resourceTypes, travelSettings);
   const statement = getCostStatementValues(
@@ -161,6 +166,7 @@ export function calculateBuCostAllocation(
     travel.totalCost,
     manualCosts,
     subcontractCost,
+    rateSettings ? getY1Year(rateSettings) : undefined,
   );
   const totalCost = finiteMoney(statement.totalWithRisk);
   const groups = new Map<string, { bu: string; cost: number }>();
@@ -183,7 +189,10 @@ export function calculateBuCostAllocation(
     )
       add(row.bu, totalRowCost(row));
   }
-  for (const line of subcontractCostDetails(subcontractCost))
+  for (const line of subcontractCostDetails(
+    subcontractCost,
+    rateSettings ? getY1Year(rateSettings) : undefined,
+  ))
     add(line.bu, line.total);
   if (travel.totalCost > 0) {
     const travelWeights = new Map<string, { bu: string; weight: number }>();

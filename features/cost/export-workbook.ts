@@ -13,6 +13,7 @@ import { addSubcontractWorkbookSheets } from './export-subcontract-workbook.ts';
  */
 
 import {
+  getY1Year,
   YEAR_BUCKETS,
   buildCostStatementRows,
   getActualYears,
@@ -21,6 +22,7 @@ import {
   getAllowancePools,
   isHQTravelEnabled,
   isHQTravelResource,
+  isCostStatementGroupRow,
   getLabourRateFactors,
   roundMoney,
   roundQuantity,
@@ -526,7 +528,10 @@ const buildDetailRows = (snapshot: CostExportSnapshot): ExportDetailRow[] => {
     };
   });
 
-  subcontractCostDetails(snapshot.subcontractCost).forEach((line) => {
+  subcontractCostDetails(
+    snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
+  ).forEach((line) => {
     rows.push({
       id: `SUBCONTRACT:${line.id}`,
       sourceKind: 'SUBCONTRACT_BOQ',
@@ -610,6 +615,7 @@ const buildDetailRows = (snapshot: CostExportSnapshot): ExportDetailRow[] => {
     travelCost,
     snapshot.manualCosts,
     snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
   ).filter(
     (row) =>
       row.mode === 'manual' &&
@@ -1639,7 +1645,10 @@ const addStatementSheet = (
   styleBodyRows(sheet, FIRST_DATA_ROW, lastDataRow, STATEMENT_COLUMNS.length);
   statementRows.forEach((statementRow) => {
     const row = sheet.getRow(rowsByKey.get(statementKey(statementRow))!);
-    if (statementRow.mode === 'section' || statementRow.mode === 'subtotal') {
+    if (
+      statementRow.mode === 'section' ||
+      isCostStatementGroupRow(statementRow)
+    ) {
       styleTableRow(row, STATEMENT_COLUMNS.length, COLORS.paleTeal, {
         name: 'Arial',
         size: 9,
@@ -2281,6 +2290,7 @@ export const buildCostWorkbook = async (input: CostExportSnapshot) => {
     roundMoney(travel.totalCost),
     snapshot.manualCosts,
     snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
   );
   const statementAmounts = buildStatementAmounts(statementRows, detailRows);
 

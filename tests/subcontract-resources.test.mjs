@@ -88,7 +88,7 @@ const confirm = (repo, version = 'V1') =>
     repo.get('SUB').revision,
   );
 
-test('version-scoped Subcon BOQ derives 2.3.2 and project overview without labour or 1% labour charges', () => {
+test('version-scoped Subcon BOQ derives 2.3.2 and the automatic EHS charge without adding labour', () => {
   const repo = setup();
   try {
     const before = repo.get('SUB');
@@ -101,7 +101,9 @@ test('version-scoped Subcon BOQ derives 2.3.2 and project overview without labou
     assert.deepEqual(saved.costRows, []);
     assert.deepEqual(saved.resourceTypes, before.workspace.resourceTypes);
     assert.equal(summary(repo).subcontract, 108100);
-    assert.equal(summary(repo).totalWithRisk, 108100);
+    assert.equal(summary(repo).labour, 0);
+    assert.equal(summary(repo).otherService, 1081);
+    assert.equal(summary(repo).totalWithRisk, 109181);
     assert.equal(repo.list()[0].subcontractCost, 108100);
     const resource = readResource(repo, 'SUB', 'cost', {
       section: 'subcontract',
@@ -419,7 +421,7 @@ test('CLI Subcon reads and updates one version without returning the workspace; 
       'V1',
     ]);
     assert.equal(calculated.totals.subcontract, 108100);
-    assert.equal(calculated.totals.totalWithRisk, 108100);
+    assert.equal(calculated.totals.totalWithRisk, 109181);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

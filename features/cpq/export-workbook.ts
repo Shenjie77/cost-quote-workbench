@@ -1,6 +1,11 @@
 /** CPQ output is an internal configuration record, never a customer quotation. */
 import type { CpqArchive } from './domain.ts';
-import { getCostStatementValues, getHQTravelSummary } from '../cost/domain.ts';
+import {
+  getY1Year,
+  getActualYears,
+  getCostStatementValues,
+  getHQTravelSummary,
+} from '../cost/domain.ts';
 import { subcontractCostDetails } from '../cost/subcontract-domain.ts';
 export async function buildCpqWorkbook(archive: CpqArchive) {
   const ExcelJS = (await import('exceljs')).default;
@@ -96,25 +101,29 @@ export async function buildCpqWorkbook(archive: CpqArchive) {
     travel.totalCost,
     archive.costBaseline.manualCosts,
     archive.costBaseline.subcontractCost,
+    getY1Year(archive.costBaseline.rateSettings),
   );
   baseline.addRow(['HQ travel', travel.totalCost]);
-  if (subcontractCostDetails(archive.costBaseline.subcontractCost).length) {
+  if (
+    subcontractCostDetails(
+      archive.costBaseline.subcontractCost,
+      getY1Year(archive.costBaseline.rateSettings),
+    ).length
+  ) {
+    const actualYears = getActualYears(archive.costBaseline.rateSettings);
     const subcontract = workbook.addWorksheet('Subcon Baseline');
     subcontract.addRow([
       'Item',
       'BU',
       'Site Type',
       'Unit',
-      'Unit Price SGD',
-      'Y1 Cost',
-      'Y2 Cost',
-      'Y3 Cost',
-      'Y4 Cost',
-      'Y5 Cost',
+      'Base Unit Price SGD',
+      ...actualYears.map((year, index) => `Y${index + 1} ${year ?? ''} Cost`),
       'Total SGD',
     ]);
     for (const line of subcontractCostDetails(
       archive.costBaseline.subcontractCost,
+      getY1Year(archive.costBaseline.rateSettings),
     ))
       subcontract.addRow([
         line.description,
@@ -156,6 +165,12 @@ export async function buildCpqWorkbook(archive: CpqArchive) {
     'Travel settings',
     JSON.stringify(archive.costBaseline.travelSettings),
   ]);
+  if (archive.costBaseline.subcontractCost?.rateSettings) {
+    parameters.addRow([
+      'Subcon rate settings',
+      JSON.stringify(archive.costBaseline.subcontractCost.rateSettings),
+    ]);
+  }
   for (const ws of workbook.worksheets) {
     ws.columns.forEach((column, index) => {
       column.width = index === 1 ? 56 : 22;

@@ -3,11 +3,13 @@ import { addSubcontractWorkbookSheets } from './export-subcontract-workbook.ts';
 
 import type { CostExportSnapshot } from './contracts.ts';
 import {
+  getY1Year,
   YEAR_BUCKETS,
   buildCostStatementRows,
   buildReconciledCostDimensionSummary,
   buildSubcontractScopeSummary,
   getCostSummaryStatementCode,
+  isCostStatementGroupRow,
   getActualYears,
   getHQTravelSummary,
   getLabourRateFactors,
@@ -682,12 +684,14 @@ const addBreakdown = (
     travelCost,
     snapshot.manualCosts,
     snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
   );
   const items = subcontractOnly
     ? buildSubcontractScopeSummary(
         snapshot.costRows,
         snapshot.resourceTypes,
         snapshot.subcontractCost,
+        getY1Year(snapshot.rateSettings),
       )
     : buildReconciledCostDimensionSummary(
         snapshot.costRows,
@@ -697,6 +701,7 @@ const addBreakdown = (
         snapshot.manualCosts,
         snapshot.subcontractCost,
         { includeRisk: true },
+        getY1Year(snapshot.rateSettings),
       );
   const totalMandays = items.reduce((sum, item) => sum + item.mandays, 0);
   const maxCost = Math.max(1, ...items.map((item) => item.cost));
@@ -792,6 +797,7 @@ const addStatement = (
     travelCost,
     snapshot.manualCosts,
     snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
   );
   rows.forEach((item, index) => {
     const fill =
@@ -801,13 +807,15 @@ const addStatement = (
           ? COLORS.section
           : item.code === '15'
             ? COLORS.risk
-            : item.mode === 'subtotal'
+            : isCostStatementGroupRow(item)
               ? COLORS.subtotal
               : COLORS.white;
     const row = styleRow(sheet, HEADER_ROW + 1 + index, 2, {
       fill,
       whiteText: item.mode === 'grand-total',
-      bold: ['grand-total', 'section', 'subtotal'].includes(item.mode),
+      bold:
+        ['grand-total', 'section'].includes(item.mode) ||
+        isCostStatementGroupRow(item),
       height: 38,
     });
     setRowValues(row, [

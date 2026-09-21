@@ -28,7 +28,7 @@ Cost Details 的 **Subcon** 页签，与 Input、Summary、Version Delta 使用�
 
 直接录入各条目 Y1–Y5 的实际数量，不要求先建立站型。默认按单年集中录入，可切换 All years 并列查看五年数量和金额。
 
-`条目年度成本 = 项目采用单价 × 该年数量`
+`条目年度成本 = 基准年单价 × 该年数量 × Subcon 年度系数`
 
 不同站点即使配置不同，也可以先把相同条目的数量合并。一次性进场或包干费用按 lot / job 记录，数量为实际发生次数，不能为了适配人力表虚构人天或站点。
 
@@ -36,13 +36,27 @@ Cost Details 的 **Subcon** 页签，与 Input、Summary、Version Delta 使用�
 
 明细默认集中显示 Item、Unit Price、Qty、Cost 和 Action，单价与数量直接编辑。Quantity year 可选择单年录入或 All years 查看五年；Code、BU、Unit 等通过 Edit 修改。若 CLI 在弹窗打开期间更新同一条目，系统提示重新载入，旧草稿不能覆盖新数据。锁定版本仍可切换年份和站型查看。
 
+## 批量录入
+
+Project Total、当前站型 BOQ 和项目共用费用区均提供 **Bulk Entry**。从 Excel 复制表格后粘贴，先预览字段匹配、金额和逐行错误，再确认添加。已有条目不会被批量替换；取消或预览失败不改变原表。
+
+支持 Code、Description、BU、Unit、Unit Price，以及当前年度 Quantity 或 Y1–Y5 数量；站型 BOQ 使用 Qty / Site。编码匹配已采用目录时可补齐目录信息，显式填写的值保留为本版本值。价格留空仍是未定价，不能按零价确认成本。预览后若条目、费率、目录或年份改变，必须重新预览；锁定版本不能添加。
+
+## 独立年度涨幅
+
+Subcon Rates 中手动填写 **Base Year**，与人力 Base Year 分开保存；不会复制人力的涨幅。新建基准年时涨幅为 0%，可通过 Default Uplift 填入五年默认值，再逐年调整。Y1–Y5 仍对应同一项目的交付年份。
+
+若项目 Y1 是 2028、Subcon Base Year 是 2026、Y1 涨幅为 5%，Y1 系数为 `1.05²`；Y2 再乘以 Y2 的涨幅系数，后续依次累计。实际年份在 Base Year 及之前时均保持基准价格，超过 Base Year 后才按各年填写的涨幅累计。例如项目 Y1 为 2026、Subcon Base Year 为 2028，2026–2028 均使用基准价格，从 2029 才开始涨幅。条目中显示的单价和 Cost / Site 保留基准年金额，年度 Cost 包含涨幅。
+
+旧版本没有 `subcontractCost.rateSettings` 时继续使用系数 1，不补填基准年。人员参数调整不会改变 Subcon 的费率设置；修改项目交付年份会按 Subcon 自己的基准年重新计算。设置随版本复制、锁定和导出。Excel 额外列出 Subcon Rates，说明基准年、年度涨幅和系数。
+
 ## 大项目：Site Types
 
 顶部选择站型，在同一卡片内编辑 BOQ、查看单站成本并填写 Y1–Y5 部署数量。多个站型可展开 Annual breakdown 比较年度成本。Duplicate configuration 复制单价和每站数量，新站型的年度部署数量从 0 开始，避免直接重复计费。无需创建几千条物理站点记录。删除最后一条 BOQ 时明确确认同时清空该站型部署数量。
 
 `站型单站成本 = Σ（条目项目采用单价 × 每站数量）`
 
-`站型年度成本 = 站型单站成本 × 该年站点数量`
+`站型年度成本 = Σ（条目基准年单站成本 × 该年站点数量 × Subcon 年度系数）`
 
 `年度分包成本 = Σ 各站型年度成本 + 该年项目一次性分包费用`
 
@@ -69,7 +83,7 @@ Cost Details 的 **Subcon** 页签，与 Input、Summary、Version Delta 使用�
 - 统一计算结果进入 Cost Statement **2.3.2 Subcontract Cost**，供多维汇总、Version Delta、报价和 Excel 共用。Subcon 页签负责明细，不能再把其结果作为另一笔手输成本重复加入 Input。
 - 旧版本中的手工分包金额继续按原逻辑计算。明确转换成条目明细时记录对应原行，并替代该原行；不自动把参考目录当成已发生的项目费用。
 - `Supply & install` 单价已经包含的材料、安装和差旅不能再次计入设备采购或其他成本；按人天外包与包干分包也要区分适用范围。
-- 分包不套用人员 3% allowance、HQ travel 或人力年度费率上涨。现有按人力合计计算的 2.3.4.2 默认 1% 不因分包增加而自动扩大基数。
+- 分包不套用人员 3% allowance、HQ travel 或人力年度费率上涨，使用本版本独立的 Subcon 年度涨幅。2.3.4.2 EHS 自动模式按 `(2.3.1 + 2.3.2 + 2.3.3) × 1%` 计算；手工金额模式继续保留。
 - 新的结构化分包输入、站型和年度计划必须存入 **成本版本**，不能只放在项目级目录。锁定只保护当前版本，仍可查看、导出、复制为新 Draft。
 - 全局单价维护不影响任何已有版本，包括 Draft。目录弹窗中的 Refresh 只更新待选目录，不覆盖已采用单价。Draft 可手工修改实际单价；历史版本不变。
 - 实际入账前校验单位、单价和数量完整。缺失价格阻止确认成本，显式 0 仍保留。pcs 和站点数量用非负整数，m 等单位可用小数。缺失年份计划不能伪装为已完成分配。
@@ -79,6 +93,6 @@ Cost Details 的 **Subcon** 页签，与 Input、Summary、Version Delta 使用�
 
 各入口共用同一个计算函数。版本内 `subcontractCost` 保存录入方式、条目快照、站型配置、年度数量及一次性费用；目录本身不包含项目数量。
 
-CLI 使用 `cost get/update --project-id ID --version Vn --section subcontract`，只读取目标版本的分包对象。更新使用 `set`，可修改 mode、lines、siteTypes；数组整项替换，先读原数组并保留未涉及条目。沿用项目 revision 和版本锁校验，不读取整个 workspace；合计由服务端计算，不接受任意金额覆盖。
+CLI 使用 `cost get/update --project-id ID --version Vn --section subcontract`，只读取目标版本的分包对象。更新使用 `set`，可修改 mode、lines、siteTypes、rateSettings；数组整项替换，先读原数组并保留未涉及条目。沿用项目 revision 和版本锁校验，不读取整个 workspace；合计由服务端计算，不接受任意金额覆盖。
 
 Excel 对应页面提供条目详表、站型 BOQ（适用时）、年度分包汇总；成本总表继续直接引用已计算的 2.3.2。Report Item 的中英文在同一个单元格，内部 ID、来源引用和后台字段不进入用户简易导出。

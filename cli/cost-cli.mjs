@@ -41,6 +41,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import { LOCAL_DATABASE_SCHEMA_VERSION } from '../db/schema.ts';
 
 import {
+  getY1Year,
   YEAR_BUCKETS,
   buildCostStatementRows,
   buildReconciledCostDimensionSummary,
@@ -2624,6 +2625,7 @@ const execute = async () => {
       travel.totalCost,
       snapshot.manualCosts,
       snapshot.subcontractCost,
+      getY1Year(snapshot.rateSettings),
     );
     if (resolved.command === 'cost.calculate') {
       const summary = (dimension) =>
@@ -2634,6 +2636,8 @@ const execute = async () => {
           travel.totalCost,
           snapshot.manualCosts,
           snapshot.subcontractCost,
+          {},
+          getY1Year(snapshot.rateSettings),
         );
       return success(
         'CostCalculationResult',
@@ -2655,6 +2659,7 @@ const execute = async () => {
               travel.totalCost,
               snapshot.manualCosts,
               snapshot.subcontractCost,
+              getY1Year(snapshot.rateSettings),
             ),
           },
         },

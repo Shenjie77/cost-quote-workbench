@@ -1236,6 +1236,7 @@ function ProjectSessionApp({
     () =>
       calculateBuCostAllocation({
         costRows,
+        rateSettings,
         resourceTypes: versionResourceTypes,
         travelSettings,
         manualCosts,
@@ -1243,6 +1244,7 @@ function ProjectSessionApp({
       }),
     [
       costRows,
+      rateSettings,
       versionResourceTypes,
       travelSettings,
       manualCosts,
@@ -1255,6 +1257,7 @@ function ProjectSessionApp({
     return calculateWorkspaceMetrics(
       {
         costRows,
+        rateSettings,
         resourceTypes: versionResourceTypes,
         travelSettings,
         manualCosts,
@@ -1265,6 +1268,7 @@ function ProjectSessionApp({
     );
   }, [
     costRows,
+    rateSettings,
     manualCosts,
     pricing,
     versionResourceTypes,

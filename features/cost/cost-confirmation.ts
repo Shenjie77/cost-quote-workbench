@@ -1,14 +1,15 @@
 /** Reviewable UI confirmation for an exact, already-calculated cost version. */
-import { costBaselineKey } from '../cpq/domain';
-import { costLockReason } from './cost-lock';
-import { buildCostExportSnapshot } from './build-export-snapshot';
-import { validateCostExportSnapshot } from './validation';
+import { costBaselineKey } from '../cpq/domain.ts';
+import { costLockReason } from './cost-lock.ts';
+import { buildCostExportSnapshot } from './build-export-snapshot.ts';
+import { validateCostExportSnapshot } from './validation.ts';
 import {
   getCostStatementValues,
+  getY1Year,
   getHQTravelSummary,
   totalRowMandays,
-} from './domain';
-import type { WorkbenchWorkspace } from '../workbench/workspace-types';
+} from './domain.ts';
+import type { WorkbenchWorkspace } from '../workbench/workspace-types.ts';
 
 export function costConfirmationDetails(
   workspace: WorkbenchWorkspace,
@@ -55,6 +56,7 @@ export function costConfirmationDetails(
       travel,
       version.manualCosts,
       version.subcontractCost,
+      getY1Year(version.rateSettings),
     ).totalWithRisk,
     totalMandays: version.costRows.reduce(
       (sum, row) => sum + totalRowMandays(row),

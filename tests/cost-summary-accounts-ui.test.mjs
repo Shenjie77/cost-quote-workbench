@@ -50,6 +50,8 @@ const { BreakdownTable } =
   await import('../features/cost/components/breakdown-table.tsx');
 const { CostStatementTable } =
   await import('../features/cost/components/cost-statement-table.tsx');
+const { TableRow } = await import('../components/ui/table.tsx');
+const { Input } = await import('../components/ui/input.tsx');
 hooks.deregister();
 const walk = (node) =>
   Array.isArray(node)
@@ -116,4 +118,53 @@ test('Cost Statement opens first; locked summaries keep named accounts and a sep
   );
   assert.equal(writes, 0);
   assert.deepEqual(snapshot, before);
+});
+
+test('peer service accounts share the same row style while Settlement stays editable and locked rows cannot change', () => {
+  const snapshot = makeCostSnapshot();
+  let manualCosts = { ...snapshot.manualCosts, otherServiceRate: 0.01 };
+  let writes = 0;
+  const render = (readOnly) =>
+    walk(
+      CostStatementTable({
+        readOnly,
+        rows: snapshot.costRows,
+        resourceTypes: snapshot.resourceTypes,
+        travelCost: 0,
+        manualCosts,
+        setManualCosts: (update) => {
+          writes++;
+          manualCosts = update(manualCosts);
+        },
+      }),
+    );
+  const nodes = render(false);
+  const statementRows = nodes.filter((node) => node.type === TableRow);
+  const groupClass = statementRows.find((node) => node.key === '2.3.1').props
+    .className;
+  for (const code of ['2.3.2', '2.3.3', '2.3.4'])
+    assert.equal(
+      statementRows.find((node) => node.key === code).props.className,
+      groupClass,
+    );
+  const settlement = nodes.find(
+    (node) =>
+      node.type === Input &&
+      node.props['aria-label'] === 'Settlement Cost cost in SGD',
+  );
+  assert.equal(settlement.props.disabled, false);
+  assert.match(settlement.props.className, /bg-transparent/);
+  settlement.props.onChange({ target: { value: '123.45' } });
+  assert.equal(manualCosts.settlement, 123.45);
+  assert.equal(manualCosts.otherServiceRate, 0.01);
+  assert.equal(writes, 1);
+  const locked = render(true).find(
+    (node) =>
+      node.type === Input &&
+      node.props['aria-label'] === 'Settlement Cost cost in SGD',
+  );
+  assert.equal(locked.props.disabled, true);
+  locked.props.onChange({ target: { value: '999' } });
+  assert.equal(manualCosts.settlement, 123.45);
+  assert.equal(writes, 1);
 });

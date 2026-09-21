@@ -14,6 +14,7 @@ import {
 import {
   buildCostStatementRows,
   getCostStatementValues,
+  isCostStatementGroupRow,
   overrideOtherServiceCost,
   roundMoney,
   totalRowCost,
@@ -23,6 +24,7 @@ import {
 } from '@/features/cost/domain';
 import { formatSgd } from '@/lib/formatters';
 
+/** Render statement hierarchy and keep manual account edits available in grouped rows. */
 export function CostStatementTable({
   readOnly = false,
   rows,
@@ -30,6 +32,7 @@ export function CostStatementTable({
   travelCost,
   manualCosts,
   subcontractCost,
+  subcontractStartYear,
   setManualCosts,
 }: {
   readOnly?: boolean;
@@ -38,6 +41,7 @@ export function CostStatementTable({
   travelCost: number;
   manualCosts: ManualCostInputs;
   subcontractCost?: SubcontractCost;
+  subcontractStartYear?: number | null;
   setManualCosts: React.Dispatch<React.SetStateAction<ManualCostInputs>>;
 }) {
   const values = getCostStatementValues(
@@ -46,6 +50,7 @@ export function CostStatementTable({
     travelCost,
     manualCosts,
     subcontractCost,
+    subcontractStartYear,
   );
   const unmappedRows = rows.filter(
     (row) =>
@@ -62,8 +67,10 @@ export function CostStatementTable({
     travelCost,
     manualCosts,
     subcontractCost,
+    subcontractStartYear,
   );
 
+  /** Commit editable amounts; changing EHS explicitly switches from percentage to manual. */
   const updateManualCost = (key: keyof ManualCostInputs, value: number) => {
     if (readOnly) return;
     if (key === 'otherService') {
@@ -80,10 +87,9 @@ export function CostStatementTable({
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-2 text-[10px] text-muted-foreground">
         <span>
-          Auto-linked: in-house labour, subcontract/partner cost, and HQ travel.
+          EHS 1% = (2.3.1 + 2.3.2 + 2.3.3) × 1%.
           <span className="ml-1 text-[9px]">
-            自动带入：自有人力、合作成本和 HQ 差旅；2.3.4.2 可按人力成本的 1%
-            计算或手动录入。
+            人力、合作及结算成本合计的 1%，也可手动录入金额。
           </span>
         </span>
         <span className="financial-numeral font-semibold text-primary">
@@ -130,6 +136,8 @@ export function CostStatementTable({
           </TableHeader>
           <TableBody>
             {statementRows.map((row) => {
+              // Visual grouping is independent of input mode: settlement remains editable.
+              const isGroupRow = isCostStatementGroupRow(row);
               const isManual = row.mode === 'manual' && row.manualKey;
               const manualAmount =
                 row.manualKey === 'otherService'
@@ -144,7 +152,7 @@ export function CostStatementTable({
                     ? 'bg-secondary hover:bg-secondary'
                     : row.code === '15'
                       ? 'bg-primary/10 hover:bg-primary/10'
-                      : row.mode === 'subtotal'
+                      : isGroupRow
                         ? 'bg-secondary/70 hover:bg-secondary/70'
                         : 'bg-card hover:bg-muted/30';
               return (
@@ -201,7 +209,7 @@ export function CostStatementTable({
                               otherServiceRate: 0.01,
                             }));
                         }}
-                        title="2.3.4.2 = 2.3.1 人力成本合计 × 1%；输入金额可切换为手动"
+                        title="2.3.4.2 = (2.3.1 + 2.3.2 + 2.3.3) × 1%；输入金额可切换为手动"
                       >
                         {manualCosts.otherServiceRate === 0.01
                           ? '1% · 自动'
@@ -225,7 +233,12 @@ export function CostStatementTable({
                           step={
                             row.manualKey === 'otherService' ? '0.01' : '100'
                           }
-                          className="financial-numeral h-9 rounded-none border-0 bg-background pl-7 pr-2 text-right text-[11px] shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-background focus-visible:ring-1 disabled:bg-muted/40"
+                          className={
+                            'financial-numeral h-9 rounded-none border-0 pl-7 pr-2 text-right text-[11px] shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-background focus-visible:ring-1 ' +
+                            (isGroupRow
+                              ? 'bg-transparent font-semibold disabled:bg-transparent'
+                              : 'bg-background disabled:bg-muted/40')
+                          }
                           value={manualAmount || ''}
                           placeholder="-"
                           onChange={(event) =>

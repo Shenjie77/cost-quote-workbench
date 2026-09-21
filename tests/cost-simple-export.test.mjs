@@ -222,7 +222,7 @@ test('simple Cost Statement keeps bilingual item and account together with page 
           ? 'FFEFE0D1'
           : item.code === '15'
             ? 'FFF4E5D9'
-            : item.mode === 'subtotal'
+            : item.mode === 'subtotal' || ['2.3.2', '2.3.3'].includes(item.code)
               ? 'FFE3F0EF'
               : 'FFFFFFFF';
     assert.equal(row.getCell(1).fill.fgColor.argb, expectedFill);
@@ -259,7 +259,12 @@ test('simple statement and dimensions use shared automatic one-percent service-c
   const rowIndex = rows.findIndex((row) => row.code === '2.3.4.2');
   assert.equal(
     sheet.getCell(rowIndex + 5, 2).value,
-    roundMoney(statement.labour * 0.01),
+    roundMoney(
+      (statement.labour +
+        statement.subcontract +
+        roundMoney(snapshot.manualCosts.settlement)) *
+        0.01,
+    ),
   );
   for (const name of ['Summary Scope', 'Summary BU', 'Summary RE Type']) {
     const summary = workbook.getWorksheet(name);
