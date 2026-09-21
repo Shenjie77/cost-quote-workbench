@@ -15,6 +15,7 @@ import type { MaintenancePriceRecord, SupplementalCostItem } from './domain';
 import type { SubcontractItem } from './types';
 import type { ProfitShareRate } from '@/features/quote/profit-share';
 import { MasterDataView } from './master-data-view';
+import { BulkImportControls } from './bulk-import-controls';
 import { WorkflowPublishDialog } from './workflow-publish-dialog';
 import type { MasterDataTab } from './navigation';
 import {
@@ -454,6 +455,22 @@ export function GlobalMasterDataPage({
       )}
       <div className="min-w-0">
         <MasterDataView
+          bulkActions={
+            <BulkImportControls
+              key={activeTab}
+              tab={activeTab}
+              items={state.items}
+              related={
+                dependency
+                  ? { [dependency]: dependencyState?.record?.items || [] }
+                  : undefined
+              }
+              revision={state.record?.revision || 0}
+              disabled={blocked || !!state.record?.conflicts.length}
+              onApply={(items) => store.setItems(activeTab, items)}
+              announce={announce}
+            />
+          }
           editingDisabled={blocked}
           activeTab={activeTab}
           onTabChange={onTabChange}

@@ -19,6 +19,8 @@ Subcontract 目录通过 **Unit / Unit Price / Currency** 维护分包参考单�
 
 ## 全局维护入口
 
+各页签提供 Excel 模板下载、批量导入预览及当前数据导出；导入后仍通过原有保存或 Workflow 预览发布流程生效。固定格式、合并规则及操作步骤见 [Master Data Excel 批量导入](master-data-excel-import.md)。
+
 在仓库根目录运行；`cost-cli` 是 `npm run --silent cost-cli --` 的简称：
 
 ```sh

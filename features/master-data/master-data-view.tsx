@@ -68,6 +68,8 @@ import {
 } from './resource-editing';
 
 type Props = {
+  /** Per-tab bulk tools share the existing search/save toolbar without adding another action row. */
+  bulkActions?: React.ReactNode;
   editingDisabled?: boolean;
   saveLabel?: string;
   activeTab: MasterDataTab;
@@ -659,6 +661,7 @@ export function MasterDataView(props: Props) {
                   }
                 />
               </div>
+              {props.bulkActions}
               <Button
                 size="sm"
                 disabled={editingDisabled || profitShareErrors.length > 0}

@@ -39,7 +39,7 @@ import type { ReviewGate } from '@/features/reviews/types';
 import type { PanelState, ViewKey } from '@/features/workbench/types';
 import { formatSgd } from '@/lib/formatters';
 
-/** Prioritize current workflow tasks, followed by portfolio totals and project details. */
+/** Prioritize current workflow tasks and follow-ups before the full project portfolio. */
 export function OverviewView({
   projects,
   reviews,
@@ -287,63 +287,11 @@ export function OverviewView({
         </DialogContent>
       </Dialog>
       <div className="grid min-w-0 gap-3">
-        <section className="wb-panel overflow-hidden">
-          <SectionHeading
-            index="01"
-            title="Project Portfolio"
-            titleZh="项目组合"
-            action={
-              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-                <Select
-                  value={activeWorkflowFilter}
-                  onValueChange={(value) => {
-                    setWorkflowFilter(value ?? 'all');
-                  }}
-                >
-                  <SelectTrigger size="sm" className="w-full min-w-44 sm:w-52">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">
-                      All workflows / 全部流程
-                    </SelectItem>
-                    {workflowOptions.map(({ step, legacy }) => (
-                      <SelectItem key={step.code} value={step.code}>
-                        {step.name || step.nameZh}
-                        {legacy ? ' (recorded node)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setView('project')}
-                >
-                  Open list <ChevronRight />
-                </Button>
-              </div>
-            }
-          />
-          <ProjectTable
-            projects={visibleProjects}
-            onProject={(project) => {
-              onSelectProject(project);
-              setView('project');
-            }}
-            onCost={onOpenCost}
-            onQuote={onOpenQuote}
-            onTrackWorkflow={onTrackWorkflow}
-          />
-          <div className="border-t border-border bg-[#f6f8fa] px-3 py-2 text-xs text-muted-foreground">
-            Showing {visibleProjects.length} of {projects.length} local projects
-            / 显示 {visibleProjects.length} 个项目
-          </div>
-        </section>
+        {/* Keep follow-up actions above the full project list for immediate access. */}
         <div className="grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,1fr)]">
           <section className="wb-panel overflow-hidden">
             <SectionHeading
-              index="02"
+              index="01"
               title="Project Follow-ups"
               titleZh="项目跟进"
             />
@@ -450,6 +398,59 @@ export function OverviewView({
             </div>
           </section>
         </div>
+        <section className="wb-panel overflow-hidden">
+          <SectionHeading
+            index="02"
+            title="Project Portfolio"
+            titleZh="项目组合"
+            action={
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                <Select
+                  value={activeWorkflowFilter}
+                  onValueChange={(value) => {
+                    setWorkflowFilter(value ?? 'all');
+                  }}
+                >
+                  <SelectTrigger size="sm" className="w-full min-w-44 sm:w-52">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">
+                      All workflows / 全部流程
+                    </SelectItem>
+                    {workflowOptions.map(({ step, legacy }) => (
+                      <SelectItem key={step.code} value={step.code}>
+                        {step.name || step.nameZh}
+                        {legacy ? ' (recorded node)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setView('project')}
+                >
+                  Open list <ChevronRight />
+                </Button>
+              </div>
+            }
+          />
+          <ProjectTable
+            projects={visibleProjects}
+            onProject={(project) => {
+              onSelectProject(project);
+              setView('project');
+            }}
+            onCost={onOpenCost}
+            onQuote={onOpenQuote}
+            onTrackWorkflow={onTrackWorkflow}
+          />
+          <div className="border-t border-border bg-[#f6f8fa] px-3 py-2 text-xs text-muted-foreground">
+            Showing {visibleProjects.length} of {projects.length} local projects
+            / 显示 {visibleProjects.length} 个项目
+          </div>
+        </section>
       </div>
     </div>
   );
