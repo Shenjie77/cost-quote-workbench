@@ -632,7 +632,7 @@ export function SubcontractLinesTable({
               colSpan={allYears ? 9 : 5}
               className="py-8 text-center text-xs text-muted-foreground"
             >
-              Add a catalog item or create a manual item to begin.
+              Add items from Master Data or use Bulk Entry to begin.
             </TableCell>
           </TableRow>
         )}

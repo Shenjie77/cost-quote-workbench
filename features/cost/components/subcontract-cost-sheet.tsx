@@ -1,5 +1,5 @@
 /** Version-owned subcontract BOQs with focused quantity entry and staged catalogue selection. */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Copy,
   ClipboardPaste,
@@ -44,7 +44,6 @@ import {
 } from '../subcontract-bulk-entry';
 import { SubcontractCatalogPicker } from './subcontract-catalog-picker';
 import {
-  SubcontractItemDialog,
   SubcontractLinesTable,
   SubcontractNumberInput,
 } from './subcontract-lines-table';
@@ -76,7 +75,7 @@ export function copySubcontractCatalogLine(
     );
   if (!item.unit?.trim())
     throw new Error(
-      'This catalogue item has no unit. Set its catalogue unit or add a manual item.',
+      'This item has no unit. Complete it in Master Data → Subcontract, then refresh the catalogue.',
     );
   return {
     id: id(),
@@ -182,19 +181,6 @@ export function removeSubcontractSiteLine(
   return { ...site, lines, sites: lines.length ? site.sites : zeroYears() };
 }
 
-const manualLine = (): SubcontractLineBase => {
-  const lineId = id();
-  return {
-    id: lineId,
-    code: `MANUAL-${lineId.slice(0, 8).toUpperCase()}`,
-    description: '',
-    bu: 'Unassigned',
-    unit: 'pcs',
-    unitPrice: null,
-    currency: 'SGD',
-  };
-};
-
 export function SubcontractCostSheet({
   value,
   onChange,
@@ -221,11 +207,22 @@ export function SubcontractCostSheet({
   const [catalogTarget, setCatalogTarget] = useState<SubcontractTarget | null>(
     null,
   );
-  const [bulkTarget, setBulkTarget] = useState<SubcontractTarget | null>(null);
-  const [manualDraft, setManualDraft] = useState<{
+  const [bulkRequest, setBulkRequest] = useState<{
     target: SubcontractTarget;
-    line: SubcontractCostLine | SubcontractSiteLine;
+    catalog: SubcontractItem[] | null;
+    error: string | null;
   } | null>(null);
+  const bulkRequestId = useRef(0);
+  const latestBulkContext = useRef({ locked, catalog });
+  useEffect(() => {
+    latestBulkContext.current = { locked, catalog };
+  }, [locked, catalog]);
+  useEffect(
+    () => () => {
+      bulkRequestId.current++;
+    },
+    [],
+  );
   const [renameDraft, setRenameDraft] = useState<{
     id: string;
     name: string;
@@ -298,16 +295,40 @@ export function SubcontractCostSheet({
       setCatalogTarget(target);
     }
   };
-  const openManual = (target: SubcontractTarget) => {
+  /** Every entry session uses fresh Master Data; canceled or superseded fetches cannot reopen it. */
+  const openBulk = async (target: SubcontractTarget) => {
     if (locked) return;
-    const base = manualLine();
-    setManualDraft({
-      target,
-      line:
-        target.kind === 'project'
-          ? { ...base, quantities: zeroYears() }
-          : { ...base, quantityPerSite: 0 },
-    });
+    const requestId = ++bulkRequestId.current;
+    setBulkRequest({ target, catalog: null, error: null });
+    try {
+      if (!onRefreshCatalog)
+        throw new Error(
+          'Master Data refresh is unavailable. Reload the page and try again.',
+        );
+      const items = await onRefreshCatalog();
+      if (requestId !== bulkRequestId.current) return;
+      if (latestBulkContext.current.locked) {
+        setBulkRequest(null);
+        return;
+      }
+      setRefreshedCatalog({ source: latestBulkContext.current.catalog, items });
+      setBulkRequest({ target, catalog: items, error: null });
+    } catch (error) {
+      if (requestId !== bulkRequestId.current) return;
+      setBulkRequest({
+        target,
+        catalog: null,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Unable to load the latest Master Data.',
+      });
+    }
+  };
+  /** Invalidate pending refreshes when the user closes the entry flow. */
+  const closeBulk = () => {
+    bulkRequestId.current++;
+    setBulkRequest(null);
   };
   const addSite = () => {
     if (locked) return;
@@ -566,12 +587,8 @@ export function SubcontractCostSheet({
                   onCatalog={() =>
                     openCatalog({ kind: 'site', id: selectedSite.id })
                   }
-                  onManual={() =>
-                    openManual({ kind: 'site', id: selectedSite.id })
-                  }
                   onBulk={() => {
-                    if (!locked)
-                      setBulkTarget({ kind: 'site', id: selectedSite.id });
+                    void openBulk({ kind: 'site', id: selectedSite.id });
                   }}
                 />
               </div>
@@ -806,9 +823,8 @@ export function SubcontractCostSheet({
               <AddLineActions
                 locked={locked}
                 onCatalog={() => openCatalog({ kind: 'project' })}
-                onManual={() => openManual({ kind: 'project' })}
                 onBulk={() => {
-                  if (!locked) setBulkTarget({ kind: 'project' });
+                  void openBulk({ kind: 'project' });
                 }}
               />
             </div>
@@ -908,58 +924,80 @@ export function SubcontractCostSheet({
           </DialogContent>
         </Dialog>
       )}
-      {bulkTarget && (
-        <SubcontractBulkEntryDialog
-          value={value}
-          target={bulkTarget}
-          catalog={
-            refreshedCatalog?.source === catalog
-              ? refreshedCatalog.items
-              : catalog
-          }
-          actualYears={actualYears}
-          defaultYear={typeof projectYear === 'number' ? projectYear : 0}
-          locked={locked}
-          announce={announce}
-          onClose={() => setBulkTarget(null)}
-          onConfirm={(lines, fingerprint) => {
-            const basis = {
-              value,
-              target: bulkTarget,
-              actualYears,
-              catalog:
-                refreshedCatalog?.source === catalog
-                  ? refreshedCatalog.items
-                  : catalog,
-            };
-            if (
-              locked ||
-              fingerprint !== subcontractBulkBasisFingerprint(basis)
-            )
-              return false;
-            change(appendSubcontractBulkLines(value, lines, bulkTarget));
-            announce(
-              `${lines.length} subcontract item(s) added to the selected BOQ.`,
-            );
-            return true;
-          }}
-        />
-      )}
-      {manualDraft && (
-        <SubcontractItemDialog
-          key={manualDraft.line.id}
-          line={manualDraft.line}
-          title="New Subcontract Item"
-          locked={locked}
-          announce={announce}
-          onClose={() => setManualDraft(null)}
-          onSave={(line) => {
-            const added = addLines([line], manualDraft.target);
-            if (added) setManualDraft(null);
-            return added;
-          }}
-        />
-      )}
+      {bulkRequest &&
+        (bulkRequest.catalog ? (
+          <SubcontractBulkEntryDialog
+            value={value}
+            target={bulkRequest.target}
+            catalog={bulkRequest.catalog}
+            actualYears={actualYears}
+            defaultYear={typeof projectYear === 'number' ? projectYear : 0}
+            locked={locked}
+            announce={announce}
+            onClose={closeBulk}
+            onConfirm={(lines, fingerprint) => {
+              const basis = {
+                value,
+                target: bulkRequest.target,
+                actualYears,
+                catalog: bulkRequest.catalog!,
+              };
+              if (
+                locked ||
+                fingerprint !== subcontractBulkBasisFingerprint(basis)
+              )
+                return false;
+              change(
+                appendSubcontractBulkLines(value, lines, bulkRequest.target),
+              );
+              announce(
+                `${lines.length} subcontract item(s) added to the selected BOQ.`,
+              );
+              return true;
+            }}
+          />
+        ) : (
+          <Dialog
+            open
+            onOpenChange={(open) => {
+              if (!open) closeBulk();
+            }}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Subcontract Bulk Entry</DialogTitle>
+                <DialogDescription>
+                  Loading current items and prices from Master Data.
+                </DialogDescription>
+              </DialogHeader>
+              {bulkRequest.error ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {bulkRequest.error}
+                </p>
+              ) : (
+                <output className="block text-sm text-muted-foreground">
+                  Loading Master Data…
+                </output>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeBulk}>
+                  Cancel
+                </Button>
+                {bulkRequest.error && (
+                  <Button
+                    type="button"
+                    disabled={locked}
+                    onClick={() => {
+                      void openBulk(bulkRequest.target);
+                    }}
+                  >
+                    Retry
+                  </Button>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        ))}
       {renameDraft && (
         <Dialog
           open
@@ -1030,12 +1068,10 @@ export function SubcontractCostSheet({
 function AddLineActions({
   locked,
   onCatalog,
-  onManual,
   onBulk,
 }: {
   locked: boolean;
   onCatalog: () => void;
-  onManual: () => void;
   onBulk: () => void;
 }) {
   return (
@@ -1049,17 +1085,6 @@ function AddLineActions({
       >
         <Search className="size-3.5" />
         Add from Catalog
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="h-8 px-2.5 text-xs"
-        disabled={locked}
-        onClick={onManual}
-      >
-        <Plus className="size-3.5" />
-        Manual Item
       </Button>
       <Button
         type="button"

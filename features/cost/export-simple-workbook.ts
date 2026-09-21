@@ -1,4 +1,5 @@
 import { addSubcontractWorkbookSheets } from './export-subcontract-workbook.ts';
+import { subcontractCostDetails } from './subcontract-domain.ts';
 /** Page-shaped, read-only cost reports built from one detached cost snapshot. */
 
 import type { CostExportSnapshot } from './contracts.ts';
@@ -637,7 +638,22 @@ function addLegacySubcontractDetail(
     sheet.getColumn(column).numFmt = MONEY;
 }
 
-/** Same columns, descending order, labels and color bars as BreakdownTable. */
+/** Keeps large aggregated code lists within Excel's cell limit; every code stays intact in Subcon Detail. */
+function summarizedSubcontractCodes(codes: Iterable<string>): string {
+  const allCodes = [...codes];
+  const complete = allCodes.join('\n');
+  if (complete.length <= 32_000) return complete;
+  const visible: string[] = [];
+  let length = 0;
+  for (const code of allCodes) {
+    if (length + code.length + 1 > 31_900) break;
+    visible.push(code);
+    length += code.length + 1;
+  }
+  return `${visible.join('\n')}\n+${allCodes.length - visible.length} more; see Subcon Detail`;
+}
+
+/** Same descending order, labels and color bars as BreakdownTable, with BOQ code references on Subcon summaries. */
 const addBreakdown = (
   workbook: Workbook,
   snapshot: CostExportSnapshot,
@@ -647,8 +663,9 @@ const addBreakdown = (
   travelCost: number,
   subcontractOnly = false,
 ) => {
-  const sheet = addSheet(workbook, snapshot, name, title, 5);
-  sheet.mergeCells(3, 1, 3, 5);
+  const columnCount = subcontractOnly ? 6 : 5;
+  const sheet = addSheet(workbook, snapshot, name, title, columnCount);
+  sheet.mergeCells(3, 1, 3, columnCount);
   sheet.getCell('A3').value = subcontractOnly
     ? 'Cost Statement 2.3.2 · Subcontract BOQ and preserved legacy packages · All years'
     : 'Total Cost with Risk · All years · Project-level costs reference Cost Statement accounts';
@@ -659,25 +676,29 @@ const addBreakdown = (
   };
   sheet.getCell('A3').alignment = { wrapText: true, vertical: 'middle' };
   sheet.getRow(3).height = 28;
-  const header = styleRow(sheet, HEADER_ROW, 5, {
+  const header = styleRow(sheet, HEADER_ROW, columnCount, {
     fill: COLORS.secondary,
     bold: true,
     height: 34,
   });
   setRowValues(header, [
-    'Dimension / 维度',
+    subcontractOnly ? 'Description / 描述' : 'Dimension / 维度',
     'Cost Distribution / 成本分布',
     'Mandays / 人天',
     'Cost / 成本',
     'Share / 占比',
+    ...(subcontractOnly ? ['BOQ Code Number(s) / 条目编码'] : []),
   ]);
-  [44, 34, 22, 23, 15].forEach((width, index) => {
-    sheet.getColumn(index + 1).width = width;
-  });
+  [44, 34, 22, 23, 15, ...(subcontractOnly ? [24] : [])].forEach(
+    (width, index) => {
+      sheet.getColumn(index + 1).width = width;
+    },
+  );
   sheet.getColumn(2).numFmt = ';;;';
   sheet.getColumn(3).numFmt = `${QUANTITY}" MD"`;
   sheet.getColumn(4).numFmt = MONEY;
   sheet.getColumn(5).numFmt = '0.0%';
+  if (subcontractOnly) sheet.getColumn(6).numFmt = '@';
   const statementRows = buildCostStatementRows(
     snapshot.costRows,
     snapshot.resourceTypes,
@@ -705,14 +726,35 @@ const addBreakdown = (
       );
   const totalMandays = items.reduce((sum, item) => sum + item.mandays, 0);
   const maxCost = Math.max(1, ...items.map((item) => item.cost));
+  // Scope summaries may contain several catalog codes. List each captured code once without changing aggregation.
+  const scopeCodes = new Map<string, Set<string>>();
+  if (subcontractOnly) {
+    for (const line of subcontractCostDetails(
+      snapshot.subcontractCost,
+      getY1Year(snapshot.rateSettings),
+    )) {
+      if (!line.code.trim()) continue;
+      const scope = line.scope.trim() || 'UNSPECIFIED';
+      const codes = scopeCodes.get(scope) ?? new Set<string>();
+      codes.add(line.code);
+      scopeCodes.set(scope, codes);
+    }
+  }
   items.forEach((item, index) => {
     const rowNumber = HEADER_ROW + 1 + index;
     const labelZh = statementRows.find(
       (row) => row.code === getCostSummaryStatementCode(item.key),
     )?.zh;
     const label = labelZh ? `${item.label} / ${labelZh}` : item.label;
-    const row = styleRow(sheet, rowNumber, 5, {
-      height: textRowHeight([[label, 44]], 42),
+    const codes = summarizedSubcontractCodes(scopeCodes.get(item.key) ?? []);
+    const row = styleRow(sheet, rowNumber, columnCount, {
+      height: textRowHeight(
+        [
+          [label, 44],
+          ...(subcontractOnly ? [[codes, 24] as [string, number]] : []),
+        ],
+        42,
+      ),
     });
     setRowValues(row, [
       label,
@@ -720,6 +762,7 @@ const addBreakdown = (
       item.mandays,
       item.cost,
       item.shareRatio,
+      ...(subcontractOnly ? [codes] : []),
     ]);
     const mdShare =
       totalMandays > 0
@@ -748,7 +791,7 @@ const addBreakdown = (
       };
     sheet.addConditionalFormatting({ ref: `B${rowNumber}`, rules: [bar] });
   });
-  const total = styleRow(sheet, HEADER_ROW + 1 + items.length, 5, {
+  const total = styleRow(sheet, HEADER_ROW + 1 + items.length, columnCount, {
     fill: COLORS.subtotal,
     bold: true,
   });

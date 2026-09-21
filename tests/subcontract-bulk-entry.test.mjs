@@ -10,7 +10,7 @@ import {
   subcontractBulkTemplate,
 } from '../features/cost/subcontract-bulk-entry.ts';
 
-const options = { defaultYear: 1, defaultBU: '', mapping: {} };
+const options = { defaultYear: 1, mapping: {} };
 const basis = (extra = {}) => ({
   value: { mode: 'project', lines: [], siteTypes: [] },
   target: { kind: 'project' },
@@ -33,7 +33,101 @@ const parse = (text, changes = {}, current = basis()) =>
   parseSubcontractBulkEntry(text, { ...options, ...changes }, current);
 const validText = 'Code\tQuantity\nSC-001\t2.5';
 
-test('catalog code imports copy saved values, allocate default year and retain explicit overrides', () => {
+test('code or description plus quantity works without headers and normalizes only harmless text differences', () => {
+  for (const text of [
+    ' sc-001 \t2.5',
+    ' ＳＣ-００１ \t2.5',
+    ' install   CABLE \t2.5',
+    'Description\tQuantity\nInstall cable\t2.5',
+    'Description\tQuantity\ncable\t2.5',
+    'Code Number\tQuantity\nSC-001\t2.5',
+  ]) {
+    const preview = parse(text);
+    assert.equal(preview.canConfirm, true, JSON.stringify(preview));
+    assert.equal(preview.lines[0].code, 'SC-001');
+    assert.equal(preview.lines[0].description, 'Install cable');
+    assert.equal(preview.lines[0].catalogItemId, 'catalog-a');
+    assert.deepEqual(preview.lines[0].quantities, [0, 2.5, 0, 0, 0]);
+  }
+  const item = basis().catalog[0];
+  const current = basis({
+    catalog: [
+      { ...item, code: '00123' },
+      { ...item, id: 'second', code: 'SC001', item: 'Other cable' },
+    ],
+  });
+  assert.equal(parse('00123\t2', {}, current).lines[0].code, '00123');
+  assert.equal(parse('123\t2', {}, current).canConfirm, false);
+  assert.equal(
+    parse('Code\tQuantity\nSC-001\t2', {}, current).canConfirm,
+    false,
+  );
+  // Valid quantities can look like calendar headers, and real codes can look like field names.
+  assert.equal(parse('SC-001\t2026').lines[0].quantities[1], 2026);
+  const headerNamedItem = basis({ catalog: [{ ...item, code: 'BU' }] });
+  assert.equal(parse('BU\t2', {}, headerNamedItem).lines[0].code, 'BU');
+});
+
+test('unknown, inactive, ambiguous and conflicting identities cannot create manual base items', () => {
+  const item = basis().catalog[0];
+  const current = basis({
+    catalog: [
+      item,
+      { ...item, id: 'b', code: 'SC-002', item: 'Install cable in rack' },
+      {
+        ...item,
+        id: 'old',
+        code: 'OLD',
+        item: 'Legacy retired item',
+        active: false,
+      },
+    ],
+  });
+  const exact = parse('Description\tQuantity\nInstall cable\t2', {}, current);
+  assert.equal(exact.canConfirm, true);
+  assert.equal(exact.lines[0].code, 'SC-001');
+  for (const text of [
+    'Description\tQuantity\ncable\t2',
+    'Description\tQuantity\nMissing item\t2',
+    'OLD\t2',
+    'Code\tDescription\tQuantity\nSC-001\tUnrelated description\t2',
+    'Code\tItem\tQuantity\nSC-001\tSC-002\t2',
+    'Description\tItem\tQuantity\nInstall cable\tSC-002\t2',
+    'Code\tDescription\tBU\tUnit\tUnit Price\tQuantity\nNEW\tNew item\tNetwork\tm\t1\t2',
+  ]) {
+    const preview = parse(text, {}, current);
+    assert.equal(preview.canConfirm, false, text);
+    assert.equal(preview.lines.length, 0);
+    assert.ok(
+      preview.entries.some((entry) =>
+        entry.issues.some((issue) => issue.includes('Master Data')),
+      ),
+    );
+  }
+  const duplicateDescription = basis({
+    catalog: [item, { ...item, id: 'duplicate', code: 'SC-002' }],
+  });
+  assert.equal(
+    parse('Description\tQuantity\nInstall cable\t1', {}, duplicateDescription)
+      .canConfirm,
+    false,
+  );
+  assert.equal(parse('SC-002\t1', {}, duplicateDescription).canConfirm, true);
+  const inactiveCode = basis({
+    catalog: [
+      { ...item, code: 'ROUTER', active: false },
+      { ...item, id: 'active-cable', code: 'CABLE', item: 'Router cabling' },
+    ],
+  });
+  assert.equal(parse('ROUTER\t2', {}, inactiveCode).canConfirm, false);
+  assert.equal(
+    parse('Description\tQuantity\nRouter cabling\t2', {}, inactiveCode)
+      .canConfirm,
+    true,
+  );
+});
+
+test('catalog codes supply all master attributes and pasted metadata cannot override them', () => {
   const current = basis();
   const before = structuredClone(current);
   const preview = parse(validText, {}, current);
@@ -43,16 +137,25 @@ test('catalog code imports copy saved values, allocate default year and retain e
   assert.equal(preview.lines[0].description, 'Install cable');
   assert.equal(preview.totalCost, 62.5);
   const override = parse(
-    'Code\tDescription\tBU\tUnit\tUnit Price\tY1\t2028 Quantity\nSC-001\tNew scope\tOther\tjob\t0\t2\t3',
+    'Code\tDescription\tBU\tUnit\tUnit Price\tCurrency\tY1\t2028 Quantity\nSC-001\tInstall cable\tOther\tjob\t0\tUSD\t2\t3',
   );
   assert.equal(override.canConfirm, true, JSON.stringify(override));
-  assert.equal(override.lines[0].unitPrice, 0);
-  assert.equal(override.lines[0].description, 'New scope');
+  assert.equal(override.lines[0].unitPrice, 25);
+  assert.equal(override.lines[0].bu, 'Network');
+  assert.equal(override.lines[0].unit, 'm');
+  assert.equal(override.lines[0].currency, 'SGD');
+  assert.equal(override.lines[0].description, 'Install cable');
+  assert.equal(
+    override.notices.filter((notice) =>
+      notice.includes('supplied by Master Data'),
+    ).length,
+    4,
+  );
   assert.deepEqual(override.lines[0].quantities, [2, 0, 3, 0, 0]);
   assert.deepEqual(current, before);
 });
 
-test('templates support manual project and per-site quantities without changing deployments', () => {
+test('minimal templates adopt master items for project and per-site quantities without changing deployments', () => {
   for (const target of [{ kind: 'project' }, { kind: 'site', id: 'site-a' }]) {
     const current = basis({
       value: {
@@ -68,7 +171,6 @@ test('templates support manual project and per-site quantities without changing 
         ],
       },
       target,
-      catalog: [],
     });
     const preview = parse(subcontractBulkTemplate(target, true), {}, current);
     assert.equal(preview.canConfirm, true, JSON.stringify(preview));
@@ -87,16 +189,30 @@ test('templates support manual project and per-site quantities without changing 
   }
 });
 
-test('quoted CSV, Markdown, manual unpriced values and grouped prices are read without numeric coercion', () => {
+test('description-only CSV and Markdown copy master prices including explicit zero and unpriced values', () => {
+  const item = basis().catalog[0];
   const preview = parse(
-    'Code,Description,BU,Unit,Unit Price,Quantity\nX,"Install, cable",Network,m,"1,200.25",2\nY,Testing,Network,job,,0',
+    'Description,Quantity\n"Install, cable",2\nTesting,0\nFree test,3',
     {},
-    basis({ catalog: [] }),
+    basis({
+      catalog: [
+        {
+          ...item,
+          id: 'x',
+          code: 'X',
+          item: 'Install, cable',
+          unitPrice: 1200.25,
+        },
+        { ...item, id: 'y', code: 'Y', item: 'Testing', unitPrice: null },
+        { ...item, id: 'z', code: 'Z', item: 'Free test', unitPrice: 0 },
+      ],
+    }),
   );
   assert.equal(preview.canConfirm, true, JSON.stringify(preview));
   assert.equal(preview.totalCost, 2400.5);
   assert.equal(preview.lines[0].description, 'Install, cable');
   assert.equal(preview.lines[1].unitPrice, null);
+  assert.equal(preview.lines[2].unitPrice, 0);
   assert.ok(
     preview.notices.some((message) => message.includes('price remains blank')),
   );
@@ -109,17 +225,30 @@ test('bad quantities, formulas, non-SGD prices, duplicate mappings and unknown y
   const cases = [
     'Code\tQuantity\nSC-001\t-1',
     'Code\tQuantity\nSC-001\t=2+2',
-    'Code\tQuantity\tUnit\nSC-001\t1.5\tpcs',
-    'Code\tQuantity\tCurrency\nSC-001\t1\tUSD',
     'Code\tQuantity\tY2\nSC-001\t1\t2',
     'Code\t2031\nSC-001\t1',
     'Code\tQuantity\nSC-001\t',
     'Code\tQuantity\nUnknown\t1',
     'Code\tQuantity\nSC-001\t1\textra',
-    'Code\tQuantity\tUnit Price\nSC-001\t1\tNaN',
   ];
   for (const input of cases)
     assert.equal(parse(input).canConfirm, false, input);
+  for (const invalid of [
+    { unit: 'pcs' },
+    { currency: 'USD' },
+    { unitPrice: NaN },
+    { bu: '' },
+    { unit: '' },
+    { active: false },
+  ]) {
+    const current = basis();
+    current.catalog[0] = { ...current.catalog[0], ...invalid };
+    assert.equal(
+      parse(validText, {}, current).canConfirm,
+      false,
+      JSON.stringify(invalid),
+    );
+  }
   const remapped = parse('Code\t2031\nSC-001\t1', {
     mapping: { 1: 'quantity:4' },
   });
@@ -189,7 +318,9 @@ test('independent annual rate adjustments affect preview and the complete combin
   assert.equal(preview.canConfirm, true, JSON.stringify(preview));
   assert.equal(preview.totalCost, 115.5);
   const overflow = parse(
-    'Code\tDescription\tBU\tUnit\tUnit Price\tQuantity\nHUGE\tLarge\tNetwork\tjob\t1000000000000\t2',
+    'Code\tQuantity\nSC-001\t2',
+    {},
+    basis({ catalog: [{ ...basis().catalog[0], unitPrice: 1e12 }] }),
   );
   assert.equal(overflow.canConfirm, false);
   assert.ok(overflow.issues.some((issue) => issue.includes('amount range')));

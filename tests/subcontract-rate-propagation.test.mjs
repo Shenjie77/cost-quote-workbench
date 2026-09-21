@@ -216,12 +216,12 @@ test('both cost workbook formats export actual years, base prices, rate assumpti
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(await build(snapshot));
     const detail = book.getWorksheet('Subcon Detail');
-    assert.equal(detail.getCell('E5').value, 100);
-    assert.equal(detail.getCell('I4').value, 'Y1 2028 Qty');
-    assert.equal(detail.getCell('J4').value, 'Y1 2028 Cost');
-    assert.equal(detail.getCell('J5').value, 110);
-    assert.equal(detail.getCell('L5').value, 132);
-    assert.equal(detail.getCell(detail.rowCount, 8).value, 242);
+    assert.equal(detail.getCell('F5').value, 100);
+    assert.equal(detail.getCell('J4').value, 'Y1 2028 Qty');
+    assert.equal(detail.getCell('K4').value, 'Y1 2028 Cost');
+    assert.equal(detail.getCell('K5').value, 110);
+    assert.equal(detail.getCell('M5').value, 132);
+    assert.equal(detail.getCell(detail.rowCount, 9).value, 242);
     const rates = book.getWorksheet('Subcon Rates');
     assert.equal(rates.getCell('B5').value, 2027);
     assert.equal(rates.getCell('D4').value, 'Y1 2028');
@@ -309,10 +309,10 @@ test('exported prices stay flat through a future Subcon base year and only then 
   await book.xlsx.load(await buildSimpleCostWorkbookBytes(snapshot));
   const detail = book.getWorksheet('Subcon Detail');
   assert.deepEqual(
-    [10, 12, 14, 16, 18].map((column) => detail.getCell(5, column).value),
+    [11, 13, 15, 17, 19].map((column) => detail.getCell(5, column).value),
     [100, 100, 100, 110, 121],
   );
-  assert.equal(detail.getCell(detail.rowCount, 8).value, 531);
+  assert.equal(detail.getCell(detail.rowCount, 9).value, 531);
   const factors = book.getWorksheet('Subcon Rates').getRow(6).values.slice(4);
   assert.deepEqual(
     factors.map((factor) => Math.round(factor * 100) / 100),

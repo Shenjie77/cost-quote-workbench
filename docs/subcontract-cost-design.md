@@ -8,7 +8,7 @@ Master Data → Subcontract 移除 Supplier 和 Pricing Basis 的输入、显示
 
 CLI 沿用独立全局页签 `masterdata get/update --tab subcontract`，无需读取项目。新增时 `supplier`、`pricingBasis` 不再必填；`unit`、`unitPrice` 可缺省。局部更新省略字段表示保留原值，显式传 `null` 清空单位或价格。旧字段仅兼容保留，当前不参与计费。
 
-入口：打开项目 → Cost Workspace → **Subcon / 分包成本**（Input Sheet 旁边）。选择目录条目或新建手工条目，填写单价和数量后自动汇入 2.3.2。Input Sheet 只录入人员投入，不再通过 Subcontract RE Type 新增或修改手工分包成本。旧版手工金额在 Subcon 中只读展示，可在未锁定版明确移除被结构化条目替代的行。
+入口：打开项目 → Cost Workspace → **Subcon / 分包成本**（Input Sheet 旁边）。从 Master Data 选择已有条目，或通过编码/描述批量匹配并填写数量，自动汇入 2.3.2。新增基础条目统一在 Master Data → Subcontract 维护。Input Sheet 只录入人员投入，不再通过 Subcontract RE Type 新增或修改手工分包成本。旧版手工金额在 Subcon 中只读展示，可在未锁定版明确移除被结构化条目替代的行。
 
 ## 操作页面
 
@@ -32,7 +32,7 @@ Cost Details 的 **Subcon** 页签，与 Input、Summary、Version Delta 使用�
 
 不同站点即使配置不同，也可以先把相同条目的数量合并。一次性进场或包干费用按 lot / job 记录，数量为实际发生次数，不能为了适配人力表虚构人天或站点。
 
-目录通过 Add from Catalog 搜索并批量勾选，切换搜索保留已选条目；统一 Add 后复制目录快照，同一 BOQ 已添加的目录条目不可重复选择。Manual Item 先打开编辑弹窗，保存后才新增，取消不产生空行。
+目录通过 Add from Catalog 搜索并批量勾选，切换搜索保留已选条目；统一 Add 后复制目录快照，同一 BOQ 已添加的目录条目不可重复选择。成本表不再提供 Manual Item 新建入口；新增编码、描述、BU、单位和参考单价在 Master Data → Subcontract 维护。既有成本版本中的条目快照及编辑能力保留。
 
 明细默认集中显示 Item、Unit Price、Qty、Cost 和 Action，单价与数量直接编辑。Quantity year 可选择单年录入或 All years 查看五年；Code、BU、Unit 等通过 Edit 修改。若 CLI 在弹窗打开期间更新同一条目，系统提示重新载入，旧草稿不能覆盖新数据。锁定版本仍可切换年份和站型查看。
 
@@ -40,7 +40,11 @@ Cost Details 的 **Subcon** 页签，与 Input、Summary、Version Delta 使用�
 
 Project Total、当前站型 BOQ 和项目共用费用区均提供 **Bulk Entry**。从 Excel 复制表格后粘贴，先预览字段匹配、金额和逐行错误，再确认添加。已有条目不会被批量替换；取消或预览失败不改变原表。
 
-支持 Code、Description、BU、Unit、Unit Price，以及当前年度 Quantity 或 Y1–Y5 数量；站型 BOQ 使用 Qty / Site。编码匹配已采用目录时可补齐目录信息，显式填写的值保留为本版本值。价格留空仍是未定价，不能按零价确认成本。预览后若条目、费率、目录或年份改变，必须重新预览；锁定版本不能添加。
+只需 **Code + Quantity** 或 **Description + Quantity**；两列直接粘贴时也可省略表头。多年度可用 Y1–Y5 或对应年份列；站型 BOQ 使用 Qty / Site。
+
+打开 Bulk Entry 时自动读取最新 Master Data。编码按完整值匹配，保留前导零及标点；描述先完整匹配，再查找唯一包含该描述的条目。若重名、多个候选、未找到或条目停用，预览会提示改用准确编码或先去 Master Data 维护，不自动创建手工条目。主数据读取失败可重试，不使用过期目录代替。
+
+匹配成功后，Code、Description、BU、Unit、Unit Price 和 Currency 均来自 Master Data，粘贴表中的额外 BU、单价等列只提示忽略，不覆盖主数据。新条目复制成当前成本版本的快照，不修改已存在条目。Master Data 中价格留空仍表示未定价，明确 0 表示零价；确认或导出成本前必须有有效价格。预览后若条目、费率或年份改变，必须重新预览；锁定版本不能添加。
 
 ## 独立年度涨幅
 
@@ -95,4 +99,4 @@ Subcon Rates 中手动填写 **Base Year**，与人力 Base Year 分开保存；
 
 CLI 使用 `cost get/update --project-id ID --version Vn --section subcontract`，只读取目标版本的分包对象。更新使用 `set`，可修改 mode、lines、siteTypes、rateSettings；数组整项替换，先读原数组并保留未涉及条目。沿用项目 revision 和版本锁校验，不读取整个 workspace；合计由服务端计算，不接受任意金额覆盖。
 
-Excel 对应页面提供条目详表、站型 BOQ（适用时）、年度分包汇总；成本总表继续直接引用已计算的 2.3.2。Report Item 的中英文在同一个单元格，内部 ID、来源引用和后台字段不进入用户简易导出。
+Excel 对应页面提供条目详表、站型 BOQ（适用时）、年度分包汇总。Subcon Detail 独立显示 Code Number 和 Description；Simple Export 的 Summary Subcon 按描述汇总时列出该组所有 Code Number(s)，金额汇总规则不变。编码以文本写入以保留前导零；成本总表继续直接引用已计算的 2.3.2。Report Item 的中英文在同一个单元格，内部 ID、来源引用和后台字段不进入用户简易导出。

@@ -1,4 +1,4 @@
-/** Stage subcontract quantities and saved SGD prices before appending one reviewed batch. */
+/** Resolve Master Data items and stage quantities before appending one reviewed batch. */
 import type { SubcontractItem } from '../master-data/types.ts';
 import { YEAR_BUCKETS, roundMoney } from './domain.ts';
 import { BULK_TABLE_LIMITS, readBulkTable } from './bulk-table-reader.ts';
@@ -16,6 +16,7 @@ export type SubcontractBulkTarget =
   | { kind: 'site'; id: string };
 export type SubcontractBulkLine = SubcontractCostLine | SubcontractSiteLine;
 export type SubcontractBulkColumn =
+  | 'item'
   | 'code'
   | 'description'
   | 'bu'
@@ -29,7 +30,6 @@ export type SubcontractBulkColumn =
   | `quantity:${number}`;
 export type SubcontractBulkOptions = {
   defaultYear: number;
-  defaultBU: string;
   mapping: Record<number, SubcontractBulkColumn>;
 };
 export type SubcontractBulkBasis = {
@@ -60,10 +60,18 @@ const normalize = (value: string) =>
     .replace(/[\s_\-./()（）*`]+/g, '');
 const aliases: Record<string, SubcontractBulkColumn> = {};
 for (const [target, names] of Object.entries({
-  code: ['code', 'item code', '编码', '条目编码'],
+  item: ['item', 'code or description', 'code/description', '编码或描述'],
+  code: [
+    'code',
+    'code number',
+    'codenumber',
+    'item code',
+    'item code number',
+    '编码',
+    '条目编码',
+  ],
   description: [
     'description',
-    'item',
     'scope',
     'item description',
     '描述',
@@ -95,6 +103,80 @@ for (const [target, names] of Object.entries({
 }))
   for (const name of names)
     aliases[normalize(name)] = target as SubcontractBulkColumn;
+
+/** Normalize lookup text without collapsing distinct item codes or their leading zeroes. */
+const catalogKey = (value: string) =>
+  value.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
+const masterFields = new Set(['bu', 'unit', 'unitPrice', 'currency']);
+
+/**
+ * Resolve one active master item. Codes are exact identities; descriptions may
+ * use a unique phrase. Ambiguous matches must be clarified with a code.
+ */
+function findMasterItem(
+  catalog: SubcontractItem[],
+  code: string,
+  description: string,
+  identifier: string,
+): { item?: SubcontractItem; issue?: string } {
+  const active = catalog.filter((item) => item.active);
+  const byDescription = (text: string) => {
+    const key = catalogKey(text);
+    const exact = active.filter((item) => catalogKey(item.item) === key);
+    return exact.length
+      ? exact
+      : active.filter((item) => catalogKey(item.item).includes(key));
+  };
+  const byIdentifier = (text: string) => {
+    // Known inactive codes must fail closed, never become a partial description of another item.
+    const codes = catalog.filter(
+      (item) => catalogKey(item.code) === catalogKey(text),
+    );
+    return codes.length
+      ? codes.filter((item) => item.active)
+      : byDescription(text);
+  };
+  let matches: SubcontractItem[];
+  const query = code || description || identifier;
+  if (!query)
+    return { issue: 'Enter a Master Data code or description and a quantity.' };
+  if (code)
+    matches = active.filter(
+      (item) => catalogKey(item.code) === catalogKey(code),
+    );
+  else if (description) matches = byDescription(description);
+  else matches = byIdentifier(identifier);
+  if (!matches.length)
+    return {
+      issue: `“${query}” was not found in active Master Data → Subcontract. Add or enable the item there, then reopen Bulk Entry.`,
+    };
+  if (matches.length > 1)
+    return {
+      issue: `“${query}” matches multiple Master Data items: ${matches
+        .slice(0, 5)
+        .map((item) => `${item.code} (${item.item})`)
+        .join('; ')}. Enter a unique code.`,
+    };
+  const item = matches[0];
+  // A supplied second identifier may narrow intent, but never rename the adopted master item.
+  if (
+    code &&
+    description &&
+    !byDescription(description).some((match) => match.id === item.id)
+  )
+    return {
+      issue: `Code “${code}” and description do not refer to the same Master Data item (${item.item}). Use one matching code or description.`,
+    };
+  if (
+    (code || description) &&
+    identifier &&
+    !byIdentifier(identifier).some((match) => match.id === item.id)
+  )
+    return {
+      issue: `Item “${identifier}” conflicts with the supplied code or description. Use identifiers for the same Master Data item.`,
+    };
+  return { item };
+}
 
 /** Include saved BOQs, rates, delivery years, target and catalog snapshots in stale-preview checks. */
 export function subcontractBulkBasisFingerprint(
@@ -198,6 +280,7 @@ function readAmount(text: string, maximum: number): number | null {
 export function subcontractBulkTemplate(
   target: SubcontractBulkTarget,
   allYears = false,
+  identifier: 'code' | 'description' = 'code',
 ): string {
   const quantityHeaders =
     target.kind === 'site'
@@ -207,8 +290,8 @@ export function subcontractBulkTemplate(
         : ['Quantity'];
   const values = quantityHeaders.map((_, index) => (index === 0 ? '2' : '0'));
   return [
-    ['Code', 'Description', 'BU', 'Unit', 'Unit Price', ...quantityHeaders],
-    ['SC-001', 'Cable installation', 'Network', 'm', '25', ...values],
+    [identifier === 'code' ? 'Code' : 'Description', ...quantityHeaders],
+    [identifier === 'code' ? 'SC-001' : 'Cable installation', ...values],
   ]
     .map((row) => row.join('\t'))
     .join('\n');
@@ -242,7 +325,19 @@ export function parseSubcontractBulkEntry(
   preview.issues.push(...matrix.issues);
   preview.notices.push(...matrix.notices);
   if (preview.issues.length) return preview;
-  const [header, ...records] = matrix.rows;
+  // Two-column pastes may omit headers; both identifiers are resolved against the same master.
+  const first = matrix.rows[0];
+  const headerless =
+    first?.cells.length === 2 &&
+    ((readAmount(first.cells[1], 1e6) !== null &&
+      !!findMasterItem(basis.catalog, '', '', first.cells[0]).item) ||
+      first.cells.every(
+        (cell) => detectColumn(cell, basis.actualYears) === 'unmapped',
+      ));
+  const header = headerless
+    ? { sourceRow: 0, cells: ['Code or Description', 'Quantity'] }
+    : first;
+  const records = headerless ? matrix.rows : matrix.rows.slice(1);
   if (!header || !records.length) {
     preview.issues.push('Paste a header and at least one subcontract item.');
     return preview;
@@ -261,6 +356,7 @@ export function parseSubcontractBulkEntry(
     const allowed =
       [
         'code',
+        'item',
         'description',
         'bu',
         'unit',
@@ -295,7 +391,14 @@ export function parseSubcontractBulkEntry(
       preview.notices.push(
         `Column “${label}” ignored; costs are recalculated from unit prices and quantities.`,
       );
-    return { header: label || `Column ${index + 1}`, target };
+    if (masterFields.has(target))
+      preview.notices.push(
+        `Column “${label}” ignored; ${label} is supplied by Master Data.`,
+      );
+    return {
+      header: label || `Column ${index + 1}`,
+      target: masterFields.has(target) ? 'ignore' : target,
+    };
   });
   const quantityColumns = preview.columns
     .map((column, index) => ({ ...column, index }))
@@ -309,6 +412,12 @@ export function parseSubcontractBulkEntry(
     preview.issues.push(
       'Map a Quantity column, annual Y1–Y5 quantities, or Qty / Site.',
     );
+  if (
+    !preview.columns.some(({ target }) =>
+      ['code', 'description', 'item'].includes(target),
+    )
+  )
+    preview.issues.push('Map a Master Data Code or Description column.');
   if (
     basis.target.kind === 'site' &&
     quantityColumns.some(({ target }) => target.startsWith('quantity:'))
@@ -331,46 +440,44 @@ export function parseSubcontractBulkEntry(
     };
     if (record.cells.slice(header.cells.length).some((cell) => cell.trim()))
       issues.push('This row has extra cells beyond the header.');
-    const code = field('code');
-    const matches = code
-      ? basis.catalog.filter(
-          (item) => item.active && normalize(item.code) === normalize(code),
-        )
-      : [];
-    if (matches.length > 1)
-      issues.push(
-        `Code “${code}” matches multiple catalog items. Use a unique code.`,
-      );
-    const catalog = matches.length === 1 ? matches[0] : undefined;
-    const description = field('description') || catalog?.item || '';
-    const bu = field('bu') || options.defaultBU.trim() || catalog?.bu || '';
-    const unit = field('unit') || catalog?.unit || '';
-    const currency = (field('currency') || catalog?.currency || 'SGD')
-      .trim()
-      .toUpperCase();
-    const rawPrice = field('unitPrice');
-    const unitPrice = rawPrice
-      ? readAmount(rawPrice, 1e12)
-      : (catalog?.unitPrice ?? null);
-    if (!code)
-      issues.push(
-        'Code is required. Use a catalog code or a manual item code.',
-      );
-    if (!description || description.length > 2000)
-      issues.push(
-        'Description is required and must be at most 2,000 characters.',
-      );
-    if (!bu || bu.length > 200)
-      issues.push('BU is required and must be at most 200 characters.');
-    if (!unit || unit.length > 100)
-      issues.push('Unit is required and must be at most 100 characters.');
-    if (code.length > 200) issues.push('Code must be at most 200 characters.');
-    if (currency !== 'SGD')
-      issues.push(
-        'Only SGD prices are supported. Convert the price to SGD and explicitly set Currency to SGD.',
-      );
-    if (rawPrice && unitPrice === null)
-      issues.push('Unit price must be a number from 0 to 1,000,000,000,000.');
+    const match = findMasterItem(
+      basis.catalog,
+      field('code'),
+      field('description'),
+      field('item'),
+    );
+    if (match.issue) issues.push(match.issue);
+    const catalog = match.item;
+    // The master is the only source of business attributes; pasted values cannot create or override them.
+    const code = catalog?.code ?? (field('code') || field('item'));
+    const description = catalog?.item ?? field('description');
+    const bu = catalog?.bu || '';
+    const unit = catalog?.unit || '';
+    const currency = (catalog?.currency || '').trim().toUpperCase();
+    const unitPrice = catalog?.unitPrice ?? null;
+    if (catalog) {
+      for (const [name, value] of [
+        ['Code', code],
+        ['Description', description],
+        ['BU', bu],
+        ['Unit', unit],
+      ])
+        if (!value.trim())
+          issues.push(
+            `Master Data ${name} is missing. Complete the item in Master Data → Subcontract and reopen Bulk Entry.`,
+          );
+      if (currency !== 'SGD')
+        issues.push(
+          'Master Data price must be in SGD. Maintain its converted price and currency in Master Data → Subcontract.',
+        );
+      if (
+        unitPrice !== null &&
+        (!Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 1e12)
+      )
+        issues.push(
+          'Correct this item’s invalid price in Master Data → Subcontract.',
+        );
+    }
     const quantities = [0, 0, 0, 0, 0];
     let quantityPerSite = 0;
     let hasQuantity = false;
@@ -415,7 +522,7 @@ export function parseSubcontractBulkEntry(
       preview.lines.push(line);
       if (unitPrice === null)
         preview.notices.push(
-          `Row ${record.sourceRow}: price remains blank. Set it before confirming or exporting the cost version.`,
+          `Row ${record.sourceRow}: Master Data price remains blank. Maintain the price in Master Data before adopting a priced item; this draft remains unpriced.`,
         );
     }
     preview.entries.push({ sourceRow: record.sourceRow, line, issues });

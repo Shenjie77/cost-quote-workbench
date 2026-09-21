@@ -1,7 +1,6 @@
 /** Review pasted subcontract BOQs locally before appending to the selected project or site. */
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { BusinessUnitSelect } from '@/features/master-data/business-unit-select';
 import {
   Dialog,
   DialogContent,
@@ -43,10 +42,7 @@ const mappingLabels: [SubcontractBulkColumn, string][] = [
   ['ignore', 'Ignore column'],
   ['code', 'Code'],
   ['description', 'Description'],
-  ['bu', 'BU'],
-  ['unit', 'Unit'],
-  ['unitPrice', 'Unit price · SGD'],
-  ['currency', 'Currency'],
+  ['item', 'Code or description'],
   ['quantity', 'Quantity · selected year / site'],
   ['quantityPerSite', 'Qty / Site'],
   ...YEAR_BUCKETS.map((year, index): [SubcontractBulkColumn, string] => [
@@ -88,7 +84,12 @@ export function SubcontractBulkEntryForm({
   onCopyTemplate: (template: string) => void;
 }) {
   const site = basis.target.kind === 'site';
-  const template = subcontractBulkTemplate(basis.target, !site);
+  const template = subcontractBulkTemplate(basis.target);
+  const descriptionTemplate = subcontractBulkTemplate(
+    basis.target,
+    false,
+    'description',
+  );
   const pageCount = Math.max(1, Math.ceil((preview?.entries.length || 0) / 50));
   const safePage = Math.min(page, pageCount - 1);
   const update = (change: Partial<SubcontractBulkOptions>) => {
@@ -121,20 +122,6 @@ export function SubcontractBulkEntryForm({
               </select>
             </label>
           )}
-          <label
-            htmlFor="subcontract-bulk-default-bu"
-            className="grid min-w-36 gap-1 text-[11px] font-medium"
-          >
-            Default BU
-            <BusinessUnitSelect
-              id="subcontract-bulk-default-bu"
-              aria-label="Subcontract bulk default BU"
-              className={selectClass}
-              value={options.defaultBU}
-              disabled={locked}
-              onChange={(event) => update({ defaultBU: event.target.value })}
-            />
-          </label>
           <Button
             type="button"
             variant="outline"
@@ -145,6 +132,17 @@ export function SubcontractBulkEntryForm({
             }}
           >
             Copy template
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={locked}
+            onClick={() => {
+              if (!locked) onCopyTemplate(descriptionTemplate);
+            }}
+          >
+            Copy description template
           </Button>
         </div>
         <details className="rounded-md border border-border px-3 py-2 text-xs">
@@ -158,9 +156,9 @@ export function SubcontractBulkEntryForm({
             value={template}
           />
           <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
-            Use a catalog code to fill missing description, BU, unit and price.
-            Manual items require Code, Description, BU and Unit. Blank prices
-            remain unpriced; 0 is a confirmed zero price. Prices are in SGD.
+            Enter a Master Data code or item description plus quantity. Code,
+            description, BU, unit and SGD price come from Master Data. Add or
+            correct base items in Master Data before importing them here.
           </p>
         </details>
         <label className="grid gap-1.5 text-xs font-medium">
@@ -395,7 +393,6 @@ export function SubcontractBulkEntryDialog(props: Props) {
   const [text, setText] = useState('');
   const [options, setOptions] = useState<SubcontractBulkOptions>({
     defaultYear: props.defaultYear,
-    defaultBU: '',
     mapping: {},
   });
   const [preview, setPreview] = useState<{
@@ -477,7 +474,7 @@ export function SubcontractBulkEntryDialog(props: Props) {
               .writeText(template)
               .then(() =>
                 props.announce(
-                  'Subcontract template copied. Paste it into Excel to prepare your items.',
+                  'Subcontract template copied. Enter Master Data codes or descriptions and quantities in Excel.',
                 ),
               )
               .catch(() =>

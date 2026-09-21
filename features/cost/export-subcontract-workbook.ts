@@ -36,7 +36,8 @@ export function addSubcontractWorkbookSheets(
   sheet.addRow([]);
   sheet.addRow([
     'Site Type / 站型',
-    'Item / 条目',
+    'Code Number / 条目编码',
+    'Description / 描述',
     'BU',
     'Unit',
     'Base Unit Price / 基准单价',
@@ -51,6 +52,7 @@ export function addSubcontractWorkbookSheets(
   details.forEach((line) => {
     sheet.addRow([
       line.siteType || 'Project total',
+      line.code,
       line.description,
       line.bu,
       line.unit,
@@ -73,14 +75,28 @@ export function addSubcontractWorkbookSheets(
     '',
     '',
     '',
+    '',
     totals.total,
     ...totals.years.flatMap((value) => [null, value]),
   ]);
   style(
     sheet,
-    [24, 46, 22, 12, 20, 16, 18, 22, ...YEAR_BUCKETS.flatMap(() => [18, 22])],
-    [5, 8, ...YEAR_BUCKETS.map((_, index) => 10 + index * 2)],
+    [
+      24,
+      22,
+      46,
+      22,
+      12,
+      20,
+      16,
+      18,
+      22,
+      ...YEAR_BUCKETS.flatMap(() => [18, 22]),
+    ],
+    [6, 9, ...YEAR_BUCKETS.map((_, index) => 11 + index * 2)],
   );
+  // Codes belong to the captured version and remain literal text, including leading zeroes.
+  sheet.getColumn(2).numFmt = '@';
   if (
     snapshot.subcontractCost?.mode === 'site-types' &&
     snapshot.subcontractCost.siteTypes.length
