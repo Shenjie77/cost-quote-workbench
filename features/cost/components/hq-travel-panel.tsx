@@ -66,7 +66,7 @@ export function HQTravelPanel({
       className="wb-panel min-w-0 overflow-hidden"
       aria-label="HQ travel cost"
     >
-      <header className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
+      <header className="wb-toolbar justify-between">
         <div>
           <label className="flex items-center gap-2 text-sm font-semibold">
             <Checkbox
@@ -83,15 +83,15 @@ export function HQTravelPanel({
             />
             Include HQ Travel
           </label>
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             {enabled
               ? 'Calculated from HQ effort and the expenses below.'
               : 'Off · HQ effort is available for reference; no travel cost is included.'}
           </p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-[10px] text-muted-foreground">HQ Travel · SGD</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-primary">
+          <p className="text-xs text-muted-foreground">HQ Travel · SGD</p>
+          <p className="mt-0.5 text-base font-semibold tabular-nums text-primary">
             {summary.totalCost.toLocaleString('en-SG', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
@@ -99,7 +99,7 @@ export function HQTravelPanel({
           </p>
         </div>
       </header>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-muted/20 px-3 py-2 text-[11px]">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-muted/20 px-3 py-2 text-xs">
         <span>
           <span className="text-muted-foreground">HQ effort </span>
           <strong className="tabular-nums">
@@ -120,7 +120,7 @@ export function HQTravelPanel({
       </div>
       {enabled && (
         <>
-          <div className="grid grid-cols-2 gap-4 border-t px-4 py-4 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 border-t px-3 py-2 sm:grid-cols-3">
             {(
               [
                 [
@@ -138,13 +138,11 @@ export function HQTravelPanel({
             ).map(([key, label, ariaLabel]) => (
               <label
                 key={key}
-                className="min-w-0 space-y-1.5 text-[11px] font-medium text-muted-foreground"
+                className="min-w-0 space-y-1.5 text-xs font-medium text-muted-foreground"
               >
                 <span className="block">
                   {label}
-                  {key !== 'trips' && (
-                    <span className="ml-1 text-[10px]">SGD</span>
-                  )}
+                  {key !== 'trips' && <span className="ml-1 text-xs">SGD</span>}
                 </span>
                 <Input
                   aria-label={ariaLabel}
@@ -152,7 +150,7 @@ export function HQTravelPanel({
                   min={0}
                   max={key === 'trips' ? COST_LIMITS.trips : COST_LIMITS.money}
                   step={key === 'trips' ? 1 : 'any'}
-                  className="h-9 w-full bg-background px-2.5 text-right text-xs tabular-nums disabled:bg-muted/40"
+                  className="h-8 w-full bg-background px-2.5 text-right text-xs tabular-nums disabled:bg-muted/40"
                   value={settings[key]}
                   disabled={locked}
                   onChange={(event) => updateAmount(key, event.target.value)}
@@ -164,12 +162,12 @@ export function HQTravelPanel({
             ))}
           </div>
           {!summary.required && (
-            <p className="border-t bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
+            <p className="border-t bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
               No HQ mandays in this version. Travel will calculate when HQ
               effort is entered.
             </p>
           )}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2 text-[11px]">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2 text-xs">
             <span>
               <span className="text-muted-foreground">Monthly expenses </span>
               <strong className="tabular-nums">
@@ -188,7 +186,7 @@ export function HQTravelPanel({
           </div>
           {summary.hqRows.length > 0 && (
             <details className="border-t">
-              <summary className="cursor-pointer px-3 py-2 text-[11px] font-medium hover:bg-muted/20">
+              <summary className="cursor-pointer px-3 py-2 text-xs font-medium hover:bg-muted/20">
                 HQ effort sources · {summary.hqRows.length} lines
               </summary>
               <ul className="space-y-1 px-3 pb-3 text-xs text-muted-foreground">

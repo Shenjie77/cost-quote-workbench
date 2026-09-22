@@ -2570,11 +2570,22 @@ function ProjectSessionApp({
     );
 
   return (
-    <main
+    <div
       inert={isProjectSwitching}
       aria-busy={isProjectSwitching}
-      className="min-h-screen bg-background text-foreground"
+      className="min-h-dvh bg-background text-foreground"
     >
+      <a
+        href="#workbench-content"
+        className="wb-skip-link"
+        onClick={(event) => {
+          // Focus the content without disturbing the existing workflow hash navigation.
+          event.preventDefault();
+          document.getElementById('workbench-content')?.focus();
+        }}
+      >
+        Skip to content / 跳到正文
+      </a>
       {/* Shared chrome delegates all navigation and persistence effects to this session. */}
       <WorkbenchSidebar
         activeView={activeView}
@@ -2582,10 +2593,10 @@ function ProjectSessionApp({
         onNavigate={navigate}
         onDownloadBackup={downloadWorkspaceBackup}
       />
-      <div className="min-h-screen lg:pl-[216px]">
+      <div className="min-h-dvh lg:pl-[216px]">
         <header
           data-workbench-header
-          className="sticky top-0 z-40 border-b border-border bg-card"
+          className="relative z-40 border-b border-border bg-card lg:sticky lg:top-0"
         >
           <div className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 sm:gap-x-3 sm:px-4">
             <Button
@@ -2599,20 +2610,40 @@ function ProjectSessionApp({
             >
               {mobileNavOpen ? <X /> : <Menu />}
             </Button>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-[120px] flex-1">
               <p className="sr-only">{pageEyebrow}</p>
               <div className="flex min-w-0 items-baseline gap-x-2">
                 <h1 className="truncate text-base font-semibold leading-snug">
                   {title.title}
                 </h1>
-                <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">
+                <span className="hidden shrink-0 text-xs text-muted-foreground xl:inline">
                   {title.titleZh}
                 </span>
                 <p className="sr-only">{pageSubtitle}</p>
               </div>
               <p className="sr-only">{pageSubtitleZh}</p>
             </div>
-            <div className="order-last w-full min-w-0 sm:order-none sm:w-[260px] xl:w-[320px]">
+            {activeView !== 'master-data' && activeView !== 'workflow' && (
+              <WorkspaceToolbar
+                persistenceStatus={persistenceStatus}
+                activeView={activeView}
+                displayDate={displayDate}
+                newVersionDisabled={!isReady || isVersionTransitioning}
+                onSave={() =>
+                  !isReady
+                    ? retryLoad()
+                    : activeView === 'cost' && costConfigurationSaveRef.current
+                      ? void costConfigurationSaveRef.current()
+                      : void saveNow()
+                }
+                onBackupAndReload={async () => {
+                  await downloadWorkspaceBackup();
+                  onEmpty();
+                }}
+                onNewVersion={createNewCostVersion}
+              />
+            )}
+            <div className="order-last w-full min-w-0 md:order-none md:w-[230px] xl:w-[280px]">
               <ProjectSearch
                 projects={portfolioProjects}
                 activeProjectId={activeProjectId}
@@ -2639,14 +2670,14 @@ function ProjectSessionApp({
                 aria-label="Open project follow-up reminders"
                 onClick={() => navigate('agent')}
               >
-                <Bell />
+                <Bell aria-hidden="true" />
               </Button>
               <Button
                 size="sm"
                 className="h-8 px-2"
                 onClick={() => setPanel({ type: 'new-project' })}
               >
-                <Plus />
+                <Plus aria-hidden="true" />
                 New Project{' '}
                 <span className="sr-only sm:not-sr-only sm:text-[10px] sm:opacity-70">
                   新建项目
@@ -2658,18 +2689,19 @@ function ProjectSessionApp({
             <nav
               id="mobile-workbench-navigation"
               aria-label="Main navigation"
-              className="workbench-scrollbar flex gap-2 overflow-x-auto border-t border-border bg-muted/40 px-3 py-2 lg:hidden"
+              className="grid grid-cols-2 gap-2 border-t border-border bg-muted/40 px-3 py-2 sm:grid-cols-3 lg:hidden"
             >
               {navItems.map((item) => (
                 <Button
                   key={item.key}
                   variant={activeView === item.key ? 'default' : 'outline'}
                   size="sm"
+                  className="min-h-9 justify-start px-2 text-xs"
                   onClick={() => navigate(item.key)}
                   aria-current={activeView === item.key ? 'page' : undefined}
                 >
                   {item.label}
-                  <span className="text-[10px] opacity-70">{item.labelZh}</span>
+                  <span className="sr-only">{item.labelZh}</span>
                 </Button>
               ))}
             </nav>
@@ -2701,27 +2733,7 @@ function ProjectSessionApp({
             />
           ) : null}
         </header>
-        <div className="relative z-0 isolate mx-auto min-w-0 w-full max-w-[1780px] px-3 py-2 sm:px-4 sm:py-3">
-          {activeView !== 'master-data' && activeView !== 'workflow' && (
-            <WorkspaceToolbar
-              persistenceStatus={persistenceStatus}
-              activeView={activeView}
-              displayDate={displayDate}
-              newVersionDisabled={!isReady || isVersionTransitioning}
-              onSave={() =>
-                !isReady
-                  ? retryLoad()
-                  : activeView === 'cost' && costConfigurationSaveRef.current
-                    ? void costConfigurationSaveRef.current()
-                    : void saveNow()
-              }
-              onBackupAndReload={async () => {
-                await downloadWorkspaceBackup();
-                onEmpty();
-              }}
-              onNewVersion={createNewCostVersion}
-            />
-          )}
+        <div className="relative z-0 isolate mx-auto min-w-0 w-full max-w-[1920px] px-3 py-3 sm:px-4">
           {activeView === 'workflow' && !workflowTarget && (
             <div className="flex flex-wrap items-center gap-2 p-3 text-sm text-muted-foreground">
               {workflowFeedback.failed ? (
@@ -2736,7 +2748,10 @@ function ProjectSessionApp({
               )}
             </div>
           )}
-          <div
+          <main
+            id="workbench-content"
+            tabIndex={-1}
+            className="min-w-0 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4"
             inert={
               activeView !== 'master-data' &&
               (!isReady || isVersionTransitioning)
@@ -2837,7 +2852,7 @@ function ProjectSessionApp({
               </div>
             )}
             {content}
-          </div>
+          </main>
         </div>
       </div>
       <OperationNotice message={notice} onDismiss={() => setNotice('')} />
@@ -2989,6 +3004,6 @@ function ProjectSessionApp({
         onClose={() => setPanel(null)}
         onCreateProject={createProject}
       />
-    </main>
+    </div>
   );
 }

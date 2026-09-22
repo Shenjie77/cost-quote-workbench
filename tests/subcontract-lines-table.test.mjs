@@ -121,7 +121,7 @@ test('all-year view shows five quantity allocations and site mode keeps per-site
   );
   assert.equal((html.match(/ROUTER Y[1-5] quantity/g) || []).length, 5);
   assert.match(html, /3,000.00/);
-  assert.match(html, /sticky left-0/);
+  assert.match(html, /sm:sticky sm:left-0/);
   const site = item({ unit: 'm', quantityPerSite: 2.5 });
   delete site.quantities;
   const siteHtml = render(

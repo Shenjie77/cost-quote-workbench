@@ -21,11 +21,11 @@ export function KpiCard({
   tone?: StatusTone;
 }) {
   const iconTone = {
-    navy: 'bg-[#e5ecef] text-[#173a52]',
-    blue: 'bg-[#e9f1f5] text-[#376b8a]',
-    green: 'bg-[#e9f2ed] text-[#377054]',
-    amber: 'bg-[#f7efe0] text-[#8d5b12]',
-    red: 'bg-[#f7e9e8] text-[#9f3e3b]',
+    navy: 'bg-accent text-primary',
+    blue: 'bg-info-muted text-info',
+    green: 'bg-success-muted text-success',
+    amber: 'bg-warning-muted text-warning',
+    red: 'bg-danger-muted text-destructive',
     gray: 'bg-muted text-muted-foreground',
   }[tone];
   return (
@@ -38,7 +38,7 @@ export function KpiCard({
           <span className="text-xs font-medium text-muted-foreground">
             {label}
           </span>
-          <span className="ml-1.5 text-[10px] text-muted-foreground">
+          <span className="ml-1.5 text-xs text-muted-foreground">
             {labelZh}
           </span>
         </div>
@@ -48,14 +48,14 @@ export function KpiCard({
             iconTone
           }
         >
-          <Icon className="size-3" />
+          <Icon aria-hidden="true" className="size-3" />
         </span>
       </div>
       <p className="financial-numeral mt-1 break-words text-xl font-semibold leading-tight tracking-tight text-foreground">
         {value}
       </p>
       <p
-        className="mt-1 truncate text-[10px] leading-4 text-muted-foreground"
+        className="mt-1 truncate text-xs leading-4 text-muted-foreground"
         title={`${note} / ${noteZh}`}
       >
         {note}

@@ -1,7 +1,15 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { Fragment, useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { inspectCostWorkbook } from '@/features/cost/import-workbook';
 import type { MaintenancePriceRecord } from '@/features/master-data/domain';
 import { archiveProjectFile } from '@/features/projects/project-files';
@@ -15,6 +23,7 @@ import {
   type MaintenanceWorkspace,
   type BoqLine,
 } from './domain';
+/** Keeps BOQ quantities, reference selection and draft actions in one compact workspace. */
 export function MaintenanceView({
   projectId,
   canApply,
@@ -89,9 +98,9 @@ export function MaintenanceView({
   };
   return (
     <div className="wb-page-stack">
-      <section className="wb-panel space-y-3 p-3">
+      <section className="wb-panel overflow-hidden">
         {/* Keep the frequently edited coverage period beside the BOQ title. */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="wb-toolbar justify-between border-b">
           <h2 className="text-sm font-semibold text-primary">BOQ 维保配置</h2>
           <label className="flex flex-wrap items-center gap-2 text-xs">
             维保期限（月）
@@ -156,18 +165,24 @@ export function MaintenanceView({
           </div>
         </div>
 
-        <p className="text-sm text-muted-foreground">
-          按同型号查看各客户历史单台年价，选择参考后填写本次
-          SLA、年价与选价依据。输出为维保报价草稿，正式报价仍需整理税费、T&C
-          并完成公司决策。
-        </p>
-        <details className="rounded-md border bg-muted/10 px-3 py-2">
-          <summary className="cursor-pointer text-sm font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring">
+        <details className="border-b bg-muted/10 px-3 py-2">
+          <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+            维保参考与报价说明
+          </summary>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            按同型号查看各客户历史单台年价，选择参考后填写本次
+            SLA、年价与选价依据。 输出为维保报价草稿，正式报价仍需整理税费、T&C
+            并完成公司决策。
+          </p>
+        </details>
+        <details className="bg-muted/10 px-3 py-2">
+          <summary className="cursor-pointer text-xs font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring">
             从产品 BOQ Excel 导入设备
           </summary>
           <fieldset disabled={busy} className="space-y-2 pt-3">
             <Input
               type="file"
+              aria-label="产品 BOQ Excel 文件"
               accept=".xlsx"
               onChange={async (e) => {
                 const f = e.target.files?.[0];
@@ -209,7 +224,10 @@ export function MaintenanceView({
                 [modelCol, setModelCol, '型号列号'],
                 [qtyCol, setQtyCol, '数量列号'],
               ].map(([n, set, label]) => (
-                <label key={String(label)}>
+                <label
+                  className="block space-y-1 text-xs font-medium"
+                  key={String(label)}
+                >
                   {String(label)}
                   <Input
                     type="number"
@@ -335,113 +353,194 @@ export function MaintenanceView({
           </fieldset>
         </details>
       </section>
-      {value.boq.map((row) => (
-        <section key={row.id} className="wb-panel space-y-3 p-3">
-          <div className="grid gap-3 md:grid-cols-4">
-            {(['model', 'quantity', 'serviceLevel', 'site'] as const).map(
-              (k, i) => (
-                <label className="block space-y-1 text-xs" key={k}>
-                  {['设备型号', 'BOQ 实际数量', '本次 SLA', '站点'][i]}
-                  <Input
-                    type={k === 'quantity' ? 'number' : 'text'}
-                    value={row[k]}
-                    onChange={(e) =>
-                      update(row.id, {
-                        [k]:
-                          k === 'quantity'
-                            ? Number(e.target.value)
-                            : e.target.value,
-                      })
-                    }
-                  />
-                </label>
-              ),
+      {/* One grid keeps equipment inputs aligned; reference context remains beside each row. */}
+      <section className="wb-panel overflow-hidden">
+        <div className="wb-toolbar justify-between border-b">
+          <h2 className="text-sm font-semibold text-primary">设备明细</h2>
+          <span className="text-xs text-muted-foreground">
+            {value.boq.length} 条设备记录
+          </span>
+        </div>
+        <Table className="min-w-[1020px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-44">设备型号</TableHead>
+              <TableHead className="w-28 text-right">BOQ 实际数量</TableHead>
+              <TableHead className="w-36">本次 SLA</TableHead>
+              <TableHead className="w-32">站点</TableHead>
+              <TableHead className="w-40 text-right">
+                本次单台年价 SGD
+              </TableHead>
+              <TableHead>选价依据及差异（期限、SLA、客户折扣等）</TableHead>
+              <TableHead className="w-28">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {!value.boq.length && (
+              <TableRow>
+                <TableCell
+                  colSpan={7}
+                  className="h-20 whitespace-normal text-center text-xs text-muted-foreground"
+                >
+                  暂无设备。手工添加设备，或从产品 BOQ Excel 导入。
+                </TableCell>
+              </TableRow>
             )}
-          </div>
-          <label className="block text-sm">
-            同型号的客户历史参考
-            <select
-              className="mt-1 block h-8 w-full rounded-md border border-input bg-card px-2.5 text-xs focus-visible:outline-2 focus-visible:outline-ring"
-              value={row.referenceId}
-              onChange={(e) => {
-                const ref = maintenanceCandidates(records, row.model).find(
-                  (x) => x.record.id === e.target.value,
-                );
-                update(row.id, {
-                  referenceId: e.target.value,
-                  unitAnnualQuote: ref?.unitAnnualQuote || 0,
-                });
-              }}
-            >
-              <option value="">选择历史记录</option>
-              {maintenanceCandidates(records, row.model).map(
-                ({ record: r, unitAnnualQuote: q }) => (
-                  <option key={r.id} value={r.id}>
-                    {r.client} · SGD {q}/台/年 · {r.serviceLevel} ·{' '}
-                    {r.quoteDate} · {r.source}
-                  </option>
-                ),
-              )}
-            </select>
-          </label>
-          <div className="grid gap-3 md:grid-cols-3">
-            <label className="block space-y-1 text-xs">
-              本次单台年价 SGD
-              <Input
-                type="number"
-                value={row.unitAnnualQuote}
-                onChange={(e) =>
-                  update(row.id, { unitAnnualQuote: Number(e.target.value) })
-                }
-              />
-            </label>
-            <label className="text-sm md:col-span-2">
-              选价依据及差异（期限、SLA、客户折扣等）
-              <Input
-                value={row.basis}
-                onChange={(e) => update(row.id, { basis: e.target.value })}
-              />
-            </label>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            来源：{row.source}
-            {row.originalQuantity !== undefined &&
-            (row.originalQuantity !== row.quantity ||
-              row.originalModel !== row.model)
-              ? `（已手工修订，原型号 ${row.originalModel}，原数量 ${row.originalQuantity}）`
-              : ''}
-          </p>
-          <Button
-            variant="ghost"
-            onClick={() =>
-              onChange({
-                ...value,
-                boq: value.boq.filter((r) => r.id !== row.id),
-              })
-            }
-          >
-            移除设备行
-          </Button>
-        </section>
-      ))}
+            {value.boq.map((row) => (
+              <Fragment key={row.id}>
+                <TableRow>
+                  {(['model', 'quantity', 'serviceLevel', 'site'] as const).map(
+                    (k, i) => (
+                      <TableCell key={k}>
+                        <Input
+                          aria-label={
+                            ['设备型号', 'BOQ 实际数量', '本次 SLA', '站点'][i]
+                          }
+                          className={`h-8 text-xs ${k === 'quantity' ? 'financial-numeral text-right' : k === 'model' ? 'font-semibold' : ''}`}
+                          type={k === 'quantity' ? 'number' : 'text'}
+                          value={row[k]}
+                          onChange={(e) =>
+                            update(row.id, {
+                              [k]:
+                                k === 'quantity'
+                                  ? Number(e.target.value)
+                                  : e.target.value,
+                            })
+                          }
+                        />
+                      </TableCell>
+                    ),
+                  )}
+                  <TableCell>
+                    <Input
+                      aria-label="本次单台年价 SGD"
+                      className="financial-numeral h-8 text-right text-xs"
+                      type="number"
+                      value={row.unitAnnualQuote}
+                      onChange={(e) =>
+                        update(row.id, {
+                          unitAnnualQuote: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      aria-label="选价依据及差异（期限、SLA、客户折扣等）"
+                      className="h-8 min-w-60 text-xs"
+                      value={row.basis}
+                      onChange={(e) =>
+                        update(row.id, { basis: e.target.value })
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        onChange({
+                          ...value,
+                          boq: value.boq.filter((r) => r.id !== row.id),
+                        })
+                      }
+                    >
+                      移除设备行
+                    </Button>
+                  </TableCell>
+                </TableRow>
+                <TableRow className="bg-muted/20 hover:bg-muted/30">
+                  <TableCell colSpan={7} className="whitespace-normal">
+                    <div className="grid items-center gap-2 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+                      <label className="flex min-w-0 items-center gap-2 text-xs">
+                        <span className="shrink-0 text-muted-foreground">
+                          同型号的客户历史参考
+                        </span>
+                        <select
+                          className="h-8 min-w-0 flex-1 rounded-md border border-input bg-card px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                          value={row.referenceId}
+                          onChange={(e) => {
+                            const ref = maintenanceCandidates(
+                              records,
+                              row.model,
+                            ).find((x) => x.record.id === e.target.value);
+                            update(row.id, {
+                              referenceId: e.target.value,
+                              unitAnnualQuote: ref?.unitAnnualQuote || 0,
+                            });
+                          }}
+                        >
+                          <option value="">选择历史记录</option>
+                          {maintenanceCandidates(records, row.model).map(
+                            ({ record: r, unitAnnualQuote: q }) => (
+                              <option key={r.id} value={r.id}>
+                                {r.client} · SGD {q}/台/年 · {r.serviceLevel} ·{' '}
+                                {r.quoteDate} · {r.source}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </label>
+                      <p className="break-words text-xs text-muted-foreground">
+                        来源：{row.source}
+                        {row.originalQuantity !== undefined &&
+                        (row.originalQuantity !== row.quantity ||
+                          row.originalModel !== row.model)
+                          ? `（已手工修订，原型号 ${row.originalModel}，原数量 ${row.originalQuantity}）`
+                          : ''}
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              </Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      </section>
 
       {value.archives.length > 0 && (
-        <section className="wb-panel space-y-3 p-3">
-          <h2 className="text-sm font-semibold text-primary">维保配置历史</h2>
-          {[...value.archives].reverse().map((a) => (
-            <div
-              key={a.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3 text-sm"
-            >
-              <span>
-                {a.createdAt.slice(0, 10)} · {a.client} · {a.coverageMonths} 月
-                · SGD {a.quote.toFixed(2)}
-              </span>
-              <Button variant="outline" onClick={() => void download(a.id)}>
-                导出维保草稿 Excel
-              </Button>
-            </div>
-          ))}
+        <section className="wb-panel overflow-hidden">
+          <div className="wb-toolbar border-b">
+            <h2 className="text-sm font-semibold text-primary">维保配置历史</h2>
+            <span className="text-xs text-muted-foreground">
+              {value.archives.length} 条归档
+            </span>
+          </div>
+          <Table className="min-w-[640px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>归档日期</TableHead>
+                <TableHead>客户</TableHead>
+                <TableHead>期限（月）</TableHead>
+                <TableHead className="text-right">报价 SGD</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...value.archives].reverse().map((a) => (
+                <TableRow key={a.id}>
+                  <TableCell>{a.createdAt.slice(0, 10)}</TableCell>
+                  <TableCell>{a.client}</TableCell>
+                  <TableCell className="financial-numeral">
+                    {a.coverageMonths}
+                  </TableCell>
+                  <TableCell className="financial-numeral text-right">
+                    {a.quote.toFixed(2)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void download(a.id)}
+                    >
+                      导出维保草稿 Excel
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </section>
       )}
     </div>

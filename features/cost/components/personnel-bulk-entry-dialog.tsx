@@ -201,7 +201,7 @@ export function PersonnelBulkEntryForm({
     <>
       <div className="space-y-3">
         <div className="grid gap-2 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-[220px_1fr]">
-          <label className="grid content-start gap-1 text-[11px] font-medium">
+          <label className="grid content-start gap-1 text-xs font-medium">
             Input format
             <select
               aria-label="Bulk input format"
@@ -230,13 +230,13 @@ export function PersonnelBulkEntryForm({
             </span>
           </label>
           <div className="grid gap-1">
-            <div className="flex items-center justify-between gap-2 text-[11px] font-medium">
+            <div className="flex items-center justify-between gap-2 text-xs font-medium">
               <span>MD template · tab-separated</span>
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="h-6 text-[11px]"
+                className="h-6 text-xs"
                 disabled={locked}
                 onClick={() => {
                   if (!locked) onCopyTemplate?.(template);
@@ -249,7 +249,7 @@ export function PersonnelBulkEntryForm({
               aria-label="MD template"
               readOnly
               value={template}
-              className="h-20 w-full resize-none rounded border border-border bg-white px-2 py-1 font-mono text-[11px]"
+              className="h-20 w-full resize-none rounded border border-border bg-white px-2 py-1 font-mono text-xs"
             />
           </div>
         </div>
@@ -273,7 +273,7 @@ export function PersonnelBulkEntryForm({
             }}
           />
         </label>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Excel paste, quoted CSV and Markdown tables · up to 1,000 rows. Scope,
           Group, BU, RE Type and annual effort are recognized locally. Use MD,
           Y1 MD–Y5 MD or calendar-year MD headings. Values such as 1 MD, 3days
@@ -283,7 +283,7 @@ export function PersonnelBulkEntryForm({
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <label
             htmlFor="bulk-cost-default-bu"
-            className="grid gap-1 text-[11px] font-medium"
+            className="grid gap-1 text-xs font-medium"
           >
             Default BU
             <BusinessUnitSelect
@@ -296,7 +296,7 @@ export function PersonnelBulkEntryForm({
               onChange={(event) => update({ defaultBU: event.target.value })}
             />
           </label>
-          <label className="grid gap-1 text-[11px] font-medium">
+          <label className="grid gap-1 text-xs font-medium">
             Default RE Type
             <select
               aria-label="Bulk default RE Type"
@@ -315,7 +315,7 @@ export function PersonnelBulkEntryForm({
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-[11px] font-medium">
+          <label className="grid gap-1 text-xs font-medium">
             Default input mode
             <select
               aria-label="Bulk default input mode"
@@ -331,7 +331,7 @@ export function PersonnelBulkEntryForm({
               <option value="mandays">Direct MD</option>
             </select>
           </label>
-          <label className="grid gap-1 text-[11px] font-medium">
+          <label className="grid gap-1 text-xs font-medium">
             Default year
             <select
               aria-label="Bulk default year"
@@ -351,7 +351,7 @@ export function PersonnelBulkEntryForm({
             </select>
           </label>
         </div>
-        <div className="flex flex-wrap gap-x-5 gap-y-2 text-[11px]">
+        <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
           <label className="flex items-center gap-1.5">
             <input
               type="checkbox"
@@ -418,7 +418,7 @@ export function PersonnelBulkEntryForm({
                 <div className="mt-2 grid gap-2 sm:grid-cols-3">
                   {preview.columns.map((column) => (
                     <label
-                      className="grid min-w-0 gap-1 text-[11px]"
+                      className="grid min-w-0 gap-1 text-xs"
                       key={column.index}
                     >
                       <span className="truncate" title={column.header}>
@@ -473,7 +473,7 @@ export function PersonnelBulkEntryForm({
             )}
             {!!preview.notices.length && (
               <details
-                className="rounded-md bg-muted/30 p-2 text-[11px]"
+                className="rounded-md bg-muted/30 p-2 text-xs"
                 open={preview.notices.length <= 5}
               >
                 <summary className="cursor-pointer font-medium">
@@ -499,7 +499,7 @@ export function PersonnelBulkEntryForm({
             </div>
             {!!preview.entries.length && (
               <div className="max-h-80 overflow-auto border border-border">
-                <table className="w-full min-w-[840px] text-[11px]">
+                <table className="w-full min-w-[840px] text-xs">
                   <thead className="sticky top-0 z-10 bg-muted">
                     <tr>
                       {[
@@ -570,7 +570,7 @@ export function PersonnelBulkEntryForm({
                               ))}
                             </select>
                             {entry.reTypeText && (
-                              <p className="mt-1 break-words text-[10px] text-muted-foreground">
+                              <p className="mt-1 break-words text-xs text-muted-foreground">
                                 Pasted: {entry.reTypeText}
                               </p>
                             )}
@@ -614,7 +614,7 @@ export function PersonnelBulkEntryForm({
               </div>
             )}
             {pageCount > 1 && (
-              <div className="flex items-center justify-end gap-2 text-[11px]">
+              <div className="flex items-center justify-end gap-2 text-xs">
                 <Button
                   type="button"
                   size="sm"

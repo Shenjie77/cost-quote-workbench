@@ -64,7 +64,10 @@ export function QuoteCatalogImport({
         value={sourceId}
         onValueChange={(value) => value && setSourceId(value)}
       >
-        <SelectTrigger className="w-64">
+        <SelectTrigger
+          className="h-8 w-64 text-xs"
+          aria-label="Select source project / 选择项目"
+        >
           <SelectValue placeholder="Select source project / 选择项目" />
         </SelectTrigger>
         <SelectContent>

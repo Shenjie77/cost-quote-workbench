@@ -8,8 +8,7 @@ import {
   type SubcontractRateSettings,
 } from '../subcontract-domain';
 
-const inputClass =
-  'h-7 min-w-0 rounded-md bg-card px-2 text-[11px] shadow-none';
+const inputClass = 'h-8 min-w-0 rounded-md bg-card px-2 text-xs shadow-none';
 
 /** Commit complete percentages on blur so typing a minus sign cannot erase saved rates. */
 export function SubcontractUpliftInput({
@@ -68,7 +67,7 @@ export function SubcontractUpliftInput({
         }}
       />
       {invalid && (
-        <span role="alert" className="block text-[10px] text-destructive">
+        <span role="alert" className="block text-xs text-destructive">
           Enter -100% to 1000%.
         </span>
       )}
@@ -99,7 +98,7 @@ export function SubcontractBaseYearInput({
     if (year !== value) onChange(year);
   };
   return (
-    <label className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-medium text-muted-foreground">
+    <label className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
       Base Year
       <Input
         aria-label="Subcon base year"
@@ -189,7 +188,7 @@ export function SubcontractRateAssumptions({
               );
           }}
         />
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {settings
             ? 'Independent of personnel rates'
             : 'Flat prices until rates are set'}
@@ -198,7 +197,7 @@ export function SubcontractRateAssumptions({
           type="button"
           variant="ghost"
           size="sm"
-          className="ml-auto h-7 gap-1 px-2 text-[11px]"
+          className="ml-auto h-8 gap-1 px-2 text-xs"
           aria-expanded={expanded}
           aria-controls="subcon-annual-rates"
           onClick={() => setExpanded(!expanded)}
@@ -214,7 +213,7 @@ export function SubcontractRateAssumptions({
           <div className="flex flex-wrap items-center gap-3 border-b bg-muted/10 px-3 py-2">
             <label
               htmlFor="subcon-default-uplift"
-              className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground"
+              className="flex items-center gap-2 text-xs font-medium text-muted-foreground"
             >
               Default Uplift %
               <SubcontractUpliftInput
@@ -227,7 +226,7 @@ export function SubcontractRateAssumptions({
                 onChange={(value) => changeUplift(value)}
               />
             </label>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {!settings
                 ? 'Enter the Subcon base year first.'
                 : 'Default fills all five years; each year can be adjusted below.'}
@@ -241,7 +240,7 @@ export function SubcontractRateAssumptions({
                 <label
                   key={index}
                   htmlFor={`subcon-year-uplift-${index}`}
-                  className="min-w-0 text-[10px] font-medium text-muted-foreground"
+                  className="min-w-0 text-xs font-medium text-muted-foreground"
                 >
                   Y{index + 1}
                   {year ? ` · ${year}` : ''} · %
@@ -263,7 +262,7 @@ export function SubcontractRateAssumptions({
               );
             })}
           </div>
-          <p className="border-t bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
+          <p className="border-t bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
             Annual uplift adjusts Subcon BOQ costs only. Years through the base
             year keep the base price; later years compound in sequence. Y1
             includes any gap after the base year.

@@ -47,7 +47,7 @@ export function ProfitShareSummary({
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-xs"
+            className="h-8 text-xs"
             disabled={disabled || applying}
             onClick={onManage}
           >
@@ -57,7 +57,7 @@ export function ProfitShareSummary({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-xs"
+              className="h-8 text-xs"
               disabled={disabled || applying}
               onClick={() => void onApply()}
             >
@@ -72,11 +72,11 @@ export function ProfitShareSummary({
           <Table className="min-w-[420px] text-xs">
             <TableHeader>
               <TableRow>
-                <TableHead className="h-7 pl-4">BU</TableHead>
-                <TableHead className="h-7 text-right">Cost</TableHead>
-                <TableHead className="h-7 text-right">Weight</TableHead>
-                <TableHead className="h-7 text-right">Rate</TableHead>
-                <TableHead className="h-7 pr-4 text-right">Share</TableHead>
+                <TableHead className="h-8 pl-4">BU</TableHead>
+                <TableHead className="h-8 text-right">Cost</TableHead>
+                <TableHead className="h-8 text-right">Weight</TableHead>
+                <TableHead className="h-8 text-right">Rate</TableHead>
+                <TableHead className="h-8 pr-4 text-right">Share</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -113,7 +113,7 @@ export function ProfitShareSummary({
           </Table>
         </div>
       )}
-      <div className="flex items-center justify-between gap-3 px-3 py-2 text-[11px]">
+      <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
         <span>Profit Share Amount</span>
         <span className="financial-numeral font-semibold">
           {formatSgd(result.profitShareAmount)}

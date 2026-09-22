@@ -82,7 +82,7 @@ export function QuoteNumberInput({
         }}
       />
       {invalid && (
-        <span role="alert" className="block text-[10px] text-destructive">
+        <span role="alert" className="block text-xs text-destructive">
           Enter {min}–{max}, up to {decimals} decimals.
         </span>
       )}

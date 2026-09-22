@@ -38,7 +38,7 @@ export function DetailSheet({
       }}
     >
       <SheetContent className="w-[min(560px,94vw)] sm:max-w-[560px]">
-        <SheetHeader className="border-b border-border p-5 pr-12">
+        <SheetHeader className="shrink-0 border-b border-border p-4 pr-12">
           <SheetTitle>New Project / 新建项目</SheetTitle>
           <SheetDescription>
             创建项目并采用当前 Master Data；后续在 Project Workflow
@@ -46,7 +46,7 @@ export function DetailSheet({
           </SheetDescription>
         </SheetHeader>
         <form
-          className="flex flex-1 flex-col"
+          className="flex min-h-0 flex-1 flex-col"
           onSubmit={async (event) => {
             event.preventDefault();
             if (
@@ -77,7 +77,7 @@ export function DetailSheet({
             }
           }}
         >
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
             <NewProjectIdField
               inputId="new-project-id"
               value={projectId}
@@ -123,7 +123,7 @@ export function DetailSheet({
               </p>
             )}
           </div>
-          <SheetFooter className="border-t border-border p-5">
+          <SheetFooter className="shrink-0 border-t border-border p-4">
             <Button
               type="submit"
               disabled={

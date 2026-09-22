@@ -22,20 +22,20 @@ export function SectionHeading({
       <div className="min-w-0 flex-1 basis-60">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {index ? (
-            <span className="financial-numeral inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground">
+            <span className="financial-numeral inline-flex h-5 min-w-5 items-center justify-center rounded bg-accent px-1.5 text-xs font-semibold text-accent-foreground">
               {index}
             </span>
           ) : null}
           <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-          <span className="text-[11px] font-normal text-muted-foreground">
+          <span className="text-xs font-normal text-muted-foreground">
             {titleZh}
           </span>
         </div>
         {description || descriptionZh ? (
-          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+          <p className="mt-1 text-xs leading-4 text-muted-foreground">
             {description}
             {descriptionZh ? (
-              <span className={description ? 'ml-2 text-[10px]' : ''}>
+              <span className={description ? 'ml-2 text-xs' : ''}>
                 {descriptionZh}
               </span>
             ) : null}

@@ -29,14 +29,14 @@ export function ContextBand({
 }) {
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-border px-1 py-1.5 text-xs">
-      <div className="flex items-center gap-1.5 font-semibold text-[#183c51]">
+    <div className="wb-toolbar min-w-0 border-b text-xs">
+      <div className="flex items-center gap-1.5 font-semibold text-primary">
         <Briefcase className="size-3.5" /> {project.id}
       </div>
       {/* Narrow workspaces prioritize task controls; reference fields remain one click away. */}
       <button
         type="button"
-        className="ml-auto h-7 rounded px-2 text-[11px] font-medium text-primary hover:bg-muted sm:hidden"
+        className="ml-auto h-8 rounded px-2 text-xs font-medium text-primary hover:bg-muted sm:hidden"
         aria-expanded={detailsExpanded}
         aria-controls={`project-context-${project.id}`}
         onClick={() => setDetailsExpanded((expanded) => !expanded)}
@@ -48,23 +48,21 @@ export function ContextBand({
         className={`${detailsExpanded ? 'flex' : 'hidden sm:flex'} min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1.5`}
       >
         <div>
-          <span className="text-[11px] text-muted-foreground">Client</span>
+          <span className="text-xs text-muted-foreground">Client</span>
           <span className="ml-2 break-words font-medium">{project.client}</span>
         </div>
         <div>
-          <span className="text-[11px] text-muted-foreground">Currency</span>
+          <span className="text-xs text-muted-foreground">Currency</span>
           <span className="financial-numeral ml-2 font-medium">
             {project.currency ?? 'SGD'}
           </span>
         </div>
         <label className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">
-            Proposal Number
-          </span>
+          <span className="text-xs text-muted-foreground">Proposal Number</span>
           {onProposalNumberChange ? (
             <Input
               aria-label="Proposal Number / Proposal 编号"
-              className="h-7 w-32 bg-white text-xs"
+              className="h-8 w-32 bg-background text-xs"
               value={proposalNumber}
               onChange={(event) => onProposalNumberChange(event.target.value)}
               placeholder="Not set"
@@ -75,9 +73,7 @@ export function ContextBand({
           )}
         </label>
         <div>
-          <span className="text-[11px] text-muted-foreground">
-            Current Version
-          </span>
+          <span className="text-xs text-muted-foreground">Current Version</span>
           <span className="financial-numeral ml-2 font-semibold">
             {costVersion}
           </span>
@@ -90,14 +86,14 @@ export function ContextBand({
                 : 'rounded border border-amber-200 bg-amber-50 px-2 py-1'
             }
           >
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               Latest Version
             </span>
-            <span className="financial-numeral ml-2 font-bold text-[#183c51]">
+            <span className="financial-numeral ml-2 font-bold text-primary">
               {latestCostVersion}
             </span>
             {costVersion !== latestCostVersion ? (
-              <span className="ml-2 text-[11px] font-semibold text-[#8d5b12]">
+              <span className="ml-2 text-xs font-semibold text-amber-800">
                 Historical
               </span>
             ) : null}
@@ -105,10 +101,8 @@ export function ContextBand({
         ) : null}
         {stage ? (
           <div>
-            <span className="text-[11px] text-muted-foreground">
-              Current Stage
-            </span>
-            <span className="ml-2 font-semibold text-[#183c51]">{stage}</span>
+            <span className="text-xs text-muted-foreground">Current Stage</span>
+            <span className="ml-2 font-semibold text-primary">{stage}</span>
           </div>
         ) : (
           <StatusBadge

@@ -194,11 +194,11 @@ export function CostInputSheet({
               {issues.length ? `${issues.length} to review` : 'Calculated'}
             </StatusBadge>
           )}
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             {rows.length} rows
           </span>
         </div>
-        <dl className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1 text-[11px]">
+        <dl className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
           <div className="flex items-baseline gap-1.5">
             <dt className="text-muted-foreground">Cost · All Years</dt>
             <dd className="font-semibold tabular-nums text-primary">
@@ -270,7 +270,7 @@ export function CostInputSheet({
               type="button"
               size="sm"
               variant={yearIndex === year.value ? 'default' : 'ghost'}
-              className="h-7 gap-1 px-2 text-[11px]"
+              className="h-8 gap-1 px-2 text-xs"
               aria-pressed={yearIndex === year.value}
               onClick={() => setYearIndex(year.value)}
             >
@@ -281,7 +281,7 @@ export function CostInputSheet({
         <Button
           type="button"
           size="sm"
-          className="h-7 gap-1 px-2 text-[11px]"
+          className="h-8 gap-1 px-2 text-xs"
           disabled={locked || !resources.some((resource) => resource.active)}
           onClick={openNew}
         >
@@ -292,7 +292,7 @@ export function CostInputSheet({
           type="button"
           size="sm"
           variant="outline"
-          className="h-7 gap-1 px-2 text-[11px]"
+          className="h-8 gap-1 px-2 text-xs"
           disabled={locked || !resources.some((resource) => resource.active)}
           onClick={() => setShowBulkEntry(true)}
         >
@@ -303,7 +303,7 @@ export function CostInputSheet({
           type="button"
           size="sm"
           variant="outline"
-          className="h-7 gap-1 px-2 text-[11px]"
+          className="h-8 gap-1 px-2 text-xs"
           disabled={locked}
           onClick={() => {
             if (!locked) setShowImport(!showImport);
@@ -329,7 +329,7 @@ export function CostInputSheet({
                 type="button"
                 size="sm"
                 variant={inputMode === mode ? 'default' : 'ghost'}
-                className="h-7 px-2 text-[11px]"
+                className="h-8 px-2 text-xs"
                 aria-pressed={inputMode === mode}
                 disabled={locked}
                 title={`Set all cost rows to ${label}`}
@@ -340,7 +340,7 @@ export function CostInputSheet({
             ))}
           </div>
           {inputMode === 'mixed' && (
-            <span className="text-[10px] text-muted-foreground">Mixed</span>
+            <span className="text-xs text-muted-foreground">Mixed</span>
           )}
         </fieldset>
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -348,7 +348,7 @@ export function CostInputSheet({
             type="button"
             size="sm"
             variant={grouped ? 'default' : 'outline'}
-            className="h-7 gap-1 px-2 text-[11px]"
+            className="h-8 gap-1 px-2 text-xs"
             aria-pressed={grouped}
             onClick={() => setGrouped((current) => !current)}
           >
@@ -391,7 +391,7 @@ export function CostInputSheet({
         }}
         onDelete={deleteRow}
       />
-      <div className="border-t border-border bg-muted/20 px-3 py-2 text-[11px] leading-4 text-muted-foreground">
+      <div className="border-t border-border bg-muted/20 px-3 py-2 text-xs leading-4 text-muted-foreground">
         Sites × MD/Site or Direct MD → RE rate × annual uplift × selected
         allowance. MD/Site applies to all years for that row. Draft changes save
         automatically. Subcontract costs are managed in Subcon.

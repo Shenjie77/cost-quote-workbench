@@ -100,7 +100,7 @@ export function SubcontractBulkEntryForm({
       <div className="space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           {!site && (
-            <label className="grid gap-1 text-[11px] font-medium">
+            <label className="grid gap-1 text-xs font-medium">
               Quantity year
               <select
                 aria-label="Subcontract bulk quantity year"
@@ -150,12 +150,12 @@ export function SubcontractBulkEntryForm({
             Template &amp; accepted columns
           </summary>
           <textarea
-            className="mt-2 h-20 w-full resize-none bg-muted/20 p-2 font-mono text-[11px]"
+            className="mt-2 h-20 w-full resize-none bg-muted/20 p-2 font-mono text-xs"
             aria-label="Subcontract bulk template"
             readOnly
             value={template}
           />
-          <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
             Enter a Master Data code or item description plus quantity. Code,
             description, BU, unit and SGD price come from Master Data. Add or
             correct base items in Master Data before importing them here.
@@ -181,7 +181,7 @@ export function SubcontractBulkEntryForm({
             }}
           />
         </label>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Excel paste, quoted CSV or Markdown · up to 1,000 rows.{' '}
           {site
             ? 'Quantities apply per site; annual site deployments remain unchanged.'
@@ -201,10 +201,7 @@ export function SubcontractBulkEntryForm({
             )}
             <div className="grid gap-2 rounded-md border bg-muted/15 p-2 sm:grid-cols-3">
               {preview.columns.map((column, index) => (
-                <label
-                  key={index}
-                  className="grid gap-1 text-[11px] font-medium"
-                >
+                <label key={index} className="grid gap-1 text-xs font-medium">
                   <span className="truncate" title={column.header}>
                     {column.header}
                   </span>

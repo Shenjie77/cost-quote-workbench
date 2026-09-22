@@ -181,14 +181,14 @@ export function WorkflowTemplateEditor({
           Add Step
         </Button>
       </div>
-      <div className="space-y-3 p-4">
+      <div className="space-y-3 p-3">
         {visible.length ? (
           visible.map((phase, phaseIndex) => (
             <section
               key={`${phase.id}:${phaseIndex}`}
               className={
                 phase.parallel
-                  ? 'space-y-2 rounded-xl border border-primary/20 bg-accent/40 p-3'
+                  ? 'space-y-2 rounded-md border border-border bg-muted/30 p-2'
                   : 'space-y-2'
               }
             >
@@ -240,12 +240,12 @@ export function WorkflowTemplateEditor({
                 return (
                   <article
                     key={step.code}
-                    className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-4 py-3"
+                    className="flex flex-wrap items-center gap-3 rounded-md border bg-card px-3 py-2"
                   >
-                    <span className="financial-numeral flex size-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs text-accent-foreground">
+                    <span className="financial-numeral flex size-7 shrink-0 items-center justify-center rounded-sm bg-accent text-xs text-accent-foreground">
                       {index + 1}
                     </span>
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 basis-48">
                       <p className="text-sm font-semibold">{stepTitle(step)}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {step.owner || 'Owner not assigned'} ·{' '}
@@ -276,7 +276,7 @@ export function WorkflowTemplateEditor({
                         </p>
                       )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="ml-auto flex shrink-0 items-center gap-1">
                       <Button
                         type="button"
                         variant="ghost"
@@ -517,7 +517,7 @@ export function WorkflowNodeDefinitionFields({
           Calendar
           <select
             aria-label="SLA Calendar"
-            className="h-9 w-full rounded-md border border-input bg-background px-3"
+            className="h-8 w-full rounded-md border border-input bg-background px-3"
             value={normalized.slaCalendar}
             disabled={disabled}
             onChange={(event) =>

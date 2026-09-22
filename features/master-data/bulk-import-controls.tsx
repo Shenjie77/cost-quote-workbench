@@ -4,6 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, FileSpreadsheet, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -389,38 +397,49 @@ export function BulkImportControls({
               )}
               {!!preview.changes.length && (
                 <>
-                  <div className="max-h-[40dvh] overflow-auto rounded-md border">
-                    <table className="w-full text-left text-xs">
-                      <thead className="sticky top-0 bg-muted">
-                        <tr>
-                          <th className="p-2">Action</th>
-                          <th className="p-2">Row</th>
-                          <th className="p-2">Record</th>
-                          <th className="p-2">Values from Excel</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                  <div className="min-w-0 rounded-md border">
+                    <Table
+                      className="text-left text-xs"
+                      containerClassName="max-h-[40dvh]"
+                      aria-label="Master Data import preview"
+                    >
+                      <TableHeader className="sticky top-0 bg-muted">
+                        <TableRow>
+                          <TableHead className="p-2">Action</TableHead>
+                          <TableHead className="p-2">Row</TableHead>
+                          <TableHead className="p-2">Record</TableHead>
+                          <TableHead className="p-2">
+                            Values from Excel
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {visibleChanges.map((change) => (
-                          <tr key={change.row} className="border-t align-top">
-                            <td className="p-2 capitalize">{change.action}</td>
-                            <td className="p-2">{change.row}</td>
-                            <td className="p-2 min-w-36">
+                          <TableRow
+                            key={change.row}
+                            className="border-t align-top"
+                          >
+                            <TableCell className="p-2 capitalize">
+                              {change.action}
+                            </TableCell>
+                            <TableCell className="p-2">{change.row}</TableCell>
+                            <TableCell className="p-2 min-w-36">
                               <div className="font-medium">{change.label}</div>
-                              <div className="text-muted-foreground break-all">
+                              <div className="text-muted-foreground [overflow-wrap:anywhere]">
                                 {change.key}
                               </div>
-                            </td>
-                            <td className="p-2 min-w-48 whitespace-pre-wrap [overflow-wrap:anywhere]">
+                            </TableCell>
+                            <TableCell className="p-2 min-w-48 whitespace-pre-wrap [overflow-wrap:anywhere]">
                               {describeInput(
                                 prepared.rows.find(
                                   (row) => row.row === change.row,
                                 )?.values || {},
                               )}
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
                   {pages > 1 && (
                     <div className="flex items-center justify-end gap-2 text-xs">

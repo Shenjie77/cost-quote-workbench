@@ -10,6 +10,7 @@ import { ProjectTable } from '@/features/projects/project-table';
 import type { Project, ProjectStatus } from '@/features/projects/types';
 import { formatSgd } from '@/lib/formatters';
 
+/** Put portfolio totals and the create action directly above project navigation rows. */
 export function ProjectView({
   projects,
   onOpenProject,
@@ -48,12 +49,12 @@ export function ProjectView({
         index="01"
         title="Project List"
         titleZh="项目列表"
-        description="Record one project workflow, owner and follow-up date; open cost or quote in project tabs."
-        descriptionZh="统一登记项目流程、负责人和跟进日期；报价完成后停止提醒。"
+        description="Open a project, update its workflow, or review cost and quotation."
+        descriptionZh="集中查看项目、流程、成本和报价。"
         action={
           <Button size="sm" onClick={onCreateProject}>
             <FolderPlus />
-            New Project <span className="text-[11px] opacity-60">新建项目</span>
+            New Project <span className="text-xs opacity-60">新建项目</span>
           </Button>
         }
       />
@@ -90,9 +91,6 @@ export function ProjectView({
         onWorkflowChange={onWorkflowChange}
         onTrackWorkflow={onTrackWorkflow}
       />
-      <div className="border-t border-border bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
-        {projects.length} local projects · {projects.length} 个本地项目
-      </div>
     </section>
   );
 }

@@ -177,10 +177,7 @@ export function ArchiveSettingsPanel({
     }
   };
   return (
-    <section
-      aria-label="Archive Settings"
-      className="space-y-3 rounded-lg border border-border bg-muted/15 p-3"
-    >
+    <section aria-label="Archive Settings" className="wb-panel space-y-2 p-3">
       <div>
         <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
           <FolderArchive className="size-4" /> Project Archive Folder
@@ -249,7 +246,7 @@ export function ArchiveSettingsPanel({
           <RefreshCw /> {error ? 'Retry / Reload' : 'Reload'}
         </Button>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Changes apply to new projects only. Existing project folders remain in
         their original location.
       </p>
@@ -270,6 +267,7 @@ export function ArchiveSettingsPanel({
   );
 }
 
+/** Keep download, containing folder and delete actions adjacent to each archived document. */
 export function ProjectFileList({
   projectId,
   files,
@@ -308,7 +306,7 @@ export function ProjectFileList({
             >
               {file.originalName}
             </p>
-            <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
               <span>{projectFileSizeLabel(file.sizeBytes)}</span>
               <time dateTime={file.createdAt}>
                 {dateLabel(file.createdAt)} SGT
@@ -424,7 +422,7 @@ export function ProjectFileDropzone({
     // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- The native picker button provides the keyboard equivalent of this region's file drop.
     <section
       aria-label={node ? 'Workflow Step Documents' : 'Project File Archive'}
-      className={`min-w-0 space-y-2 rounded-lg border p-3 transition-colors ${dragging && !unavailable ? 'border-[#177c80] bg-[#eef7f6] ring-2 ring-[#177c80]/15' : 'border-border bg-card'}`}
+      className={`wb-panel min-w-0 space-y-2 p-3 transition-colors ${dragging && !unavailable ? 'border-primary bg-primary/5 ring-2 ring-primary/15' : 'border-border bg-card'}`}
       onDragEnter={dragOver}
       onDragOver={dragOver}
       onDragLeave={(event) => {
@@ -445,57 +443,58 @@ export function ProjectFileDropzone({
         if (!unavailable) onFiles(Array.from(event.dataTransfer.files));
       }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 basis-48">
           <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
             {title}
             {versionCode && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
                 {versionCode}
               </span>
             )}
           </h3>
-          <p className="mt-1 break-all font-mono text-[11px] leading-5 text-muted-foreground">
+          <p className="mt-1 break-all font-mono text-xs leading-5 text-muted-foreground">
             {target}
           </p>
         </div>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          disabled={loading}
-          onClick={onRefresh}
-          aria-label={node ? 'Refresh step documents' : 'Refresh project files'}
-          title="Refresh documents"
-        >
-          <RefreshCw className={loading ? 'animate-spin' : ''} />
-        </Button>
-      </div>
-      <button
-        type="button"
-        aria-label={`Choose files for ${target}`}
-        disabled={unavailable}
-        onClick={onBrowse}
-        className={`flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-left transition-colors disabled:cursor-wait disabled:opacity-60 ${dragging && !unavailable ? 'border-[#177c80] bg-white/70' : 'border-[#c7d9df] bg-[#f6fafb] hover:border-[#177c80] hover:bg-[#eef7f6]'} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#177c80]`}
-      >
-        <Upload className="pointer-events-none size-7 shrink-0 rounded-md bg-[#e5f2f2] p-1.5 text-[#177c80]" />
-        <span className="pointer-events-none">
-          <span className="block text-xs font-medium text-[#183c51]">
+        {/* Browse and refresh remain adjacent to the document list they affect. */}
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            aria-label={`Choose files for ${target}`}
+            disabled={unavailable}
+            onClick={onBrowse}
+            className={`inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-left text-xs transition-colors disabled:cursor-wait disabled:opacity-60 ${dragging && !unavailable ? 'border-primary bg-white/70' : 'border-input bg-muted/20 hover:border-primary hover:bg-primary/5'} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`}
+          >
+            <Upload className="size-3.5" aria-hidden="true" />
             {uploading
               ? 'Uploading files…'
               : dragging && !disabled
                 ? 'Release to upload'
-                : 'Drop files here'}
-          </span>
-          <span className="mt-0.5 block text-[11px] text-muted-foreground">
-            {uploading
-              ? 'Files are being archived'
-              : disabled
-                ? 'Wait for the current update'
-                : 'or click to browse · 50 MiB per file'}
-          </span>
-        </span>
-      </button>
+                : 'Browse files'}
+          </button>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            disabled={loading}
+            onClick={onRefresh}
+            aria-label={
+              node ? 'Refresh step documents' : 'Refresh project files'
+            }
+            title="Refresh documents"
+          >
+            <RefreshCw className={loading ? 'animate-spin' : ''} />
+          </Button>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {uploading
+          ? 'Files are being archived'
+          : disabled
+            ? 'Wait for the current update'
+            : 'Drop files here · or click to browse · 50 MiB per file'}
+      </p>
       {children}
     </section>
   );
@@ -712,7 +711,7 @@ function ProjectFilesController({
       {!isNode && archive && (
         <div className="flex flex-wrap items-center gap-2">
           <p
-            className="min-w-0 flex-1 basis-72 break-all rounded-md bg-muted/20 px-2 py-1.5 font-mono text-[11px] leading-5"
+            className="min-w-0 flex-1 basis-72 break-all rounded-md bg-muted/20 px-2 py-1.5 font-mono text-xs leading-5"
             title="Project archive folder"
           >
             {archive.projectPath}
@@ -767,7 +766,7 @@ function ProjectFilesController({
           {queue.map((item) => (
             <li
               key={item.requestId}
-              className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-3 text-xs"
+              className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs"
             >
               <span className="min-w-0 flex-1 break-words">
                 {item.file.name} · {projectFileSizeLabel(item.file.size)}

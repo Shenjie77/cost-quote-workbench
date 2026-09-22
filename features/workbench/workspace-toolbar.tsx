@@ -1,6 +1,5 @@
-/** Persistence feedback and explicit workspace actions, independent of session storage. */
+/** Compact persistence feedback in the shared header; the session still owns every save effect. */
 import { Check, LoaderCircle, Plus, Save, WifiOff } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { PersistencePhase, PersistenceStatus } from './workspace-types';
 import type { ViewKey } from './types';
@@ -15,28 +14,31 @@ type WorkspaceToolbarProps = {
   onNewVersion: () => void;
 };
 
-/** Select matching badge colors and icon for saved, failed, or pending persistence. */
+/** Give persistence states a readable label, with errors retaining their complete recovery message. */
 function persistencePresentation(phase: PersistencePhase) {
   if (phase === 'saved')
     return {
       icon: Check,
-      className: 'border-[#9fb9aa] bg-[#edf5ef] text-[#377054]',
-      iconClassName: 'mr-1 size-3',
+      label: 'Saved / 已保存',
+      className: 'text-success',
+      spinning: false,
     };
   if (['offline', 'error', 'conflict'].includes(phase))
     return {
       icon: WifiOff,
-      className: 'border-[#d0b787] bg-[#f8f0e2] text-[#8d5b12]',
-      iconClassName: 'mr-1 size-3',
+      label: 'Save needs attention / 保存待处理',
+      className: 'text-warning',
+      spinning: false,
     };
   return {
     icon: LoaderCircle,
-    className: 'border-[#9eb9ba] bg-[#edf4f3] text-[#2e6f77]',
-    iconClassName: 'mr-1 size-3 animate-spin',
+    label: phase === 'saving' ? 'Saving… / 保存中…' : 'Loading… / 加载中…',
+    className: 'text-info',
+    spinning: true,
   };
 }
 
-/** Render save/recovery controls; callers preserve the ordering of all asynchronous effects. */
+/** Keep save and version creation reachable without adding a full-width row above every working table. */
 export function WorkspaceToolbar({
   persistenceStatus,
   activeView,
@@ -48,52 +50,60 @@ export function WorkspaceToolbar({
 }: WorkspaceToolbarProps) {
   const presentation = persistencePresentation(persistenceStatus.phase);
   const StatusIcon = presentation.icon;
+  const needsRecovery = ['conflict', 'error', 'offline'].includes(
+    persistenceStatus.phase,
+  );
   return (
-    <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-1 py-1">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-        <Badge
-          variant="outline"
-          className={'h-5 rounded px-1.5 text-[11px] ' + presentation.className}
-        >
-          <StatusIcon className={presentation.iconClassName} />
-          Local SQLite <span className="ml-1 text-[10px]">本地数据库</span>
-        </Badge>
-        <output
-          className="max-w-full break-words sm:max-w-[min(50vw,760px)]"
-          title={persistenceStatus.message}
-        >
-          {persistenceStatus.message}
-        </output>
+    <div
+      className="order-last flex w-full min-w-0 flex-wrap items-center gap-1.5 md:order-none md:w-auto"
+      aria-label="Workspace save controls"
+    >
+      <output
+        aria-live="polite"
+        aria-atomic="true"
+        title={`${persistenceStatus.message} · ${displayDate}`}
+        className={`inline-flex min-h-8 items-center gap-1.5 text-xs ${presentation.className}`}
+      >
+        <StatusIcon
+          aria-hidden="true"
+          className={`size-3.5 shrink-0 ${presentation.spinning ? 'animate-spin' : ''}`}
+        />
+        <span className="sr-only xl:not-sr-only">{presentation.label}</span>
+      </output>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-8 px-2 text-xs"
+        title="Save workspace / 保存工作区"
+        onClick={onSave}
+        disabled={persistenceStatus.phase === 'saving'}
+      >
+        <Save aria-hidden="true" className="size-3.5" /> Save{' '}
+        <span className="sr-only">保存</span>
+      </Button>
+      {activeView === 'cost' && (
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          className="h-7 px-2 text-[11px]"
-          onClick={onSave}
-          disabled={persistenceStatus.phase === 'saving'}
+          className="h-8 text-xs"
+          onClick={onNewVersion}
+          disabled={newVersionDisabled}
         >
-          <Save className="size-3" /> Save{' '}
-          <span className="text-[10px]">保存</span>
+          <Plus aria-hidden="true" className="size-3.5" /> New Version{' '}
+          <span className="sr-only">创建版本</span>
         </Button>
-        {['conflict', 'error', 'offline'].includes(persistenceStatus.phase) && (
+      )}
+      {/* Failure information stays visible and actionable; only routine technical details use a tooltip. */}
+      {needsRecovery && (
+        <div className="flex max-w-full flex-wrap items-center gap-2 rounded border border-warning/25 bg-warning-muted px-2 py-1 text-xs text-warning">
+          <output className="max-w-sm break-words">
+            {persistenceStatus.message}
+          </output>
           <Button variant="outline" size="sm" onClick={onBackupAndReload}>
             备份并重载项目列表
           </Button>
-        )}
-        {activeView === 'cost' ? (
-          <Button
-            size="sm"
-            className="h-7 px-2 text-[11px]"
-            onClick={onNewVersion}
-            disabled={newVersionDisabled}
-          >
-            <Plus className="size-3" /> New Version{' '}
-            <span className="text-[10px] opacity-60">创建版本</span>
-          </Button>
-        ) : null}
-      </div>
-      <span className="financial-numeral hidden text-[11px] text-muted-foreground sm:block">
-        {displayDate}
-      </span>
+        </div>
+      )}
     </div>
   );
 }

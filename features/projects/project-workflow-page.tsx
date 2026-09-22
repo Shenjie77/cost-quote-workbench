@@ -418,7 +418,7 @@ export function ProjectWorkflowPage({
           <ArchiveSettingsPanel />
         </div>
       </details>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-1 py-1.5 text-xs leading-5">
+      <div className="wb-toolbar justify-between border-b text-xs leading-5">
         <p
           className={
             onHold
@@ -470,7 +470,7 @@ export function ProjectWorkflowPage({
         />
         <nav
           aria-label="Workflow Steps"
-          className="hidden space-y-1 p-1 lg:sticky lg:top-32 lg:block lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto"
+          className="hidden wb-panel space-y-1 p-1 lg:sticky lg:top-32 lg:block lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto"
         >
           <div className="mb-1 flex items-center justify-between border-b border-border px-2 pb-2 pt-1 text-xs font-semibold">
             <span>Steps</span>
@@ -484,12 +484,12 @@ export function ProjectWorkflowPage({
               key={phase.id}
               className={
                 phase.parallel
-                  ? 'space-y-1 rounded-lg border border-[#c5dad8] bg-[#f2f8f7] p-2'
+                  ? 'space-y-1 rounded-lg border border-primary/20 bg-primary/5 p-2'
                   : ''
               }
             >
               {phase.parallel && (
-                <p className="px-1 pb-1 text-[11px] font-semibold text-[#177c80]">
+                <p className="px-1 pb-1 text-xs font-semibold text-primary">
                   {index + 1}. {phase.name} · Parallel
                 </p>
               )}
@@ -501,10 +501,10 @@ export function ProjectWorkflowPage({
                   aria-current={selectedCode === step.code ? 'step' : undefined}
                   disabled={disabled || documentsUploading}
                   onClick={() => choose(step.code)}
-                  className={`flex w-full items-start gap-2 rounded-md px-2 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60 ${selectedCode === step.code ? 'bg-[#183c51] text-white' : 'hover:bg-muted/60'}`}
+                  className={`flex w-full items-start gap-2 rounded-md px-2 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60 ${selectedCode === step.code ? 'bg-primary text-white' : 'hover:bg-muted/60'}`}
                 >
                   <span
-                    className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] ${selectedCode === step.code ? 'bg-white/15' : 'bg-muted'}`}
+                    className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs ${selectedCode === step.code ? 'bg-white/15' : 'bg-muted'}`}
                   >
                     {step.state === 'completed' ? (
                       <Check className="size-3" />
@@ -520,7 +520,7 @@ export function ProjectWorkflowPage({
                       {dirtyCodes.includes(step.code) ? ' *' : ''}
                     </span>
                     <span
-                      className={`mt-1 block text-[11px] ${selectedCode === step.code ? 'text-white/75' : 'text-muted-foreground'}`}
+                      className={`mt-1 block text-xs ${selectedCode === step.code ? 'text-white/75' : 'text-muted-foreground'}`}
                     >
                       {stateLabels[step.state]}
                       {step.owner ? ` · ${step.owner}` : ''}
@@ -625,7 +625,7 @@ export function WorkflowTaskSelect({
           aria-label="Select Workflow Step"
           value={selectedCode}
           disabled={busy || !steps.length}
-          className="h-9 w-full rounded-md border border-input bg-white px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+          className="h-8 w-full rounded-md border border-input bg-white px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
           onChange={(event) => onChange(event.target.value)}
         >
           {phases.map((phase) =>
@@ -640,7 +640,7 @@ export function WorkflowTaskSelect({
         </select>
       </label>
       {selectedPhase?.parallel && (
-        <p className="text-[11px] text-[#177c80]">
+        <p className="text-xs text-primary">
           {selectedPhase.name} · {selectedPhase.steps.length} parallel tasks
         </p>
       )}
@@ -699,6 +699,58 @@ export function WorkflowTaskFields({
   };
   return (
     <div className="space-y-3">
+      {/* Primary task actions stay above editable fields, while existing validation still controls completion. */}
+      <div className="wb-toolbar -mx-3 -mt-3 border-b">
+        {active && (
+          <Button
+            type="button"
+            disabled={
+              busy ||
+              ownerMissing ||
+              !canAdvance ||
+              missingFields.length > 0 ||
+              (step.required && !value.confirmed)
+            }
+            onClick={() => send('complete')}
+          >
+            <Check /> Complete Step
+          </Button>
+        )}
+        {step.state === 'not_started' && (
+          <Button
+            type="button"
+            disabled={busy || ownerMissing || !canAdvance}
+            onClick={() => send('start')}
+          >
+            {parallel ? 'Start Parallel Group' : 'Start Step'} <ArrowRight />
+          </Button>
+        )}
+        {step.state === 'paused' && (
+          <Button
+            type="button"
+            disabled={busy || ownerMissing}
+            onClick={() => send('resume')}
+          >
+            Resume Step <ArrowRight />
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy || ownerMissing || !workflowTaskIsDirty(step, value)}
+          onClick={() => send('update')}
+        >
+          Save Update
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={busy || !workflowTaskIsDirty(step, value)}
+          onClick={onReset}
+        >
+          Reset Changes
+        </Button>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block space-y-1.5 text-xs font-medium">
           Owner
@@ -764,7 +816,7 @@ export function WorkflowTaskFields({
         />
       </label>
       {active && step.required && (
-        <label className="flex items-start gap-2 rounded-md bg-[#f2f8f7] px-3 py-2 text-xs">
+        <label className="flex items-start gap-2 rounded-md bg-primary/5 px-3 py-2 text-xs">
           <input
             type="checkbox"
             aria-label="Confirm Task Completion"
@@ -781,57 +833,7 @@ export function WorkflowTaskFields({
           </span>
         </label>
       )}
-      <div className="flex flex-wrap items-center gap-2 border-t pt-2">
-        {active && (
-          <Button
-            type="button"
-            disabled={
-              busy ||
-              ownerMissing ||
-              !canAdvance ||
-              missingFields.length > 0 ||
-              (step.required && !value.confirmed)
-            }
-            onClick={() => send('complete')}
-          >
-            <Check /> Complete Step
-          </Button>
-        )}
-        {step.state === 'not_started' && (
-          <Button
-            type="button"
-            disabled={busy || ownerMissing || !canAdvance}
-            onClick={() => send('start')}
-          >
-            {parallel ? 'Start Parallel Group' : 'Start Step'} <ArrowRight />
-          </Button>
-        )}
-        {step.state === 'paused' && (
-          <Button
-            type="button"
-            disabled={busy || ownerMissing}
-            onClick={() => send('resume')}
-          >
-            Resume Step <ArrowRight />
-          </Button>
-        )}
-        <Button
-          type="button"
-          variant="outline"
-          disabled={busy || ownerMissing || !workflowTaskIsDirty(step, value)}
-          onClick={() => send('update')}
-        >
-          Save Update
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={busy || !workflowTaskIsDirty(step, value)}
-          onClick={onReset}
-        >
-          Reset Changes
-        </Button>
-      </div>
+
       {active &&
         (missingFields.length > 0 || (step.required && !value.confirmed)) && (
           <p className="text-xs text-muted-foreground">
@@ -900,7 +902,7 @@ function WorkflowTaskEditor({
             </p>
           </div>
           <span
-            className={`rounded-full px-3 py-1 text-xs font-medium ${done ? 'bg-emerald-50 text-emerald-800' : urgency === 'urgent' ? 'bg-red-50 text-red-700' : urgency === 'immediate' || step.state === 'paused' ? 'bg-amber-50 text-amber-800' : 'bg-[#e9f1f2] text-[#177c80]'}`}
+            className={`rounded-md px-2 py-1 text-xs font-medium ${done ? 'bg-emerald-50 text-emerald-800' : urgency === 'urgent' ? 'bg-red-50 text-red-700' : urgency === 'immediate' || step.state === 'paused' ? 'bg-amber-50 text-amber-800' : 'bg-primary/10 text-primary'}`}
           >
             {stateLabels[step.state]}
           </span>

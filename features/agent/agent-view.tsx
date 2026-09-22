@@ -7,7 +7,6 @@ import {
   ClipboardCheck,
   Clock3,
   Database,
-  Sparkles,
   TrendingUp,
 } from 'lucide-react';
 import { BiInline, BiText } from '@/components/workbench/bilingual-text';
@@ -64,6 +63,7 @@ const groupDefinitions: Array<{
   },
 ];
 
+/** Present actionable digest groups first and keep monitoring rules available on demand. */
 export function AgentView({
   projects,
   reviews,
@@ -195,27 +195,24 @@ export function AgentView({
 
   return (
     <div className="wb-page-stack">
-      <section className="wb-panel bg-muted/20">
-        <div className="flex flex-wrap items-center justify-between gap-4 px-3 py-2.5">
+      <section className="wb-panel">
+        <div className="wb-toolbar justify-between">
           <div className="flex items-center gap-3">
-            <span className="flex size-8 items-center justify-center rounded-md bg-primary text-white">
-              <Sparkles className="size-4" />
-            </span>
             <div>
               <p className="text-sm font-semibold text-primary">
                 Agent Digest · Project Follow-up
               </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 按 Project Workflow 按节点 SLA
                 和负责人跟进并行待办；节点关闭提醒或项目完成后停止提示。
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone="green">
               <BiInline en="Live governed data" zh="实时受控数据" />
             </StatusBadge>
-            <span className="financial-numeral text-[11px] text-muted-foreground">
+            <span className="financial-numeral text-xs text-muted-foreground">
               As of {digest.asOf}
             </span>
           </div>
@@ -246,10 +243,12 @@ export function AgentView({
                     <button
                       key={item.id}
                       onClick={() => openItem(item)}
-                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:bg-accent/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                      type="button"
+                      className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:bg-accent/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                     >
                       <Icon
-                        className={`size-4 shrink-0 ${group.tone === 'red' ? 'text-destructive' : group.tone === 'amber' ? 'text-amber-700' : group.tone === 'blue' ? 'text-blue-700' : 'text-muted-foreground'}`}
+                        aria-hidden="true"
+                        className={`mt-0.5 size-4 shrink-0 ${group.tone === 'red' ? 'text-destructive' : group.tone === 'amber' ? 'text-amber-700' : group.tone === 'blue' ? 'text-blue-700' : 'text-muted-foreground'}`}
                       />
                       <span className="min-w-0 flex-1">
                         <BiText
@@ -260,7 +259,7 @@ export function AgentView({
                         <BiText
                           en={item.detail}
                           zh={item.detailZh}
-                          className="mt-1 text-[11px] text-muted-foreground"
+                          className="mt-1 text-xs text-muted-foreground"
                         />
                       </span>
                       <ChevronRight className="size-4 text-muted-foreground" />
@@ -276,7 +275,11 @@ export function AgentView({
           );
         })}
       </div>
-      <section className="wb-panel">
+      <details className="wb-panel">
+        {/* Stable help stays accessible without pushing the task list below another large card. */}
+        <summary className="min-h-8 cursor-pointer px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">
+          Follow-up Rules · 跟进规则
+        </summary>
         <SectionHeading
           index="03"
           title="Follow-up Rules"
@@ -307,20 +310,18 @@ export function AgentView({
               '报价完成后不再提醒',
             ],
           ].map(([name, detail, detailZh]) => (
-            <div key={name} className="bg-card p-3">
-              <code className="financial-numeral text-[11px] font-semibold text-accent-foreground">
+            <div key={name} className="bg-card px-3 py-2">
+              <code className="financial-numeral text-xs font-semibold text-accent-foreground">
                 {name}
               </code>
-              <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 {detail}
               </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {detailZh}
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{detailZh}</p>
             </div>
           ))}
         </div>
-      </section>
+      </details>
     </div>
   );
 }

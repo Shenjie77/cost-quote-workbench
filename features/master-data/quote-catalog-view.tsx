@@ -21,7 +21,7 @@ import { matchesClient } from '@/features/quote/catalog-domain';
 import { QuoteExcelTemplateEditor } from './quote-excel-template-editor';
 
 const cellClass =
-  'h-9 rounded-md border border-transparent bg-transparent shadow-none hover:border-input hover:bg-background focus-visible:bg-background';
+  'h-8 rounded-md border border-transparent bg-transparent shadow-none hover:border-input hover:bg-background focus-visible:bg-background';
 type Setter<T> = React.Dispatch<React.SetStateAction<T[]>>;
 
 /** Deletion detaches template defaults but never touches copied quote/history text. */
@@ -51,7 +51,14 @@ export function AssumptionLibraryView({
   return (
     <>
       <div className="wb-toolbar justify-between border-b text-xs">
-        <p>{rows.length} global assumptions · 全局假设库</p>
+        <p className="text-muted-foreground">
+          <span className="font-medium text-foreground">
+            {rows.length} global assumptions · 全局假设库
+          </span>
+          <span className="ml-3">
+            Client: exact name or * / 客户完整名称，* 通用
+          </span>
+        </p>
         <Button
           size="sm"
           onClick={() =>
@@ -72,11 +79,7 @@ export function AssumptionLibraryView({
           <Plus /> Add / 新增
         </Button>
       </div>
-      <p className="border-b px-3 py-2 text-xs text-muted-foreground">
-        Client: exact name or * for all. Quotes keep independent copies. /
-        客户填完整名称，* 通用；引用后独立保存，可输入任意语言。
-      </p>
-      <div className="wb-table-scroll">
+      <div className="min-w-0">
         <Table className="min-w-[1000px]">
           <TableHeader>
             <TableRow>
@@ -249,7 +252,7 @@ export function QuoteTemplatesView({
         </div>
       </div>
       <div className="grid min-w-0 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)]">
-        <div className="wb-table-scroll border-b lg:border-b-0 lg:border-r">
+        <div className="min-w-0 border-b lg:border-b-0 lg:border-r">
           <Table>
             <TableHeader>
               <TableRow>

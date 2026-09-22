@@ -85,7 +85,7 @@ export function CostStatementTable({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-2 text-[10px] text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
         <span>
           EHS 1% = (2.3.1 + 2.3.2 + 2.3.3) × 1%.
           <span className="ml-1 text-[9px]">
@@ -100,7 +100,7 @@ export function CostStatementTable({
       {unmappedRows.length > 0 ? (
         <div
           role="alert"
-          className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[10px] text-amber-900"
+          className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900"
         >
           {unmappedRows.length} cost line(s) totaling {formatSgd(unmappedCost)}
           have no valid RE Type and are excluded from this statement. /{' '}
@@ -109,7 +109,7 @@ export function CostStatementTable({
         </div>
       ) : null}
       <div className="min-w-0 max-w-full">
-        <Table className="min-w-[760px] text-[11px]">
+        <Table className="min-w-[760px] text-xs">
           <caption className="sr-only">
             Cost statement hierarchy based on the supplied report template.
             Auto-linked values come from Cost Input and HQ Travel; remaining
@@ -166,7 +166,7 @@ export function CostStatementTable({
                       style={{ paddingLeft: 12 + row.level * 22 }}
                     >
                       {row.code ? (
-                        <span className="financial-numeral w-[58px] shrink-0 text-[10px] font-semibold">
+                        <span className="financial-numeral w-[58px] shrink-0 text-xs font-semibold">
                           {row.code}
                         </span>
                       ) : null}
@@ -234,7 +234,7 @@ export function CostStatementTable({
                             row.manualKey === 'otherService' ? '0.01' : '100'
                           }
                           className={
-                            'financial-numeral h-9 rounded-none border-0 pl-7 pr-2 text-right text-[11px] shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-background focus-visible:ring-1 ' +
+                            'financial-numeral h-9 rounded-none border-0 pl-7 pr-2 text-right text-xs shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-background focus-visible:ring-1 ' +
                             (isGroupRow
                               ? 'bg-transparent font-semibold disabled:bg-transparent'
                               : 'bg-background disabled:bg-muted/40')
@@ -272,7 +272,7 @@ export function CostStatementTable({
           </TableBody>
         </Table>
       </div>
-      <div className="border-t border-border bg-muted/30 px-4 py-3 text-[11px] leading-5 text-muted-foreground">
+      <div className="border-t border-border bg-muted/30 px-4 py-3 text-xs leading-5 text-muted-foreground">
         Non-in-house labour and Subcontract Cost are mutually exclusive: use
         Non-in-house for time-and-material external people, and Subcontract for
         deliverable or fixed-price packages. /

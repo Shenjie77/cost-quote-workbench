@@ -176,7 +176,7 @@ export function WorkflowExecutionNode({
             {step.required ? 'Required Step' : 'Optional Step'}
           </p>
         </div>
-        <span className="shrink-0 rounded bg-muted px-2 py-1 text-[11px]">
+        <span className="shrink-0 rounded bg-muted px-2 py-1 text-xs">
           {stateLabels[step.state]}
         </span>
       </div>

@@ -63,7 +63,7 @@ const money = (amount: number) =>
 const yearLabel = (years: (number | null)[], index: number) =>
   `${YEAR_BUCKETS[index]}${years[index] ? ` · ${years[index]}` : ''}`;
 const selectClass =
-  'h-9 min-w-0 rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20';
+  'h-8 min-w-0 rounded-md border border-input bg-background px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20';
 
 /** Catalogue values are copied once; future catalogue edits cannot reprice a BOQ. */
 export function copySubcontractCatalogLine(
@@ -378,16 +378,16 @@ export function SubcontractCostSheet({
           <div>
             <h2 className="text-sm font-semibold">
               Subcontract Cost{' '}
-              <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                 2.3.2
               </span>
             </h2>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               Unit prices saved with this cost version.
             </p>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-4">
-            <label className="space-y-1 text-[10px] font-medium text-muted-foreground">
+            <label className="space-y-1 text-xs font-medium text-muted-foreground">
               <span className="block">Cost Model</span>
               <select
                 aria-label="Subcontract cost model"
@@ -416,7 +416,7 @@ export function SubcontractCostSheet({
               </select>
             </label>
             <div className="border-l pl-4 text-right">
-              <p className="text-[10px] font-medium text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 {unpriced ? 'Priced Subtotal' : 'Total'} · SGD
               </p>
               <p className="mt-0.5 text-xl font-semibold leading-7 tracking-tight tabular-nums text-primary">
@@ -428,7 +428,7 @@ export function SubcontractCostSheet({
         <div className="grid grid-cols-2 gap-px border-t bg-border sm:grid-cols-5">
           {years.map((amount, index) => (
             <div key={index} className="min-w-0 bg-card px-4 py-3">
-              <p className="whitespace-nowrap text-[10px] text-muted-foreground">
+              <p className="whitespace-nowrap text-xs text-muted-foreground">
                 {yearLabel(actualYears, index)}
               </p>
               <p className="mt-0.5 overflow-x-auto whitespace-nowrap text-xs font-semibold tabular-nums">
@@ -574,11 +574,11 @@ export function SubcontractCostSheet({
                 <div>
                   <h3 className="text-sm font-semibold">
                     BOQ per Site{' '}
-                    <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                       {selectedSite.lines.length} items
                     </span>
                   </h3>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     Unit price × quantity per site
                   </p>
                 </div>
@@ -633,13 +633,13 @@ export function SubcontractCostSheet({
                   <h3 className="text-xs font-semibold">
                     Annual Site Deployments
                   </h3>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {selectedSite.sites.reduce((sum, count) => sum + count, 0)}{' '}
                     sites · SGD {money(selectedSummary?.total || 0)}
                   </span>
                 </div>
                 {!selectedSite.lines.length && (
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Add BOQ items first, then enter the number of sites for each
                     year.
                   </p>
@@ -647,7 +647,7 @@ export function SubcontractCostSheet({
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                   {selectedSite.sites.map((count, index) => (
                     <div key={index} className="min-w-0 space-y-1.5">
-                      <p className="whitespace-nowrap text-[10px] font-medium text-muted-foreground">
+                      <p className="whitespace-nowrap text-xs font-medium text-muted-foreground">
                         {yearLabel(actualYears, index)}
                       </p>
                       <SubcontractNumberInput
@@ -665,7 +665,7 @@ export function SubcontractCostSheet({
                         }
                         announce={announce}
                       />
-                      <p className="overflow-x-auto whitespace-nowrap text-right text-[10px] tabular-nums text-muted-foreground">
+                      <p className="overflow-x-auto whitespace-nowrap text-right text-xs tabular-nums text-muted-foreground">
                         {money(selectedSummary?.years[index] || 0)}
                       </p>
                     </div>
@@ -740,7 +740,7 @@ export function SubcontractCostSheet({
                         <span className="block text-xs tabular-nums">
                           {count} sites
                         </span>
-                        <span className="text-[10px] tabular-nums text-muted-foreground">
+                        <span className="text-xs tabular-nums text-muted-foreground">
                           {money(calculated?.years[index] || 0)}
                         </span>
                       </TableCell>
@@ -771,7 +771,7 @@ export function SubcontractCostSheet({
                   {value.lines.length} items
                 </span>
               </h3>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Project quantities added once, alongside site costs.
               </p>
             </div>
@@ -786,11 +786,11 @@ export function SubcontractCostSheet({
           <div className="px-3 pt-3">
             <h3 className="text-sm font-semibold">
               Project BOQ{' '}
-              <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                 {value.lines.length} items
               </span>
             </h3>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               Add items, then enter quantities for each year.
             </p>
           </div>
@@ -798,7 +798,7 @@ export function SubcontractCostSheet({
         {showProjectLines && (
           <div id="subcontract-project-boq">
             <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3">
-              <label className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+              <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                 Quantity year
                 <select
                   aria-label="Project BOQ quantity year"

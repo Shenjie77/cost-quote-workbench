@@ -51,7 +51,7 @@ export function BreakdownTable({ items }: { items: BreakdownItem[] }) {
             <span className="financial-numeral text-right font-semibold">
               {formatSgd(item.amount)}
             </span>
-            <span className="financial-numeral text-right text-[10px] text-muted-foreground">
+            <span className="financial-numeral text-right text-xs text-muted-foreground">
               {item.share}%
             </span>
           </div>

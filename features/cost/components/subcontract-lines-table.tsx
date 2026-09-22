@@ -264,7 +264,7 @@ export function SubcontractItemForm({
           />
         </div>
       </div>
-      <p className="text-[11px] leading-4 text-muted-foreground">
+      <p className="text-xs leading-4 text-muted-foreground">
         PCS uses whole quantities. Other units can use decimals. A blank price
         remains unpriced; enter 0 for a free item.
       </p>
@@ -370,7 +370,7 @@ export function SubcontractDeleteButton({
       type="button"
       size="icon-sm"
       variant="ghost"
-      className="size-7 text-muted-foreground hover:text-destructive"
+      className="size-8 text-muted-foreground hover:text-destructive"
       disabled={locked}
       aria-label={`Delete ${line.code}`}
       title="Remove item"
@@ -413,7 +413,7 @@ function SubcontractItemActions({
           type="button"
           size="icon-sm"
           variant="ghost"
-          className="size-7 text-muted-foreground"
+          className="size-8 text-muted-foreground"
           disabled={locked}
           aria-label={`Edit ${line.code}`}
           title="Edit item details"
@@ -480,7 +480,7 @@ export function SubcontractLinesTable({
     if (!locked) onChange(line);
   };
   const itemClass = allYears
-    ? 'sticky left-0 z-10 min-w-56 bg-card'
+    ? 'sm:sticky sm:left-0 z-10 min-w-56 bg-card'
     : 'w-full min-w-40';
   return (
     <Table
@@ -496,7 +496,7 @@ export function SubcontractLinesTable({
             YEAR_BUCKETS.map((bucket, index) => (
               <TableHead key={bucket} className="min-w-28 text-right">
                 {yearLabel(actualYears, index)}
-                <span className="block text-[10px] font-normal text-muted-foreground">
+                <span className="block text-xs font-normal text-muted-foreground">
                   Qty / Cost
                 </span>
               </TableHead>
@@ -526,7 +526,7 @@ export function SubcontractLinesTable({
                 <p className="max-w-xl whitespace-normal break-words text-[12px] font-medium leading-4">
                   {line.description || 'Untitled item'}
                 </p>
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] leading-4 text-muted-foreground">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-4 text-muted-foreground">
                   <strong className="min-w-0 max-w-full break-all font-mono font-bold text-foreground">
                     {line.code || 'No code'}
                   </strong>
@@ -565,7 +565,7 @@ export function SubcontractLinesTable({
                       announce={announce}
                     />
                     {allYears && (
-                      <span className="mt-1 block text-right text-[10px] tabular-nums text-muted-foreground">
+                      <span className="mt-1 block text-right text-xs tabular-nums text-muted-foreground">
                         {line.unitPrice === null
                           ? 'Not priced'
                           : money(annualCost(line, index, rateFactors[index]))}
@@ -589,7 +589,7 @@ export function SubcontractLinesTable({
               )}
               <TableCell className="text-right font-semibold tabular-nums">
                 {line.unitPrice === null ? (
-                  <span className="text-[11px] font-medium text-amber-800">
+                  <span className="text-xs font-medium text-amber-800">
                     Not priced
                   </span>
                 ) : (

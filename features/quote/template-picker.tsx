@@ -102,7 +102,7 @@ export function QuoteTemplatePicker({
         </Button>
       </div>
       <div
-        className="mt-1 space-y-1 text-[11px] text-muted-foreground"
+        className="mt-1 space-y-1 text-xs text-muted-foreground"
         aria-live="polite"
       >
         <p>

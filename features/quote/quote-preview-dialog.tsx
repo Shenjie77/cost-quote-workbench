@@ -60,7 +60,7 @@ export function QuotePreviewDialog({
         render={<Button variant="outline" />}
       >
         <Eye /> Preview
-        <span className="text-[11px] opacity-60">客户预览</span>
+        <span className="text-xs opacity-60">客户预览</span>
       </DialogTrigger>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-3 overflow-hidden sm:max-w-[900px]">
         <DialogHeader>
@@ -89,12 +89,12 @@ export function QuotePreviewDialog({
             <h3 className="text-base font-bold tracking-wide text-primary">
               {template?.documentTitle || 'SERVICE QUOTATION'}
             </h3>
-            <span className="financial-numeral text-[11px] text-muted-foreground">
+            <span className="financial-numeral text-xs text-muted-foreground">
               QT-{project.id.replace(/^PRJ-/, '')}-{activeVersion}
             </span>
           </div>
           <div className="my-3">
-            <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
               Prepared for
             </p>
             <p className="mt-1 text-sm font-semibold">{project.client}</p>

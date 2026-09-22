@@ -95,7 +95,7 @@ export function CostImportPanel({
     setPreview(null);
   };
   return (
-    <section className="m-4 min-w-0 space-y-4 rounded-xl border border-border bg-muted/20 p-4 text-sm">
+    <section className="wb-panel m-3 min-w-0 space-y-3 bg-muted/20 p-3 text-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h3 className="font-semibold">TD / PM Excel Import · 字段映射与预览</h3>
         <Button variant="ghost" onClick={onClose}>
@@ -103,6 +103,7 @@ export function CostImportPanel({
         </Button>
       </div>
       <Input
+        aria-label="Upload TD / PM Excel workbook"
         type="file"
         accept=".xlsx"
         disabled={busy}

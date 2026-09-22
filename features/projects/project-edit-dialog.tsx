@@ -175,21 +175,28 @@ export function ProjectEditDialog({
           <DialogDescription>{project.id}</DialogDescription>
         </DialogHeader>
         <form
-          className="space-y-5"
+          className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
             void save();
           }}
         >
-          <div className="grid gap-4 sm:grid-cols-2">
-            {field('name', 'Project Name', true)}
-            {field('client', 'Client', true)}
-            {field('proposalNumber', 'Proposal Number')}
-            <div className="hidden sm:block" />
-            {field('companyUrl', 'iSales Link')}
-            {field('cpqUrl', 'CPQ Link')}
+          <div className="grid gap-3 sm:grid-cols-6">
+            <div className="sm:col-span-3">
+              {field('name', 'Project Name', true)}
+            </div>
+            <div className="sm:col-span-3">
+              {field('client', 'Client', true)}
+            </div>
+            <div className="sm:col-span-2">
+              {field('proposalNumber', 'Proposal Number')}
+            </div>
+            <div className="sm:col-span-2">
+              {field('companyUrl', 'iSales Link')}
+            </div>
+            <div className="sm:col-span-2">{field('cpqUrl', 'CPQ Link')}</div>
           </div>
-          <details className="rounded-xl border border-border bg-muted/15 px-4 py-3">
+          <details className="rounded-md border border-border bg-muted/15 px-3 py-2">
             <summary className="cursor-pointer rounded-md text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
               Scope & Technical Basis
             </summary>
@@ -218,7 +225,7 @@ export function ProjectEditDialog({
           </details>
           <section
             aria-label="Project Folder"
-            className="space-y-3 rounded-xl border border-border bg-muted/20 p-4"
+            className="space-y-2 rounded-md border border-border bg-muted/20 p-3"
           >
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-xs font-semibold">
@@ -229,7 +236,7 @@ export function ProjectEditDialog({
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="size-7"
+                className="size-8"
                 aria-label="Reload project folder"
                 disabled={busy || folderLoading}
                 onClick={() => {
@@ -262,7 +269,7 @@ export function ProjectEditDialog({
               description="Open saved project archive folder"
               disabled={busy || folderLoading || !location}
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Enter a new project folder on the computer running the workbench,
               then apply to move its documents. Pasted quoted paths, file URLs
               and ~/ paths are supported. The destination folder must not exist.
@@ -289,7 +296,7 @@ export function ProjectEditDialog({
                 >
                   Reset
                 </Button>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   Apply or reset before saving project info.
                 </span>
               </div>

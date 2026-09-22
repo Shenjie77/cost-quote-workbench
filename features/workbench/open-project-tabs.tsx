@@ -24,8 +24,8 @@ export function OpenProjectTabs({
       aria-label="Open Projects"
       className="workbench-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto border-t border-border/70 bg-muted/30 px-3 py-1 sm:px-4"
     >
-      <span className="mr-2 shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        Open Projects <span className="normal-case">已打开项目</span>
+      <span className="mr-2 shrink-0 text-xs font-medium text-muted-foreground">
+        Projects <span className="sr-only">已打开项目</span>
       </span>
       {openProjectIds.map((projectId) => {
         const project = projects.find((item) => item.id === projectId);
@@ -35,15 +35,15 @@ export function OpenProjectTabs({
           <div
             key={projectId}
             className={
-              'flex h-8 min-w-[150px] max-w-[240px] items-center rounded border transition-colors ' +
+              'flex h-8 min-w-[120px] max-w-[240px] items-center rounded border transition-colors ' +
               (active
-                ? 'border-ring/35 bg-card text-primary'
+                ? 'border-ring/40 bg-card text-primary shadow-[inset_0_-2px_0_var(--ring)]'
                 : 'border-transparent bg-transparent text-muted-foreground hover:border-border hover:bg-card/80')
             }
           >
             <button
               type="button"
-              className="min-w-0 flex-1 px-2 text-left disabled:cursor-wait disabled:opacity-60"
+              className="flex h-full min-w-0 flex-1 items-center px-2 text-left disabled:cursor-wait disabled:opacity-60"
               disabled={disabled}
               aria-current={active ? 'page' : undefined}
               onClick={() => {
@@ -66,7 +66,7 @@ export function OpenProjectTabs({
               aria-label={`Close ${project.name} tab`}
               title="Close tab only / 仅关闭标签"
             >
-              <X className="size-3" />
+              <X aria-hidden="true" className="size-3" />
             </button>
           </div>
         );

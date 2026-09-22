@@ -165,6 +165,8 @@ export function ProjectSearch({
         <input
           ref={input}
           role="combobox"
+          name="project-search"
+          spellCheck={false}
           aria-label="Search projects by proposal number, name, or workflow"
           aria-controls={listId}
           aria-expanded={visible}
@@ -176,8 +178,8 @@ export function ProjectSearch({
           }
           aria-busy={busy}
           autoComplete="off"
-          placeholder="Proposal / project / workflow"
-          className="h-8 w-full min-w-0 rounded-md border border-input bg-background py-1 pl-8 pr-8 text-xs outline-none placeholder:text-muted-foreground/75 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-60"
+          placeholder="Proposal / project / workflow…"
+          className="h-8 w-full min-w-0 rounded-md border border-input bg-background py-1 pl-8 pr-8 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-60"
           value={query}
           disabled={disabled}
           readOnly={busy}

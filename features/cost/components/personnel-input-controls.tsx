@@ -85,13 +85,13 @@ const money = (value: number) =>
     maximumFractionDigits: 2,
   });
 const gridInput =
-  'h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-2 py-0 text-[11px] shadow-none focus-visible:bg-white focus-visible:ring-1';
+  'h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-2 py-0 text-xs shadow-none focus-visible:bg-white focus-visible:ring-1';
 const gridSelect =
-  'h-8 w-full min-w-0 border-0 bg-transparent px-1 text-[11px] outline-none focus:bg-white disabled:opacity-60';
+  'h-8 w-full min-w-0 border-0 bg-transparent px-1 text-xs outline-none focus:bg-white disabled:opacity-60';
 const cell = 'border-r border-border px-2 py-0 text-right tabular-nums';
 const inputCell = 'border-r border-border p-0';
 const scopeCell =
-  'sticky left-0 z-10 w-[180px] min-w-[180px] border-r border-border bg-card p-0';
+  'sm:sticky sm:left-0 z-10 w-[180px] min-w-[180px] border-r border-border bg-card p-0';
 const amountValid = (value: number, integer = false) =>
   Number.isFinite(value) &&
   value >= 0 &&
@@ -652,7 +652,7 @@ export function PersonnelLinesTable({
       const up = displayedRows[position - 1],
         down = displayedRows[position + 1];
       className =
-        'sticky right-0 z-10 border-l border-border bg-card px-1 py-0 text-center';
+        'sm:sticky sm:right-0 z-10 border-l border-border bg-card px-1 py-0 text-center';
       content = (
         <div className="flex h-8 items-center justify-center gap-0">
           <button
@@ -741,7 +741,7 @@ export function PersonnelLinesTable({
   };
   return (
     <Table
-      className="w-max min-w-full text-[11px]"
+      className="w-max min-w-full text-xs"
       onDragEnd={(event) => {
         event.currentTarget
           .querySelectorAll('[data-drop-position]')
@@ -765,7 +765,7 @@ export function PersonnelLinesTable({
                   minWidth: columnWidth(segment.ids[0]),
                   maxWidth: columnWidth(segment.ids[0]),
                 }}
-                className={`h-8 border-r border-border px-2 ${segment.ids[0] === 'action' ? 'sticky right-0 z-20 border-l bg-muted' : segment.ids[0] === 'scope' && columns[0] === 'scope' ? 'sticky left-0 z-20 bg-muted' : ''}`}
+                className={`h-8 border-r border-border px-2 ${segment.ids[0] === 'action' ? 'sm:sticky sm:right-0 z-20 border-l bg-muted' : segment.ids[0] === 'scope' && columns[0] === 'scope' ? 'sm:sticky sm:left-0 z-20 bg-muted' : ''}`}
               >
                 {getPersonnelColumnSpec(segment.ids[0])?.label}
               </TableHead>
@@ -784,7 +784,7 @@ export function PersonnelLinesTable({
           )}
         </TableRow>
         {hasAnnual && (
-          <TableRow className="h-7 bg-muted">
+          <TableRow className="h-8 bg-muted">
             {columns
               .filter((id) => annualColumn(id))
               .map((id) => {
@@ -794,7 +794,7 @@ export function PersonnelLinesTable({
                     key={id}
                     data-personnel-column={id}
                     style={{ minWidth: columnWidth(id) }}
-                    className="h-7 border-r border-border px-2 text-right"
+                    className="h-8 border-r border-border px-2 text-right"
                   >
                     {getPersonnelAnnualColumnLabel(annual.field)}
                   </TableHead>
@@ -875,13 +875,13 @@ export function PersonnelLinesTable({
                       title={title}
                       maxLength={200}
                       disabled={locked || !onRenameGroup}
-                      className="h-7 w-[260px] rounded-sm border-transparent bg-transparent px-1 text-[11px] font-semibold text-primary focus-visible:bg-white"
+                      className="h-8 w-[260px] rounded-sm border-transparent bg-transparent px-1 text-xs font-semibold text-primary focus-visible:bg-white"
                     />
                     <Button
                       type="submit"
                       variant="ghost"
                       size="sm"
-                      className="h-6 gap-1 px-1 text-[10px]"
+                      className="h-6 gap-1 px-1 text-xs"
                       disabled={locked || !onRenameGroup}
                       aria-label={`Save group name ${title}`}
                       title="Renaming to an existing group merges these rows into it."
@@ -889,7 +889,7 @@ export function PersonnelLinesTable({
                       <Save className="size-3" />
                       Save / Merge
                     </Button>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                    <span className="shrink-0 text-xs text-muted-foreground">
                       {entry.rowIds.length}{' '}
                       {entry.rowIds.length === 1 ? 'row' : 'rows'}
                     </span>
@@ -990,9 +990,9 @@ export function PersonnelLinesTable({
                   data-personnel-column={id}
                   className={
                     id === 'action'
-                      ? 'sticky right-0 z-10 border-l border-border bg-muted px-1 py-0'
+                      ? 'sm:sticky sm:right-0 z-10 border-l border-border bg-muted px-1 py-0'
                       : id === 'scope' && columns[0] === 'scope'
-                        ? 'sticky left-0 z-10 border-r border-border bg-muted px-2 py-0'
+                        ? 'sm:sticky sm:left-0 z-10 border-r border-border bg-muted px-2 py-0'
                         : cell
                   }
                 >
@@ -1040,7 +1040,7 @@ export function PersonnelAllowanceOptions({
 }) {
   return (
     <div className="border-b border-border px-3 py-1.5">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span className="font-medium">3% Allowance</span>
         {PERSONNEL_POOLS.map((pool) => (
           <label key={pool} className="flex items-center gap-1.5">
@@ -1058,7 +1058,7 @@ export function PersonnelAllowanceOptions({
         ))}
       </div>
       {partialLegacy && (
-        <p className="mt-1 text-[10px] text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           Existing individual selections are retained until edited. Changing
           these choices applies 3% to all RE Types in the selected Pools.
         </p>

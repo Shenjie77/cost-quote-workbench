@@ -6,6 +6,14 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-info: var(--info);
+  --color-info-muted: var(--info-muted);
+  --color-danger-muted: var(--danger-muted);
+  --color-grid: var(--grid);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-workbench-sans);
   --font-mono: var(--font-workbench-mono);
@@ -55,7 +63,8 @@
     'Microsoft YaHei', Arial, sans-serif;
   --font-workbench-mono:
     'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  --background: #f4f6f8;
+  color-scheme: light;
+  --background: #f3f5f7;
   --foreground: #203142;
   --card: #ffffff;
   --card-foreground: #203142;
@@ -66,12 +75,12 @@
   --secondary: #edf2f6;
   --secondary-foreground: #25455b;
   --muted: #f0f3f6;
-  --muted-foreground: #647587;
+  --muted-foreground: #536779;
   --accent: #e7f3f2;
   --accent-foreground: #126a70;
   --destructive: #b5454d;
   --border: #dfe6ed;
-  --input: #ced8e1;
+  --input: #7d8e9e;
   --ring: #177c80;
   --chart-1: #183c51;
   --chart-2: #177c80;
@@ -79,6 +88,14 @@
   --chart-4: #6f817b;
   --chart-5: #9b9386;
   --radius: 0.5rem;
+  --grid: #d6e0e7;
+  --success: #256044;
+  --success-muted: #edf5f0;
+  --warning: #87530d;
+  --warning-muted: #fff5e5;
+  --info: #2d617e;
+  --info-muted: #edf3f8;
+  --danger-muted: #fceeed;
   --sidebar: #142d3e;
   --sidebar-foreground: #eaf0f2;
   --sidebar-primary: #e6f3f2;
@@ -90,6 +107,15 @@
 }
 
 .dark {
+  color-scheme: dark;
+  --grid: #394856;
+  --success: #99d5b0;
+  --success-muted: #20392b;
+  --warning: #f4c879;
+  --warning-muted: #3c301c;
+  --info: #a9cbe5;
+  --info-muted: #233747;
+  --danger-muted: #48272d;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -133,10 +159,36 @@
     min-width: 320px;
     font-family: var(--font-workbench-sans);
     font-size: 14px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
   html {
     @apply font-sans;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+    scroll-margin-top: 8rem;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  summary {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: color-mix(
+      in srgb,
+      var(--ring) 16%,
+      transparent
+    );
+    scroll-margin-block: 8rem 3rem;
+  }
+  select {
+    background-color: var(--card);
+    color: var(--foreground);
   }
   button,
   [role='button'] {
@@ -154,7 +206,9 @@
     select,
     textarea,
     [role='button'],
-    [role='tab']
+    [role='tab'],
+    summary,
+    [tabindex='0']
   ):focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 3px;
@@ -163,6 +217,22 @@
 
 /* Feature pages share surfaces without coupling their state or business actions. */
 @layer components {
+  /* Keyboard users can bypass repeated navigation without changing the view hash. */
+  .wb-skip-link {
+    position: fixed;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 100;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    transform: translateY(-200%);
+  }
+  .wb-skip-link:focus {
+    transform: translateY(0);
+  }
+
   .wb-panel {
     min-width: 0;
     border: 1px solid var(--border);
@@ -185,7 +255,7 @@
     max-width: 100%;
     overflow: auto;
     overscroll-behavior-inline: contain;
-    scrollbar-color: #bac8d3 transparent;
+    scrollbar-color: var(--input) transparent;
     scrollbar-width: thin;
   }
 
@@ -215,7 +285,7 @@
   }
 
   .workbench-scrollbar {
-    scrollbar-color: #bac8d3 transparent;
+    scrollbar-color: var(--input) transparent;
     scrollbar-width: thin;
   }
 }
@@ -247,4 +317,38 @@
 ::selection {
   background: #d6eeec;
   color: #163f50;
+}
+
+/* Wide editable grids retain their shape; focused cells remain distinguishable while scrolling. */
+[data-slot='table'] {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+[data-slot='table-row']:focus-within {
+  background-color: color-mix(in srgb, var(--accent) 48%, var(--card));
+}
+[data-slot='dialog-content'],
+[data-slot='alert-dialog-content'],
+[data-slot='sheet-content'],
+[data-slot='select-content'] {
+  overscroll-behavior: contain;
+}
+
+/* Coarse pointers get comfortable targets without inflating desktop financial grids. */
+@media (pointer: coarse) {
+  [data-slot='button'],
+  [data-slot='select-trigger'],
+  [data-slot='tabs-trigger'],
+  [data-slot='input'],
+  .wb-navigation-button {
+    min-height: 44px;
+  }
+  [data-slot='button']:has(> svg:only-child) {
+    min-width: 44px;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }

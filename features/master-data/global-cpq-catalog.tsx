@@ -34,7 +34,7 @@ export function GlobalCpqCatalog({
   return (
     <>
       <div className="wb-toolbar justify-between border-b text-xs">
-        <span>Global CPQ catalog / 全局 CPQ 目录 · 项目配置保存独立副本</span>
+        <span>{rows.length} records / 条记录 · 项目配置保存独立副本</span>
         <Button
           size="sm"
           onClick={() =>
@@ -61,7 +61,7 @@ export function GlobalCpqCatalog({
           <Plus /> Add / 新增
         </Button>
       </div>
-      <div className="wb-table-scroll">
+      <div className="min-w-0">
         <Table className="min-w-[1500px] text-xs">
           <TableHeader>
             <TableRow>
@@ -91,7 +91,11 @@ export function GlobalCpqCatalog({
                 {(['code', 'scope', 'unit'] as const).map((field) => (
                   <TableCell key={field}>
                     <Input
-                      className={field === 'scope' ? 'min-w-64' : 'min-w-24'}
+                      className={
+                        field === 'scope'
+                          ? 'h-8 min-w-64 text-xs'
+                          : `h-8 min-w-24 text-xs ${field === 'code' ? 'font-semibold' : ''}`
+                      }
                       aria-label={`${row.code} ${field}`}
                       value={row[field]}
                       onChange={(e) =>
@@ -102,7 +106,7 @@ export function GlobalCpqCatalog({
                 ))}
                 <TableCell>
                   <Input
-                    className="min-w-24"
+                    className="financial-numeral h-8 min-w-24 text-xs"
                     type="number"
                     min={0.01}
                     step="0.01"
@@ -120,7 +124,7 @@ export function GlobalCpqCatalog({
                 </TableCell>
                 <TableCell>
                   <select
-                    className="h-9 rounded-md border border-input bg-background px-2"
+                    className="h-8 rounded-md border border-input bg-background px-2"
                     aria-label={`${row.code} kind`}
                     value={row.kind}
                     onChange={(e) =>
@@ -151,7 +155,7 @@ export function GlobalCpqCatalog({
                   (field) => (
                     <TableCell key={field}>
                       <Input
-                        className="min-w-20"
+                        className="financial-numeral h-8 min-w-20 text-right text-xs"
                         type="number"
                         min={field === 'step' ? 0.0001 : 0}
                         step="any"
@@ -172,7 +176,7 @@ export function GlobalCpqCatalog({
                 {(['tags', 'revision'] as const).map((field) => (
                   <TableCell key={field}>
                     <Input
-                      className="min-w-24"
+                      className="financial-numeral h-8 min-w-24 text-xs"
                       aria-label={`${row.code} ${field}`}
                       value={row[field]}
                       onChange={(e) =>

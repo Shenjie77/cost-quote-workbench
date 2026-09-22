@@ -194,7 +194,7 @@ export function VersionComparisonView({
                   </SelectContent>
                 </Select>
               </TableCell>
-              <TableCell className="financial-numeral text-[10px] text-muted-foreground">
+              <TableCell className="financial-numeral text-xs text-muted-foreground">
                 {record.sourceVersion || '—'}
               </TableCell>
               <TableCell className="financial-numeral text-right">

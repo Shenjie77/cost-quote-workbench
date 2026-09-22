@@ -108,7 +108,7 @@ type Props = {
 
 /** Editable cells stay compact while exposing a clear hover and keyboard-focus target. */
 const denseInput =
-  'h-9 min-w-20 rounded-md border border-transparent bg-transparent px-2 text-xs shadow-none hover:border-input hover:bg-background focus-visible:relative focus-visible:z-20 focus-visible:bg-background focus-visible:ring-2';
+  'h-8 min-w-20 rounded-sm border border-transparent bg-transparent px-2 text-xs shadow-none hover:border-input hover:bg-background focus-visible:relative focus-visible:z-20 focus-visible:bg-background focus-visible:ring-2';
 
 /** Browser-generated IDs remain unique after rows are deleted and re-added. */
 const newRecordId = (prefix: string) =>
@@ -144,7 +144,7 @@ function EditCell({
 }) {
   return (
     <Input
-      className={denseInput}
+      className={`${denseInput} ${type === 'number' ? 'financial-numeral text-right' : ''}`}
       type={type}
       value={value}
       aria-label={ariaLabel}
@@ -641,61 +641,6 @@ export function MasterDataView(props: Props) {
   return (
     <div className="wb-page-stack min-w-0 gap-2">
       <section className="wb-panel min-w-0 overflow-hidden">
-        <SectionHeading
-          index="01"
-          title="Master Data"
-          titleZh={workflow ? '' : '基础数据管理'}
-          action={
-            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="h-8 bg-background pl-8 text-sm"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  aria-label="Search current master-data tab"
-                  placeholder={
-                    workflow
-                      ? 'Search Workflow Steps'
-                      : 'Search this tab / 搜索当前页签'
-                  }
-                />
-              </div>
-              {props.bulkActions}
-              <Button
-                size="sm"
-                disabled={editingDisabled || profitShareErrors.length > 0}
-                onClick={async () => {
-                  if (profitShareErrors.length) return;
-                  if (await onSave())
-                    announce(
-                      workflow
-                        ? 'Workflow template saved.'
-                        : 'Global master data saved / 全局主数据已保存。',
-                    );
-                }}
-              >
-                <Save /> {currentSaveLabel}
-              </Button>
-            </div>
-          }
-        />
-        <details className="border-t px-3 py-1.5 text-xs text-muted-foreground">
-          <summary className="cursor-pointer">
-            Scope & update rules{workflow ? '' : ' / 适用范围与更新规则'}
-          </summary>
-          <p className="mt-1 leading-5">
-            {workflow
-              ? 'Configure the global workflow and preview changes before publishing to ongoing projects.'
-              : 'Global reference data for future projects. Existing project and cost-version snapshots stay unchanged. 全局主数据供未来项目使用；已有项目及成本版本保留采用时的数据快照。'}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            {workflow
-              ? 'Publishing updates pending steps in ongoing projects. Active deadlines are retained unless explicitly recalculated; completed history and cost snapshots remain unchanged.'
-              : 'Global / 全局共享 · 新项目取得独立副本。已有 Draft 也不会自动更新汇率；如需采用新汇率，请在目标成本版本明确应用。'}
-          </p>
-        </details>
-
         <Tabs
           value={activeTab === 'status' ? 'workflow' : activeTab}
           onValueChange={(value) => {
@@ -704,12 +649,12 @@ export function MasterDataView(props: Props) {
             setQuery('');
           }}
         >
-          <div className="border-y border-border px-2 py-1.5">
-            <div className="wb-table-scroll pb-1">
+          <div className="border-b border-border px-2 py-1.5">
+            <div className="wb-table-scroll">
               <TabsList
-                variant="default"
+                variant="line"
                 aria-label="Master Data libraries"
-                className="min-w-max justify-start gap-1 rounded-md bg-muted/30 p-0.5 group-data-horizontal/tabs:h-auto"
+                className="min-w-max justify-start gap-1 rounded-none bg-transparent p-0 group-data-horizontal/tabs:h-auto"
               >
                 {masterDataTabs
                   .filter((tab) => tab.value !== 'status')
@@ -717,15 +662,15 @@ export function MasterDataView(props: Props) {
                     <TabsTrigger
                       key={tab.value}
                       value={tab.value}
-                      className="h-8 flex-none gap-1.5 rounded px-2 text-xs data-active:bg-primary data-active:text-primary-foreground"
+                      className="h-8 flex-none gap-1.5 rounded px-2 text-xs data-active:bg-accent data-active:text-primary"
                     >
                       {tab.label}
-                      <span className="text-[11px] opacity-70">
+                      <span className="text-xs opacity-70">
                         {workflow && tab.value === 'workflow'
                           ? ''
                           : tab.labelZh}
                       </span>
-                      <span className="financial-numeral rounded-md bg-current/10 px-1.5 py-0.5 text-[11px]">
+                      <span className="financial-numeral rounded-md bg-current/10 px-1.5 py-0.5 text-xs">
                         {tabCounts[tab.value]}
                       </span>
                     </TabsTrigger>
@@ -733,7 +678,57 @@ export function MasterDataView(props: Props) {
               </TabsList>
             </div>
           </div>
-          <fieldset disabled={editingDisabled} className="min-w-0 border-0 p-0">
+          {/* Keep the active library tools directly above its editable grid. */}
+          <SectionHeading
+            title={
+              masterDataTabs.find((tab) => tab.value === activeTab)?.label ||
+              'Master Data'
+            }
+            titleZh={
+              workflow
+                ? ''
+                : masterDataTabs.find((tab) => tab.value === activeTab)
+                    ?.labelZh || ''
+            }
+            action={
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    className="h-8 bg-background pl-8 text-sm"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    aria-label="Search current master-data tab"
+                    placeholder={
+                      workflow
+                        ? 'Search Workflow Steps'
+                        : 'Search this tab / 搜索当前页签'
+                    }
+                  />
+                </div>
+                {props.bulkActions}
+                <Button
+                  size="sm"
+                  disabled={editingDisabled || profitShareErrors.length > 0}
+                  onClick={async () => {
+                    if (profitShareErrors.length) return;
+                    if (await onSave())
+                      announce(
+                        workflow
+                          ? 'Workflow template saved.'
+                          : 'Global master data saved / 全局主数据已保存。',
+                      );
+                  }}
+                >
+                  <Save /> {currentSaveLabel}
+                </Button>
+              </div>
+            }
+          />
+          <fieldset
+            disabled={editingDisabled}
+            className="min-w-0 border-0 p-0 [&_td:first-child_input]:font-semibold"
+          >
             <TabsContent value="cpq-catalog" className="mt-0">
               <GlobalCpqCatalog
                 items={catalog}
@@ -767,8 +762,8 @@ export function MasterDataView(props: Props) {
                   </Button>
                 </div>
               </div>
-              <div className="wb-table-scroll">
-                <Table className="min-w-[820px] text-[11px]">
+              <div className="min-w-0">
+                <Table className="min-w-[820px] text-xs">
                   <TableHeader>
                     <TableRow className="bg-muted/60 hover:bg-muted/60">
                       <TableHead className="w-60">Code / 系统编码</TableHead>
@@ -885,8 +880,8 @@ export function MasterDataView(props: Props) {
                     </Button>
                   </div>
                 </div>
-                <div className="wb-table-scroll">
-                  <Table className="min-w-[1480px] text-[11px]">
+                <div className="min-w-0">
+                  <Table className="min-w-[1480px] text-xs">
                     <TableHeader>
                       <TableRow className="bg-muted/60">
                         {[
@@ -1031,7 +1026,7 @@ export function MasterDataView(props: Props) {
             </TabsContent>
             <TabsContent value="subcontract" className="mt-0">
               <TableToolbar count={subcontract.length} onAdd={addSubcontract} />
-              <div className="wb-table-scroll">
+              <div className="min-w-0">
                 <Table className="min-w-[1000px]">
                   <TableHeader>
                     <TableRow className="bg-muted/60">
@@ -1158,7 +1153,7 @@ export function MasterDataView(props: Props) {
                 count={supplemental.length}
                 onAdd={addSupplemental}
               />
-              <div className="wb-table-scroll">
+              <div className="min-w-0">
                 <Table className="min-w-[900px]">
                   <TableHeader>
                     <TableRow className="bg-muted/60">
@@ -1303,7 +1298,7 @@ export function MasterDataView(props: Props) {
                   </Button>
                 </div>
               </div>
-              <div className="wb-table-scroll">
+              <div className="min-w-0">
                 <Table className="min-w-[1400px]">
                   <TableHeader>
                     <TableRow className="bg-muted/60">
@@ -1504,6 +1499,21 @@ export function MasterDataView(props: Props) {
             </TabsContent>
           </fieldset>
         </Tabs>
+        <details className="border-t px-3 py-1.5 text-xs text-muted-foreground">
+          <summary className="cursor-pointer">
+            Scope & update rules{workflow ? '' : ' / 适用范围与更新规则'}
+          </summary>
+          <p className="mt-1 leading-5">
+            {workflow
+              ? 'Configure the global workflow and preview changes before publishing to ongoing projects.'
+              : 'Global reference data for future projects. Existing project and cost-version snapshots stay unchanged. 全局主数据供未来项目使用；已有项目及成本版本保留采用时的数据快照。'}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            {workflow
+              ? 'Publishing updates pending steps in ongoing projects. Active deadlines are retained unless explicitly recalculated; completed history and cost snapshots remain unchanged.'
+              : 'Global / 全局共享 · 新项目取得独立副本。已有 Draft 也不会自动更新汇率；如需采用新汇率，请在目标成本版本明确应用。'}
+          </p>
+        </details>
       </section>
     </div>
   );

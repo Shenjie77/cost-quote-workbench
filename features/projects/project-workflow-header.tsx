@@ -46,6 +46,7 @@ export function projectReferenceLinkErrors(
   );
 }
 
+/** Render a readable web link or the saved reference status without changing the underlying value. */
 function ReferenceLink({ label, value }: { label: string; value?: string }) {
   const href = safeProjectReferenceUrl(value);
   return href ? (
@@ -55,7 +56,7 @@ function ReferenceLink({ label, value }: { label: string; value?: string }) {
       rel="noopener noreferrer"
       aria-label={`Open ${label} in a new tab`}
       title={href}
-      className="inline-flex min-h-7 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary underline-offset-4 hover:bg-primary/5 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+      className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary underline-offset-4 hover:bg-primary/5 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
     >
       {label}
       <ArrowUpRight className="size-3" aria-hidden="true" />
@@ -70,6 +71,7 @@ function ReferenceLink({ label, value }: { label: string; value?: string }) {
   );
 }
 
+/** Keep long saved references available through a native disclosure. */
 function ReferenceText({ label, value }: { label: string; value?: string }) {
   const text = value?.trim() || 'Not set';
   return text.length > 180 ? (
@@ -118,14 +120,14 @@ export function ProjectWorkflowInfoFields({
   return (
     <form
       aria-label="Edit Project Info"
-      className="mt-4 border-t border-border pt-4"
+      className="mt-3 border-t border-border pt-3"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
         if (canSave) void onSave();
       }}
     >
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <label className="grid gap-1 text-xs font-medium">
           Proposal Number
           <Input
@@ -192,7 +194,7 @@ export function ProjectWorkflowInfoFields({
           Scope Brief
           <textarea
             aria-label="Scope Brief"
-            className="min-h-24 w-full resize-y rounded-lg border border-input bg-white px-3 py-2.5 text-sm font-normal leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-55"
+            className="min-h-20 w-full resize-y rounded-lg border border-input bg-background px-3 py-2.5 text-sm font-normal leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-55"
             rows={2}
             value={value.scopeBrief}
             maxLength={10000}
@@ -203,7 +205,7 @@ export function ProjectWorkflowInfoFields({
           />
         </label>
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button type="submit" size="sm" disabled={!canSave}>
           Save Info
         </Button>
@@ -282,6 +284,7 @@ export type ProjectWorkflowHeaderProps = {
   onSetHold?: (onHold: boolean) => Promise<void>;
 };
 
+/** Group project navigation, monitoring and reference editing in the shared compact header. */
 export function ProjectWorkflowHeader({
   project,
   round,
@@ -353,7 +356,7 @@ export function ProjectWorkflowHeader({
   return (
     <section
       aria-label="Project Workflow Info"
-      className="min-w-0 border-b border-border px-1 py-2"
+      className="wb-panel min-w-0 px-3 py-2"
     >
       <div className="flex flex-wrap items-center gap-3">
         <Button
@@ -417,7 +420,7 @@ export function ProjectWorkflowHeader({
         </div>
         <Button
           variant="ghost"
-          size="xs"
+          size="sm"
           className="ml-auto"
           disabled={disabled}
           aria-expanded={editing}

@@ -332,7 +332,7 @@ export function SubcontractCatalogSelection({
             )}
           </span>
           {unpriced > 0 && (
-            <span className="mt-1 block text-[11px] text-amber-700">
+            <span className="mt-1 block text-xs text-amber-700">
               {unpriced} unpriced · Add as draft and set prices in the BOQ.
             </span>
           )}
@@ -395,19 +395,19 @@ export function SubcontractCatalogOption({
         >
           {item.item}
         </span>
-        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
-          <strong className="break-all rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-900">
+        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+          <strong className="break-all rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-bold text-slate-900">
             {item.code}
           </strong>
           {alreadyAdded && (
-            <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+            <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-xs font-medium text-slate-600">
               Added
             </span>
           )}
           <span>{item.bu}</span>
         </span>
         {restriction && (
-          <span className="mt-1.5 block text-[11px] leading-4 text-amber-700">
+          <span className="mt-1.5 block text-xs leading-4 text-amber-700">
             {restriction}
           </span>
         )}
@@ -423,7 +423,7 @@ export function SubcontractCatalogOption({
                 maximumFractionDigits: 2,
               })}
         </span>
-        <span className="block text-[10px] text-slate-500">
+        <span className="block text-xs text-slate-500">
           {item.currency} / {item.unit || 'unit not set'}
         </span>
       </span>

@@ -23,17 +23,20 @@ export function OperationNotice({
     <output
       aria-live="polite"
       aria-atomic="true"
-      className="fixed right-4 bottom-4 z-[70] flex w-fit max-w-[min(440px,calc(100vw-32px))] items-start gap-3 rounded-xl border border-primary/25 bg-primary px-4 py-3.5 text-[13px] leading-5 text-primary-foreground shadow-xl"
+      className="fixed right-4 bottom-4 z-[70] flex w-fit max-w-[min(440px,calc(100vw-32px))] items-start gap-3 rounded-lg border border-primary/25 bg-primary px-4 py-3 text-[13px] leading-5 text-primary-foreground shadow-xl"
     >
-      <CircleAlert className="mt-0.5 size-4 shrink-0 text-[#b9d7d5]" />
+      <CircleAlert
+        aria-hidden="true"
+        className="mt-0.5 size-4 shrink-0 text-primary-foreground/80"
+      />
       <span className="min-w-0 whitespace-pre-wrap break-words">{message}</span>
       <button
         type="button"
         aria-label="Close notice"
         onClick={onDismiss}
-        className="shrink-0 rounded-md p-1 text-[#b9c9d0] hover:bg-white/10 hover:text-white"
+        className="shrink-0 rounded-md p-1 text-primary-foreground/80 hover:bg-white/10 hover:text-white"
       >
-        <X className="size-3.5" />
+        <X aria-hidden="true" className="size-3.5" />
       </button>
     </output>
   );

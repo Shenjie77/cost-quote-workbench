@@ -154,7 +154,7 @@ export function AdditionalTravelTable({
           <BiText
             en="Included Travel"
             zh="计入固定价成本"
-            className="text-[10px] text-muted-foreground"
+            className="text-xs text-muted-foreground"
           />
           <p className="financial-numeral mt-1 text-lg font-semibold">
             {formatSgd(treatmentTotals.included)}
@@ -164,7 +164,7 @@ export function AdditionalTravelTable({
           <BiText
             en="Reimbursable"
             zh="实报实销"
-            className="text-[10px] text-muted-foreground"
+            className="text-xs text-muted-foreground"
           />
           <p className="financial-numeral mt-1 text-lg font-semibold text-primary">
             {formatSgd(treatmentTotals.reimbursable)}
@@ -174,7 +174,7 @@ export function AdditionalTravelTable({
           <BiText
             en="Excluded"
             zh="报价排除"
-            className="text-[10px] text-muted-foreground"
+            className="text-xs text-muted-foreground"
           />
           <p className="financial-numeral mt-1 text-lg font-semibold text-muted-foreground">
             {formatSgd(treatmentTotals.excluded)}
@@ -184,7 +184,7 @@ export function AdditionalTravelTable({
           <BiText
             en="Travel Annual Uplift"
             zh="差旅年度浮动"
-            className="text-[10px] text-muted-foreground"
+            className="text-xs text-muted-foreground"
           />
           <div className="relative mt-2 max-w-[140px]">
             <Input
@@ -427,7 +427,7 @@ export function AdditionalTravelTable({
         </Table>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-3">
-        <div className="flex items-center gap-2 text-[10px] leading-4 text-muted-foreground">
+        <div className="flex items-center gap-2 text-xs leading-4 text-muted-foreground">
           <Plane className="size-4 text-primary" />
           Included travel enters the cost baseline; reimbursable and excluded
           items remain separate.

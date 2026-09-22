@@ -119,7 +119,7 @@ export function CpqView({
     });
   return (
     <div className="wb-page-stack text-sm">
-      <div className="wb-toolbar justify-between rounded-md py-2">
+      <div className="wb-toolbar justify-between rounded-md border">
         <p className="text-xs text-muted-foreground">
           输入简短范围，筛选条目后计算服务数量。设备数量保持固定。
         </p>
@@ -155,7 +155,7 @@ export function CpqView({
               Apply global catalog to this draft / 将全局目录应用到本草稿
             </Button>
           )}
-          <div className="wb-table-scroll">
+          <div className="min-w-0">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -175,10 +175,14 @@ export function CpqView({
               <TableBody>
                 {value.catalog.map((row) => (
                   <TableRow key={row.code}>
-                    <TableCell>{row.code}</TableCell>
-                    <TableCell>{row.scope}</TableCell>
+                    <TableCell className="font-semibold">{row.code}</TableCell>
+                    <TableCell className="max-w-xl whitespace-normal">
+                      {row.scope}
+                    </TableCell>
                     <TableCell>{row.unit}</TableCell>
-                    <TableCell>{money(row.unitCost)}</TableCell>
+                    <TableCell className="financial-numeral text-right">
+                      {money(row.unitCost)}
+                    </TableCell>
                     <TableCell>{row.kind}</TableCell>
                     <TableCell>{row.adjustable ? 'Yes' : 'No'}</TableCell>
                     <TableCell>{row.revision}</TableCell>
@@ -202,72 +206,107 @@ export function CpqView({
               value={draft.brief}
               onChange={(e) => update({ brief: e.target.value })}
             />
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" onClick={() => setShowAll(!showAll)}>
                 {showAll
                   ? 'Recommended / 返回候选'
                   : 'Browse catalog / 浏览全部目录'}
               </Button>
-              <span className="self-center text-muted-foreground">
-                本地按关键词推荐；Skill 可结合描述分析并说明候选依据。
+              <span className="self-center text-xs text-muted-foreground">
+                按范围推荐条目，也可浏览目录自行选择。
               </span>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>选择</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Scope</TableHead>
-                  <TableHead>Unit cost</TableHead>
-                  <TableHead>Qty rule</TableHead>
-                  <TableHead>Reason</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {display.map(({ item: row, reason }) => (
-                  <TableRow key={row.code}>
-                    <TableCell>
-                      <Checkbox
-                        checked={draft.selections.some(
-                          (s) => s.code === row.code,
-                        )}
-                        onCheckedChange={(v) => toggle(row, Boolean(v), reason)}
-                        aria-label={`Select ${row.code}`}
-                      />
-                    </TableCell>
-                    <TableCell>{row.code}</TableCell>
-                    <TableCell className="max-w-md whitespace-normal">
-                      {row.scope}
-                    </TableCell>
-                    <TableCell>
-                      {money(row.unitCost)} / {row.unit}
-                    </TableCell>
-                    <TableCell>
-                      {row.kind === 'equipment' || !row.adjustable
-                        ? 'Fixed / 固定'
-                        : 'Service / 可调服务'}
-                    </TableCell>
-                    <TableCell className="max-w-sm whitespace-normal text-muted-foreground">
-                      {reason}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!display.length && (
+            <div className="min-w-0 border-y border-border">
+              <Table
+                className="min-w-[680px]"
+                containerClassName="max-h-80"
+                aria-label="CPQ candidates / 候选条目"
+              >
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6}>
-                      {value.catalog.length
-                        ? '没有匹配候选，可浏览目录手动选择。'
-                        : '请先录入条目目录，也可通过 Skill 导入。'}
-                    </TableCell>
+                    <TableHead>选择</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Scope</TableHead>
+                    <TableHead className="text-right">Unit cost</TableHead>
+                    <TableHead>Qty rule</TableHead>
+                    <TableHead>Reason</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {display.map(({ item: row, reason }) => (
+                    <TableRow key={row.code}>
+                      <TableCell>
+                        <Checkbox
+                          checked={draft.selections.some(
+                            (s) => s.code === row.code,
+                          )}
+                          onCheckedChange={(v) =>
+                            toggle(row, Boolean(v), reason)
+                          }
+                          aria-label={`Select ${row.code}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-semibold">
+                        {row.code}
+                      </TableCell>
+                      <TableCell className="max-w-md whitespace-normal">
+                        {row.scope}
+                      </TableCell>
+                      <TableCell className="financial-numeral text-right">
+                        {money(row.unitCost)} / {row.unit}
+                      </TableCell>
+                      <TableCell>
+                        {row.kind === 'equipment' || !row.adjustable
+                          ? 'Fixed / 固定'
+                          : 'Service / 可调服务'}
+                      </TableCell>
+                      <TableCell className="max-w-sm whitespace-normal text-muted-foreground">
+                        {reason}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!display.length && (
+                    <TableRow>
+                      <TableCell colSpan={6}>
+                        {value.catalog.length
+                          ? '没有匹配候选，可浏览目录手动选择。'
+                          : '请先录入条目目录，也可通过 Skill 导入。'}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </section>
           <section className="wb-panel space-y-3 p-3">
-            <h3 className="text-sm font-semibold text-primary">
-              2. Confirm items / 确认条目与固定数量
-            </h3>
+            {/* Confirmation stays next to the selected rows, including on long lists. */}
+            <div className="wb-toolbar -mx-3 -mt-3 justify-between border-b">
+              <h3 className="text-sm font-semibold text-primary">
+                2. Confirm items / 确认条目与固定数量
+              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  className="h-8 max-w-40 text-xs"
+                  aria-label="Confirmed by"
+                  placeholder="Confirmed by / 确认人"
+                  value={confirmer}
+                  onChange={(e) => setConfirmer(e.target.value)}
+                />
+                <Button
+                  disabled={!draft.selections.length}
+                  onClick={() =>
+                    run(() => onChange(confirmMapping(value, confirmer)))
+                  }
+                >
+                  Confirm selected items / 确认所选条目
+                </Button>
+                <span className="self-center">
+                  {confirmed
+                    ? `已确认 · ${draft.confirmation?.by}`
+                    : '待用户确认'}
+                </span>
+              </div>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -285,7 +324,7 @@ export function CpqView({
                   return (
                     <TableRow key={s.code}>
                       <TableCell className="max-w-xs whitespace-normal">
-                        {s.code} ·{' '}
+                        <strong className="font-semibold">{s.code}</strong> ·{' '}
                         {row?.scope || 'Missing catalog item / 条目缺失'}
                         <Button
                           size="sm"
@@ -314,7 +353,7 @@ export function CpqView({
                       <TableCell>
                         <Input
                           aria-label={`Quantity ${s.code}`}
-                          className="min-w-24"
+                          className="financial-numeral h-8 min-w-24 text-right text-xs"
                           type="number"
                           min="0"
                           step={row?.step || 1}
@@ -354,27 +393,6 @@ export function CpqView({
                 })}
               </TableBody>
             </Table>
-            <div className="flex flex-wrap gap-2">
-              <Input
-                className="max-w-48"
-                aria-label="Confirmed by"
-                value={confirmer}
-                onChange={(e) => setConfirmer(e.target.value)}
-              />
-              <Button
-                disabled={!draft.selections.length}
-                onClick={() =>
-                  run(() => onChange(confirmMapping(value, confirmer)))
-                }
-              >
-                Confirm selected items / 确认所选条目
-              </Button>
-              <span className="self-center">
-                {confirmed
-                  ? `已确认 · ${draft.confirmation?.by}`
-                  : '待用户确认'}
-              </span>
-            </div>
           </section>
         </div>
         <section className="wb-panel min-w-0 space-y-3 p-3">
@@ -522,20 +540,26 @@ export function CpqView({
                   <TableRow>
                     <TableHead>Code</TableHead>
                     <TableHead>Qty</TableHead>
-                    <TableHead>Unit cost</TableHead>
-                    <TableHead>Cost</TableHead>
+                    <TableHead className="text-right">Unit cost</TableHead>
+                    <TableHead className="text-right">Cost</TableHead>
                     <TableHead>Fixed</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {draft.result.lines.map((line) => (
                     <TableRow key={line.item.code}>
-                      <TableCell>{line.item.code}</TableCell>
+                      <TableCell className="font-semibold">
+                        {line.item.code}
+                      </TableCell>
                       <TableCell>
                         {line.quantity} {line.item.unit}
                       </TableCell>
-                      <TableCell>{money(line.item.unitCost)}</TableCell>
-                      <TableCell>{money(line.amount)}</TableCell>
+                      <TableCell className="financial-numeral text-right">
+                        {money(line.item.unitCost)}
+                      </TableCell>
+                      <TableCell className="financial-numeral text-right">
+                        {money(line.amount)}
+                      </TableCell>
                       <TableCell>{line.locked ? '固定' : '可调'}</TableCell>
                     </TableRow>
                   ))}
@@ -559,7 +583,7 @@ export function CpqView({
           .map((archive) => (
             <div
               key={archive.id}
-              className="wb-toolbar justify-between rounded-md border-b py-2"
+              className="wb-toolbar justify-between border-b text-xs last:border-b-0"
             >
               <span>
                 {archive.costVersion} · {archive.draft.brief} ·{' '}

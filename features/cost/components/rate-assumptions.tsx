@@ -26,7 +26,7 @@ export function RateAssumptions({
   const factors = getLabourRateFactors(settings);
   const y1IsBaseYear = y1Year !== null && y1Year === settings.baseYear;
   const inputClass =
-    'h-7 min-w-0 rounded-md bg-card px-2 text-[11px] shadow-none disabled:bg-muted/40';
+    'h-8 min-w-0 rounded-md bg-card px-2 text-xs shadow-none disabled:bg-muted/40';
   const change: React.Dispatch<React.SetStateAction<RateSettings>> = (next) => {
     if (!locked) setSettings(next);
   };
@@ -36,7 +36,7 @@ export function RateAssumptions({
       aria-label="Delivery and labour rate assumptions"
     >
       {/* Delivery dates stay beside the table; less frequent rate controls expand on request. */}
-      <header className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 sm:gap-x-4">
+      <header className="wb-toolbar min-w-0 sm:gap-x-4">
         <h2 className="text-xs font-semibold">Delivery & Rates</h2>
         {/* Date editors stay mounted and become an explicit settings row on narrow screens. */}
         <div
@@ -56,7 +56,7 @@ export function RateAssumptions({
           ).map(([key, label, inputId]) => (
             <label
               key={key}
-              className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] font-medium text-muted-foreground"
+              className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-xs font-medium text-muted-foreground"
               htmlFor={inputId}
             >
               {label}
@@ -79,7 +79,7 @@ export function RateAssumptions({
         </div>
 
         <span
-          className={`text-[11px] ${y1Year === null ? 'text-amber-700' : 'text-muted-foreground'}`}
+          className={`text-xs ${y1Year === null ? 'text-amber-700' : 'text-muted-foreground'}`}
         >
           {y1Year === null
             ? 'Set delivery start to map Y1–Y5'
@@ -89,7 +89,7 @@ export function RateAssumptions({
           type="button"
           variant="ghost"
           size="sm"
-          className="ml-auto h-7 gap-1 px-2 text-[11px]"
+          className="ml-auto h-8 gap-1 px-2 text-xs"
           aria-expanded={annualDetailsOpen}
           aria-controls="annual-rate-details delivery-date-settings"
           onClick={() => setAnnualDetailsOpen(!annualDetailsOpen)}
@@ -104,7 +104,7 @@ export function RateAssumptions({
         <div id="annual-rate-details" className="border-t">
           <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2 border-b border-border bg-muted/10 px-3 py-2">
             <label
-              className="flex min-w-0 items-center gap-2 whitespace-nowrap text-[11px] font-medium text-muted-foreground"
+              className="flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-medium text-muted-foreground"
               htmlFor="rate-base-year"
             >
               Base Year
@@ -125,7 +125,7 @@ export function RateAssumptions({
               />
             </label>
             <label
-              className="flex min-w-0 items-center gap-2 whitespace-nowrap text-[11px] font-medium text-muted-foreground"
+              className="flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-medium text-muted-foreground"
               htmlFor="default-uplift"
             >
               Default Uplift %
@@ -152,7 +152,7 @@ export function RateAssumptions({
           <div className="grid grid-cols-2 gap-3 px-3 py-2 sm:grid-cols-5">
             {actualYears.map((year, index) => (
               <div key={index} className="min-w-0">
-                <p className="whitespace-nowrap text-[10px] font-medium text-muted-foreground">
+                <p className="whitespace-nowrap text-xs font-medium text-muted-foreground">
                   Y{index + 1}
                   {year ? ` · ${year}` : ''}
                 </p>
@@ -180,7 +180,7 @@ export function RateAssumptions({
                     }))
                   }
                 />
-                <p className="mt-1 text-right text-[10px] tabular-nums text-muted-foreground">
+                <p className="mt-1 text-right text-xs tabular-nums text-muted-foreground">
                   {y1Year === null
                     ? 'Unmapped'
                     : `${factors[index].toFixed(4)}×`}
@@ -189,7 +189,7 @@ export function RateAssumptions({
             ))}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2">
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Annual uplift applies to labour only. Y1 has no uplift in the base
               year.
             </p>
@@ -197,7 +197,7 @@ export function RateAssumptions({
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 text-[11px]"
+              className="h-8 text-xs"
               disabled={locked}
               onClick={() =>
                 change((current) => ({

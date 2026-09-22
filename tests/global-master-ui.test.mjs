@@ -249,12 +249,14 @@ test('load error preserves tab navigation and disables data mutation', () => {
   );
   assert.match(markup, /offline/);
   assert.match(markup, /fieldset disabled/);
-  const nav = markup.slice(
-    markup.indexOf('role="tablist"'),
-    markup.indexOf('<fieldset'),
-  );
-  assert.match(nav, /CPQ Catalog/);
-  assert.doesNotMatch(nav, /aria-disabled="true"|\sdisabled=/);
+  // Assert actual navigation controls, independent of where the save toolbar sits.
+  const tabs = [
+    ...markup.matchAll(/<button\b[^>]*role="tab"[^>]*>[\s\S]*?<\/button>/g),
+  ].map(([button]) => button);
+  assert.equal(tabs.length, 9);
+  assert.ok(tabs.some((tab) => tab.includes('CPQ Catalog')));
+  for (const tab of tabs)
+    assert.doesNotMatch(tab, /aria-disabled="true"|\sdisabled=/);
 });
 
 test('global source conflict choice stages only the selected record and preserves original data', () => {

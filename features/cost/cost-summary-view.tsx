@@ -162,12 +162,12 @@ export function CostSummaryView({
         <Tabs defaultValue="statement">
           <div className="flex min-w-0 flex-col gap-4 border-b border-border px-5 py-4">
             <div>
-              <p className="text-[11px] font-semibold tracking-wider text-primary">
+              <p className="text-xs font-semibold tracking-wider text-primary">
                 02
               </p>
               <h2 className="mt-0.5 text-[15px] font-semibold">
                 Multidimensional Summary{' '}
-                <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
                   多维成本汇总
                 </span>
               </h2>

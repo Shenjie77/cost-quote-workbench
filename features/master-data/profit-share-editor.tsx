@@ -64,7 +64,7 @@ export function ProfitShareEditor({
           <Plus /> Add BU
         </Button>
       </div>
-      <div className="wb-table-scroll">
+      <div className="min-w-0">
         <Table className="min-w-[580px] text-xs">
           <TableHeader>
             <TableRow className="bg-muted/60">

@@ -159,7 +159,7 @@ export function QuoteLinesEditor({
       <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
         <h2 className="mr-auto text-sm font-semibold">
           Quotation details{' '}
-          <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+          <span className="ml-1 text-xs font-normal text-muted-foreground">
             报价明细
           </span>
         </h2>
@@ -206,7 +206,7 @@ export function QuoteLinesEditor({
           {lines.length} {lines.length === 1 ? 'line' : 'lines'}
         </span>
       </div>
-      <p className="px-3 py-2 text-[11px] text-muted-foreground">
+      <p className="px-3 py-2 text-xs text-muted-foreground">
         {mode === 'single'
           ? 'One service-price line; overall discount and GST are shown separately. · 整单服务总价显示一行，折扣及税额单独列出。'
           : manual
@@ -222,13 +222,16 @@ export function QuoteLinesEditor({
         </p>
       )}
       {manual && !gpBased && (
-        <p className="px-3 pb-2 text-[11px] text-muted-foreground">
+        <p className="px-3 pb-2 text-xs text-muted-foreground">
           Saved prices retained. Editing GP or line allocations applies GP
           pricing. · 已保存单价保留，修改 GP 或分配后采用新规则。
         </p>
       )}
-      <div className="max-h-[320px] overflow-auto">
+      {/* One scroll container keeps the quotation header pinned while rows scroll. */}
+      <div className="min-w-0">
         <Table
+          containerClassName="max-h-[320px]"
+          aria-label="Quotation details grid"
           className={`${manual ? 'min-w-[840px]' : 'min-w-[620px]'} [&_th]:border-r [&_th]:border-border/60 [&_th:last-child]:border-r-0 [&_td]:border-r [&_td]:border-border [&_td:last-child]:border-r-0 [&_td]:p-1.5 text-xs`}
         >
           <TableHeader className="sticky top-0 z-10 bg-muted">
@@ -387,7 +390,7 @@ export function QuoteLinesEditor({
                       aria-label={`Remove quotation line ${index + 1}`}
                       disabled={disabled}
                       onClick={() => removeLine(line.id)}
-                      className="h-7 w-7"
+                      className="h-8 w-8"
                     >
                       <Trash2 className="size-3.5" />
                     </Button>

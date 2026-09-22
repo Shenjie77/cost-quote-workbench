@@ -295,13 +295,13 @@ test('inline RE selection supports active internal types and preserves unknown o
 test('All Years keeps five inline allocations and new personnel immediately exposes editable cells', () => {
   const html = render(PersonnelLinesTable, tableProps(row()));
   assert.equal((html.match(/Y[1-5] sites for CI-1/g) || []).length, 5);
-  assert.doesNotMatch(html, /sticky left-0/);
+  assert.doesNotMatch(html, /sm:sticky sm:left-0/);
   assert.match(
     render(
       PersonnelLinesTable,
       tableProps(row(), { columns: ['scope', 'Y1:sites', 'action'] }),
     ),
-    /sticky left-0/,
+    /sm:sticky sm:left-0/,
   );
   assert.doesNotMatch(html, /sticky left-\[/);
   const fresh = blankPersonnelRow('CI-NEW', resources);
@@ -316,7 +316,7 @@ test('All Years keeps five inline allocations and new personnel immediately expo
   );
 });
 
-test('Action stays last and pinned to the right across header, rows and totals', () => {
+test('Action stays last and is pinned on wider screens across header, rows and totals', () => {
   for (const yearIndex of ['all', 0]) {
     const nodes = walk(PersonnelLinesTable(tableProps(row(), { yearIndex })));
     const actions = nodes.filter(
@@ -324,7 +324,7 @@ test('Action stays last and pinned to the right across header, rows and totals',
     );
     assert.equal(actions.length, 3);
     for (const action of actions) {
-      assert.match(action.props.className, /sticky right-0/);
+      assert.match(action.props.className, /sm:sticky sm:right-0/);
       assert.match(action.props.className, /border-l/);
       assert.match(action.props.className, /bg-/);
     }

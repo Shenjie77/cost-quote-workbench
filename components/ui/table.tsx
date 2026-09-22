@@ -4,31 +4,44 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
-function Table({ className, ...props }: React.ComponentProps<'table'>) {
+/** Wrap semantic data in a keyboard-scrollable grid without changing row behavior. */
+function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<'table'> & { containerClassName?: string }) {
   return (
     <div
       data-slot="table-container"
-      className="workbench-scrollbar relative min-w-0 w-full overflow-x-auto"
+      className={cn(
+        'wb-table-scroll relative min-w-0 w-full focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2',
+        containerClassName,
+      )}
+      tabIndex={0}
+      role="region"
+      aria-label={props['aria-label'] || 'Scrollable data table'}
     >
       <table
         data-slot="table"
-        className={cn('w-full caption-bottom text-sm', className)}
+        className={cn('w-full caption-bottom text-[13px]', className)}
         {...props}
       />
     </div>
   );
 }
 
+/** Provide a shared shaded header for all financial and catalog grids. */
 function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
   return (
     <thead
       data-slot="table-header"
-      className={cn('bg-muted/65 [&_tr]:border-b', className)}
+      className={cn('bg-muted [&_tr]:border-b [&_tr]:border-grid', className)}
       {...props}
     />
   );
 }
 
+/** Group data rows and avoid duplicating the enclosing bottom border. */
 function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
   return (
     <tbody
@@ -39,6 +52,7 @@ function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
   );
 }
 
+/** Separate totals from editable data rows. */
 function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
   return (
     <tfoot
@@ -52,12 +66,13 @@ function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
   );
 }
 
+/** Highlight hover, selection, and expanded states without shifting cells. */
 function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
   return (
     <tr
       data-slot="table-row"
       className={cn(
-        'hover:bg-accent/35 data-[state=selected]:bg-accent border-b transition-colors has-aria-expanded:bg-muted/50',
+        'hover:bg-accent/35 data-[state=selected]:bg-accent border-b transition-colors border-grid has-aria-expanded:bg-muted/50',
         className,
       )}
       {...props}
@@ -65,12 +80,14 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
   );
 }
 
+/** Label a column with the same visible grid line as data cells. */
 function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
   return (
     <th
       data-slot="table-head"
+      scope="col"
       className={cn(
-        'text-muted-foreground h-8 px-3 text-left align-middle text-xs font-semibold whitespace-nowrap [&:has([role=checkbox])]:pr-0',
+        'border-r border-grid last:border-r-0 text-muted-foreground h-8 px-3 text-left align-middle text-xs font-semibold whitespace-nowrap [&:has([role=checkbox])]:pr-0',
         className,
       )}
       {...props}
@@ -78,12 +95,13 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
   );
 }
 
+/** Keep dense cells aligned and preserve caller-provided wrapping or numeric alignment. */
 function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
   return (
     <td
       data-slot="table-cell"
       className={cn(
-        'px-3 py-1.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0',
+        'border-r border-grid last:border-r-0 px-3 py-1.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0',
         className,
       )}
       {...props}
@@ -91,6 +109,7 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
   );
 }
 
+/** Describe a table outside its data grid. */
 function TableCaption({
   className,
   ...props

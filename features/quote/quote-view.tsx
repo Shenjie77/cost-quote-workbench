@@ -348,7 +348,7 @@ export function QuoteView({
                 }
               >
                 <Save /> Save Pricing{' '}
-                <span className="text-[11px] opacity-60">保存定价</span>
+                <span className="text-xs opacity-60">保存定价</span>
               </Button>
               <Button
                 onClick={generateDraft}
@@ -368,7 +368,7 @@ export function QuoteView({
               >
                 {isExporting ? <Download /> : <FileCheck2 />}
                 {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
-                <span className="text-[11px] opacity-60">生成报价</span>
+                <span className="text-xs opacity-60">生成报价</span>
               </Button>
             </div>
           }
@@ -380,14 +380,14 @@ export function QuoteView({
         >
           <TableHeader>
             <TableRow className="h-10 bg-primary text-white hover:bg-primary">
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
                 <BiText
                   zhClassName="text-white/70"
                   en="Cost with Risk"
                   zh="含风险项目总成本"
                 />
               </TableHead>
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
                 <label htmlFor="target-gross-margin">
                   <BiText
                     zhClassName="text-white/70"
@@ -396,7 +396,7 @@ export function QuoteView({
                   />
                 </label>
               </TableHead>
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
                 <BiText
                   zhClassName="text-white/70"
                   en={
@@ -413,7 +413,7 @@ export function QuoteView({
                   }
                 />
               </TableHead>
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
                 <label htmlFor="pricing-discount">
                   <BiText
                     zhClassName="text-white/70"
@@ -422,19 +422,19 @@ export function QuoteView({
                   />
                 </label>
               </TableHead>
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
                 <label htmlFor="pricing-gst">
                   <BiText zhClassName="text-white/70" en="GST (%)" zh="税率" />
                 </label>
               </TableHead>
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
                 <BiText
                   zhClassName="text-white/70"
                   en="Quote Before Tax"
                   zh="未税报价"
                 />
               </TableHead>
-              <TableHead className="px-3 py-1.5 text-[11px] whitespace-normal text-white">
+              <TableHead className="px-3 py-1.5 text-xs whitespace-normal text-white">
                 <BiText
                   zhClassName="text-white/70"
                   en="Actual Sales GP"
@@ -444,7 +444,7 @@ export function QuoteView({
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow className="h-12 hover:bg-transparent">
+            <TableRow className="h-8 hover:bg-transparent">
               <TableCell className="financial-numeral border-r bg-muted/30 px-3 text-right font-semibold">
                 {formatSgd(result.cost)}
               </TableCell>
@@ -463,7 +463,7 @@ export function QuoteView({
                   onCommit={(value) =>
                     updateNumber('targetGrossMargin', String(value))
                   }
-                  className="financial-numeral h-12 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
+                  className="financial-numeral h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
                 />
               </TableCell>
               <TableCell className="financial-numeral border-r bg-muted/30 px-3 text-right font-semibold">
@@ -483,7 +483,7 @@ export function QuoteView({
                   onChange={(event) =>
                     updateNumber('discount', event.target.value)
                   }
-                  className="financial-numeral h-12 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
+                  className="financial-numeral h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
                 />
               </TableCell>
               <TableCell className="border-r bg-blue-50/30 p-0">
@@ -498,7 +498,7 @@ export function QuoteView({
                   onChange={(event) =>
                     updateNumber('gstPercent', event.target.value)
                   }
-                  className="financial-numeral h-12 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
+                  className="financial-numeral h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
                 />
               </TableCell>
               <TableCell className="financial-numeral border-r bg-accent/60 px-3 text-right font-semibold text-primary">
@@ -510,7 +510,7 @@ export function QuoteView({
                     ? `${result.grossMarginPercent.toFixed(2)}%`
                     : '—'}
                 </span>
-                <span className="block text-[11px] text-muted-foreground">
+                <span className="block text-xs text-muted-foreground">
                   {result.valid ? formatSgd(result.salesGrossProfit) : '—'}
                 </span>
               </TableCell>
@@ -671,6 +671,7 @@ export function QuoteView({
                     <Button
                       variant="ghost"
                       size="icon-sm"
+                      aria-label={`Delete quotation assumption ${item.text || item.id}`}
                       onClick={() =>
                         setQuoteAssumptions((rows) =>
                           rows.filter((row) => row.id !== item.id),
@@ -780,7 +781,11 @@ export function QuoteView({
                           )
                         }
                       >
-                        <SelectTrigger size="sm" className="w-24">
+                        <SelectTrigger
+                          size="sm"
+                          className="w-24"
+                          aria-label={`Status for quotation ${record.quoteNumber}`}
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -803,6 +808,7 @@ export function QuoteView({
                     </TableCell>
                     <TableCell>
                       <Input
+                        aria-label={`Note for quotation ${record.quoteNumber}`}
                         value={record.note}
                         onChange={(event) =>
                           setQuoteHistory((rows) =>
@@ -819,6 +825,7 @@ export function QuoteView({
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        aria-label={`Delete quotation history ${record.quoteNumber}`}
                         onClick={() =>
                           setQuoteHistory((rows) =>
                             rows.filter((row) => row.id !== record.id),

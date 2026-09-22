@@ -283,14 +283,14 @@ export function CostView({
       ) : null}
       {/* A single wrapping strip keeps version selection, status and totals in view. */}
       <section
-        className="wb-panel flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 sm:gap-x-4"
+        className="wb-panel wb-toolbar min-w-0 sm:gap-x-4"
         aria-label="Cost version information"
       >
-        <div className="flex items-center gap-1.5 text-[11px]">
+        <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">Version</span>
           <select
             aria-label="View cost version"
-            className="h-7 w-28 rounded-md border border-input bg-card px-2 text-[11px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+            className="h-8 w-28 rounded-md border border-input bg-card px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
             value={activeVersion}
             disabled={!versions.length}
             onChange={(event) => onSelectVersion(event.target.value, costView)}
@@ -301,20 +301,20 @@ export function CostView({
               </option>
             ))}
           </select>
-          <span className="hidden text-[10px] text-muted-foreground sm:inline">
+          <span className="hidden text-xs text-muted-foreground sm:inline">
             {version?.sourceVersion
               ? `from ${version.sourceVersion}`
               : 'Initial version'}
           </span>
         </div>
         <div
-          className="flex items-center gap-1.5 text-[11px]"
+          className="flex items-center gap-1.5 text-xs"
           title={`Confirmation locks Cost ${activeVersion} only.`}
         >
           <span className="text-muted-foreground">Status</span>
           <select
             aria-label="Current version status"
-            className="h-7 w-28 rounded-md border border-input bg-card px-2 text-[11px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:bg-muted/40 disabled:opacity-60"
+            className="h-8 w-28 rounded-md border border-input bg-card px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:bg-muted/40 disabled:opacity-60"
             value={version?.state || 'Draft'}
             disabled={!version || version.state === 'Confirmed'}
             onChange={(event) => {
@@ -339,7 +339,7 @@ export function CostView({
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 text-[11px] text-destructive"
+              className="h-8 text-xs text-destructive"
               disabled={!!versionDeletionReasons[activeVersion]}
               title={
                 versionDeletionReasons[activeVersion]
@@ -352,14 +352,14 @@ export function CostView({
             </Button>
           ) : null}
         </div>
-        <div className="flex items-baseline gap-1.5 text-[11px]">
+        <div className="flex items-baseline gap-1.5 text-xs">
           <span className="text-muted-foreground">Version Total</span>
           <strong className="financial-numeral text-sm font-semibold text-primary">
             {version ? versionTotal(version) : formatSgd(0)}
           </strong>
         </div>
         <div
-          className="flex items-center gap-1.5 text-[11px]"
+          className="flex items-center gap-1.5 text-xs"
           aria-label="Input Completeness"
         >
           <span className="text-muted-foreground">Complete</span>
@@ -376,7 +376,7 @@ export function CostView({
           type="button"
           size="sm"
           variant="ghost"
-          className="ml-auto h-7 px-1.5 text-[11px] sm:hidden"
+          className="ml-auto h-8 px-1.5 text-xs sm:hidden"
           aria-label="Cost version details"
           aria-expanded={versionDetailsOpen}
           aria-controls="cost-version-details"
@@ -386,10 +386,10 @@ export function CostView({
         </Button>
         <div
           id="cost-version-details"
-          className={`${versionDetailsOpen ? 'flex' : 'hidden'} ml-auto basis-full flex-wrap items-center gap-2 text-[11px] sm:flex sm:basis-auto`}
+          className={`${versionDetailsOpen ? 'flex' : 'hidden'} ml-auto basis-full flex-wrap items-center gap-2 text-xs sm:flex sm:basis-auto`}
           aria-label="Calculation Basis"
         >
-          <span className="text-[10px] text-muted-foreground sm:hidden">
+          <span className="text-xs text-muted-foreground sm:hidden">
             {version?.sourceVersion
               ? `Cloned from ${version.sourceVersion}`
               : 'Initial version'}
@@ -404,7 +404,7 @@ export function CostView({
           <Button
             size="sm"
             variant="outline"
-            className="h-7 px-2 text-[11px]"
+            className="h-8 px-2 text-xs"
             disabled={!!lockedReason || version?.state !== 'Draft'}
             title={
               lockedReason
@@ -423,7 +423,7 @@ export function CostView({
         </div>
       </section>
       {/* Keep navigation and save/export actions visible when the toolbar wraps. */}
-      <div className="wb-panel min-w-0 p-1.5" aria-label="Cost tools">
+      <div className="wb-panel min-w-0 p-2" aria-label="Cost tools">
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
           <fieldset
             className="flex min-w-0 max-w-full flex-wrap gap-0.5 rounded-md bg-muted/40 p-0.5"
@@ -455,7 +455,7 @@ export function CostView({
                 key={item.key}
                 variant={costView === item.key ? 'default' : 'ghost'}
                 size="sm"
-                className="h-7 px-2.5 text-[11px]"
+                className="h-8 px-2.5 text-xs"
                 aria-label={item.title}
                 aria-pressed={costView === item.key}
                 title={item.title}
@@ -467,14 +467,14 @@ export function CostView({
           </fieldset>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {personnelTableView.isViewDirty && (
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800">
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
                 View not saved
               </span>
             )}
             <Button
               size="sm"
               variant="outline"
-              className="h-7 px-2.5 text-[11px]"
+              className="h-8 px-2.5 text-xs"
               onClick={() => void saveConfiguration()}
               disabled={isSavingConfiguration || !personnelTableView.ready}
               aria-label="Save cost configuration"
@@ -485,7 +485,7 @@ export function CostView({
             </Button>
             <Button
               size="sm"
-              className="h-7 px-2.5 text-[11px]"
+              className="h-8 px-2.5 text-xs"
               onClick={exportSimpleWorkbook}
               disabled={isExporting || !personnelTableView.columnSettings.ready}
               title="Cost Detail follows the current groups, row order, columns and year view. Summaries include all five years."
@@ -495,7 +495,7 @@ export function CostView({
             </Button>
             <Button
               size="sm"
-              className="h-7 px-2.5 text-[11px]"
+              className="h-8 px-2.5 text-xs"
               variant="outline"
               onClick={exportWorkbook}
               disabled={isExporting}

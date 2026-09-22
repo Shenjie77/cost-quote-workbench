@@ -1,5 +1,5 @@
 /** Desktop navigation presentation; the session owns navigation and backup effects. */
-import { Database, MoreHorizontal } from 'lucide-react';
+import { Database, Download } from 'lucide-react';
 import type { ReviewGate } from '../reviews/types';
 import { navItems } from './navigation';
 import type { ViewKey } from './types';
@@ -20,26 +20,23 @@ export function WorkbenchSidebar({
 }: WorkbenchSidebarProps) {
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[216px] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
-      <div className="flex h-14 items-center gap-3 border-b border-sidebar-border px-3">
+      <div className="flex min-h-14 items-center gap-2.5 border-b border-sidebar-border px-3 py-2">
         <span className="financial-numeral flex size-7 items-center justify-center rounded-md border border-white/20 bg-white/10 text-xs font-bold">
           CQ
         </span>
         <div>
-          <p className="text-xs font-semibold tracking-tight">
+          <p className="text-[13px] font-semibold tracking-tight">
             Cost & Quote Workbench
           </p>
-          <p className="mt-1 text-[10px] text-[#adbfcb]">报价管控台</p>
+          <p className="mt-1 text-xs text-sidebar-foreground/75">报价管控台</p>
         </div>
       </div>
       <nav
         aria-label="Main navigation"
         className="workbench-scrollbar flex-1 overflow-y-auto px-2 py-3"
       >
-        <p className="px-2 text-[10px] font-medium uppercase tracking-[0.08em] text-[#a2b5c2]">
-          Workspace{' '}
-          <span className="text-[8px] normal-case tracking-normal">
-            工作空间
-          </span>
+        <p className="px-2 text-xs font-medium uppercase tracking-[0.08em] text-sidebar-foreground/65">
+          Workspace <span className="sr-only">工作空间</span>
         </p>
         <div className="mt-2 space-y-1">
           {navItems
@@ -56,28 +53,30 @@ export function WorkbenchSidebar({
                     .filter(Boolean)
                     .join(' / ')}
                   className={
-                    'group flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left transition-colors ' +
+                    'wb-navigation-button group flex min-h-11 w-full items-center gap-2.5 rounded-md border border-transparent px-2.5 py-2 text-left transition-colors duration-150 ' +
                     (active
-                      ? 'border-white/15 bg-sidebar-primary text-sidebar-primary-foreground'
-                      : 'text-[#d2dce3] hover:bg-sidebar-accent hover:text-white')
+                      ? 'border-white/15 bg-sidebar-primary text-sidebar-primary-foreground shadow-[inset_3px_0_0_var(--ring)]'
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-white')
                   }
                 >
-                  <Icon className="size-4 shrink-0" />
+                  <Icon aria-hidden="true" className="size-4 shrink-0" />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-xs font-semibold">
+                    <span className="block text-[13px] font-medium">
                       {item.label}
                     </span>
                     <span
                       className={
-                        'block text-[10px] leading-3 ' +
-                        (active ? 'text-[#4d6877]' : 'text-[#a1b5c3]')
+                        'block text-xs leading-3 ' +
+                        (active
+                          ? 'text-sidebar-primary-foreground/80'
+                          : 'text-sidebar-foreground/70')
                       }
                     >
                       {item.labelZh || item.description}
                     </span>
                   </span>
                   {item.key === 'reviews' ? (
-                    <span className="financial-numeral flex size-5 items-center justify-center rounded-full bg-[#a86432] text-[9px] font-bold text-white">
+                    <span className="financial-numeral flex size-5 items-center justify-center rounded-full bg-warning text-xs font-bold text-white">
                       {
                         reviews.filter(
                           (review) =>
@@ -91,50 +90,43 @@ export function WorkbenchSidebar({
               );
             })}
         </div>
-        <p className="mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.08em] text-[#a2b5c2]">
-          Data Management{' '}
-          <span className="text-[8px] normal-case tracking-normal">
-            数据管理
-          </span>
+        <p className="mt-4 px-2 text-xs font-medium uppercase tracking-[0.08em] text-sidebar-foreground/65">
+          Data Management <span className="sr-only">数据管理</span>
         </p>
         <div className="mt-2 space-y-1">
           <button
             onClick={() => onNavigate('master-data')}
             aria-current={activeView === 'master-data' ? 'page' : undefined}
             className={
-              'group flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left transition-colors ' +
+              'wb-navigation-button group flex min-h-11 w-full items-center gap-2.5 rounded-md border border-transparent px-2.5 py-2 text-left transition-colors duration-150 ' +
               (activeView === 'master-data'
-                ? 'border-white/15 bg-sidebar-primary text-sidebar-primary-foreground'
-                : 'text-[#d2dce3] hover:bg-sidebar-accent hover:text-white')
+                ? 'border-white/15 bg-sidebar-primary text-sidebar-primary-foreground shadow-[inset_3px_0_0_var(--ring)]'
+                : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-white')
             }
           >
-            <Database className="size-4" />
+            <Database aria-hidden="true" className="size-4" />
             <span className="flex-1">
-              <span className="block text-xs font-semibold">Master Data</span>
+              <span className="block text-[13px] font-medium">Master Data</span>
               <span
                 className={
-                  'text-[10px] leading-4 ' +
+                  'text-xs leading-4 ' +
                   (activeView === 'master-data'
-                    ? 'text-[#4d6877]'
-                    : 'text-[#a1b5c3]')
+                    ? 'text-sidebar-primary-foreground/80'
+                    : 'text-sidebar-foreground/70')
                 }
               >
-                全局主数据 · Rates, CPQ & templates
+                全局主数据
               </span>
             </span>
-            <span className="text-[8px]">Live</span>
           </button>
         </div>
       </nav>
-      <div className="border-t border-sidebar-border p-4">
+      <div className="border-t border-sidebar-border p-3">
         <div className="flex items-center gap-3">
-          <span className="flex size-8 items-center justify-center rounded-full bg-sidebar-primary text-xs font-bold text-sidebar-primary-foreground">
-            ME
-          </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold">Quote Workspace</p>
-            <p className="mt-1 text-[10px] text-[#a1b5c3]">
-              报价工作区 · Local SQLite / 本地数据库
+            <p className="text-xs font-medium">Local Workspace</p>
+            <p className="mt-0.5 text-xs text-sidebar-foreground/70">
+              本地工作区
             </p>
           </div>
           <button
@@ -144,7 +136,10 @@ export function WorkbenchSidebar({
             className="flex size-8 items-center justify-center rounded-md hover:bg-sidebar-accent"
             onClick={onDownloadBackup}
           >
-            <MoreHorizontal className="size-4 text-[#8197a3]" />
+            <Download
+              aria-hidden="true"
+              className="size-4 text-sidebar-foreground"
+            />
           </button>
         </div>
       </div>
