@@ -23,6 +23,7 @@ import {
   validateQuoteExcelMapping,
 } from './excel-template-mapping.ts';
 import { validateQuoteLines } from './quote-lines.ts';
+import { assertValidQuotePricing } from './export-validation.ts';
 
 const MAX_COMPRESSED_BYTES = 10 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 50 * 1024 * 1024;
@@ -749,6 +750,7 @@ export async function fillQuoteExcelTemplate(
   source: QuoteWorkbookInput,
 ) {
   const input = structuredClone(source);
+  assertValidQuotePricing(input.pricing);
   const bytes = new Uint8Array(
     buffer instanceof ArrayBuffer ? buffer.slice(0) : buffer,
   );
@@ -869,7 +871,7 @@ export async function fillQuoteExcelTemplate(
     const cell = sheet.getCell(target);
     // Percent-formatted cells store fractions; unformatted fields display the human percentage.
     cell.value =
-      field === 'gstPercent' && cell.numFmt.includes('%')
+      field === 'gstPercent' && cell.numFmt?.includes('%')
         ? input.pricing.gstPercent / 100
         : values[field as QuoteExcelField];
   });

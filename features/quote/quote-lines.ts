@@ -82,6 +82,17 @@ export function validateManualQuoteLines(
       errors.push(
         `${prefix}unit price must be non-negative, at most 1,000,000,000,000, with up to four decimals.`,
       );
+    if (
+      line.allocationWeight !== undefined &&
+      (!Number.isFinite(line.allocationWeight) ||
+        line.allocationWeight < 0 ||
+        line.allocationWeight > 1e6)
+    )
+      errors.push(
+        `${prefix}allocation weight must be a number between 0 and 1,000,000.`,
+      );
+    if (line.priceFixed !== undefined && typeof line.priceFixed !== 'boolean')
+      errors.push(`${prefix}fixed price must be true or false.`);
     const amount = line.quantity * line.unitPrice;
     if (!Number.isFinite(amount) || amount > MAX_QUOTE_AMOUNT)
       errors.push(`${prefix}amount exceeds the supported range.`);
@@ -105,7 +116,15 @@ export function calculateManualQuoteLines(
         rawAmount <= MAX_QUOTE_AMOUNT
           ? roundMoney(rawAmount)
           : 0;
-      return { ...line, amount };
+      // Whitelist customer fields so allocation controls never reach workbooks or history snapshots.
+      return {
+        id: line.id,
+        description: line.description,
+        quantity: line.quantity,
+        unit: line.unit,
+        unitPrice: line.unitPrice,
+        amount,
+      };
     });
   const total = roundMoney(output.reduce((sum, line) => sum + line.amount, 0));
   if (total > MAX_QUOTE_AMOUNT)

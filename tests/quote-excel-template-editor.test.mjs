@@ -546,6 +546,9 @@ test('sample export uses three synthetic rows and downloads without applying map
   const input = globalThis[samplesKey][0];
   assert.ok(input);
   assert.equal(input.project.id, 'SAMPLE');
+  assert.equal(input.pricing.gstPercent, 0);
+  assert.equal(input.pricing.gstAmount, 0);
+  assert.equal(input.pricing.quoteAfterTax, input.pricing.quoteBeforeTax);
   assert.equal(input.lines.length, 3);
   assert.equal(
     input.lines.reduce((sum, row) => sum + row.amount, 0),

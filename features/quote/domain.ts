@@ -24,12 +24,14 @@ export type PricingSettings = {
   lineMode?: QuoteLineMode;
   /** Project-owned customer prices; unused modes retain these edits for later use. */
   manualLines?: ManualQuoteLine[];
+  /** Optional manual-line target before overall discount and tax; absent preserves historical pricing. */
+  manualTargetPrice?: number;
 };
 
 export const initialPricingSettings: PricingSettings = {
   targetGrossMargin: 25,
   discount: 0,
-  gstPercent: 9,
+  gstPercent: 0,
 };
 
 export type PricingResult = ReturnType<typeof calculatePricing>;
@@ -152,6 +154,23 @@ export const calculatePricing = (
     ? calculateManualQuoteLines(settings.manualLines)
     : undefined;
   if (manual) errors.push(...manual.errors);
+  // A saved target is a customer-output constraint, never permission to silently reprice saved lines.
+  if (manual && settings.manualTargetPrice !== undefined) {
+    const target = settings.manualTargetPrice;
+    if (
+      !Number.isFinite(target) ||
+      target < 0 ||
+      target > 1e12 ||
+      roundMoney(target) !== target
+    )
+      errors.push(
+        'Target total must be a non-negative amount with at most two decimals.',
+      );
+    else if (roundMoney(manual.total) !== target)
+      errors.push(
+        'Quotation lines must match the target total before discount and tax. Adjust their proportions or fixed prices.',
+      );
+  }
   const rawListPrice =
     manual?.total ??
     targetPriceAfterShareRounding(

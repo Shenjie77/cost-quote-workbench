@@ -6,6 +6,7 @@ import type { QuoteAssumption, QuoteTemplate } from './types.ts';
 import { matchesClient } from './catalog-domain.ts';
 import type { QuoteLine, QuoteLineMode } from './excel-template-types.ts';
 import { validateQuoteLines } from './quote-lines.ts';
+import { assertValidQuotePricing } from './export-validation.ts';
 
 export type QuoteWorkbookInput = {
   project: CostExportSnapshot['project'];
@@ -29,6 +30,7 @@ export const buildQuoteWorkbookBuffer = async (
 ) => {
   // Freeze output content before loading either the workbook library or local assets.
   input = structuredClone(input);
+  assertValidQuotePricing(input.pricing);
   if (
     !input.template.active ||
     !matchesClient(input.template.clientPattern, input.project.client)

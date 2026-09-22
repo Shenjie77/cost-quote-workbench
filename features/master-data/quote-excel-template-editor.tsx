@@ -106,11 +106,13 @@ function mappingFromDraft(draft: MappingDraft): QuoteExcelTemplate {
 
 /** Three synthetic lines exercise row expansion and totals without reading or archiving any project. */
 async function sampleWorkbook(mapping: QuoteExcelTemplate) {
-  const [{ buildQuoteWorkbookBuffer }, { calculatePricing }] =
-    await Promise.all([
-      import('@/features/quote/export-quote-workbook'),
-      import('@/features/quote/domain'),
-    ]);
+  const [
+    { buildQuoteWorkbookBuffer },
+    { calculatePricing, initialPricingSettings },
+  ] = await Promise.all([
+    import('@/features/quote/export-quote-workbook'),
+    import('@/features/quote/domain'),
+  ]);
   return buildQuoteWorkbookBuffer({
     project: {
       id: 'SAMPLE',
@@ -134,9 +136,8 @@ async function sampleWorkbook(mapping: QuoteExcelTemplate) {
     },
     assumptions: [],
     pricing: calculatePricing(1200, {
+      ...initialPricingSettings,
       targetGrossMargin: 20,
-      discount: 0,
-      gstPercent: 9,
     }),
     lineMode: 'item',
     lines: [

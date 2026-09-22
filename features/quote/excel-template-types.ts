@@ -55,5 +55,10 @@ export type QuoteLine = {
 };
 
 /** Manual entries derive their amount from quantity and unit price. */
-export type ManualQuoteLine = Omit<QuoteLine, 'amount'>;
+export type ManualQuoteLine = Omit<QuoteLine, 'amount'> & {
+  /** Relative allocation weight; omitted values use the current line amount. */
+  allocationWeight?: number;
+  /** Preserve this unit price when distributing a target quotation total. */
+  priceFixed?: boolean;
+};
 export type QuoteLineMode = 'single' | 'scope' | 'item' | 'manual';

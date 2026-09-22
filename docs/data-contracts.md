@@ -145,6 +145,8 @@ reference tabs, or cost apply-rates for the named unlocked version. Global
 workflow definitions publish through preview plus global/project CAS, preserving active deadlines unless explicitly migrated and retaining completed history; actual progress uses `project workflow-action`. The status dictionary remains compatibility data.
 
 `pricing` contains numeric `targetGrossMargin`, `discount`, and `gstPercent`.
+New projects and customer-template sample previews default `gstPercent` to `0`.
+Saved project tax rates and recorded quotation tax amounts remain unchanged.
 The pre-tax quote is calculated as:
 
 ```text

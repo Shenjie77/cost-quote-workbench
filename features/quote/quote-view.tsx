@@ -342,6 +342,7 @@ export function QuoteView({
             }
           />
           <QuoteLinesEditor
+            key={`${project.id}:${activeVersion}`}
             pricing={pricing}
             setPricing={setPricing}
             lines={lines}

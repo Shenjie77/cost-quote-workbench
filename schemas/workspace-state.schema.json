@@ -169,6 +169,9 @@
           "items": {
             "$ref": "#/$defs/manualQuoteLine"
           }
+        },
+        "manualTargetPrice": {
+          "$ref": "#/$defs/money"
         }
       }
     },
@@ -2360,6 +2363,14 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1000000000000
+        },
+        "allocationWeight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "priceFixed": {
+          "type": "boolean"
         }
       }
     },
