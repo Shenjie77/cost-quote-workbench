@@ -56,8 +56,10 @@ export type QuoteLine = {
 
 /** Manual entries derive their amount from quantity and unit price. */
 export type ManualQuoteLine = Omit<QuoteLine, 'amount'> & {
-  /** Relative allocation weight; omitted values use the current line amount. */
+  /** Relative weight for legacy targets; full 0–100 percentage in GP-based allocation. */
   allocationWeight?: number;
+  /** Preserve the user-entered percentage when sharing the remaining target across other lines. */
+  allocationFixed?: boolean;
   /** Preserve this unit price when distributing a target quotation total. */
   priceFixed?: boolean;
 };

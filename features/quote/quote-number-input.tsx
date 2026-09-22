@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 
 /** Commit on blur or Enter; callers key this control by its saved value to reflect recalculation. */
 export function QuoteNumberInput({
+  id,
   value,
   label,
   min = 0,
@@ -11,8 +12,10 @@ export function QuoteNumberInput({
   decimals = 4,
   disabled,
   onCommit,
-  className = 'h-8 w-full min-w-20 text-right',
+  commitUnchanged = false,
+  className = 'h-8 w-full min-w-20 rounded-none border-transparent bg-transparent text-right shadow-none focus-visible:border-ring',
 }: {
+  id?: string;
   value: number;
   label: string;
   min?: number;
@@ -20,6 +23,8 @@ export function QuoteNumberInput({
   decimals?: number;
   disabled: boolean;
   onCommit: (value: number) => void;
+  /** Explicitly typing an existing percentage/price can still lock that allocation. */
+  commitUnchanged?: boolean;
   className?: string;
 }) {
   // Seeded ratios retain full precision for allocation while presenting a compact editable number.
@@ -44,12 +49,13 @@ export function QuoteNumberInput({
     }
     setInvalid(false);
     setEdited(false);
-    if (edited && next !== value) onCommit(next);
+    if (edited && (commitUnchanged || next !== value)) onCommit(next);
   };
 
   return (
     <div>
       <Input
+        id={id}
         aria-label={label}
         aria-invalid={invalid}
         type="number"

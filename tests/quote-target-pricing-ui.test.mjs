@@ -8,6 +8,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import React from 'react';
 import { calculateManualQuoteLines } from '../features/quote/quote-lines.ts';
+import { allocateQuotePercentages } from '../features/quote/percentage-allocation.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const hookKey = Symbol.for('quote-target-pricing-ui-hooks');
@@ -177,9 +178,10 @@ const generatedLines = () => [
   },
 ];
 const manualLines = () =>
-  generatedLines().map(({ amount: _amount, ...line }, index) => ({
+  generatedLines().map(({ amount: _amount, ...line }) => ({
     ...line,
-    allocationWeight: index ? 3 : 1,
+    allocationWeight: 50,
+    unitPrice: 50,
   }));
 
 /** Mirror the parent’s controlled pricing state; all writes stay in this fixture. */
@@ -191,14 +193,25 @@ function quotationHarness(
 ) {
   let pricing = structuredClone(initial);
   let writes = 0;
+  let gpTargetPrice = 100;
   const props = {
     disabled,
+    get gpTargetPrice() {
+      return gpTargetPrice;
+    },
+    get allocatedLines() {
+      return pricing.manualPricingBasis === 'gp'
+        ? allocateQuotePercentages(pricing.manualLines ?? [], gpTargetPrice)
+            .lines
+        : undefined;
+    },
     get pricing() {
       return pricing;
     },
     get lines() {
       return pricing.lineMode === 'manual'
-        ? calculateManualQuoteLines(pricing.manualLines).lines
+        ? calculateManualQuoteLines(props.allocatedLines ?? pricing.manualLines)
+            .lines
         : sourceLines;
     },
     setPricing(update) {
@@ -209,6 +222,12 @@ function quotationHarness(
   const view = harness(Component, props);
   return {
     ...view,
+    changeGpTarget(value) {
+      gpTargetPrice = value;
+    },
+    get effectiveLines() {
+      return props.allocatedLines ?? pricing.manualLines;
+    },
     get pricing() {
       return pricing;
     },
@@ -267,26 +286,31 @@ const legacyTerms = () => ({
 const targetedPricing = () => ({
   ...legacyTerms(),
   lineMode: 'manual',
-  manualTargetPrice: 100,
+  manualPricingBasis: 'gp',
   manualLines: manualLines(),
 });
 const allocatedAmounts = (view) =>
-  calculateManualQuoteLines(view.pricing.manualLines).lines.map(
+  calculateManualQuoteLines(view.effectiveLines).lines.map(
     (line) => line.amount,
   );
 
-test('mode changes seed new target pricing once and preserve existing manual edits and tax', () => {
+test('manual mode uses the GP target with equal unlocked percentages and preserves commercial terms', () => {
   const view = quotationHarness(QuoteLinesEditor, {
     ...legacyTerms(),
     lineMode: 'scope',
   });
-  assert.equal(view.writes, 0);
   view.mode('manual');
-  assert.equal(view.pricing.manualTargetPrice, 100);
-  assert.deepEqual(allocatedAmounts(view), [25, 75]);
+  assert.equal(view.pricing.manualPricingBasis, 'gp');
+  assert.equal(view.pricing.manualTargetPrice, undefined);
+  assert.deepEqual(allocatedAmounts(view), [50, 50]);
   assert.deepEqual(
     view.pricing.manualLines.map((line) => line.allocationWeight),
-    [25, 75],
+    [50, 50],
+  );
+  assert.ok(
+    !elements(view.render()).some(
+      (node) => node.props.label === 'Target total before discount and tax',
+    ),
   );
   commitNumber(view, 'Line 1 unit price', 30);
   const saved = structuredClone(view.pricing);
@@ -303,81 +327,92 @@ test('mode changes seed new target pricing once and preserve existing manual edi
   );
 });
 
-test('opening legacy manual pricing is read-only until Rebalance explicitly activates a target', () => {
+test('loading and text edits preserve historical prices until a GP allocation edit', () => {
   const saved = {
     ...legacyTerms(),
     lineMode: 'manual',
-    manualLines: generatedLines().map(({ amount: _amount, ...line }) => line),
+    manualTargetPrice: 100,
+    manualLines: generatedLines().map(({ amount: _amount, ...line }) => ({
+      ...line,
+      allocationWeight: 1500,
+    })),
   };
   const view = quotationHarness(QuoteLinesEditor, saved);
-  assert.match(textOf(view.render()), /Target not set/);
+  assert.match(textOf(view.render()), /Saved prices retained/);
   assert.equal(view.writes, 0);
   assert.deepEqual(view.pricing, saved);
-  view.mode('single');
-  view.mode('manual');
-  assert.deepEqual(view.pricing, saved);
-  view.button('Rebalance · 按比例分配').props.onClick();
-  assert.equal(view.pricing.manualTargetPrice, 100);
+  view
+    .label('Line 1 description')
+    .props.onChange({ target: { value: 'Revised scope' } });
+  assert.equal(view.pricing.manualPricingBasis, undefined);
   assert.deepEqual(allocatedAmounts(view), [25, 75]);
-  assert.deepEqual(
-    view.pricing.manualLines.map((line) => line.allocationWeight),
-    [25, 75],
-  );
+  commitNumber(view, 'Line 1 allocation percentage', 40);
+  assert.deepEqual(allocatedAmounts(view), [40, 60]);
+  assert.equal(view.pricing.manualTargetPrice, undefined);
   assert.equal(view.pricing.gstPercent, 9);
 });
 
-test('target and relative-ratio edits allocate the entire target without changing tax or discount', () => {
-  const view = quotationHarness(QuoteLinesEditor, targetedPricing());
-  const target = numericHarness(
-    view.label('Target total before discount and tax').props,
-  );
-  target.type('200');
-  assert.equal(
-    view.pricing.manualTargetPrice,
-    100,
-    'Typing remains a local draft',
-  );
-  assert.equal(view.writes, 0);
-  target.key('Enter');
-  assert.equal(view.pricing.manualTargetPrice, 200);
-  assert.deepEqual(allocatedAmounts(view), [50, 150]);
-  commitNumber(view, 'Line 1 allocation ratio', 3);
-  assert.deepEqual(allocatedAmounts(view), [100, 100]);
-  assert.equal(view.pricing.manualLines[0].priceFixed, false);
-  assert.match(textOf(view.render()), /Matched/);
+test('an edited percentage locks that share while remaining unlocked rows equally divide the remainder', () => {
+  const initial = targetedPricing();
+  initial.manualLines.push({
+    id: 'support',
+    description: 'Support',
+    quantity: 1,
+    unit: 'lot',
+    unitPrice: 0,
+  });
+  const view = quotationHarness(QuoteLinesEditor, initial);
+  commitNumber(view, 'Line 1 allocation percentage', 40);
+  assert.deepEqual(allocatedAmounts(view), [40, 30, 30]);
+  assert.equal(view.pricing.manualLines[0].allocationFixed, true);
+  assert.equal(view.label('Lock allocation for line 1').props.checked, true);
+  commitNumber(view, 'Line 2 allocation percentage', 10);
+  assert.deepEqual(allocatedAmounts(view), [40, 10, 50]);
+  view
+    .label('Lock allocation for line 1')
+    .props.onChange({ target: { checked: false } });
+  assert.deepEqual(allocatedAmounts(view), [45, 10, 45]);
+  view.changeGpTarget(200);
+  assert.deepEqual(allocatedAmounts(view), [90, 20, 90]);
   assert.equal(view.pricing.discount, 5);
-  assert.equal(view.pricing.gstPercent, 9);
 });
 
-test('editing a unit price fixes that line, excludes its ratio, and releasing it restores allocation', () => {
+test('unit price locking survives GP changes, percentage edits replace that lock, and unlocking shares equally', () => {
   const view = quotationHarness(QuoteLinesEditor, targetedPricing());
   commitNumber(view, 'Line 1 unit price', 40);
   assert.deepEqual(allocatedAmounts(view), [40, 60]);
   assert.equal(view.pricing.manualLines[0].priceFixed, true);
-  assert.equal(view.label('Fix price for line 1').props.checked, true);
-  const ratio = numericHarness(view.label('Line 1 allocation ratio').props);
-  assert.equal(ratio.input().props.disabled, true);
-  const writes = view.writes;
-  ratio.type('500');
-  ratio.blur();
-  assert.equal(view.writes, writes, 'A fixed line does not accept ratio edits');
-  commitNumber(view, 'Target total before discount and tax', 200);
+  view.changeGpTarget(200);
   assert.deepEqual(allocatedAmounts(view), [40, 160]);
-  view
-    .label('Fix price for line 1')
-    .props.onChange({ target: { checked: false } });
-  assert.deepEqual(allocatedAmounts(view), [50, 150]);
+  commitNumber(view, 'Line 1 allocation percentage', 30);
+  assert.deepEqual(allocatedAmounts(view), [60, 140]);
   assert.equal(view.pricing.manualLines[0].priceFixed, false);
-  assert.equal(view.label('Line 1 allocation ratio').props.disabled, false);
+  assert.equal(view.pricing.manualLines[0].allocationFixed, true);
+  view.changeGpTarget(100);
+  assert.deepEqual(allocatedAmounts(view), [30, 70]);
+  view
+    .label('Lock allocation for line 1')
+    .props.onChange({ target: { checked: false } });
+  assert.deepEqual(allocatedAmounts(view), [50, 50]);
 });
 
-test('adding an editable draft and removing rows keeps the target and rebalances valid rows', () => {
+test('explicitly typing the existing value locks it, while merely focusing and blurring does not', () => {
   const view = quotationHarness(QuoteLinesEditor, targetedPricing());
+  numericHarness(view.label('Line 1 allocation percentage').props).blur();
+  assert.equal(view.writes, 0);
+  commitNumber(view, 'Line 1 allocation percentage', 50);
+  assert.equal(view.pricing.manualLines[0].allocationFixed, true);
+  commitNumber(view, 'Line 1 unit price', 50);
+  assert.equal(view.pricing.manualLines[0].priceFixed, true);
+  assert.equal(view.pricing.manualLines[0].allocationFixed, false);
+});
+
+test('adding or removing rows redistributes the unlocked shares and retains draft validation', () => {
+  const view = quotationHarness(QuoteLinesEditor, targetedPricing());
+  view.changeGpTarget(120);
   view.button('Add line').props.onClick();
   assert.equal(view.pricing.manualLines.length, 3);
-  assert.deepEqual(allocatedAmounts(view), [25, 75, 0]);
   assert.equal(view.pricing.manualLines[2].description, '');
-  assert.equal(view.pricing.manualLines[2].allocationWeight, 1);
   assert.match(
     textOf(view.find((node) => node.props.role === 'alert')),
     /description/,
@@ -385,59 +420,57 @@ test('adding an editable draft and removing rows keeps the target and rebalances
   view
     .label('Line 3 description')
     .props.onChange({ target: { value: 'Support' } });
-  assert.deepEqual(allocatedAmounts(view), [20, 60, 20]);
+  assert.deepEqual(allocatedAmounts(view), [40, 40, 40]);
   view.label('Line 3 unit').props.onChange({ target: { value: 'day' } });
-  assert.equal(view.pricing.manualLines[2].unit, 'day');
   commitNumber(view, 'Line 3 quantity', 2);
-  assert.equal(view.pricing.manualLines[2].quantity, 2);
-  assert.equal(view.pricing.manualLines[2].unitPrice, 10);
+  assert.equal(view.effectiveLines[2].unitPrice, 20);
   view.label('Remove quotation line 2').props.onClick();
+  assert.deepEqual(allocatedAmounts(view), [60, 60]);
   assert.deepEqual(
     view.pricing.manualLines.map((line) => line.description),
     ['Planning', 'Support'],
   );
-  assert.deepEqual(allocatedAmounts(view), [50, 50]);
-  assert.equal(view.pricing.manualTargetPrice, 100);
   view.label('Remove quotation line 2').props.onClick();
+  assert.deepEqual(allocatedAmounts(view), [120]);
   view.label('Remove quotation line 1').props.onClick();
   assert.deepEqual(view.pricing.manualLines, []);
-  assert.equal(view.pricing.manualTargetPrice, 100);
-  assert.equal(view.button('Rebalance · 按比例分配').props.disabled, true);
-});
-
-test('an impossible target remains visible with an error and preserves the typed fixed price', () => {
-  const initial = targetedPricing();
-  initial.manualLines[0].priceFixed = true;
-  const view = quotationHarness(QuoteLinesEditor, initial);
-  commitNumber(view, 'Target total before discount and tax', 10);
-  assert.equal(view.pricing.manualTargetPrice, 10);
-  assert.deepEqual(allocatedAmounts(view), [25, 75]);
   assert.match(
     textOf(view.find((node) => node.props.role === 'alert')),
-    /fixed/i,
+    /at least one/,
   );
-  assert.match(textOf(view.render()), /Remaining/);
-  assert.equal(view.pricing.manualLines[0].unitPrice, 25);
 });
 
-test('locked pricing rejects every editing handler without writing controlled state', () => {
+test('oversubscribed locks retain the entered values and show a repairable allocation error', () => {
+  const view = quotationHarness(QuoteLinesEditor, targetedPricing());
+  commitNumber(view, 'Line 1 allocation percentage', 60);
+  commitNumber(view, 'Line 2 allocation percentage', 50);
+  assert.equal(view.pricing.manualLines[1].allocationWeight, 50);
+  assert.match(
+    textOf(view.find((node) => node.props.role === 'alert')),
+    /100|exceed|percent/i,
+  );
+  view
+    .label('Lock allocation for line 2')
+    .props.onChange({ target: { checked: false } });
+  assert.deepEqual(allocatedAmounts(view), [60, 40]);
+});
+
+test('disabled pricing rejects every editing handler without writing state', () => {
   const saved = targetedPricing();
   const view = quotationHarness(QuoteLinesEditor, saved, true);
   view.mode('scope');
   view.button('Add line').props.onClick();
-  view.button('Rebalance · 按比例分配').props.onClick();
   view.label('Remove quotation line 1').props.onClick();
   view
     .label('Line 1 description')
     .props.onChange({ target: { value: 'Changed' } });
   view.label('Line 1 unit').props.onChange({ target: { value: 'day' } });
   view
-    .label('Fix price for line 1')
+    .label('Lock allocation for line 1')
     .props.onChange({ target: { checked: true } });
   for (const label of [
-    'Target total before discount and tax',
     'Line 1 quantity',
-    'Line 1 allocation ratio',
+    'Line 1 allocation percentage',
     'Line 1 unit price',
   ]) {
     assert.equal(view.label(label).props.disabled, true);
@@ -446,85 +479,6 @@ test('locked pricing rejects every editing handler without writing controlled st
   }
   assert.equal(view.writes, 0);
   assert.deepEqual(view.pricing, saved);
-});
-
-test('initial weights preserve fractional proportions and zero-price rows on repeated allocation', () => {
-  const source = [
-    ...generatedLines().map((line, index) => ({
-      ...line,
-      unitPrice: index + 1,
-      amount: index + 1,
-    })),
-    {
-      id: 'included',
-      description: 'Included',
-      quantity: 1,
-      unit: 'lot',
-      unitPrice: 0,
-      amount: 0,
-    },
-  ];
-  const view = quotationHarness(QuoteLinesEditor, legacyTerms(), false, source);
-  view.mode('manual');
-  const weights = view.pricing.manualLines.map((line) => line.allocationWeight);
-  assert.deepEqual(weights, [(1 / 3) * 100, (2 / 3) * 100, 0]);
-  const ratio = numericHarness(view.label('Line 1 allocation ratio').props);
-  assert.equal(ratio.input().props.value, '33.3333');
-  const writes = view.writes;
-  ratio.blur();
-  assert.equal(
-    view.writes,
-    writes,
-    'An unchanged rounded display must not lose stored precision',
-  );
-  commitNumber(view, 'Target total before discount and tax', 30);
-  assert.deepEqual(allocatedAmounts(view), [10, 20, 0]);
-  commitNumber(view, 'Target total before discount and tax', 3);
-  assert.deepEqual(allocatedAmounts(view), [1, 2, 0]);
-  assert.deepEqual(
-    view.pricing.manualLines.map((line) => line.allocationWeight),
-    weights,
-  );
-});
-
-test('adding to legacy and mixed-weight lines materializes the same ratios shown in the editor', () => {
-  for (const mixed of [false, true]) {
-    const initial = {
-      ...legacyTerms(),
-      lineMode: 'manual',
-      manualLines: generatedLines().map(
-        ({ amount: _amount, ...line }, index) => ({
-          ...line,
-          unitPrice: mixed ? (index ? 80 : 25) : index ? 160 : 40,
-          ...(mixed && index === 0 ? { allocationWeight: 20 } : {}),
-        }),
-      ),
-    };
-    const view = quotationHarness(QuoteLinesEditor, initial);
-    assert.equal(view.label('Line 1 allocation ratio').props.value, 20);
-    assert.equal(view.label('Line 2 allocation ratio').props.value, 80);
-    assert.equal(
-      view.writes,
-      0,
-      'Displayed fallback ratios do not mutate a saved quotation',
-    );
-    view.button('Add line').props.onClick();
-    assert.deepEqual(
-      view.pricing.manualLines.map((line) => line.allocationWeight),
-      [20, 80, 1],
-    );
-    assert.equal(view.pricing.manualTargetPrice, undefined);
-    view
-      .label('Line 3 description')
-      .props.onChange({ target: { value: 'Support' } });
-    commitNumber(view, 'Target total before discount and tax', 101);
-    assert.deepEqual(allocatedAmounts(view), [20, 80, 1]);
-    assert.deepEqual(
-      view.pricing.manualLines.map((line) => line.allocationWeight),
-      [20, 80, 1],
-    );
-    assert.equal(view.pricing.gstPercent, 9);
-  }
 });
 
 test('rounded display preserves an untouched ratio but commits an explicitly typed rounded ratio', () => {

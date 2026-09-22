@@ -1,5 +1,5 @@
 /** Compact quotation controls for target allocation, fixed prices and customer-facing details. */
-import { Plus, RotateCw, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -25,14 +25,15 @@ import type {
   QuoteLineMode,
 } from './excel-template-types';
 import { calculateManualQuoteLines, MAX_QUOTE_LINES } from './quote-lines';
-import { allocateQuoteTarget } from './target-allocation';
+import { allocateQuotePercentages } from './percentage-allocation';
+import { applyGpAllocation, gpAllocationLines } from './manual-pricing';
 import { QuoteNumberInput } from './quote-number-input';
 
 const MODES: Array<{ value: QuoteLineMode; label: string }> = [
   { value: 'single', label: 'Single line · 单行总价' },
   { value: 'scope', label: 'By Scope · 按 Scope 汇总' },
   { value: 'item', label: 'By cost item · 按成本条目' },
-  { value: 'manual', label: 'Target pricing · 逐条定价' },
+  { value: 'manual', label: 'Line allocation · 逐条定价' },
 ];
 
 /** Removes calculated fields when copying generated lines into editable customer prices. */
@@ -40,144 +41,113 @@ function editableLines(lines: QuoteLine[]): ManualQuoteLine[] {
   return lines.map(({ amount: _amount, ...line }) => ({ ...line }));
 }
 
-/** Seed relative weights once so repeated target changes do not compound rounding into the proportions. */
-function withAllocationWeights(lines: ManualQuoteLine[]): ManualQuoteLine[] {
-  if (
-    !lines.length ||
-    lines.every((line) => line.allocationWeight !== undefined)
-  )
-    return lines;
-  const { lines: calculated, total } = calculateManualQuoteLines(lines);
-  const hasWeights = lines.some((line) => line.allocationWeight !== undefined);
-  const weights = lines.map(
-    (line, index) =>
-      line.allocationWeight ??
-      (hasWeights
-        ? calculated[index].amount
-        : total > 0
-          ? (calculated[index].amount / total) * 100
-          : 1),
-  );
-  // Mixed legacy/API rows use amount-based implicit weights; scale all together only to fit the saved range.
-  const scale = Math.max(1, Math.max(...weights) / 1e6);
-  return lines.map((line, index) => ({
-    ...line,
-    allocationWeight: weights[index] / scale,
-  }));
-}
-
-/** Apply a target atomically; an invalid draft remains editable and is blocked by quote output validation. */
-function rebalancePricing(pricing: PricingSettings): PricingSettings {
-  if (pricing.manualTargetPrice === undefined) return pricing;
-  const candidate = withAllocationWeights(pricing.manualLines ?? []);
-  const allocation = allocateQuoteTarget(candidate, pricing.manualTargetPrice);
-  return { ...pricing, manualLines: allocation.lines };
-}
-
-/** Keeps mode selection and line operations adjacent to the data they affect. */
+/** Keeps percentage, price and locking controls inside one editable quotation grid. */
 export function QuoteLinesEditor({
   pricing,
   setPricing,
   lines,
+  gpTargetPrice,
+  allocatedLines,
   disabled,
   embedded = false,
 }: {
   pricing: PricingSettings;
   setPricing: React.Dispatch<React.SetStateAction<PricingSettings>>;
   lines: QuoteLine[];
+  gpTargetPrice: number;
+  allocatedLines?: ManualQuoteLine[];
   disabled: boolean;
   embedded?: boolean;
 }) {
   const mode = pricing.lineMode ?? 'single';
   const manual = mode === 'manual';
-  const manualLines = pricing.manualLines ?? [];
-  const currentTotal = manual
-    ? calculateManualQuoteLines(manualLines).total
-    : lines.reduce((sum, line) => sum + line.amount, 0);
-  const target = pricing.manualTargetPrice;
+  const gpBased = pricing.manualPricingBasis === 'gp';
+  const effectiveLines = allocatedLines ?? pricing.manualLines ?? [];
+  const currentTotal = calculateManualQuoteLines(effectiveLines).total;
   const difference =
-    target === undefined
-      ? 0
-      : (Math.round(target * 100) - Math.round(currentTotal * 100)) / 100;
+    (Math.round(gpTargetPrice * 100) - Math.round(currentTotal * 100)) / 100;
   const allocationErrors =
-    manual && target !== undefined
-      ? allocateQuoteTarget(manualLines, target).errors
+    manual && gpBased
+      ? allocateQuotePercentages(effectiveLines, gpTargetPrice).errors
       : [];
-  const displayWeights = withAllocationWeights(manualLines);
-  const metadata = new Map(displayWeights.map((line) => [line.id, line]));
+  const metadata = new Map(effectiveLines.map((line) => [line.id, line]));
 
-  /** Entering manual mode seeds current visible amounts once and preserves earlier edits. */
+  /** Display saved legacy amounts as percentages without altering their values on page load. */
+  const percentage = (line: QuoteLine) =>
+    gpBased
+      ? (metadata.get(line.id)?.allocationWeight ?? 0)
+      : currentTotal > 0
+        ? (line.amount / currentTotal) * 100
+        : 0;
+
+  /** Selecting manual pricing explicitly switches to the original GP target and equal unlocked shares. */
   const selectMode = (nextMode: QuoteLineMode) => {
     if (disabled) return;
     setPricing((current) => {
-      if (nextMode !== 'manual' || current.manualLines?.length)
-        return { ...current, lineMode: nextMode };
-      if (lines.length > MAX_QUOTE_LINES) return current;
-      const seeded = withAllocationWeights(editableLines(lines));
-      return {
-        ...current,
-        lineMode: nextMode,
-        manualLines: seeded,
-        manualTargetPrice: calculateManualQuoteLines(seeded).total,
-      };
+      if (nextMode !== 'manual') return { ...current, lineMode: nextMode };
+      const source = current.manualLines?.length
+        ? current.manualLines
+        : editableLines(lines);
+      if (source.length > MAX_QUOTE_LINES) return current;
+      return applyGpAllocation(
+        current,
+        gpTargetPrice,
+        gpAllocationLines(current, source),
+      );
     });
   };
 
-  /** Explicitly activating a target keeps legacy quotations unchanged until the user opts in. */
-  const setTarget = (value: number) => {
+  /** Text-only edits preserve legacy commercial prices; numerical edits activate the GP allocation rules. */
+  const updateLine = (
+    id: string,
+    patch: Partial<ManualQuoteLine>,
+    allocate = true,
+  ) => {
     if (disabled) return;
-    setPricing((current) =>
-      rebalancePricing({ ...current, manualTargetPrice: value }),
-    );
+    setPricing((current) => {
+      const source = allocate
+        ? gpAllocationLines(current, effectiveLines)
+        : (current.manualLines ?? []);
+      const nextLines = source.map((line) =>
+        line.id === id ? { ...line, ...patch } : line,
+      );
+      return allocate || current.manualPricingBasis === 'gp'
+        ? applyGpAllocation(current, gpTargetPrice, nextLines)
+        : { ...current, manualLines: nextLines };
+    });
   };
 
-  /** Patches one commercial input without changing cost scope or master data. */
-  const updateLine = (id: string, patch: Partial<ManualQuoteLine>) => {
-    if (disabled) return;
-    setPricing((current) =>
-      rebalancePricing({
-        ...current,
-        manualLines: (patch.allocationWeight !== undefined
-          ? withAllocationWeights(current.manualLines ?? [])
-          : (current.manualLines ?? [])
-        ).map((line) => (line.id === id ? { ...line, ...patch } : line)),
-      }),
-    );
-  };
-
-  /** Adds a local draft with an explicit unit and a zero selling price. */
+  /** Adding a draft gives it an equal share once its required description has been supplied. */
   const addLine = () => {
     if (disabled) return;
-    setPricing((current) =>
-      (current.manualLines?.length ?? 0) >= MAX_QUOTE_LINES
-        ? current
-        : {
-            ...current,
-            manualLines: [
-              ...withAllocationWeights(current.manualLines ?? []),
-              {
-                id: `quote-line-${globalThis.crypto.randomUUID()}`,
-                description: '',
-                quantity: 1,
-                unit: 'lot',
-                unitPrice: 0,
-                allocationWeight: 1,
-              },
-            ],
-          },
-    );
+    setPricing((current) => {
+      if ((current.manualLines?.length ?? 0) >= MAX_QUOTE_LINES) return current;
+      return applyGpAllocation(current, gpTargetPrice, [
+        ...gpAllocationLines(current, effectiveLines),
+        {
+          id: `quote-line-${globalThis.crypto.randomUUID()}`,
+          description: '',
+          quantity: 1,
+          unit: 'lot',
+          unitPrice: 0,
+          allocationFixed: false,
+          priceFixed: false,
+        },
+      ]);
+    });
   };
 
-  /** Removes only the chosen manual quotation entry. */
+  /** Removing a line redistributes only the residual share; all remaining locks keep their meaning. */
   const removeLine = (id: string) => {
     if (disabled) return;
     setPricing((current) =>
-      rebalancePricing({
-        ...current,
-        manualLines: (current.manualLines ?? []).filter(
+      applyGpAllocation(
+        current,
+        gpTargetPrice,
+        gpAllocationLines(current, effectiveLines).filter(
           (line) => line.id !== id,
         ),
-      }),
+      ),
     );
   };
 
@@ -236,64 +206,11 @@ export function QuoteLinesEditor({
           {lines.length} {lines.length === 1 ? 'line' : 'lines'}
         </span>
       </div>
-      {manual && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-muted/30 px-3 py-2">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
-            <span>
-              Target total{' '}
-              <span className="font-normal text-muted-foreground">
-                折扣及税前
-              </span>
-            </span>
-            <QuoteNumberInput
-              key={`target-${target ?? currentTotal}`}
-              label="Target total before discount and tax"
-              value={target ?? currentTotal}
-              decimals={2}
-              disabled={disabled}
-              onCommit={setTarget}
-              className="h-8 w-36 text-right"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={disabled || !lines.length}
-              onClick={() => setTarget(target ?? currentTotal)}
-            >
-              <RotateCw className="size-3.5" /> Rebalance · 按比例分配
-            </Button>
-          </div>
-          <div
-            className="ml-auto flex flex-wrap items-center gap-4 text-xs tabular-nums"
-            aria-live="polite"
-          >
-            <span className="text-muted-foreground">
-              Allocated{' '}
-              <strong className="ml-1 font-semibold text-foreground">
-                {formatSgd(currentTotal)}
-              </strong>
-            </span>
-            <span
-              className={
-                difference
-                  ? 'font-medium text-destructive'
-                  : 'text-muted-foreground'
-              }
-            >
-              {target === undefined
-                ? 'Target not set · 尚未设置目标'
-                : difference
-                  ? `Remaining · 差额 ${formatSgd(difference)}`
-                  : 'Matched · 已达目标'}
-            </span>
-          </div>
-        </div>
-      )}
       <p className="px-3 py-2 text-[11px] text-muted-foreground">
         {mode === 'single'
           ? 'One service-price line; overall discount and GST are shown separately. · 整单服务总价显示一行，折扣及税额单独列出。'
           : manual
-            ? 'Set a target, then adjust relative ratios (e.g. 2:1). Editing a unit price fixes that line; the remaining target is shared by unlocked lines. · 设置目标后按比例分配；修改单价会固定该行，其余条目自动分配剩余金额。'
+            ? 'The target follows GP above. Editing a percentage or unit price locks that value; unlocked rows equally share the remainder. · 总价沿用上方 GP；修改比例或单价会锁定该值，其余未锁定行均分剩余比例。'
             : 'The current service price is allocated by cost weight. Each Scope/item is quoted as one lot, including its share of project risk. · 按成本权重分配现有总报价（含风险），每个 Scope/条目作为一项服务；可切换逐条定价编辑数量及单价。'}
       </p>
       {!!allocationErrors.length && (
@@ -304,8 +221,16 @@ export function QuoteLinesEditor({
           {allocationErrors[0]}
         </p>
       )}
+      {manual && !gpBased && (
+        <p className="px-3 pb-2 text-[11px] text-muted-foreground">
+          Saved prices retained. Editing GP or line allocations applies GP
+          pricing. · 已保存单价保留，修改 GP 或分配后采用新规则。
+        </p>
+      )}
       <div className="max-h-[320px] overflow-auto">
-        <Table className={manual ? 'min-w-[780px]' : 'min-w-[620px]'}>
+        <Table
+          className={`${manual ? 'min-w-[840px]' : 'min-w-[620px]'} [&_th]:border-r [&_th]:border-border/60 [&_th:last-child]:border-r-0 [&_td]:border-r [&_td]:border-border [&_td:last-child]:border-r-0 [&_td]:p-1.5 text-xs`}
+        >
           <TableHeader className="sticky top-0 z-10 bg-muted">
             <TableRow>
               <TableHead className="w-10">#</TableHead>
@@ -313,11 +238,11 @@ export function QuoteLinesEditor({
               <TableHead className="w-24 text-right">Quantity</TableHead>
               <TableHead className="w-20">Unit</TableHead>
               {manual && (
-                <TableHead className="w-24 text-right">Ratio 比例</TableHead>
+                <TableHead className="w-24 text-right">Share 比例 %</TableHead>
               )}
               <TableHead className="w-32 text-right">Unit price</TableHead>
               {manual && (
-                <TableHead className="w-14 text-center">Fixed</TableHead>
+                <TableHead className="w-14 text-center">Lock 锁定</TableHead>
               )}
               <TableHead className="w-32 text-right">Amount</TableHead>
               {manual && (
@@ -341,9 +266,13 @@ export function QuoteLinesEditor({
                       maxLength={4000}
                       disabled={disabled}
                       onChange={(event) =>
-                        updateLine(line.id, { description: event.target.value })
+                        updateLine(
+                          line.id,
+                          { description: event.target.value },
+                          false,
+                        )
                       }
-                      className="h-8 min-w-44"
+                      className="h-8 min-w-44 rounded-none border-transparent bg-transparent shadow-none focus-visible:border-ring"
                     />
                   ) : (
                     <span className="whitespace-pre-wrap break-words">
@@ -374,9 +303,9 @@ export function QuoteLinesEditor({
                       maxLength={40}
                       disabled={disabled}
                       onChange={(event) =>
-                        updateLine(line.id, { unit: event.target.value })
+                        updateLine(line.id, { unit: event.target.value }, false)
                       }
-                      className="h-8"
+                      className="h-8 rounded-none border-transparent bg-transparent shadow-none focus-visible:border-ring"
                     />
                   ) : (
                     line.unit
@@ -385,16 +314,16 @@ export function QuoteLinesEditor({
                 {manual && (
                   <TableCell className="text-right">
                     <QuoteNumberInput
-                      key={`weight-${metadata.get(line.id)?.allocationWeight ?? 0}`}
-                      label={`Line ${index + 1} allocation ratio`}
-                      value={metadata.get(line.id)?.allocationWeight ?? 0}
-                      max={1e6}
-                      disabled={
-                        disabled || metadata.get(line.id)?.priceFixed === true
-                      }
+                      key={`weight-${percentage(line)}`}
+                      label={`Line ${index + 1} allocation percentage`}
+                      commitUnchanged
+                      value={percentage(line)}
+                      max={100}
+                      disabled={disabled}
                       onCommit={(allocationWeight) =>
                         updateLine(line.id, {
                           allocationWeight,
+                          allocationFixed: true,
                           priceFixed: false,
                         })
                       }
@@ -406,10 +335,15 @@ export function QuoteLinesEditor({
                     <QuoteNumberInput
                       key={`price-${line.unitPrice}`}
                       label={`Line ${index + 1} unit price`}
+                      commitUnchanged
                       value={line.unitPrice}
                       disabled={disabled}
                       onCommit={(unitPrice) =>
-                        updateLine(line.id, { unitPrice, priceFixed: true })
+                        updateLine(line.id, {
+                          unitPrice,
+                          priceFixed: true,
+                          allocationFixed: false,
+                        })
                       }
                     />
                   ) : (
@@ -420,13 +354,22 @@ export function QuoteLinesEditor({
                   <TableCell className="text-center">
                     <input
                       type="checkbox"
-                      aria-label={`Fix price for line ${index + 1}`}
-                      title="Keep this unit price when the target or other lines change"
-                      checked={metadata.get(line.id)?.priceFixed === true}
+                      aria-label={`Lock allocation for line ${index + 1}`}
+                      title={
+                        metadata.get(line.id)?.priceFixed
+                          ? 'Unit price locked · 单价已锁定'
+                          : 'Percentage lock · 比例锁定'
+                      }
+                      checked={
+                        metadata.get(line.id)?.priceFixed === true ||
+                        metadata.get(line.id)?.allocationFixed === true
+                      }
                       disabled={disabled}
                       onChange={(event) =>
                         updateLine(line.id, {
-                          priceFixed: event.target.checked,
+                          priceFixed: false,
+                          allocationFixed: event.target.checked,
+                          allocationWeight: percentage(line),
                         })
                       }
                       className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
@@ -454,6 +397,25 @@ export function QuoteLinesEditor({
             ))}
           </TableBody>
         </Table>
+        {manual && gpBased && (
+          <div
+            className="sticky bottom-0 flex flex-wrap justify-end gap-5 border-t bg-muted px-3 py-2 text-xs financial-numeral"
+            aria-live="polite"
+          >
+            <span>
+              Allocated 合计 <strong>{formatSgd(currentTotal)}</strong>
+            </span>
+            <span
+              className={
+                difference ? 'text-destructive' : 'text-muted-foreground'
+              }
+            >
+              {difference
+                ? `Remaining 差额 ${formatSgd(difference)}`
+                : 'Matched · 已达目标'}
+            </span>
+          </div>
+        )}
         {!lines.length && (
           <p className="p-3 text-xs text-muted-foreground">
             Add a quotation line to set its description, quantity and selling

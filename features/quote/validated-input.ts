@@ -63,7 +63,7 @@ export function validatedQuoteInput(
     snapshot,
     workspace.pricing.lineMode,
     pricing.listPrice,
-    workspace.pricing.manualLines,
+    pricing.allocatedManualLines ?? workspace.pricing.manualLines,
   );
   const errors = validatePricingSettings(workspace.pricing, total, allocation);
   errors.push(...validateQuoteLines(lines, pricing.listPrice));

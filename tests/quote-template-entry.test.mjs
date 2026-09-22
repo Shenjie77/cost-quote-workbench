@@ -53,6 +53,8 @@ const hooks = registerHooks({
 const { QuoteTemplatePicker } =
   await import('../features/quote/template-picker.tsx');
 const { QuoteView } = await import('../features/quote/quote-view.tsx');
+const { QuotePreviewDialog } =
+  await import('../features/quote/quote-preview-dialog.tsx');
 const { QuoteTemplatesView } =
   await import('../features/master-data/quote-catalog-view.tsx');
 const { GlobalConflictFields } =
@@ -75,6 +77,24 @@ const pickerProps = {
   onManage: noop,
   busy: false,
 };
+
+/** Include action slots when finding the actual dialog in the quote page tree. */
+const elements = (node) =>
+  Array.isArray(node)
+    ? node.flatMap(elements)
+    : React.isValidElement(node)
+      ? [node, ...elements(node.props.children), ...elements(node.props.action)]
+      : [];
+
+/** Project the real portal's article into SSR so customer-content assertions inspect only its document. */
+function CustomerPreviewArticle(props) {
+  const view = QuoteView(props);
+  const preview = elements(view).find(
+    (node) => node.type === QuotePreviewDialog,
+  );
+  const dialog = QuotePreviewDialog(preview.props);
+  return elements(dialog).find((node) => node.type === 'article');
+}
 
 test('quotation template entry renders a named selector and explicit Apply button', () => {
   const markup = renderToStaticMarkup(
@@ -154,79 +174,78 @@ test('quotation template entry precedes pricing and customer preview in the real
   const trackWrite = () => {
     writes += 1;
   };
-  const markup = renderToStaticMarkup(
-    React.createElement(QuoteView, {
+  const props = {
+    project: {
+      id: 'PRJ-TEMPLATE-TEST',
+      name: 'Entry test',
+      client: 'Client A',
+      currency: 'SGD',
+    },
+    activeVersion: 'V1',
+    versionState: 'Draft',
+    totalCost: 100,
+    costSnapshot: {
+      schemaVersion: '2.0.0',
+      exportedAt: '2026-09-11T00:00:00Z',
       project: {
         id: 'PRJ-TEMPLATE-TEST',
         name: 'Entry test',
         client: 'Client A',
         currency: 'SGD',
       },
-      activeVersion: 'V1',
-      versionState: 'Draft',
-      totalCost: 100,
-      costSnapshot: {
-        schemaVersion: '2.0.0',
-        exportedAt: '2026-09-11T00:00:00Z',
-        project: {
-          id: 'PRJ-TEMPLATE-TEST',
-          name: 'Entry test',
-          client: 'Client A',
-          currency: 'SGD',
-        },
-        costVersion: { code: 'V1', status: 'Draft' },
-        rateSettings: {
-          quoteAsOf: '',
-          tdStart: '',
-          tdEnd: '',
-          baseYear: 2026,
-          defaultUplift: 0,
-          annualUplifts: [0, 0, 0, 0, 0],
-        },
-        travelSettings: {
-          enabled: false,
-          monthlyAllowance: 0,
-          airfarePerTrip: 0,
-          trips: 0,
-        },
-        resourceTypes: [],
-        costRows: [],
-        manualCosts: {
-          localPurchasedEquipment: 0,
-          inlandLogistics: 0,
-          countryWarehousing: 0,
-          nonInHouseLabour: 0,
-          settlement: 0,
-          carFee: 0,
-          otherService: 100,
-          riskContingency: 0,
-        },
+      costVersion: { code: 'V1', status: 'Draft' },
+      rateSettings: {
+        quoteAsOf: '',
+        tdStart: '',
+        tdEnd: '',
+        baseYear: 2026,
+        defaultUplift: 0,
+        annualUplifts: [0, 0, 0, 0, 0],
       },
-      costErrors: [],
-      onSave: async () => true,
-      onOpenMasterData: noop,
-      onExportStateChange: noop,
-      exportInProgress: false,
-      pricing: { targetGrossMargin: 20, discount: 0, gstPercent: 9 },
-      setPricing: trackWrite,
-      assumptionLibrary: [],
-      quoteTemplates: [template],
-      selectedQuoteTemplateId: template.id,
-      setSelectedQuoteTemplateId: trackWrite,
-      quoteAssumptions: [
-        {
-          id: 'included',
-          text: 'Included English clause',
-          textZh: '历史假设译文',
-          included: true,
-        },
-      ],
-      setQuoteAssumptions: trackWrite,
-      quoteHistory: [],
-      setQuoteHistory: trackWrite,
-      announce: noop,
-    }),
-  );
+      travelSettings: {
+        enabled: false,
+        monthlyAllowance: 0,
+        airfarePerTrip: 0,
+        trips: 0,
+      },
+      resourceTypes: [],
+      costRows: [],
+      manualCosts: {
+        localPurchasedEquipment: 0,
+        inlandLogistics: 0,
+        countryWarehousing: 0,
+        nonInHouseLabour: 0,
+        settlement: 0,
+        carFee: 0,
+        otherService: 100,
+        riskContingency: 0,
+      },
+    },
+    costErrors: [],
+    onSave: async () => true,
+    onOpenMasterData: noop,
+    onExportStateChange: noop,
+    exportInProgress: false,
+    pricing: { targetGrossMargin: 20, discount: 0, gstPercent: 9 },
+    setPricing: trackWrite,
+    assumptionLibrary: [],
+    quoteTemplates: [template],
+    selectedQuoteTemplateId: template.id,
+    setSelectedQuoteTemplateId: trackWrite,
+    quoteAssumptions: [
+      {
+        id: 'included',
+        text: 'Included English clause',
+        textZh: '历史假设译文',
+        included: true,
+      },
+    ],
+    setQuoteAssumptions: trackWrite,
+    quoteHistory: [],
+    setQuoteHistory: trackWrite,
+    announce: noop,
+  };
+  const markup = renderToStaticMarkup(React.createElement(QuoteView, props));
   assert.ok(
     markup.indexOf('Quotation Template') < markup.indexOf('Pricing Parameters'),
   );
@@ -235,12 +254,44 @@ test('quotation template entry precedes pricing and customer preview in the real
       markup.indexOf('Client Output Preview'),
   );
   assert.equal((markup.match(/id="quote-template-select"/g) || []).length, 1);
-  const preview = markup
-    .match(/<section\b[\s\S]*?<\/section>/g)
-    ?.find((section) => section.includes('Client Output Preview'));
-  assert.ok(preview);
+  const pricingPanel = markup.match(
+    /<section[^>]*aria-label="Quotation pricing"[^>]*>[\s\S]*?<\/section>/,
+  )?.[0];
+  assert.ok(pricingPanel);
+  assert.match(
+    pricingPanel,
+    /<button[^>]*aria-label="Client Output Preview 客户预览"[^>]*>[\s\S]*?Preview[\s\S]*?<\/button>/,
+  );
+  assert.doesNotMatch(
+    markup,
+    /<article[^>]*aria-label="Customer quotation preview"/,
+    'the preview document stays in its closed dialog until requested',
+  );
+  const preview = renderToStaticMarkup(
+    React.createElement(CustomerPreviewArticle, props),
+  );
+  assert.match(
+    preview,
+    /^<article[^>]*aria-label="Customer quotation preview"/,
+  );
   assert.doesNotMatch(preview, /\p{Script=Han}/u);
   assert.match(preview, /Included English clause/);
+  for (const field of [
+    'Prepared for',
+    'Description',
+    'Quantity',
+    'Unit price',
+    'Amount',
+    'Total Before Tax',
+    'Total After Tax',
+    'Validity',
+    'Payment',
+  ])
+    assert.ok(preview.includes(field), field);
+  assert.doesNotMatch(
+    preview,
+    /allocationWeight|allocationFixed|priceFixed|Target Sales GP|Actual Sales GP|Profit Share|Pricing Parameters|Manage Rates|internal-template-id/,
+  );
   assert.doesNotMatch(
     markup,
     /历史报价标题|历史付款条件|历史假设译文|Quotation assumption translation/,

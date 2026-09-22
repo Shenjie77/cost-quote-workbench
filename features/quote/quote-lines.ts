@@ -93,6 +93,25 @@ export function validateManualQuoteLines(
       );
     if (line.priceFixed !== undefined && typeof line.priceFixed !== 'boolean')
       errors.push(`${prefix}fixed price must be true or false.`);
+    if (
+      line.allocationFixed !== undefined &&
+      typeof line.allocationFixed !== 'boolean'
+    )
+      errors.push(`${prefix}fixed percentage must be true or false.`);
+    if (
+      line.allocationFixed === true &&
+      (line.allocationWeight === undefined ||
+        !Number.isFinite(line.allocationWeight) ||
+        line.allocationWeight < 0 ||
+        line.allocationWeight > 100)
+    )
+      errors.push(
+        `${prefix}a fixed percentage must be a number between 0 and 100.`,
+      );
+    if (line.priceFixed === true && line.allocationFixed === true)
+      errors.push(
+        `${prefix}fix either the percentage or the unit price, not both.`,
+      );
     const amount = line.quantity * line.unitPrice;
     if (!Number.isFinite(amount) || amount > MAX_QUOTE_AMOUNT)
       errors.push(`${prefix}amount exceeds the supported range.`);

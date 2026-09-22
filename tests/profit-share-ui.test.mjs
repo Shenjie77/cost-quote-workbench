@@ -45,6 +45,8 @@ const hooks = registerHooks({
   },
 });
 const { QuoteView } = await import('../features/quote/quote-view.tsx');
+const { QuotePreviewDialog } =
+  await import('../features/quote/quote-preview-dialog.tsx');
 const { ProfitShareSummary } =
   await import('../features/quote/profit-share-summary.tsx');
 const { ProfitShareEditor } =
@@ -138,6 +140,24 @@ const quoteProps = {
 const render = (Component, props) =>
   renderToStaticMarkup(React.createElement(Component, props));
 
+/** Locate nested action content without changing its original component props. */
+const elements = (node) =>
+  Array.isArray(node)
+    ? node.flatMap(elements)
+    : React.isValidElement(node)
+      ? [node, ...elements(node.props.children), ...elements(node.props.action)]
+      : [];
+
+/** Render the real customer article separately because closed dialog portals are absent from SSR output. */
+function CustomerPreviewArticle(props) {
+  const view = QuoteView(props);
+  const preview = elements(view).find(
+    (node) => node.type === QuotePreviewDialog,
+  );
+  const dialog = QuotePreviewDialog(preview.props);
+  return elements(dialog).find((node) => node.type === 'article');
+}
+
 test('pricing displays applied BU share, unassigned cost allocation and net Sales GP', () => {
   let writes = 0;
   const markup = render(QuoteView, {
@@ -188,12 +208,15 @@ test('target GP plus share at 100 percent blocks quotation generation', () => {
   assert.doesNotMatch(markup, /NaN|Infinity/);
 });
 
-test('manual quotation lines expose editable selling prices and disable the unused target GP control', () => {
-  const markup = render(QuoteView, {
+test('legacy manual quotation keeps its saved prices and tax while exposing an editable target GP control', () => {
+  let writes = 0;
+  const props = {
     ...quoteProps,
+    setPricing: () => writes++,
     pricing: {
       ...pricing,
       targetGrossMargin: 95,
+      gstPercent: 9,
       lineMode: 'manual',
       manualLines: [
         {
@@ -205,17 +228,37 @@ test('manual quotation lines expose editable selling prices and disable the unus
         },
       ],
     },
-  });
+  };
+  const before = structuredClone(props.pricing);
+  const markup = render(QuoteView, props);
   assert.match(markup, /aria-label="Line 1 description"/);
   assert.match(markup, /aria-label="Line 1 quantity"/);
   assert.match(markup, /aria-label="Line 1 unit price"/);
   assert.match(markup, /Add line/);
-  assert.match(markup, /Line Total Before Discount/);
-  assert.match(markup, /id="target-gross-margin"[^>]*disabled/);
+  assert.match(markup, /Line Total/);
+  const targetInput = markup.match(
+    /<input[^>]*id="target-gross-margin"[^>]*>/,
+  )?.[0];
+  assert.ok(targetInput);
+  assert.doesNotMatch(targetInput, /\sdisabled(?:=|\s|\/?>)/);
+  assert.match(targetInput, /value="95"/);
   assert.doesNotMatch(
     markup,
     /Target sales GP plus weighted profit-share rate must be less/,
   );
+  const preview = render(CustomerPreviewArticle, props);
+  assert.match(preview, /Customer service/);
+  assert.match(preview, /S\$ 50\.00/);
+  assert.match(preview, /S\$ 100\.00/);
+  assert.match(preview, /GST 9\.00%/);
+  assert.match(preview, /S\$ 9\.00/);
+  assert.match(preview, /S\$ 109\.00/);
+  assert.equal(
+    writes,
+    0,
+    'viewing legacy prices must not activate GP repricing',
+  );
+  assert.deepEqual(props.pricing, before);
 });
 
 test('master-data rate editor is independent of projects and flags duplicate BU definitions', () => {

@@ -172,6 +172,10 @@
         },
         "manualTargetPrice": {
           "$ref": "#/$defs/money"
+        },
+        "manualPricingBasis": {
+          "type": "string",
+          "enum": ["gp"]
         }
       }
     },
@@ -2370,6 +2374,9 @@
           "maximum": 1000000
         },
         "priceFixed": {
+          "type": "boolean"
+        },
+        "allocationFixed": {
           "type": "boolean"
         }
       }

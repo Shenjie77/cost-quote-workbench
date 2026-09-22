@@ -54,6 +54,9 @@ import { quoteProfitShareSnapshot } from './history-record';
 import { ProfitShareSummary } from './profit-share-summary';
 import { buildQuoteLines, validateQuoteLines } from './quote-lines';
 import { QuoteLinesEditor } from './quote-lines-editor';
+import { QuoteNumberInput } from './quote-number-input';
+import { applyGpAllocation, gpAllocationLines } from './manual-pricing';
+import { QuotePreviewDialog } from './quote-preview-dialog';
 
 /** Creates stable local identities for newly recorded assumptions and quotation history. */
 const newId = (prefix: string) => `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -130,11 +133,16 @@ export function QuoteView({
     };
   }, []);
   const result = calculatePricing(totalCost, pricing, costAllocation);
+  const gpPricing = calculatePricing(
+    totalCost,
+    { ...pricing, lineMode: 'single' },
+    costAllocation,
+  );
   const lines = buildQuoteLines(
     costSnapshot,
     pricing.lineMode,
     result.listPrice,
-    pricing.manualLines,
+    result.allocatedManualLines ?? pricing.manualLines,
   );
   const template = quoteTemplates.find(
     (item) => item.id === selectedQuoteTemplateId,
@@ -173,16 +181,33 @@ export function QuoteView({
       'Template selected; eligible default assumptions added without overwriting existing text. / 已选择模板并补入适用默认假设，原内容保留。',
     );
   };
-  /** Normalizes editable numeric pricing terms without touching captured rates or line data. */
+  /** GP remains the sole target control; an explicit GP edit activates allocation while other terms retain their arithmetic. */
   const updateNumber = (
     key: 'targetGrossMargin' | 'discount' | 'gstPercent',
     raw: string,
   ) => {
+    if (isApplyingRates || isExporting || exportInProgress) return;
     const value = Number(raw);
-    setPricing((current) => ({
-      ...current,
-      [key]: Number.isFinite(value) ? value : 0,
-    }));
+    setPricing((current) => {
+      const next = { ...current, [key]: Number.isFinite(value) ? value : 0 };
+      if (key !== 'targetGrossMargin' || current.lineMode !== 'manual')
+        return next;
+      const effective =
+        calculatePricing(totalCost, current, costAllocation)
+          .allocatedManualLines ??
+        current.manualLines ??
+        [];
+      const target = calculatePricing(
+        totalCost,
+        { ...next, lineMode: 'single' },
+        costAllocation,
+      ).listPrice;
+      return applyGpAllocation(
+        next,
+        target,
+        gpAllocationLines(current, effective),
+      );
+    });
   };
 
   /** Generates one real XLSX file and records the exact commercial snapshot. */
@@ -294,305 +319,261 @@ export function QuoteView({
         onManage={() => onOpenMasterData('quote-templates')}
         busy={exportInProgress}
       />
-      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
-        <section className="wb-panel">
-          <SectionHeading
-            index="01"
-            title="Pricing Parameters"
-            titleZh="定价参数"
-            description="Pricing is saved with the project and recalculated from the active cost version."
-            descriptionZh="定价参数随项目保存，并基于当前成本版本实时重算。"
-            action={
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  disabled={isApplyingRates}
-                  onClick={async () =>
-                    announce(
-                      (await onSave())
-                        ? 'Pricing saved / 定价已保存'
-                        : 'Pricing save failed; edits are retained / 保存失败，修改已保留',
-                    )
-                  }
-                >
-                  <Save /> Save Pricing{' '}
-                  <span className="text-[11px] opacity-60">保存定价</span>
-                </Button>
-                <Button
-                  onClick={generateDraft}
-                  disabled={
-                    !template ||
-                    isExporting ||
-                    isApplyingRates ||
-                    exportInProgress ||
-                    versionState !== 'Confirmed' ||
-                    outputErrors.length > 0
-                  }
-                  title={
-                    versionState === 'Confirmed'
-                      ? 'Generate customer quotation workbook'
-                      : 'Confirm the current cost version first / 请先确认当前成本版本'
-                  }
-                >
-                  {isExporting ? <Download /> : <FileCheck2 />}
-                  {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
-                  <span className="text-[11px] opacity-60">生成报价</span>
-                </Button>
-              </div>
-            }
-          />
-          <QuoteLinesEditor
-            key={`${project.id}:${activeVersion}`}
-            pricing={pricing}
-            setPricing={setPricing}
-            lines={lines}
-            disabled={isExporting || exportInProgress || isApplyingRates}
-            embedded
-          />
-          <div className="divide-y divide-border text-xs">
-            <div className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] px-3 py-2">
-              <BiText
-                en="Cost with Risk"
-                zh="含风险项目总成本"
-                className="font-medium"
+      <section className="wb-panel min-w-0" aria-label="Quotation pricing">
+        <SectionHeading
+          index="01"
+          title="Pricing Parameters"
+          titleZh="定价参数"
+          description="Set GP, then allocate line prices."
+          descriptionZh="设置 GP，再分配明细。"
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <QuotePreviewDialog
+                project={project}
+                activeVersion={activeVersion}
+                template={template}
+                pricing={result}
+                lines={lines}
+                assumptions={quoteAssumptions}
               />
-              <span className="financial-numeral text-right font-semibold">
-                {formatSgd(result.cost)}
-              </span>
-            </div>
-            <label
-              htmlFor="target-gross-margin"
-              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] px-3 py-2"
-            >
-              <BiText
-                en="Target Sales GP (%)"
-                zh="目标销售毛利率（扣除分成）"
-                className="font-medium"
-              />
-              <Input
-                id="target-gross-margin"
-                disabled={pricing.lineMode === 'manual'}
+              <Button
+                variant="outline"
+                disabled={isApplyingRates}
+                onClick={async () =>
+                  announce(
+                    (await onSave())
+                      ? 'Pricing saved / 定价已保存'
+                      : 'Pricing save failed; edits are retained / 保存失败，修改已保留',
+                  )
+                }
+              >
+                <Save /> Save Pricing{' '}
+                <span className="text-[11px] opacity-60">保存定价</span>
+              </Button>
+              <Button
+                onClick={generateDraft}
+                disabled={
+                  !template ||
+                  isExporting ||
+                  isApplyingRates ||
+                  exportInProgress ||
+                  versionState !== 'Confirmed' ||
+                  outputErrors.length > 0
+                }
                 title={
-                  pricing.lineMode === 'manual'
-                    ? 'Manual line prices determine the service price; actual sales GP is calculated below.'
-                    : undefined
+                  versionState === 'Confirmed'
+                    ? 'Generate customer quotation workbook'
+                    : 'Confirm the current cost version first / 请先确认当前成本版本'
                 }
-                type="number"
-                min="0"
-                max="95"
-                step="0.01"
-                value={pricing.targetGrossMargin}
-                onChange={(event) =>
-                  updateNumber('targetGrossMargin', event.target.value)
-                }
-                className="h-8 text-right financial-numeral"
-              />
-            </label>
-            <div className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] bg-muted/40 px-3 py-2">
-              <BiText
-                en={
-                  pricing.lineMode === 'manual'
-                    ? 'Line Total Before Discount'
-                    : 'Target List Price'
-                }
-                zh={
-                  pricing.lineMode === 'manual'
-                    ? '明细合计（折扣前）'
-                    : '目标报价（折扣前）'
-                }
-                className="font-medium"
-              />
-              <span className="financial-numeral text-right font-semibold">
-                {result.valid ? formatSgd(result.listPrice) : '—'}
-              </span>
+              >
+                {isExporting ? <Download /> : <FileCheck2 />}
+                {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
+                <span className="text-[11px] opacity-60">生成报价</span>
+              </Button>
             </div>
-            <label
-              htmlFor="pricing-discount"
-              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] px-3 py-2"
-            >
-              <BiText
-                en="Discount (SGD)"
-                zh="折扣金额（SGD）"
-                className="font-medium"
-              />
-              <Input
-                id="pricing-discount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={pricing.discount}
-                onChange={(event) =>
-                  updateNumber('discount', event.target.value)
-                }
-                className="h-8 text-right financial-numeral"
-              />
-            </label>
-            <label
-              htmlFor="pricing-gst"
-              className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_180px] px-3 py-2"
-            >
-              <BiText en="GST (%)" zh="税率（%）" className="font-medium" />
-              <Input
-                id="pricing-gst"
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={pricing.gstPercent}
-                onChange={(event) =>
-                  updateNumber('gstPercent', event.target.value)
-                }
-                className="h-8 text-right financial-numeral"
-              />
-            </label>
-            <div className="grid grid-cols-2 divide-x divide-border bg-accent/60">
-              <div className="px-3 py-2">
+          }
+        />
+        {/* Keep editable commercial terms beside their results, following the Cost Grid cell layout. */}
+        <Table
+          className="min-w-[900px] table-fixed text-xs"
+          aria-label="Pricing parameters"
+        >
+          <TableHeader>
+            <TableRow className="h-10 bg-primary text-white hover:bg-primary">
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
                 <BiText
+                  zhClassName="text-white/70"
+                  en="Cost with Risk"
+                  zh="含风险项目总成本"
+                />
+              </TableHead>
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
+                <label htmlFor="target-gross-margin">
+                  <BiText
+                    zhClassName="text-white/70"
+                    en="Target Sales GP (%)"
+                    zh="目标销售毛利率"
+                  />
+                </label>
+              </TableHead>
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
+                <BiText
+                  zhClassName="text-white/70"
+                  en={
+                    pricing.lineMode === 'manual' &&
+                    pricing.manualPricingBasis !== 'gp'
+                      ? 'Line Total'
+                      : 'Target List Price'
+                  }
+                  zh={
+                    pricing.lineMode === 'manual' &&
+                    pricing.manualPricingBasis !== 'gp'
+                      ? '明细合计（折扣前）'
+                      : '目标报价（折扣前）'
+                  }
+                />
+              </TableHead>
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
+                <label htmlFor="pricing-discount">
+                  <BiText
+                    zhClassName="text-white/70"
+                    en="Discount (SGD)"
+                    zh="折扣金额"
+                  />
+                </label>
+              </TableHead>
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
+                <label htmlFor="pricing-gst">
+                  <BiText zhClassName="text-white/70" en="GST (%)" zh="税率" />
+                </label>
+              </TableHead>
+              <TableHead className="border-r border-white/20 px-3 py-1.5 text-[11px] whitespace-normal text-white">
+                <BiText
+                  zhClassName="text-white/70"
+                  en="Quote Before Tax"
+                  zh="未税报价"
+                />
+              </TableHead>
+              <TableHead className="px-3 py-1.5 text-[11px] whitespace-normal text-white">
+                <BiText
+                  zhClassName="text-white/70"
                   en="Actual Sales GP"
                   zh="销售毛利率（扣除分成）"
-                  className="text-xs text-muted-foreground"
                 />
-                <p className="financial-numeral mt-1 text-lg font-bold text-primary">
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow className="h-12 hover:bg-transparent">
+              <TableCell className="financial-numeral border-r bg-muted/30 px-3 text-right font-semibold">
+                {formatSgd(result.cost)}
+              </TableCell>
+              <TableCell className="border-r bg-blue-50/30 p-0">
+                <QuoteNumberInput
+                  key={`gp-${pricing.targetGrossMargin}`}
+                  id="target-gross-margin"
+                  label="Target Sales GP (%) 目标销售毛利率"
+                  commitUnchanged={
+                    pricing.lineMode === 'manual' &&
+                    pricing.manualPricingBasis !== 'gp'
+                  }
+                  max={95}
+                  value={pricing.targetGrossMargin}
+                  disabled={isApplyingRates || isExporting || exportInProgress}
+                  onCommit={(value) =>
+                    updateNumber('targetGrossMargin', String(value))
+                  }
+                  className="financial-numeral h-12 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
+                />
+              </TableCell>
+              <TableCell className="financial-numeral border-r bg-muted/30 px-3 text-right font-semibold">
+                {result.valid ||
+                (pricing.manualPricingBasis === 'gp' && gpPricing.valid)
+                  ? formatSgd(result.listPrice)
+                  : '—'}
+              </TableCell>
+              <TableCell className="border-r bg-blue-50/30 p-0">
+                <Input
+                  id="pricing-discount"
+                  disabled={isApplyingRates || isExporting || exportInProgress}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={pricing.discount}
+                  onChange={(event) =>
+                    updateNumber('discount', event.target.value)
+                  }
+                  className="financial-numeral h-12 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
+                />
+              </TableCell>
+              <TableCell className="border-r bg-blue-50/30 p-0">
+                <Input
+                  id="pricing-gst"
+                  disabled={isApplyingRates || isExporting || exportInProgress}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={pricing.gstPercent}
+                  onChange={(event) =>
+                    updateNumber('gstPercent', event.target.value)
+                  }
+                  className="financial-numeral h-12 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
+                />
+              </TableCell>
+              <TableCell className="financial-numeral border-r bg-accent/60 px-3 text-right font-semibold text-primary">
+                {formatSgd(result.quoteBeforeTax)}
+              </TableCell>
+              <TableCell className="financial-numeral bg-accent/60 px-3 text-right">
+                <span className="block font-semibold text-primary">
                   {result.valid
                     ? `${result.grossMarginPercent.toFixed(2)}%`
                     : '—'}
-                </p>
-                <p className="financial-numeral mt-1 text-xs text-muted-foreground">
-                  {result.valid ? formatSgd(result.salesGrossProfit) : '—'}
-                </p>
-              </div>
-              <div className="px-3 py-2 text-right">
-                <BiText
-                  en="Quote Before Tax"
-                  zh="未税报价"
-                  className="items-end text-xs text-muted-foreground"
-                />
-                <p className="financial-numeral mt-1 text-lg font-bold text-primary">
-                  {formatSgd(result.quoteBeforeTax)}
-                </p>
-              </div>
-            </div>
-            <ProfitShareSummary
-              result={result}
-              masterDataRevision={pricing.profitShareMasterDataRevision}
-              onManage={() => onOpenMasterData('profit-share')}
-              applying={isApplyingRates}
-              disabled={exportInProgress || isExporting}
-              onApply={
-                onApplyProfitShare
-                  ? async () => {
-                      if (
-                        applyingRates.current ||
-                        exportInProgress ||
-                        isExporting
-                      )
-                        return;
-                      applyingRates.current = true;
-                      setIsApplyingRates(true);
-                      try {
-                        announce(
-                          (await onApplyProfitShare())
-                            ? 'Latest profit share rates applied and saved.'
-                            : 'Profit share rates were not applied. The current selection is retained.',
-                        );
-                      } catch (error) {
-                        announce(
-                          `Unable to apply profit share rates: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                        );
-                      } finally {
-                        applyingRates.current = false;
-                        if (mounted.current) setIsApplyingRates(false);
-                      }
-                    }
-                  : undefined
-              }
-            />
-          </div>
-          {outputErrors.length > 0 ? (
-            <p role="alert" className="px-3 pb-3 text-xs text-red-700">
-              Validation · 输入校验：{outputErrors[0]}
-            </p>
-          ) : null}
-        </section>
-        <section className="wb-panel">
-          <SectionHeading
-            index="02"
-            title="Client Output Preview"
-            titleZh=""
-            description="Preview the currently applied quotation template."
-            descriptionZh=""
-          />
-          <div className="bg-muted/20 p-3">
-            <div className="mx-auto max-w-[520px] border bg-card p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-primary pb-3">
-                <div>
-                  <p className="text-base font-bold tracking-wide text-primary">
-                    {template?.documentTitle || 'SERVICE QUOTATION'}
-                  </p>
-                </div>
-                <span className="financial-numeral text-[11px] text-muted-foreground">
-                  QT-{project.id.replace(/^PRJ-/, '')}-{activeVersion}
                 </span>
-              </div>
-              <div className="mt-3">
-                <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                  Prepared for
-                </p>
-                <p className="mt-1 text-sm font-semibold">{project.client}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {project.name}
-                </p>
-              </div>
-              <div className="mt-3 border-y border-border py-3">
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  <p className="text-xs font-medium">Total Before Tax</p>
-                  <p className="financial-numeral text-xl font-bold tracking-tight text-primary sm:text-2xl">
-                    {formatSgd(result.quoteBeforeTax)}
-                  </p>
-                </div>
-                <div className="mt-3 flex flex-wrap items-end justify-between gap-3 text-muted-foreground">
-                  <p className="text-[11px]">
-                    GST {result.gstPercent.toFixed(2)}%
-                  </p>
-                  <p className="financial-numeral text-xs">
-                    {formatSgd(result.gstAmount)}
-                  </p>
-                </div>
-                <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
-                  <p className="text-xs font-medium">Total After Tax</p>
-                  <p className="financial-numeral text-sm font-semibold">
-                    {formatSgd(result.quoteAfterTax)}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3 space-y-2 text-xs text-muted-foreground">
-                <p>• Validity: {template?.validityDays || 30} days</p>
-                <p>• Payment: {template?.paymentTerms || 'Not set'}</p>
-                <p>• Cost baseline: {activeVersion}</p>
-                {template?.termsAndConditions && (
-                  <div className="border-t pt-2">
-                    <p className="font-semibold">Terms & Conditions</p>
-                    <p className="whitespace-pre-wrap break-words">
-                      {template.termsAndConditions}
-                    </p>
-                  </div>
-                )}
-                {quoteAssumptions
-                  .filter((row) => row.included)
-                  .map((row) => (
-                    <p className="whitespace-pre-wrap break-words" key={row.id}>
-                      • {row.text}
-                    </p>
-                  ))}
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-
+                <span className="block text-[11px] text-muted-foreground">
+                  {result.valid ? formatSgd(result.salesGrossProfit) : '—'}
+                </span>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+        {/* The detail editor spans the same width as the parameters that determine its prices. */}
+        <QuoteLinesEditor
+          key={`${project.id}:${activeVersion}`}
+          pricing={pricing}
+          setPricing={setPricing}
+          lines={lines}
+          gpTargetPrice={gpPricing.listPrice}
+          allocatedLines={result.allocatedManualLines}
+          disabled={isExporting || exportInProgress || isApplyingRates}
+          embedded
+        />
+        <div className="border-t text-xs">
+          <ProfitShareSummary
+            result={result}
+            masterDataRevision={pricing.profitShareMasterDataRevision}
+            onManage={() => onOpenMasterData('profit-share')}
+            applying={isApplyingRates}
+            disabled={exportInProgress || isExporting}
+            onApply={
+              onApplyProfitShare
+                ? async () => {
+                    if (
+                      applyingRates.current ||
+                      exportInProgress ||
+                      isExporting
+                    )
+                      return;
+                    applyingRates.current = true;
+                    setIsApplyingRates(true);
+                    try {
+                      announce(
+                        (await onApplyProfitShare())
+                          ? 'Latest profit share rates applied and saved.'
+                          : 'Profit share rates were not applied. The current selection is retained.',
+                      );
+                    } catch (error) {
+                      announce(
+                        `Unable to apply profit share rates: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                      );
+                    } finally {
+                      applyingRates.current = false;
+                      if (mounted.current) setIsApplyingRates(false);
+                    }
+                  }
+                : undefined
+            }
+          />
+        </div>
+        {outputErrors.length > 0 ? (
+          <p role="alert" className="px-3 pb-3 text-xs text-red-700">
+            Validation · 输入校验：{outputErrors[0]}
+          </p>
+        ) : null}
+      </section>
       <section className="wb-panel">
         <SectionHeading
-          index="03"
+          index="02"
           title="Quote Assumptions"
           titleZh="报价假设"
           description="Included rows are written into the generated client workbook."
@@ -708,7 +689,7 @@ export function QuoteView({
 
       <section className="wb-panel">
         <SectionHeading
-          index="04"
+          index="03"
           title="Quotation History"
           titleZh="报价历史"
           description="Every generated file creates a frozen value reference; manual records are also supported."
