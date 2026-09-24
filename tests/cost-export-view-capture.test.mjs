@@ -25,12 +25,13 @@ const hooks = registerHooks({
     return {
       format: 'module',
       shortCircuit: true,
-      source: `export const calls = []; let finish;
+      source: `export const calls = []; let finish; let reject;
         export function ${name}(...args) {
           calls.push(args);
-          return new Promise(resolve => { finish = resolve; });
+          return new Promise((resolve, fail) => { finish = resolve; reject = fail; });
         }
-        export function complete() { finish({fileName:'test.xlsx',sizeBytes:1024}); }`,
+        export function complete() { finish({fileName:'test.xlsx',sizeBytes:1024}); }
+        export function fail() { reject(new Error('Archive unavailable')); }`,
     };
   },
 });
@@ -135,4 +136,70 @@ test('exporting a locked snapshot uses its captured values without any write cal
   simple.complete();
   await pending;
   assert.deepEqual(snapshot, before);
+});
+
+test('sheet discovery has no download effects and confirmation freezes the chosen tabs', async () => {
+  const snapshot = makeCostSnapshot();
+  const layout = {
+    grouped: false,
+    yearIndex: 'all',
+    columns: ['scope', 'totalCost'],
+  };
+  const before = structuredClone({ snapshot, layout });
+  const actions = renderExport({
+    enabled: true,
+    announce: () => {},
+    createSnapshot: () => snapshot,
+    createSimpleLayout: () => layout,
+  });
+  const previous = simple.calls.length;
+  const sheets = actions.getSimpleWorkbookSheets();
+  assert.ok(sheets.some((sheet) => sheet.id === 'Summary BU'));
+  assert.equal(
+    simple.calls.length,
+    previous,
+    'opening the picker cannot download or archive',
+  );
+  assert.deepEqual({ snapshot, layout }, before);
+
+  const selected = ['Summary BU', 'Cost Statement'];
+  const pending = actions.exportSimpleWorkbook(selected);
+  selected.splice(0, 2, 'Cost Detail');
+  snapshot.project.name = 'Changed after confirmation';
+  layout.yearIndex = 2;
+  assert.deepEqual(simple.calls.at(-1), [
+    before.snapshot,
+    before.layout,
+    ['Summary BU', 'Cost Statement'],
+  ]);
+  simple.complete();
+  assert.equal(await pending, true);
+
+  const fullPending = actions.exportWorkbook();
+  assert.deepEqual(
+    full.calls.at(-1),
+    [snapshot],
+    'Full Export never receives Simple Export selections',
+  );
+  full.complete();
+  assert.equal(await fullPending, true);
+});
+
+test('failed selected export reports failure and releases the guard for retry', async () => {
+  const messages = [];
+  const actions = renderExport({
+    enabled: true,
+    announce: (message) => messages.push(message),
+    createSnapshot: () => makeCostSnapshot(),
+  });
+  const selected = ['Summary Scope'];
+  const pending = actions.exportSimpleWorkbook(selected);
+  assert.equal(await actions.exportSimpleWorkbook(selected), false);
+  simple.fail();
+  assert.equal(await pending, false);
+  assert.match(messages.at(-1), /Archive unavailable/);
+  const retry = actions.exportSimpleWorkbook(selected);
+  assert.deepEqual(simple.calls.at(-1)[2], selected);
+  simple.complete();
+  assert.equal(await retry, true);
 });

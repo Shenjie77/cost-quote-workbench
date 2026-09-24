@@ -49,8 +49,10 @@ must be resolved; saving a view does not unlock a cost version.
 
 ## Export the current table
 
-**Simple Export** uses the current Cost Input layout for its **Cost Detail**
-sheet: Group headings when enabled, row order, visible columns in their chosen
+**Simple Export** opens a worksheet picker, defaulting to all available tabs.
+Select at least one tab and confirm to export; cancelling produces no file.
+For selected **Cost Detail**, it uses the current Cost Input layout:
+Group headings when enabled, row order, visible columns in their chosen
 order, and the selected Y1–Y5 / All Years view. These settings remain available
 when switching between Input Sheet and Summary. Group names are also included
 as a normal column if that column is visible. Action buttons, checks, record IDs,
@@ -59,9 +61,10 @@ RE codes and source-file metadata are not exported.
 The detail's Total columns still mean all years, matching the grid. The other
 summary sheets and Cost Statement retain the complete five-year project totals;
 the exported detail states its year view and this summary scope. Structured
-Subcon sheets remain included, and legacy subcontract entries appear separately
-from personnel so their costs remain visible. Hiding all business columns for
-the selected year blocks Simple Export until a data column is shown.
+Subcon sheets are available when applicable, and legacy subcontract entries
+can be exported separately from personnel. Hiding all business columns for
+the selected year blocks exporting **Cost Detail** until a data column is shown;
+exporting only other sheets remains available.
 
 **Full Export** and CLI `cost export --format simple` retain their standard
 layouts; the browser's display preferences do not alter those paths. Exporting

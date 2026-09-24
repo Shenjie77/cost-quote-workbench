@@ -72,8 +72,9 @@ order are stored with the cost version and can also be updated through CLI.
 **Columns** controls visibility and left/right order. Use **Save** to retain the
 year, group visibility and columns in this browser for the current project and
 cost version; the same action flushes cost inputs, allowance and travel settings.
-**Simple Export** follows those columns plus the selected grouping and year view
-in Cost Detail; its summaries retain full five-year totals. **Full Export** keeps
+**Simple Export** opens a worksheet picker, with all available tabs selected by
+default. It follows those columns plus the selected grouping and year view
+in Cost Detail; selected summaries retain full five-year totals. **Full Export** keeps
 the standard workbook layout. **Cost Statement** opens first in Summary; named
 statement accounts replace the generic unassigned cost bucket, and **Subcon**
 reconciles its breakdown to 2.3.2. UI and Simple Export summaries include Risk.

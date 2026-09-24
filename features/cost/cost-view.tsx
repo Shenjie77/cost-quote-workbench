@@ -22,6 +22,7 @@ import { VersionComparisonView } from '@/features/cost/version-comparison-view';
 import { buildCostExportSnapshot } from '@/features/cost/build-export-snapshot';
 import type { CostExportSnapshot } from '@/features/cost/contracts';
 import { useCostWorkbookExport } from '@/features/cost/use-cost-workbook-export';
+import { SimpleCostExportDialog } from '@/features/cost/components/simple-cost-export-dialog';
 import { usePersonnelTableView } from '@/features/cost/use-personnel-table-view';
 import {
   getY1Year,
@@ -241,25 +242,29 @@ export function CostView({
       ).totalWithRisk,
     );
   };
-  const { isExporting, exportWorkbook, exportSimpleWorkbook } =
-    useCostWorkbookExport({
-      enabled: Boolean(version),
-      simpleLayoutReady: personnelTableView.columnSettings.ready,
-      createSimpleLayout: () => personnelTableView.layout,
-      announce,
-      createSnapshot: () =>
-        buildCostExportSnapshot({
-          activeVersion,
-          versionStatus: version?.state || 'Draft',
-          project,
-          rateSettings,
-          travelSettings,
-          resourceTypes,
-          rows,
-          manualCosts,
-          subcontractCost,
-        }),
-    });
+  const {
+    isExporting,
+    getSimpleWorkbookSheets,
+    exportWorkbook,
+    exportSimpleWorkbook,
+  } = useCostWorkbookExport({
+    enabled: Boolean(version),
+    simpleLayoutReady: personnelTableView.columnSettings.ready,
+    createSimpleLayout: () => personnelTableView.layout,
+    announce,
+    createSnapshot: () =>
+      buildCostExportSnapshot({
+        activeVersion,
+        versionStatus: version?.state || 'Draft',
+        project,
+        rateSettings,
+        travelSettings,
+        resourceTypes,
+        rows,
+        manualCosts,
+        subcontractCost,
+      }),
+  });
 
   const content = (
     <div className="wb-page-stack min-w-0 gap-2">
@@ -483,16 +488,16 @@ export function CostView({
               <Save />
               {isSavingConfiguration ? 'Saving…' : 'Save'}
             </Button>
-            <Button
-              size="sm"
-              className="h-8 px-2.5 text-xs"
-              onClick={exportSimpleWorkbook}
-              disabled={isExporting || !personnelTableView.columnSettings.ready}
-              title="Cost Detail follows the current groups, row order, columns and year view. Summaries include all five years."
-            >
-              <Download />
-              Simple Export
-            </Button>
+            <SimpleCostExportDialog
+              key={`${project.id}:${activeVersion}`}
+              disabled={
+                isExporting ||
+                !version ||
+                !personnelTableView.columnSettings.ready
+              }
+              getSheets={getSimpleWorkbookSheets}
+              onExport={exportSimpleWorkbook}
+            />
             <Button
               size="sm"
               className="h-8 px-2.5 text-xs"

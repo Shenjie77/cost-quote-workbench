@@ -5,8 +5,18 @@ Workbook contract version is `2.0.0`.
 
 ## Simple export
 
-**Simple Export** produces five business sheets: `Cost Detail`, `Summary Scope`,
-`Summary BU`, `Summary RE Type`, and `Cost Statement`. It follows the page's
+**Simple Export** opens a worksheet picker with all available sheets selected.
+Choose any non-empty subset, then select **Export**. **Select all**, **Clear** and
+**Cancel** only affect the picker; they do not change cost inputs. An export
+failure leaves the selection open for retry.
+
+The six standard sheets are `Cost Detail`, `Summary Scope`, `Summary BU`,
+`Summary RE Type`, `Summary Subcon`, and `Cost Statement`. Depending on the
+captured data, the picker also offers `Legacy Subcon`, `Subcon Rates`,
+`Subcon Detail`, and `Subcon Site Types`. Only selected sheets are written and
+archived; their original order, content and calculations are preserved.
+
+The report follows the page's
 annual inputs, calculated costs, dimension totals and statement hierarchy.
 Report Item contains both English and Chinese in one cell, including its report
 account number. Technical IDs, classification codes and Source columns are
@@ -17,6 +27,7 @@ shared calculated amounts.
 npm run --silent cost-cli -- cost export --project-id ID --version Vn --format simple --output outputs/Cost-simple.xlsx
 ```
 
+The CLI continues to export all available sheets with its standard detail layout.
 The simple report is read-only and available for locked versions. The same
 validation rules apply to both formats. Omit `--format` or use `--format full`
 for the detailed audit workbook described below.

@@ -17,6 +17,7 @@ import {
   buildSimpleCostWorkbookBytes,
   getSimpleCostWorkbookFileName,
 } from '../features/cost/export-simple-workbook.ts';
+import { getAvailableSimpleCostSheets } from '../features/cost/simple-export-sheets.ts';
 import { makeCostSnapshot } from './helpers.mjs';
 
 const load = async (bytes) => {
@@ -339,4 +340,244 @@ test('simple export handles direct mandays, applies shared validation and uses a
     getSimpleCostWorkbookFileName(snapshot),
     'Cost_Simple____Project___test_V_2_2026-09-04.xlsx',
   );
+});
+
+/** Compare serialized cell content, including all monetary values, across selected reports. */
+const sheetValues = (sheet) =>
+  Array.from({ length: sheet.rowCount }, (_, index) =>
+    values(sheet.getRow(index + 1), sheet.columnCount),
+  );
+const sheetNames = (workbook) => workbook.worksheets.map((sheet) => sheet.name);
+const personnelLayout = () => ({
+  grouped: true,
+  yearIndex: 1,
+  columns: ['scope', 'bu', 'Y2:cost', 'totalCost', 'action'],
+});
+
+/** A valid capture containing every conditional Simple Cost Export report. */
+const completeSheetFixture = () => {
+  const snapshot = makeCostSnapshot();
+  snapshot.subcontractCost = {
+    mode: 'site-types',
+    rateSettings: {
+      baseYear: 2026,
+      defaultUplift: 2,
+      annualUplifts: [2, 2, 2, 2, 2],
+    },
+    lines: [
+      {
+        id: 'project-install',
+        code: '00123',
+        description: 'Shared installation',
+        bu: 'Network',
+        unit: 'pcs',
+        unitPrice: 50,
+        currency: 'SGD',
+        quantities: [1, 2, 0, 0, 0],
+      },
+    ],
+    siteTypes: [
+      {
+        id: 'site-a',
+        name: 'Type A',
+        sites: [2, 3, 0, 0, 0],
+        lines: [
+          {
+            id: 'site-install',
+            code: '00456',
+            description: 'Site installation',
+            bu: 'Network',
+            unit: 'pcs',
+            unitPrice: 200,
+            currency: 'SGD',
+            quantityPerSite: 2,
+          },
+        ],
+      },
+    ],
+  };
+  return snapshot;
+};
+
+test('available report options match actual workbook order for default, legacy, empty and structured Subcon captures', async () => {
+  const base = makeCostSnapshot();
+  const complete = completeSheetFixture();
+  const ratesOnly = structuredClone(complete);
+  ratesOnly.subcontractCost.lines = [];
+  ratesOnly.subcontractCost.siteTypes = [];
+  const emptySites = structuredClone(ratesOnly);
+  emptySites.subcontractCost.siteTypes = [
+    { id: 'empty', name: 'Empty', sites: [0, 0, 0, 0, 0], lines: [] },
+  ];
+  const projectOnly = structuredClone(complete);
+  projectOnly.subcontractCost.mode = 'project';
+  projectOnly.subcontractCost.siteTypes = [];
+  const projectWithEmptySite = structuredClone(emptySites);
+  projectWithEmptySite.subcontractCost.lines = structuredClone(
+    complete.subcontractCost.lines,
+  );
+  const noLegacy = structuredClone(base);
+  noLegacy.costRows = noLegacy.costRows.filter(
+    (row) =>
+      noLegacy.resourceTypes.find((resource) => resource.id === row.reTypeId)
+        .category !== 'subcontract',
+  );
+  for (const [snapshot, layout] of [
+    [base, undefined],
+    [base, personnelLayout()],
+    [noLegacy, personnelLayout()],
+    [ratesOnly, personnelLayout()],
+    [emptySites, undefined],
+    [projectOnly, undefined],
+    [projectWithEmptySite, undefined],
+    [complete, personnelLayout()],
+  ]) {
+    const before = structuredClone(snapshot);
+    const options = getAvailableSimpleCostSheets(snapshot, layout);
+    const workbook = await load(
+      await buildSimpleCostWorkbookBytes(snapshot, layout),
+    );
+    assert.deepEqual(
+      options.map((sheet) => sheet.id),
+      sheetNames(workbook),
+    );
+    assert.ok(options.every((sheet) => sheet.label && sheet.description));
+    assert.deepEqual(snapshot, before);
+  }
+  assert.deepEqual(
+    getAvailableSimpleCostSheets(ratesOnly)
+      .filter((sheet) => sheet.id.startsWith('Subcon'))
+      .map((sheet) => sheet.id),
+    ['Subcon Rates'],
+  );
+  assert.deepEqual(
+    getAvailableSimpleCostSheets(complete, personnelLayout()).map(
+      (sheet) => sheet.id,
+    ),
+    [
+      'Cost Detail',
+      'Legacy Subcon',
+      'Subcon Rates',
+      'Subcon Detail',
+      'Subcon Site Types',
+      'Summary Scope',
+      'Summary BU',
+      'Summary RE Type',
+      'Summary Subcon',
+      'Cost Statement',
+    ],
+  );
+});
+
+test('explicit all, single and multiple sheet selections preserve existing report contents and workbook order', async () => {
+  const snapshot = completeSheetFixture();
+  const layout = personnelLayout();
+  const baseline = await load(
+    await buildSimpleCostWorkbookBytes(snapshot, layout),
+  );
+  const names = sheetNames(baseline);
+  const requestedSets = [
+    names,
+    ...names.map((name) => [name]),
+    ['Cost Statement', 'Summary BU', 'Subcon Detail', 'Summary BU'],
+  ];
+  for (const requested of requestedSets) {
+    const originalSelection = [...requested];
+    const workbook = await load(
+      await buildSimpleCostWorkbookBytes(snapshot, layout, requested),
+    );
+    assert.deepEqual(
+      sheetNames(workbook),
+      names.filter((name) => requested.includes(name)),
+    );
+    for (const sheet of workbook.worksheets) {
+      const expected = baseline.getWorksheet(sheet.name);
+      assert.deepEqual(sheetValues(sheet), sheetValues(expected));
+      assert.deepEqual(sheet.pageSetup, expected.pageSetup);
+      // Fixed values make single-sheet export independent of every omitted report.
+      sheet.eachRow((row) =>
+        row.eachCell((cell) => {
+          assert.notEqual(cell.type, ExcelJS.ValueType.Formula);
+          assert.equal(cell.numFmt, expected.getCell(cell.address).numFmt);
+        }),
+      );
+    }
+    assert.deepEqual(requested, originalSelection);
+  }
+});
+
+test('empty or unavailable selections fail clearly without silently producing an empty workbook', async () => {
+  const snapshot = makeCostSnapshot();
+  await assert.rejects(
+    buildSimpleCostWorkbookBytes(snapshot, undefined, []),
+    /Select at least one sheet/,
+  );
+  for (const unavailable of ['Subcon Detail', 'Legacy Subcon', 'Missing']) {
+    await assert.rejects(
+      buildSimpleCostWorkbookBytes(snapshot, undefined, [
+        'Summary BU',
+        unavailable,
+      ]),
+      (error) => {
+        assert.match(error.message, /unavailable/);
+        assert.ok(error.message.includes(unavailable));
+        return true;
+      },
+    );
+  }
+});
+
+test('summary-only exports ignore empty personnel business columns while selected Cost Detail still validates them', async () => {
+  const snapshot = makeCostSnapshot();
+  const hiddenPersonnel = {
+    grouped: false,
+    yearIndex: 0,
+    columns: ['check', 'action'],
+  };
+  const workbook = await load(
+    await buildSimpleCostWorkbookBytes(snapshot, hiddenPersonnel, [
+      'Summary BU',
+    ]),
+  );
+  const baseline = await load(await buildSimpleCostWorkbookBytes(snapshot));
+  assert.deepEqual(sheetNames(workbook), ['Summary BU']);
+  assert.deepEqual(
+    sheetValues(workbook.getWorksheet('Summary BU')),
+    sheetValues(baseline.getWorksheet('Summary BU')),
+  );
+  for (const selected of [
+    undefined,
+    ['Cost Detail'],
+    ['Cost Detail', 'Summary BU'],
+  ])
+    await assert.rejects(
+      buildSimpleCostWorkbookBytes(snapshot, hiddenPersonnel, selected),
+      /at least one visible business column/,
+    );
+  snapshot.costRows[0].reTypeId = 'missing';
+  await assert.rejects(
+    buildSimpleCostWorkbookBytes(snapshot, hiddenPersonnel, ['Summary BU']),
+    /validation error/,
+  );
+});
+
+test('sheet selection is detached together with cost data and layout before asynchronous workbook generation', async () => {
+  const snapshot = completeSheetFixture();
+  const layout = personnelLayout();
+  const selection = ['Cost Detail', 'Subcon Detail'];
+  const baseline = await load(
+    await buildSimpleCostWorkbookBytes(snapshot, layout, selection),
+  );
+  const pending = buildSimpleCostWorkbookBytes(snapshot, layout, selection);
+  selection.splice(0, selection.length, 'Cost Statement');
+  layout.columns.splice(0, layout.columns.length, 'action');
+  snapshot.costRows[0].scope = 'Edited after export';
+  snapshot.subcontractCost.lines[0].unitPrice = 99999;
+  const workbook = await load(await pending);
+  assert.deepEqual(sheetNames(workbook), ['Cost Detail', 'Subcon Detail']);
+  for (const sheet of workbook.worksheets)
+    assert.deepEqual(
+      sheetValues(sheet),
+      sheetValues(baseline.getWorksheet(sheet.name)),
+    );
 });

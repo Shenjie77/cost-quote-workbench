@@ -39,6 +39,10 @@ import {
 import { isLegacySubcontractRow } from './personnel-cost-rows.ts';
 import { getCostWorkbookFileName } from './export-workbook.ts';
 import { validateCostExportSnapshot } from './validation.ts';
+import {
+  getAvailableSimpleCostSheets,
+  type SimpleCostSheetId,
+} from './simple-export-sheets.ts';
 
 type Workbook = import('exceljs').Workbook;
 type Worksheet = import('exceljs').Worksheet;
@@ -878,6 +882,7 @@ const addStatement = (
 export const buildSimpleCostWorkbookBytes = async (
   input: CostExportSnapshot,
   requestedLayout?: PersonnelTableLayout,
+  selectedSheets?: readonly SimpleCostSheetId[],
 ) => {
   // Detach before the first asynchronous boundary, even for direct CLI callers.
   const snapshot = structuredClone(input);
@@ -885,11 +890,28 @@ export const buildSimpleCostWorkbookBytes = async (
     requestedLayout === undefined
       ? undefined
       : structuredClone(requestedLayout);
-  const columns = layout
-    ? resolvePersonnelTableColumns(layout.columns, layout.yearIndex).filter(
-        (id) => id !== 'check' && id !== 'action',
-      )
-    : undefined;
+  const availableSheets = getAvailableSimpleCostSheets(snapshot, layout);
+  // Copy the caller's selection before loading ExcelJS; UI changes cannot alter this export.
+  const selected = new Set(
+    selectedSheets === undefined
+      ? availableSheets.map((sheet) => sheet.id)
+      : selectedSheets,
+  );
+  if (!selected.size)
+    throw new Error('Select at least one sheet for Simple Cost Export.');
+  const unavailable = [...selected].filter(
+    (id) => !availableSheets.some((sheet) => sheet.id === id),
+  );
+  if (unavailable.length)
+    throw new Error(
+      `Selected sheets are unavailable for this cost export: ${unavailable.join(', ')}.`,
+    );
+  const columns =
+    layout && selected.has('Cost Detail')
+      ? resolvePersonnelTableColumns(layout.columns, layout.yearIndex).filter(
+          (id) => id !== 'check' && id !== 'action',
+        )
+      : undefined;
   if (columns && !columns.length)
     throw new Error(
       'Select at least one visible business column before exporting the personnel view.',
@@ -914,10 +936,12 @@ export const buildSimpleCostWorkbookBytes = async (
     snapshot.resourceTypes,
     snapshot.travelSettings,
   );
-  if (layout && columns) {
-    addPersonnelDetail(workbook, snapshot, layout, columns);
-    addLegacySubcontractDetail(workbook, snapshot);
-  } else addDetail(workbook, snapshot);
+  if (selected.has('Cost Detail')) {
+    if (layout && columns)
+      addPersonnelDetail(workbook, snapshot, layout, columns);
+    else addDetail(workbook, snapshot);
+  }
+  if (layout) addLegacySubcontractDetail(workbook, snapshot);
   addSubcontractWorkbookSheets(workbook, snapshot);
   addBreakdown(
     workbook,
@@ -953,6 +977,11 @@ export const buildSimpleCostWorkbookBytes = async (
     true,
   );
   addStatement(workbook, snapshot, travel.totalCost);
+  // These reports contain fixed values, so omitting sheets creates no broken formula references.
+  // Filtering after generation preserves the existing content, formatting and workbook order.
+  for (const sheet of workbook.worksheets)
+    if (!selected.has(sheet.name as SimpleCostSheetId))
+      workbook.removeWorksheet(sheet.id);
   const buffer = await workbook.xlsx.writeBuffer();
   return buffer instanceof ArrayBuffer
     ? new Uint8Array(buffer)
@@ -966,13 +995,17 @@ export const getSimpleCostWorkbookFileName = (snapshot: CostExportSnapshot) =>
 export const downloadSimpleCostWorkbook = async (
   input: CostExportSnapshot,
   requestedLayout?: PersonnelTableLayout,
+  selectedSheets?: readonly SimpleCostSheetId[],
 ) => {
   const snapshot = structuredClone(input);
   const layout =
     requestedLayout === undefined
       ? undefined
       : structuredClone(requestedLayout);
-  const bytes = await buildSimpleCostWorkbookBytes(snapshot, layout);
+  // Detach download options together with the captured costs and personnel view.
+  const selection =
+    selectedSheets === undefined ? undefined : [...selectedSheets];
+  const bytes = await buildSimpleCostWorkbookBytes(snapshot, layout, selection);
   const blob = new Blob([bytes.slice().buffer as ArrayBuffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
