@@ -186,7 +186,7 @@ test('confirmation, BU allocation, quotation rows and template data agree on upl
   assert.equal(data.datasets.costRows[0]['Y2.cost'], 132);
   const lines = buildQuoteLines(snapshot, 'item', 277.2);
   assert.equal(
-    lines.find((line) => line.description === 'Installation').amount,
+    lines.find((line) => line.description === 'Subcon item').amount,
     242,
   );
   assert.equal(

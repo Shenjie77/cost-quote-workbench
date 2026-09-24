@@ -16,10 +16,15 @@ import { calculatePricing, type PricingSettings } from './domain.ts';
 import { buildQuoteLines, validateQuoteLines } from './quote-lines.ts';
 import { lineCostAmounts } from './line-pricing.ts';
 import { assertValidQuotePricing } from './export-validation.ts';
+import {
+  getAvailableSimpleCostSheets,
+  type SimpleCostSheetId,
+} from '../cost/simple-export-sheets.ts';
 
 export type CombinedQuoteWorkbookInput = {
   costSnapshot: CostExportSnapshot;
   pricing: PricingSettings;
+  selectedSheets?: readonly SimpleCostSheetId[];
 };
 
 const FIRST_LINE = 9;
@@ -43,7 +48,7 @@ function formula(
 
 /** Link captured annual cost inputs to row totals and the canonical statement hierarchy. */
 function linkCostStatement(workbook: Workbook, snapshot: CostExportSnapshot) {
-  const detail = workbook.getWorksheet('Cost Detail')!;
+  const detail = workbook.getWorksheet('Cost Detail');
   const statement = workbook.getWorksheet('Cost Statement')!;
   const travel = getHQTravelSummary(
     snapshot.costRows,
@@ -63,7 +68,9 @@ function linkCostStatement(workbook: Workbook, snapshot: CostExportSnapshot) {
     internal: [] as string[],
     subcontract: [] as string[],
   };
+  const linkedCosts = { internal: 0, subcontract: 0 };
   snapshot.costRows.forEach((row, index) => {
+    if (!detail) return;
     const number = index + 6;
     const cell = detail.getCell(`G${number}`);
     formula(
@@ -75,11 +82,16 @@ function linkCostStatement(workbook: Workbook, snapshot: CostExportSnapshot) {
     const category = snapshot.resourceTypes.find(
       (resource) => resource.id === row.reTypeId,
     )?.category;
-    if (category) categoryRefs[category].push(`'Cost Detail'!G${number}`);
+    if (category) {
+      categoryRefs[category].push(`'Cost Detail'!G${number}`);
+      linkedCosts[category] = roundMoney(
+        linkedCosts[category] + Number(cell.result),
+      );
+    }
   });
   // Simple Cost annual amounts remain the editable snapshot inputs, not a second rate engine.
   const totalRow = 6 + snapshot.costRows.length;
-  if (snapshot.costRows.length) {
+  if (detail && snapshot.costRows.length) {
     for (const column of ['G', 'J', 'M', 'P', 'S', 'V']) {
       const cell = detail.getCell(`${column}${totalRow}`);
       formula(
@@ -102,6 +114,9 @@ function linkCostStatement(workbook: Workbook, snapshot: CostExportSnapshot) {
       );
     }
     const cell = subcon.getCell(`I${subcon.rowCount}`);
+    linkedCosts.subcontract = roundMoney(
+      linkedCosts.subcontract + Number(cell.value),
+    );
     formula(
       subcon,
       cell.address,
@@ -144,11 +159,12 @@ function linkCostStatement(workbook: Workbook, snapshot: CostExportSnapshot) {
         : row.code === '2.3.2'
           ? 'subcontract'
           : undefined;
-    if (category)
+    // Omitted detail sheets become captured account inputs; included sources keep their live formulas.
+    if (category && categoryRefs[category].length)
       formula(
         statement,
         ref(row.code),
-        `SUM(${categoryRefs[category].join(',') || '0'})`,
+        `SUM(${[...categoryRefs[category], String(roundMoney(row.amount - linkedCosts[category]))].join(',')})`,
         row.amount,
       );
     if (
@@ -220,7 +236,16 @@ function addGpFormulas(calc: Worksheet, row: number) {
 export async function buildCombinedQuoteWorkbook(
   input: CombinedQuoteWorkbookInput,
 ) {
-  const { costSnapshot: snapshot, pricing } = structuredClone(input);
+  const {
+    costSnapshot: snapshot,
+    pricing,
+    selectedSheets,
+  } = structuredClone(input);
+  const available = getAvailableSimpleCostSheets(snapshot);
+  const selected = new Set<SimpleCostSheetId>(
+    selectedSheets ?? available.map((sheet) => sheet.id),
+  );
+  selected.add('Cost Statement');
   const allocation = calculateBuCostAllocation(snapshot);
   const result = calculatePricing(allocation.totalCost, pricing, allocation);
   assertValidQuotePricing(result);
@@ -244,7 +269,7 @@ export async function buildCombinedQuoteWorkbook(
       paperSize: 9,
     },
   });
-  await buildSimpleCostWorkbook(snapshot, undefined, undefined, workbook);
+  await buildSimpleCostWorkbook(snapshot, undefined, [...selected], workbook);
   const statement = linkCostStatement(workbook, snapshot);
   // Open on the internal quote, followed by its complete Simple Cost source sheets.
   workbook.views = [

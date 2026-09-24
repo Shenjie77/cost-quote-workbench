@@ -163,3 +163,85 @@ test('generated and legacy quotation modes preserve captured prices and complete
     assert.equal(sheet.getCell(`J${sheet.rowCount}`).result, result.listPrice);
   }
 });
+
+/** Every emitted formula must refer only to worksheets actually included in the file. */
+function assertSheetReferences(workbook) {
+  const names = new Set(workbook.worksheets.map((sheet) => sheet.name));
+  for (const sheet of workbook.worksheets)
+    sheet.eachRow((row) =>
+      row.eachCell((cell) => {
+        for (const match of (cell.formula || '').matchAll(/'([^']+)'!/g))
+          assert.ok(
+            names.has(match[1]),
+            `${sheet.name}!${cell.address} refers to omitted ${match[1]}`,
+          );
+      }),
+    );
+}
+
+test('combined export supports summary-only and mixed selections with mandatory statement and no missing-sheet formulas', async () => {
+  const input = combinedFixture();
+  input.costSnapshot.subcontractCost = {
+    mode: 'project',
+    siteTypes: [],
+    lines: [
+      {
+        id: 'selected-subcon',
+        code: '00017',
+        description: 'Installation',
+        bu: 'Network',
+        unit: 'lot',
+        unitPrice: 12.34,
+        currency: 'SGD',
+        quantities: [1, 2, 0, 0, 0],
+      },
+    ],
+  };
+  const expected = calculateBuCostAllocation(input.costSnapshot).totalCost;
+  for (const selectedSheets of [
+    [],
+    ['Summary Scope'],
+    ['Cost Detail'],
+    ['Subcon Detail'],
+    ['Cost Detail', 'Subcon Detail'],
+  ]) {
+    const workbook = await buildCombinedQuoteWorkbook({
+      ...input,
+      selectedSheets,
+    });
+    assert.deepEqual(
+      new Set(workbook.worksheets.map((sheet) => sheet.name)),
+      new Set([
+        'Quotation Details',
+        'Cost Statement',
+        'Pricing Calculations',
+        ...selectedSheets,
+      ]),
+    );
+    assert.equal(
+      workbook.getWorksheet('Quotation Details').getCell('C5').result,
+      expected,
+    );
+    assertSheetReferences(workbook);
+    const statement = workbook.getWorksheet('Cost Statement');
+    assert.equal(
+      Boolean(statement.getCell('B13').formula),
+      selectedSheets.includes('Cost Detail'),
+    );
+  }
+});
+
+test('combined export captures sheet choices at click time and rejects unknown names', async () => {
+  const input = { ...combinedFixture(), selectedSheets: ['Summary Scope'] };
+  const pending = buildCombinedQuoteWorkbook(input);
+  input.selectedSheets.push('Summary BU');
+  const workbook = await pending;
+  assert.ok(workbook.getWorksheet('Summary Scope'));
+  assert.equal(workbook.getWorksheet('Summary BU'), undefined);
+  await assert.rejects(
+    buildCombinedQuoteWorkbook({
+      ...combinedFixture(),
+      selectedSheets: ['Unknown sheet'],
+    }),
+  );
+});

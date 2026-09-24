@@ -1,7 +1,9 @@
 import type { WorkbenchWorkspace } from '../workbench/workspace-types';
 import { emptySsr } from '../ssr/domain.ts';
+import { normalizeProjectTags } from './project-tags.ts';
 
 export type ProjectDetails = {
+  tags: string[];
   name: string;
   client: string;
   proposalNumber: string;
@@ -13,6 +15,7 @@ export type ProjectDetails = {
 
 export function projectDetails(workspace: WorkbenchWorkspace): ProjectDetails {
   return {
+    tags: [...(workspace.projectTags ?? [])],
     name: workspace.project.name,
     client: workspace.project.client,
     proposalNumber: workspace.ssr?.proposalNumber || '',
@@ -52,6 +55,7 @@ export function applyProjectDetails(
     }
   }
   const next = structuredClone(workspace);
+  next.projectTags = normalizeProjectTags(details.tags);
   next.project = { ...next.project, name, client };
   next.ssr = {
     ...(next.ssr || emptySsr()),

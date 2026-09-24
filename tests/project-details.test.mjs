@@ -131,6 +131,7 @@ test('Project Edit persists name, client, proposal and links while retaining eve
   const saved = f.repository.save(ID, result, before.revision);
   const expected = {
     ...before.workspace,
+    projectTags: [],
     project: {
       ...before.workspace.project,
       name: 'Updated service project',
@@ -291,4 +292,43 @@ test('blank/oversized identity and non-http links fail before persistence; optio
   assert.equal(saved.workspace.ssr.companyUrl, '');
   assert.equal(saved.workspace.ssr.cpqUrl, '');
   assert.deepEqual(saved.workspace.costVersions, before.workspace.costVersions);
+});
+
+test('multiple tags survive reopen and index hydration without invalidating commercial or cost evidence', (t) => {
+  const f = fixture(t);
+  confirm(f.repository, 'V1');
+  const before = f.repository.get(ID);
+  const baseline = projectDetails(before.workspace);
+  const next = applyProjectDetails(
+    before.workspace,
+    {
+      ...baseline,
+      tags: [' Data Centre ', 'Maintenance', 'data centre', '维保'],
+    },
+    baseline,
+  );
+  assert.deepEqual(next.projectTags, ['Data Centre', 'Maintenance', '维保']);
+  assert.equal(commercialBasisKey(next), commercialBasisKey(before.workspace));
+  for (const field of [
+    'costVersions',
+    'costVersionLocks',
+    'quoteHistory',
+    'workflowUpdates',
+  ])
+    assert.deepEqual(next[field], before.workspace[field]);
+  f.repository.save(ID, next, before.revision);
+  const reopened = f.reopen();
+  assert.deepEqual(reopened.get(ID).workspace.projectTags, next.projectTags);
+  assert.deepEqual(
+    reopened.list().find((item) => item.projectId === ID || item.id === ID)
+      .tags,
+    next.projectTags,
+  );
+  assert.throws(
+    () => applyProjectDetails(next, { ...baseline, tags: ['Other'] }, baseline),
+    /changed|updated|conflict/i,
+  );
+  const details = projectDetails(next);
+  details.tags.push('Detached');
+  assert.equal(next.projectTags.includes('Detached'), false);
 });

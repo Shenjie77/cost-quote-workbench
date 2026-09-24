@@ -6,6 +6,8 @@ price history.
 
 Pricing & Quote also offers **Quotation + Simple Cost**, an internal Excel export
 with quotation cost and price formulas linked to the complete cost statement.
+Choose the cost sheets to include; Cost Statement always remains selected.
+Project List → Edit also supports multiple custom tags, with tag filtering and header search.
 See [combined export](docs/excel-export.md#combined-internal-quotation-and-simple-cost-workbook).
 
 Current release: [v0.10.0 · Saved cost views, MD table entry and account summaries](docs/releases/v0.10.0.md).

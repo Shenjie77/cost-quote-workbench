@@ -24,6 +24,7 @@ export function ProjectTable({
   onTrackWorkflow,
   onDeleteProject,
   onEditProject,
+  onTagSelect,
 }: {
   projects: Project[];
   onProject: (project: Project) => void;
@@ -35,6 +36,7 @@ export function ProjectTable({
   onTrackWorkflow?: (project: Project) => void;
   onDeleteProject?: (project: Project) => void;
   onEditProject?: (project: Project) => void;
+  onTagSelect?: (tag: string) => void;
 }) {
   const hasActions = Boolean(onEditProject || onDeleteProject);
   return (
@@ -113,6 +115,33 @@ export function ProjectTable({
                     {project.id} · {project.client}
                   </span>
                 </button>
+                {!!project.tags?.length && (
+                  <div
+                    aria-label={`Tags for ${project.name}`}
+                    className="mt-1 flex max-h-16 flex-wrap gap-1 overflow-y-auto"
+                  >
+                    {project.tags.map((tag) =>
+                      onTagSelect ? (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => onTagSelect(tag)}
+                          className="rounded border bg-muted/40 px-1.5 py-0.5 text-[11px] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                          title={`Filter by ${tag}`}
+                        >
+                          {tag}
+                        </button>
+                      ) : (
+                        <span
+                          key={tag}
+                          className="rounded border bg-muted/40 px-1.5 py-0.5 text-[11px]"
+                        >
+                          {tag}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                )}
               </TableCell>
               <TableCell className="px-3 py-2 whitespace-normal">
                 <div className="flex items-start justify-between gap-2">

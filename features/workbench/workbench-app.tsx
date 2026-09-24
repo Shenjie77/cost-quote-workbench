@@ -154,6 +154,10 @@ import {
 } from './workspace-factories';
 import { ProjectView } from '@/features/projects/project-view';
 import { ProjectEditDialog } from '@/features/projects/project-edit-dialog';
+import {
+  availableProjectTags,
+  normalizeProjectTags,
+} from '@/features/projects/project-tags';
 import { applyProjectDetails } from '@/features/projects/project-details';
 import { calculateBuCostAllocation } from '@/features/quote/profit-share';
 import { getBusinessUnitOptions } from '@/features/master-data/business-units';
@@ -581,6 +585,7 @@ function ProjectSessionApp({
         name: workspace.project.name,
         client: workspace.project.client,
         proposalNumber: workspace.ssr?.proposalNumber || '',
+        tags: [...(workspace.projectTags ?? [])],
       };
       return existing
         ? current.map((item) => (item.id === project.id ? project : item))
@@ -713,6 +718,7 @@ function ProjectSessionApp({
       versionWorkflows,
       legacyWorkflowArchive,
       project: exportProject,
+      projectTags: [...(activeProject.tags ?? [])],
       currentWorkflowStepCode,
       selectedStep,
       processSteps,
@@ -771,6 +777,7 @@ function ProjectSessionApp({
       subcontractCost,
       currentWorkflowStepCode,
       exportProject,
+      activeProject.tags,
       maintenancePriceRecords,
       manualCosts,
       pricing,
@@ -2889,6 +2896,7 @@ function ProjectSessionApp({
         <ProjectEditDialog
           key={editTarget.id}
           project={editTarget}
+          tagSuggestions={availableProjectTags(portfolioProjects)}
           onClose={() => setEditTarget(null)}
           onSave={async (details, baseline) => {
             const targetId = editTarget.id;
@@ -2919,6 +2927,7 @@ function ProjectSessionApp({
                       ...item,
                       name: details.name.trim(),
                       client: details.client.trim(),
+                      tags: normalizeProjectTags(details.tags),
                     }
                   : item,
               ),

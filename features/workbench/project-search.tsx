@@ -167,7 +167,7 @@ export function ProjectSearch({
           role="combobox"
           name="project-search"
           spellCheck={false}
-          aria-label="Search projects by proposal number, name, or workflow"
+          aria-label="Search projects by proposal number, name, workflow, or tag"
           aria-controls={listId}
           aria-expanded={visible}
           aria-autocomplete="list"
@@ -178,7 +178,7 @@ export function ProjectSearch({
           }
           aria-busy={busy}
           autoComplete="off"
-          placeholder="Proposal / project / workflow…"
+          placeholder="Proposal / project / workflow / tag…"
           className="h-8 w-full min-w-0 rounded-md border border-input bg-background py-1 pl-8 pr-8 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-60"
           value={query}
           disabled={disabled}
@@ -269,6 +269,11 @@ export function ProjectSearch({
                     <span className="mt-1 block text-[11px] leading-4 text-muted-foreground [overflow-wrap:anywhere]">
                       {workflow}
                     </span>
+                    {!!project.tags?.length && (
+                      <span className="mt-1 block text-[11px] text-primary">
+                        {project.tags.map((tag) => `#${tag}`).join(' · ')}
+                      </span>
+                    )}
                   </span>
                   {project.id === activeProjectId && (
                     <Check

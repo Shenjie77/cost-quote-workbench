@@ -197,8 +197,8 @@ test('subcontract BOQs, manual services and HQ travel retain distinct descriptio
     lines.map((line) => line.description),
     [
       'Commissioning',
-      'Installation',
-      'Cabling',
+      'Subcon item',
+      'Subcon item · Type A',
       'Inland logistics',
       'Settlement services',
       'Other services',
@@ -319,4 +319,71 @@ test('quotation history snapshots retain exact line values after later edits', (
   assert.equal(record.lineSnapshots[0].description, 'Customer project');
   assert.equal(record.lineSnapshots[0].amount, 100);
   assert.equal(record.lineMode, 'manual');
+});
+
+test('subcontract grouping merges legacy and project BOQs while keeping each site type distinct', () => {
+  const input = snapshot({
+    costRows: [
+      { ...row('legacy', 'Legacy installation', 10), reTypeId: 'sub' },
+      row('personnel', 'Subcon scope', 100),
+    ],
+  });
+  input.resourceTypes.push({
+    ...input.resourceTypes[0],
+    id: 'sub',
+    category: 'subcontract',
+  });
+  const line = (id, price) => ({
+    id,
+    code: id,
+    description: `Detail ${id}`,
+    bu: 'A',
+    unit: 'lot',
+    unitPrice: price,
+    currency: 'SGD',
+    quantities: [1, 0, 0, 0, 0],
+    quantityPerSite: 1,
+  });
+  input.subcontractCost = {
+    mode: 'site-types',
+    lines: [line('p1', 20), line('p2', 30)],
+    siteTypes: [
+      {
+        id: 'a',
+        name: 'Same name',
+        sites: [2, 0, 0, 0, 0],
+        lines: [line('a1', 5), line('a2', 10)],
+      },
+      {
+        id: 'b',
+        name: 'Same name',
+        sites: [3, 0, 0, 0, 0],
+        lines: [line('b1', 10)],
+      },
+    ],
+  };
+  const before = structuredClone(input);
+  for (const mode of ['scope', 'item']) {
+    const lines = buildQuoteLines(input, mode, 220);
+    assert.deepEqual(
+      lines.map((line) => line.amount),
+      [100, 60, 30, 30],
+    );
+    assert.deepEqual(
+      lines.map((line) => line.description),
+      [
+        'Subcon scope',
+        `Subcon ${mode}`,
+        `Subcon ${mode} · Same name`,
+        `Subcon ${mode} · Same name`,
+      ],
+    );
+    assert.deepEqual(validateQuoteLines(lines, 220), []);
+  }
+  assert.deepEqual(input, before);
+  input.subcontractCost.mode = 'project';
+  assert.deepEqual(
+    buildQuoteLines(input, 'item', 160).map((line) => line.amount),
+    [100, 60],
+  );
 });

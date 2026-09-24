@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { QuoteDescriptionDialog } from './quote-description-dialog';
 import {
   Select,
   SelectContent,
@@ -374,22 +376,36 @@ export function QuoteLinesEditor({
                   {index + 1}
                 </TableCell>
                 <TableCell>
-                  {editable ? (
-                    <Input
-                      aria-label={`Line ${index + 1} description`}
+                  <div className="flex min-w-40 items-start gap-1">
+                    {editable ? (
+                      <Textarea
+                        aria-label={`Line ${index + 1} description`}
+                        value={line.description}
+                        maxLength={4000}
+                        disabled={disabled}
+                        onChange={(event) =>
+                          updateLine(line.id, {
+                            description: event.target.value,
+                          })
+                        }
+                        rows={3}
+                        className="min-h-8 max-h-[calc(3lh+1rem+2px)] min-w-0 resize-none overflow-hidden rounded-none border-transparent bg-transparent py-2 leading-5 shadow-none [overflow-wrap:anywhere]"
+                      />
+                    ) : (
+                      <span className="min-w-0 flex-1 line-clamp-3 whitespace-pre-wrap break-words leading-5 [overflow-wrap:anywhere]">
+                        {line.description}
+                      </span>
+                    )}
+                    <QuoteDescriptionDialog
                       value={line.description}
-                      maxLength={4000}
+                      lineNumber={index + 1}
+                      editable={editable}
                       disabled={disabled}
-                      onChange={(event) =>
-                        updateLine(line.id, { description: event.target.value })
+                      onSave={(description) =>
+                        updateLine(line.id, { description })
                       }
-                      className="h-8 min-w-40 rounded-none border-transparent bg-transparent shadow-none"
                     />
-                  ) : (
-                    <span className="whitespace-pre-wrap break-words">
-                      {line.description}
-                    </span>
-                  )}
+                  </div>
                 </TableCell>
                 <TableCell className="financial-numeral text-right">
                   {editable ? (

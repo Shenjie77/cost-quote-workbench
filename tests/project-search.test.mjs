@@ -203,3 +203,21 @@ test('legacy status-only records remain searchable without treating a selected h
     'Completed / 已完成',
   );
 });
+
+test('tags are searchable alone or together with project identity, including hash and Unicode forms', () => {
+  const items = [
+    project('A', { tags: ['Data Centre', '维保'] }),
+    project('B', { tags: ['Maintenance'] }),
+  ];
+  const before = structuredClone(items);
+  for (const query of [
+    'data centre',
+    '#Data',
+    '维保',
+    'ＤＡＴＡ',
+    'Project A 维保',
+  ])
+    assert.deepEqual(ids(items, query), ['A']);
+  assert.deepEqual(ids(items, 'maintenance'), ['B']);
+  assert.deepEqual(items, before);
+});

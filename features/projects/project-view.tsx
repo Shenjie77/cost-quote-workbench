@@ -4,6 +4,8 @@
  */
 
 import { FolderPlus } from 'lucide-react';
+import { useState } from 'react';
+import { availableProjectTags, projectTagKey } from './project-tags';
 import { Button } from '@/components/ui/button';
 import { SectionHeading } from '@/components/workbench/section-heading';
 import { ProjectTable } from '@/features/projects/project-table';
@@ -34,7 +36,21 @@ export function ProjectView({
   onDeleteProject: (project: Project) => void;
   onEditProject: (project: Project) => void;
 }) {
-  const totals = projects.reduce(
+  const [tag, setTag] = useState('');
+  const tags = availableProjectTags(projects);
+  const activeTag = tags.some(
+    (item) => projectTagKey(item) === projectTagKey(tag),
+  )
+    ? tag
+    : '';
+  const visibleProjects = activeTag
+    ? projects.filter((project) =>
+        project.tags?.some(
+          (item) => projectTagKey(item) === projectTagKey(activeTag),
+        ),
+      )
+    : projects;
+  const totals = visibleProjects.reduce(
     (summary, project) => ({
       cost: summary.cost + Number(project.totalCost || 0),
       mandays: summary.mandays + Number(project.totalMandays || 0),
@@ -52,16 +68,31 @@ export function ProjectView({
         description="Open a project, update its workflow, or review cost and quotation."
         descriptionZh="集中查看项目、流程、成本和报价。"
         action={
-          <Button size="sm" onClick={onCreateProject}>
-            <FolderPlus />
-            New Project <span className="text-xs opacity-60">新建项目</span>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="Filter projects by tag"
+              value={activeTag}
+              onChange={(event) => setTag(event.target.value)}
+              className="h-8 max-w-48 rounded-md border border-input bg-background px-2 text-xs"
+            >
+              <option value="">All tags / 全部标签</option>
+              {tags.map((item) => (
+                <option key={projectTagKey(item)} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+            <Button size="sm" onClick={onCreateProject}>
+              <FolderPlus />
+              New Project <span className="text-xs opacity-60">新建项目</span>
+            </Button>
+          </div>
         }
       />
       {/* Portfolio totals remain visible in one wrapping strip above the project rows. */}
       <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-b border-border bg-muted/15 px-3 py-2 text-xs">
         {[
-          ['Projects', '项目数', projects.length],
+          ['Projects', '项目数', visibleProjects.length],
           ['Portfolio Cost', '项目总成本', formatSgd(totals.cost)],
           [
             'Total Mandays',
@@ -81,7 +112,8 @@ export function ProjectView({
         ))}
       </dl>
       <ProjectTable
-        projects={projects}
+        projects={visibleProjects}
+        onTagSelect={setTag}
         onProject={onOpenProject}
         onDeleteProject={onDeleteProject}
         onEditProject={onEditProject}

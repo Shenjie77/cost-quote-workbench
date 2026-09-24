@@ -118,6 +118,7 @@ export const projectRecord = (
 export const projectFromIndex = (item: LocalWorkspaceIndexItem): Project => ({
   ...projectRecord(item.projectId, item.name, item.client),
   proposalNumber: item.proposalNumber ?? '',
+  tags: [...(item.tags ?? [])],
   revision: item.revision ?? undefined,
   workflowHold: item.workflowHold,
   workflowEngineVersion: item.workflowEngineVersion,
@@ -216,6 +217,7 @@ export const createBlankWorkspace = (
   });
   return {
     schemaVersion: WORKSPACE_SCHEMA_VERSION,
+    ...(project.tags ? { projectTags: [...project.tags] } : {}),
     project: {
       id: project.id,
       name: project.name,

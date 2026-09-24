@@ -142,3 +142,5 @@ versions; create a new Draft to revise those estimates.
 
 File-based **Import** remains a separate path for importing a workbook with
 source-file records. Manually pasted rows are ordinary editable personnel rows.
+
+Cost Input 的表格随行数自然撑高，不设置内部纵向滚动区。鼠标在表格上滚动时由页面上下滚动；年度列仍保留横向滚动。

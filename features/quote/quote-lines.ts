@@ -9,7 +9,7 @@ import {
   roundMoney,
   totalRowCost,
 } from '../cost/domain.ts';
-import { subcontractCostDetails } from '../cost/subcontract-domain.ts';
+import { calculateSubcontractCost } from '../cost/subcontract-domain.ts';
 import { allocateMoneyByWeights } from './profit-share.ts';
 import type {
   ManualQuoteLine,
@@ -174,7 +174,10 @@ export function calculateManualQuoteLines(
 type WeightedLine = { id: string; description: string; weight: number };
 
 /** Builds independent priced leaves; overhead/risk is included through total-price allocation. */
-function costQuoteLeaves(snapshot: CostExportSnapshot): WeightedLine[] {
+function costQuoteLeaves(
+  snapshot: CostExportSnapshot,
+  mode: 'scope' | 'item',
+): WeightedLine[] {
   // Use captured costs exactly as pricing does; export validation rejects stale calculations.
   const rows = snapshot.costRows;
   const travel = getHQTravelSummary(
@@ -191,21 +194,42 @@ function costQuoteLeaves(snapshot: CostExportSnapshot): WeightedLine[] {
     getY1Year(snapshot.rateSettings),
   );
   // Customer descriptions retain entered Scope/BOQ text without resource rates or internal identifiers.
-  const leaves: WeightedLine[] = rows.map((row) => ({
-    id: `cost:${row.id}`,
-    description: row.scope.trim() || 'Project services',
-    weight: totalRowCost(row),
-  }));
-  leaves.push(
-    ...subcontractCostDetails(
-      snapshot.subcontractCost,
-      getY1Year(snapshot.rateSettings),
-    ).map((line) => ({
-      id: `subcontract:${line.id}`,
-      description: line.description.trim() || 'Project services',
-      weight: line.total,
-    })),
+  const legacySubcon = rows.filter(
+    (row) =>
+      snapshot.resourceTypes.find((resource) => resource.id === row.reTypeId)
+        ?.category === 'subcontract',
   );
+  const legacyIds = new Set(legacySubcon.map((row) => row.id));
+  const leaves: WeightedLine[] = rows
+    .filter((row) => !legacyIds.has(row.id))
+    .map((row) => ({
+      id: `cost:${row.id}`,
+      description: row.scope.trim() || 'Project services',
+      weight: totalRowCost(row),
+    }));
+  // Project-wide and legacy subcontract rows share one quote line; site BOQs remain grouped by stable site IDs.
+  const subcontract = calculateSubcontractCost(
+    snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
+  );
+  const subconLabel = mode === 'scope' ? 'Subcon scope' : 'Subcon item';
+  if (legacySubcon.length || subcontract.lines.length)
+    leaves.push({
+      id: 'subcontract:project',
+      description: subconLabel,
+      weight: roundMoney(
+        legacySubcon.reduce((sum, row) => sum + totalRowCost(row), 0) +
+          subcontract.lines.reduce((sum, line) => sum + line.total, 0),
+      ),
+    });
+  for (const site of subcontract.siteTypes) {
+    if (!site.lines.length) continue;
+    leaves.push({
+      id: `subcontract:site:${site.id}`,
+      description: `${subconLabel} · ${site.name.trim() || 'Unnamed site type'}`,
+      weight: site.total,
+    });
+  }
   const manual = snapshot.manualCosts;
   const supplements: Array<[string, string, number]> = [
     ['equipment', 'Equipment supply', manual.localPurchasedEquipment],
@@ -259,12 +283,15 @@ export function buildQuoteLines(
         amount: listPrice,
       },
     ];
-  let leaves = costQuoteLeaves(snapshot);
+  let leaves = costQuoteLeaves(snapshot, mode);
   if (mode === 'scope') {
     const groups = new Map<string, WeightedLine>();
     for (const line of leaves) {
       const description = line.description.replace(/\s+/g, ' ').trim();
-      const key = description.toLocaleLowerCase('en');
+      // A personnel scope with the same display name must not absorb subcontract or distinct site groups.
+      const key = line.id.startsWith('subcontract:')
+        ? line.id
+        : `scope:${description.toLocaleLowerCase('en')}`;
       const group = groups.get(key);
       if (group) group.weight = roundMoney(group.weight + line.weight);
       else groups.set(key, { ...line, description });

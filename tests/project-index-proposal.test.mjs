@@ -129,7 +129,14 @@ test('CLI workspace index remains valid under the strict response schema with em
   const dbPath = path.join(directory, 'workspace.sqlite');
   const repo = openWorkspaceRepository(dbPath);
   try {
-    repo.save('WITH-NUMBER', workspace('WITH-NUMBER', 'P-001'), null);
+    repo.save(
+      'WITH-NUMBER',
+      {
+        ...workspace('WITH-NUMBER', 'P-001'),
+        projectTags: ['Data Centre', '维保'],
+      },
+      null,
+    );
     repo.save('WITHOUT-NUMBER', workspace('WITHOUT-NUMBER', ''), null);
   } finally {
     repo.close();
@@ -150,6 +157,10 @@ test('CLI workspace index remains valid under the strict response schema with em
     );
     assert.equal(response.status, 0, response.stdout + response.stderr);
     const body = JSON.parse(response.stdout);
+    assert.deepEqual(
+      body.data.items.find((item) => item.projectId === 'WITH-NUMBER').tags,
+      ['Data Centre', '维保'],
+    );
     const schema = JSON.parse(
       readFileSync(
         path.join(root, 'schemas/command-envelope.schema.json'),

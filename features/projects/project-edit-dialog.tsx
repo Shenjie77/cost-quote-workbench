@@ -19,6 +19,7 @@ import {
 import { projectDetails, type ProjectDetails } from './project-details';
 import { ArchiveFolderButton } from './project-files-panel';
 import type { Project } from './types';
+import { ProjectTagsInput } from './project-tags-input';
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Unable to save project.';
@@ -28,12 +29,15 @@ export function ProjectEditDialog({
   project,
   onClose,
   onSave,
+  tagSuggestions = [],
 }: {
   project: Project;
+  tagSuggestions?: string[];
   onClose: () => void;
   onSave: (details: ProjectDetails, baseline: ProjectDetails) => Promise<void>;
 }) {
   const [details, setDetails] = useState<ProjectDetails>({
+    tags: [...(project.tags ?? [])],
     name: project.name,
     client: project.client,
     proposalNumber: '',
@@ -141,7 +145,7 @@ export function ProjectEditDialog({
     }
   };
   const field = (
-    key: keyof ProjectDetails,
+    key: Exclude<keyof ProjectDetails, 'tags'>,
     label: string,
     required = false,
   ) => (
@@ -196,6 +200,12 @@ export function ProjectEditDialog({
             </div>
             <div className="sm:col-span-2">{field('cpqUrl', 'CPQ Link')}</div>
           </div>
+          <ProjectTagsInput
+            value={details.tags}
+            suggestions={tagSuggestions}
+            disabled={busy || !baseline}
+            onChange={(tags) => setDetails((current) => ({ ...current, tags }))}
+          />
           <details className="rounded-md border border-border bg-muted/15 px-3 py-2">
             <summary className="cursor-pointer rounded-md text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
               Scope & Technical Basis

@@ -742,6 +742,8 @@ export function PersonnelLinesTable({
   return (
     <Table
       className="w-max min-w-full text-xs"
+      // Let every row extend the page; retain only horizontal scrolling for annual columns.
+      containerClassName="h-auto max-h-none overflow-x-auto overflow-y-hidden overscroll-y-auto"
       onDragEnd={(event) => {
         event.currentTarget
           .querySelectorAll('[data-drop-position]')

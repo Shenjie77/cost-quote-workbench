@@ -460,3 +460,22 @@ test('worksheet discovery errors remain dismissible and reopening retries with a
   );
   assert.deepEqual(f.calls, []);
 });
+
+test('combined picker keeps Cost Statement mandatory even after Clear or forced checkbox events', async () => {
+  const f = fixture();
+  f.props.requiredSheets = ['Cost Statement'];
+  f.props.triggerLabel = 'Quotation + Simple Cost';
+  button(f.open(), 'Clear').props.onClick();
+  let tree = f.render();
+  assert.deepEqual(checkedIds(tree), ['Cost Statement']);
+  const required = checkboxes(tree).find(
+    (node) => node.props['aria-label'] === 'Cost Statement',
+  );
+  assert.equal(required.props.disabled, true);
+  required.props.onCheckedChange(false);
+  tree = f.render();
+  assert.deepEqual(checkedIds(tree), ['Cost Statement']);
+  exportButton(tree).props.onClick();
+  await flush();
+  assert.deepEqual(f.calls, [['Cost Statement']]);
+});

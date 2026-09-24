@@ -91,7 +91,13 @@ export function filterPortfolioProjects(
   const normalizedQuery = searchQuery.trim().toLowerCase();
   if (!normalizedQuery) return projects;
   return projects.filter((project) =>
-    [project.id, project.name, project.client, project.version]
+    [
+      project.id,
+      project.name,
+      project.client,
+      project.version,
+      ...(project.tags ?? []),
+    ]
       .join(' ')
       .toLowerCase()
       .includes(normalizedQuery),
@@ -120,6 +126,7 @@ export function mergeWorkflowProjection(
       name: workspace.project.name,
       client: workspace.project.client,
       proposalNumber: workspace.ssr?.proposalNumber ?? '',
+      tags: [...(workspace.projectTags ?? [])],
       workflowEngineVersion: workspace.workflowEngineVersion,
       workflowTemplateRevision: workspace.workflowTemplateRevision,
       workflowMode: workspace.workflowMode,

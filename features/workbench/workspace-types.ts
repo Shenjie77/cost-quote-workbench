@@ -69,6 +69,8 @@ export type WorkbenchWorkspace = {
   ssr?: SsrWorkspace;
   maintenanceBoq?: MaintenanceWorkspace;
   schemaVersion: typeof WORKSPACE_SCHEMA_VERSION;
+  /** Project-wide search labels; excluded from cost and commercial snapshots. */
+  projectTags?: string[];
   project: {
     id: string;
     name: string;
@@ -140,6 +142,7 @@ export type LocalWorkspaceIndexItem = {
   client: string;
   /** Commercial reference from workspace.ssr, including projects not currently open. */
   proposalNumber?: string;
+  tags?: string[];
   currency: 'SGD';
   revision: number | null;
   updatedAt: string;

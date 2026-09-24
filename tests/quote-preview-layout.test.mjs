@@ -25,7 +25,7 @@ const loader = registerHooks({
   resolve(specifier, context, nextResolve) {
     if (
       specifier === 'react' &&
-      /\/(quote-view|quote-preview-dialog|manual-history-form)\.tsx$/.test(
+      /\/(quote-view|quote-preview-dialog|quote-description-dialog|manual-history-form)\.tsx$/.test(
         context.parentURL || '',
       )
     )
@@ -61,6 +61,8 @@ const loader = registerHooks({
     };
   },
 });
+const { QuoteDescriptionDialog } =
+  await import('../features/quote/quote-description-dialog.tsx');
 const { QuoteView } = await import('../features/quote/quote-view.tsx');
 const { QuotePreviewDialog } =
   await import('../features/quote/quote-preview-dialog.tsx');
@@ -229,9 +231,7 @@ test('internal combined export is available without a customer template and resp
   props.versionState = 'Draft';
   const button = () =>
     walk(harness(QuoteView, props)()).find(
-      (node) =>
-        typeof node.props.onClick === 'function' &&
-        textOf(node).includes('Quotation + Simple Cost'),
+      (node) => node.props.triggerLabel === 'Quotation + Simple Cost',
     );
   assert.equal(button().props.disabled, false);
   props.costErrors = ['Invalid cost'];
@@ -511,4 +511,41 @@ test('manual history has one Quote Total field and stores no tax amount', () => 
   assert.equal(records[0].quoteAfterTax, 200);
   assert.equal(records[0].gstAmount, 0);
   assert.equal(records[0].grossMarginPercent, 50);
+});
+
+test('full description popup preserves newlines and cancellation never writes', () => {
+  const saved = [];
+  const props = {
+    value: 'One\nTwo\nThree\nFour',
+    lineNumber: 1,
+    editable: true,
+    disabled: false,
+    onSave: (value) => saved.push(value),
+  };
+  const render = harness(QuoteDescriptionDialog, props);
+  const input = () =>
+    walk(render()).find(
+      (node) => node.props['aria-label'] === 'Full description for line 1',
+    );
+  const button = (label) =>
+    walk(render()).find(
+      (node) =>
+        typeof node.props.onClick === 'function' && textOf(node) === label,
+    );
+  render().props.onOpenChange(true);
+  assert.equal(input().props.value, props.value);
+  input().props.onChange({ target: { value: 'Edited\nDescription' } });
+  button('Cancel').props.onClick();
+  assert.deepEqual(saved, []);
+  render().props.onOpenChange(true);
+  assert.equal(input().props.value, props.value);
+  input().props.onChange({ target: { value: 'Saved\nDescription' } });
+  button('Save description').props.onClick();
+  assert.deepEqual(saved, ['Saved\nDescription']);
+  props.disabled = true;
+  button('Save description').props.onClick();
+  assert.equal(saved.length, 1);
+  props.editable = false;
+  assert.equal(input(), undefined);
+  assert.ok(textOf(render()).includes(props.value));
 });

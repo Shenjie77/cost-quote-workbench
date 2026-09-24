@@ -65,6 +65,7 @@ export const initialProjectStatusDefinitions: ProjectStatusDefinition[] = [
 ];
 
 export type Project = {
+  tags?: string[];
   workflowHold?: WorkflowHold;
   revision?: number;
   workflowEngineVersion?: 1;

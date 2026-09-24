@@ -23,6 +23,17 @@
     "manualCosts"
   ],
   "properties": {
+    "projectTags": {
+      "type": "array",
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40,
+        "pattern": "\\S"
+      }
+    },
     "schemaVersion": {
       "const": "1.0.0"
     },

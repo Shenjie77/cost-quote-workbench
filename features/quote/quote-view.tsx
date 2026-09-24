@@ -57,6 +57,11 @@ import { QuoteLinesEditor } from './quote-lines-editor';
 import { isRetiredQuoteAssumption } from './types';
 import { QuotePreviewDialog } from './quote-preview-dialog';
 import { downloadCombinedQuoteWorkbook } from './export-combined-workbook';
+import { SimpleCostExportDialog } from '@/features/cost/components/simple-cost-export-dialog';
+import {
+  getAvailableSimpleCostSheets,
+  type SimpleCostSheetId,
+} from '@/features/cost/simple-export-sheets';
 
 /** Creates stable local identities for newly recorded assumptions and quotation history. */
 const newId = (prefix: string) => `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -169,14 +174,16 @@ export function QuoteView({
       : []),
   ];
   /** Export the internal calculation workbook without requiring a customer template or recording a customer issue. */
-  const exportCombined = async () => {
+  const exportCombined = async (
+    selectedSheets: readonly SimpleCostSheetId[],
+  ) => {
     if (
       combinedExportInFlight.current ||
       isExporting ||
       exportInProgress ||
       applyingRates.current
     )
-      return;
+      return false;
     const errors = [
       ...costErrors,
       ...validatePricingSettings(pricing, totalCost, costAllocation),
@@ -184,7 +191,7 @@ export function QuoteView({
     ];
     if (decisionError || errors.length) {
       announce(decisionError || `Combined export blocked: ${errors[0]}`);
-      return;
+      return false;
     }
     combinedExportInFlight.current = true;
     setIsExporting(true);
@@ -193,14 +200,17 @@ export function QuoteView({
       const exported = await downloadCombinedQuoteWorkbook({
         costSnapshot,
         pricing,
+        selectedSheets,
       });
       announce(
         `Exported ${exported.fileName} / 已导出报价明细与 Simple Cost，成本及价格使用关联公式。`,
       );
+      return true;
     } catch (error) {
       announce(
         `Combined export failed: ${error instanceof Error ? error.message : 'Unknown error'} / 合并导出失败。`,
       );
+      return false;
     } finally {
       combinedExportInFlight.current = false;
       onExportStateChange(false);
@@ -394,9 +404,14 @@ export function QuoteView({
                 {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
                 <span className="text-xs opacity-60">生成报价</span>
               </Button>
-              <Button
-                variant="outline"
-                onClick={exportCombined}
+              <SimpleCostExportDialog
+                key={`${project.id}-${activeVersion}`}
+                triggerLabel="Quotation + Simple Cost"
+                title="Quotation + Simple Cost"
+                description="选择成本页签。Quotation Details 和 Cost Statement 始终保留；未选明细的成本以快照数值保留在 Cost Statement，不会产生失效引用。"
+                requiredSheets={['Cost Statement']}
+                getSheets={() => getAvailableSimpleCostSheets(costSnapshot)}
+                onExport={exportCombined}
                 disabled={
                   isExporting ||
                   isApplyingRates ||
@@ -405,10 +420,7 @@ export function QuoteView({
                   costErrors.length > 0 ||
                   !result.valid
                 }
-                title="Internal workbook with linked cost and pricing formulas"
-              >
-                <Download /> Quotation + Simple Cost
-              </Button>
+              />
             </div>
           }
         />

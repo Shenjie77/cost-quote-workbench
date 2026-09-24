@@ -25,10 +25,18 @@ export function SimpleCostExportDialog({
   disabled,
   getSheets,
   onExport,
+  requiredSheets = [],
+  triggerLabel = 'Simple Export',
+  title = 'Simple Cost Export',
+  description = 'Choose worksheets / 选择导出页签。Cost Detail follows the current view; summaries include all five years.',
 }: {
   disabled: boolean;
   getSheets: () => SheetOption[];
   onExport: (sheets: readonly SimpleCostSheetId[]) => Promise<boolean>;
+  requiredSheets?: readonly SimpleCostSheetId[];
+  triggerLabel?: string;
+  title?: string;
+  description?: string;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -63,7 +71,7 @@ export function SimpleCostExportDialog({
 
   /** Keep selection unique without changing workbook order or any calculation inputs. */
   const toggleSheet = (sheetId: SimpleCostSheetId, checked: boolean) => {
-    if (inFlight.current) return;
+    if (inFlight.current || requiredSheets.includes(sheetId)) return;
     setSelected((current) =>
       checked
         ? [...new Set([...current, sheetId])]
@@ -101,9 +109,9 @@ export function SimpleCostExportDialog({
       <DialogTrigger
         render={<Button size="sm" className="h-8 px-2.5 text-xs" />}
         disabled={disabled}
-        title="Choose the worksheets to include in Simple Cost Export"
+        title={`Choose the worksheets to include in ${title}`}
       >
-        <Download /> Simple Export
+        <Download /> {triggerLabel}
       </DialogTrigger>
       <DialogContent
         className="flex flex-col gap-3 overflow-hidden sm:max-w-[560px]"
@@ -111,10 +119,9 @@ export function SimpleCostExportDialog({
         aria-busy={exporting}
       >
         <DialogHeader>
-          <DialogTitle>Simple Cost Export</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="text-xs">
-            Choose worksheets / 选择导出页签。Cost Detail follows the current
-            view; summaries include all five years.
+            {description}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -134,7 +141,13 @@ export function SimpleCostExportDialog({
               size="sm"
               variant="ghost"
               disabled={exporting || !selected.length}
-              onClick={() => setSelected([])}
+              onClick={() =>
+                setSelected(
+                  options
+                    .filter((sheet) => requiredSheets.includes(sheet.id))
+                    .map((sheet) => sheet.id),
+                )
+              }
             >
               Clear
             </Button>
@@ -155,12 +168,17 @@ export function SimpleCostExportDialog({
                   aria-label={sheet.label}
                   aria-describedby={`${id}-description-${index}`}
                   checked={selected.includes(sheet.id)}
-                  disabled={exporting}
+                  disabled={exporting || requiredSheets.includes(sheet.id)}
                   onCheckedChange={(checked) => toggleSheet(sheet.id, checked)}
                 />
                 <span className="min-w-0">
                   <span className="block text-sm font-medium">
                     {sheet.label}
+                    {requiredSheets.includes(sheet.id) && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        Required / 必选
+                      </span>
+                    )}
                   </span>
                   <span
                     id={`${id}-description-${index}`}

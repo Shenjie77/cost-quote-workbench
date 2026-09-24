@@ -24,7 +24,9 @@ const hooks = registerHooks({
   resolve(specifier, context, nextResolve) {
     if (
       specifier === 'react' &&
-      context.parentURL?.endsWith('/project-search.tsx')
+      /\/(project-search|project-tags-input|project-view)\.tsx$/.test(
+        context.parentURL || '',
+      )
     )
       return { url: adapter, shortCircuit: true };
     const alias = specifier.startsWith('@/');
@@ -61,6 +63,10 @@ const hooks = registerHooks({
 });
 const { ProjectSearch } =
   await import('../features/workbench/project-search.tsx');
+const { ProjectTagsInput } =
+  await import('../features/projects/project-tags-input.tsx');
+const { ProjectView } = await import('../features/projects/project-view.tsx');
+const { ProjectTable } = await import('../features/projects/project-table.tsx');
 hooks.deregister();
 
 /** Minimal synthetic projects expose both identity and current-workflow result labels. */
@@ -90,7 +96,7 @@ const elements = (node) =>
   Array.isArray(node)
     ? node.flatMap(elements)
     : React.isValidElement(node)
-      ? [node, ...elements(node.props.children)]
+      ? [node, ...elements(node.props.children), ...elements(node.props.action)]
       : [];
 const textOf = (node) =>
   Array.isArray(node)
@@ -103,7 +109,7 @@ const textOf = (node) =>
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 /** Stateful hook slots make keyboard, focus and asynchronous controller transitions observable. */
-function harness(props) {
+function harness(props, Component = ProjectSearch) {
   const slots = [],
     effects = [];
   let cursor = 0;
@@ -154,7 +160,7 @@ function harness(props) {
       globalThis[key] = backend;
       let rendered;
       try {
-        rendered = ProjectSearch(props);
+        rendered = Component(props);
       } finally {
         delete globalThis[key];
       }
@@ -204,7 +210,10 @@ test('header renders a named combobox and keeps the result popup closed until fo
     }),
   );
   assert.match(markup, /role="combobox"/);
-  assert.match(markup, /Search projects by proposal number, name, or workflow/);
+  assert.match(
+    markup,
+    /Search projects by proposal number, name, workflow, or tag/,
+  );
   assert.match(markup, /aria-expanded="false"/);
   assert.doesNotMatch(markup, /role="option"/);
 });
@@ -429,4 +438,74 @@ test('failed promise selection preserves query, and unmount ignores a later succ
   t.after(() => next.unmount());
   assert.equal(next.input().props.value, '');
   assert.equal(next.input().props['aria-expanded'], false);
+});
+
+test('tag editor creates and reuses multiple labels, supports removal and ignores composing Enter', () => {
+  const props = {
+    value: [],
+    suggestions: ['Data Centre'],
+    disabled: false,
+    onChange: (tags) => {
+      props.value = tags;
+    },
+  };
+  const h = harness(props, ProjectTagsInput);
+  const input = () =>
+    elements(h.render()).find(
+      (node) => node.props['aria-label'] === 'New or existing project tag',
+    );
+  const enter = (nativeEvent = {}) =>
+    input().props.onKeyDown({ key: 'Enter', nativeEvent, preventDefault() {} });
+  input().props.onChange({ target: { value: 'data centre' } });
+  enter({ isComposing: true });
+  assert.deepEqual(props.value, []);
+  enter();
+  assert.deepEqual(props.value, ['Data Centre']);
+  input().props.onChange({ target: { value: '维保' } });
+  enter();
+  assert.deepEqual(props.value, ['Data Centre', '维保']);
+  elements(h.render())
+    .find((node) => node.props['aria-label'] === 'Remove tag Data Centre')
+    .props.onClick();
+  assert.deepEqual(props.value, ['维保']);
+  props.disabled = true;
+  input().props.onChange({ target: { value: 'Blocked' } });
+  enter();
+  elements(h.render())
+    .find((node) => node.props['aria-label'] === 'Remove tag 维保')
+    .props.onClick();
+  assert.deepEqual(props.value, ['维保']);
+});
+
+test('portfolio tag selector and tag chips filter projects and allow returning to all projects', () => {
+  const props = {
+    projects: [
+      { ...projects[0], tags: ['DC', '维保'] },
+      { ...projects[1], tags: ['Maintenance'] },
+      { ...projects[2], tags: ['dc'] },
+    ],
+  };
+  const h = harness(props, ProjectView);
+  const table = () =>
+    elements(h.render()).find((node) => node.type === ProjectTable);
+  const select = () =>
+    elements(h.render()).find(
+      (node) => node.props['aria-label'] === 'Filter projects by tag',
+    );
+  select().props.onChange({ target: { value: 'DC' } });
+  assert.deepEqual(
+    table().props.projects.map((project) => project.id),
+    ['A', 'C'],
+  );
+  table().props.onTagSelect('Maintenance');
+  assert.deepEqual(
+    table().props.projects.map((project) => project.id),
+    ['B'],
+  );
+  select().props.onChange({ target: { value: '' } });
+  assert.equal(table().props.projects.length, 3);
+  table().props.onTagSelect('维保');
+  props.projects = props.projects.slice(1);
+  assert.equal(select().props.value, '');
+  assert.equal(table().props.projects.length, 2);
 });

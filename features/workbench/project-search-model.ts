@@ -104,6 +104,7 @@ export function searchProjects(projects: Project[], query: string): Project[] {
         project.client,
         project.clientZh,
         project.version,
+        ...(project.tags ?? []).map((tag) => `#${tag}`),
         ...projectWorkflowSearchInfo(project).terms,
       ]
         .filter(Boolean)
