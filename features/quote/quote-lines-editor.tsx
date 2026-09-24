@@ -159,6 +159,30 @@ export function QuoteLinesEditor({
     );
   };
 
+  /** Set a custom cost percentage, preserving the other rows' relative cost shares and the complete project cost. */
+  const updateCostWeight = (id: string, percentage: number) => {
+    if (disabled || mode !== 'manual' || draftLines.length < 2) return;
+    if (!Number.isFinite(percentage) || percentage < 0 || percentage > 100)
+      return;
+    const otherWeight = draftLines.reduce(
+      (sum, line) => sum + (line.id === id ? 0 : (line.costWeight ?? 0)),
+      0,
+    );
+    setAllocationError('');
+    saveLines(
+      draftLines.map((line) => ({
+        ...line,
+        costWeight:
+          line.id === id
+            ? percentage
+            : (100 - percentage) *
+              (otherWeight > 0
+                ? (line.costWeight ?? 0) / otherWeight
+                : 1 / (draftLines.length - 1)),
+      })),
+    );
+  };
+
   /** Adjust a selling share against the current total, retaining locks and equally sharing the remainder. */
   const updateQuoteShare = (id: string, allocationWeight: number) => {
     if (disabled) return;
@@ -282,8 +306,8 @@ export function QuoteLinesEditor({
         adjusted. Line GP and Price determine the total; GP includes BU profit
         share, before discount.
         <span className="block">
-          Weight
-          为成本占比；报价比例可调，未锁定行均分剩余比例。逐行定价后汇总总价；GP
+          Weight 为成本占比，Custom lines
+          可调整，其他行按原成本比例分摊余额；报价比例可调，未锁定行均分剩余比例。逐行定价后汇总总价；GP
           含分成、未扣整单折扣。Cost 含分摊风险，自定义新增行初始成本为 0。
         </span>
       </p>
@@ -402,10 +426,27 @@ export function QuoteLinesEditor({
                   {formatSgd(costs[index] ?? 0)}
                 </TableCell>
                 <TableCell className="financial-numeral bg-muted/30 text-right">
-                  {totalCost > 0
-                    ? (((costs[index] ?? 0) / totalCost) * 100).toFixed(2)
-                    : '0.00'}
-                  %
+                  {mode === 'manual' ? (
+                    <QuoteNumberInput
+                      key={`cost-weight-${saved?.costWeight}-${costs[index]}`}
+                      label={`Line ${index + 1} cost weight`}
+                      value={
+                        totalCost > 0
+                          ? ((costs[index] ?? 0) / totalCost) * 100
+                          : (lineCostAmounts(draftLines, 100)[index] ?? 0)
+                      }
+                      max={100}
+                      disabled={disabled || lines.length < 2}
+                      onCommit={(weight) => updateCostWeight(line.id, weight)}
+                    />
+                  ) : (
+                    <>
+                      {totalCost > 0
+                        ? (((costs[index] ?? 0) / totalCost) * 100).toFixed(2)
+                        : '0.00'}
+                      %
+                    </>
+                  )}
                 </TableCell>
                 <TableCell>
                   <QuoteNumberInput

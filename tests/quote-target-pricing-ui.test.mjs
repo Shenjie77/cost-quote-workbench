@@ -418,6 +418,44 @@ const threeLinePricing = () => ({
   })),
 });
 
+test('custom cost weights redistribute costs and GP prices while retaining fixed prices', () => {
+  const view = quotationHarness(QuoteLinesEditor, threeLinePricing());
+  commitNumber(view, 'Line 1 cost weight', 60);
+  assert.deepEqual(allocatedCosts(view), [60, 15, 25]);
+  assert.deepEqual(allocatedAmounts(view), [120, 30, 50]);
+  assert.equal(view.result.listPrice, 200);
+  commitNumber(view, 'Line 2 unit price', 45);
+  commitNumber(view, 'Line 1 cost weight', 20);
+  assert.deepEqual(allocatedCosts(view), [20, 30, 50]);
+  assert.deepEqual(allocatedAmounts(view), [40, 45, 100]);
+  assert.equal(view.result.listPrice, 185);
+});
+
+test('custom cost weights handle zero siblings, zero cost, invalid input and disabled editing', () => {
+  const view = quotationHarness(QuoteLinesEditor, threeLinePricing());
+  commitNumber(view, 'Line 1 cost weight', 100);
+  assert.deepEqual(allocatedCosts(view), [100, 0, 0]);
+  commitNumber(view, 'Line 1 cost weight', 50);
+  assert.deepEqual(allocatedCosts(view), [50, 25, 25]);
+  const before = structuredClone(view.pricing);
+  commitNumber(view, 'Line 1 cost weight', 101);
+  assert.deepEqual(view.pricing, before);
+  view.props.totalCost = 0;
+  commitNumber(view, 'Line 1 cost weight', 20);
+  assert.equal(view.label('Line 1 cost weight').props.value, 20);
+  view.props.totalCost = 100;
+  assert.deepEqual(allocatedCosts(view), [20, 40, 40]);
+  const disabled = quotationHarness(QuoteLinesEditor, threeLinePricing(), true);
+  commitNumber(disabled, 'Line 1 cost weight', 80);
+  assert.equal(disabled.writes, 0);
+  const single = quotationHarness(QuoteLinesEditor, {
+    ...targetedPricing(),
+    manualLines: manualLines().slice(0, 1),
+  });
+  assert.equal(single.label('Line 1 cost weight').props.disabled, true);
+  assert.equal(single.label('Line 1 cost weight').props.value, 100);
+});
+
 test('quote share uses the current total, locks edited shares and equally divides the remainder without changing cost weights', () => {
   const view = quotationHarness(QuoteLinesEditor, threeLinePricing());
   commitNumber(view, 'Line 1 quotation percentage', 40);

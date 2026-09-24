@@ -1,4 +1,4 @@
-/** Independent quotation-line pricing separates immutable cost shares from editable selling-price shares. */
+/** Independent quotation-line pricing keeps cost shares separate from selling-price shares. */
 import { roundMoney } from '../cost/domain.ts';
 import type { ManualQuoteLine } from './excel-template-types.ts';
 import { allocateMoneyByWeights } from './profit-share.ts';
