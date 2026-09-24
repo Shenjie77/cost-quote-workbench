@@ -167,7 +167,9 @@ test('pricing displays applied BU share, unassigned cost allocation and net Sale
   assert.match(markup, /Applied Master Data · Revision 7/);
   assert.match(markup, /Apply Latest Master Data/);
   assert.match(markup, /Manage Rates/);
-  assert.match(markup, /Target Sales GP/);
+  assert.doesNotMatch(markup, /id="target-gross-margin"/);
+  assert.match(markup, /aria-label="Line 1 target GP"/);
+  assert.match(markup, /aria-label="Line 1 unit price"/);
   assert.match(markup, /Actual Sales GP/);
   assert.match(markup, /30\.00%/);
   assert.match(markup, /20\.00%/);
@@ -208,7 +210,7 @@ test('target GP plus share at 100 percent blocks quotation generation', () => {
   assert.doesNotMatch(markup, /NaN|Infinity/);
 });
 
-test('legacy manual quotation keeps its saved prices and tax while exposing an editable target GP control', () => {
+test('legacy manual quotation keeps its saved prices while showing computed whole-quote GP and editable line pricing without tax', () => {
   let writes = 0;
   const props = {
     ...quoteProps,
@@ -236,12 +238,15 @@ test('legacy manual quotation keeps its saved prices and tax while exposing an e
   assert.match(markup, /aria-label="Line 1 unit price"/);
   assert.match(markup, /Add line/);
   assert.match(markup, /Line Total/);
-  const targetInput = markup.match(
-    /<input[^>]*id="target-gross-margin"[^>]*>/,
+  assert.doesNotMatch(markup, /<input[^>]*id="target-gross-margin"/);
+  assert.match(markup, /Actual Sales GP/);
+  assert.match(markup, /30\.00%/);
+  const lineTargetInput = markup.match(
+    /<input[^>]*aria-label="Line 1 target GP"[^>]*>/,
   )?.[0];
-  assert.ok(targetInput);
-  assert.doesNotMatch(targetInput, /\sdisabled(?:=|\s|\/?>)/);
-  assert.match(targetInput, /value="95"/);
+  assert.ok(lineTargetInput);
+  assert.doesNotMatch(lineTargetInput, /\sdisabled(?:=|\s|\/?>)/);
+  assert.match(lineTargetInput, /value="30"/);
   assert.doesNotMatch(
     markup,
     /Target sales GP plus weighted profit-share rate must be less/,
@@ -250,9 +255,11 @@ test('legacy manual quotation keeps its saved prices and tax while exposing an e
   assert.match(preview, /Customer service/);
   assert.match(preview, /S\$ 50\.00/);
   assert.match(preview, /S\$ 100\.00/);
-  assert.match(preview, /GST 9\.00%/);
-  assert.match(preview, /S\$ 9\.00/);
-  assert.match(preview, /S\$ 109\.00/);
+  assert.match(preview, /Quote Total/);
+  assert.doesNotMatch(
+    preview,
+    /GST|Before Tax|After Tax|S\$ 9\.00|S\$ 109\.00/,
+  );
   assert.equal(
     writes,
     0,

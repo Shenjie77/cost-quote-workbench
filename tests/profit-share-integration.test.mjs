@@ -254,8 +254,8 @@ test('captured BU share reconciles portfolio, real CLI quotation, immutable arch
   );
   assert.deepEqual(
     amounts,
-    [100, 0, 100, 0, 100],
-    'customer XLSX contains only public price, discount and tax amounts',
+    [100, 0, 100],
+    'customer XLSX contains only public price, discount and final quote amounts',
   );
   const archived = inspect((repo) => {
     const record = repo.get(projectId);

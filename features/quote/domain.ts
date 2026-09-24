@@ -4,6 +4,8 @@ import { roundMoney } from '../cost/domain.ts';
 import type { ManualQuoteLine, QuoteLineMode } from './excel-template-types.ts';
 import { calculateManualQuoteLines } from './quote-lines.ts';
 import { allocateQuotePercentages } from './percentage-allocation.ts';
+import { allocateLinePricing } from './line-pricing.ts';
+import { targetPriceAfterShareRounding } from './target-price.ts';
 import {
   allocateMoneyByWeights,
   profitShareBasis,
@@ -16,7 +18,7 @@ export type PricingSettings = {
   targetGrossMargin: number;
   /** Commercial discount deducted after the target-margin list price. */
   discount: number;
-  /** Tax shown separately from the pre-tax quotation. */
+  /** Legacy persisted field retained for compatibility; new quotations ignore it. */
   gstPercent: number;
   /** Project-owned rate snapshot; global catalogue updates are explicitly applied. */
   profitShareRates?: ProfitShareRate[];
@@ -25,14 +27,16 @@ export type PricingSettings = {
   lineMode?: QuoteLineMode;
   /** Project-owned customer prices; unused modes retain these edits for later use. */
   manualLines?: ManualQuoteLine[];
-  /** Optional manual-line target before overall discount and tax; absent preserves historical pricing. */
+  /** Optional manual-line target before overall discount; absent preserves historical pricing. */
   manualTargetPrice?: number;
-  /** New manual quotations derive their target from GP and allocate percentage shares; absent preserves saved legacy prices. */
-  manualPricingBasis?: 'gp';
+  /** Independent line GP is explicit; historical project-GP allocation and saved manual prices retain their own rules. */
+  manualPricingBasis?: 'gp' | 'line-gp';
+  /** Original grouping retained while independently priced lines use the shared manual output path. */
+  lineSourceMode?: QuoteLineMode;
 };
 
 export const initialPricingSettings: PricingSettings = {
-  targetGrossMargin: 25,
+  targetGrossMargin: 50,
   discount: 0,
   gstPercent: 0,
 };
@@ -47,50 +51,8 @@ export const validatePricingSettings = (
 ): string[] => calculatePricing(totalCost, settings, allocation).errors;
 
 /**
- * The share deduction also rounds upward to cents. A merely rounded algebraic
- * price can therefore undershoot the requested GP on small amounts. Try at most
- * eight cent/fixed-share corrections, then allow a full cent for share rounding
- * in the numerator. That upper bound avoids unbounded cent-by-cent searches when
- * target GP plus share is very close to 100%. Zero-share legacy prices bypass it.
- */
-const targetPriceAfterShareRounding = (
-  cost: number,
-  targetPercent: number,
-  sharePercent: number,
-  denominator: number,
-) => {
-  let price = denominator > 0 ? roundMoney(cost / denominator) : 0;
-  if (
-    !cost ||
-    !sharePercent ||
-    denominator <= 0 ||
-    !Number.isFinite(price) ||
-    price > 1e12
-  )
-    return price;
-  const target = targetPercent / 100;
-  const share = sharePercent / 100;
-  const meetsTarget = (candidate: number) => {
-    const profit = roundMoney(candidate - cost - roundMoney(candidate * share));
-    const tolerance = Math.max(1e-10, Number.EPSILON * candidate * 4);
-    return profit + tolerance >= candidate * target;
-  };
-  for (let attempt = 0; attempt < 8; attempt++) {
-    if (meetsTarget(price)) return price;
-    const currentShare = roundMoney(price * share);
-    price = Math.max(
-      roundMoney(price + 0.01),
-      roundMoney((cost + currentShare) / (1 - target)),
-    );
-    if (!Number.isFinite(price) || price > 1e12) return price;
-  }
-  if (meetsTarget(price)) return price;
-  return roundMoney((cost + 0.01) / denominator);
-};
-
-/**
  * Revenue is apportioned by final BU cost weights. Profit share is charged on
- * discounted pre-tax revenue; tax never contributes to revenue or sales GP.
+ * discounted quotation revenue. Legacy tax settings never affect new prices.
  * Invalid inputs return finite preview values plus blocking errors.
  */
 export const calculatePricing = (
@@ -106,10 +68,12 @@ export const calculatePricing = (
   const errors: string[] = [...basis.errors];
   const manualPricing = settings.lineMode === 'manual';
   const gpManualPricing = manualPricing && settings.manualPricingBasis === 'gp';
+  const independentLinePricing =
+    manualPricing && settings.manualPricingBasis === 'line-gp';
   const usesGpTarget = !manualPricing || gpManualPricing;
   if (
     settings.manualPricingBasis !== undefined &&
-    settings.manualPricingBasis !== 'gp'
+    !['gp', 'line-gp'].includes(settings.manualPricingBasis)
   )
     errors.push('Select a supported manual pricing basis.');
   if (
@@ -117,6 +81,11 @@ export const calculatePricing = (
     !['single', 'scope', 'item', 'manual'].includes(settings.lineMode)
   )
     errors.push('Select a supported quotation detail mode.');
+  if (
+    settings.lineSourceMode !== undefined &&
+    !['single', 'scope', 'item', 'manual'].includes(settings.lineSourceMode)
+  )
+    errors.push('Select a supported quotation line source.');
   if (!Number.isFinite(totalCost) || totalCost < 0 || totalCost > 1e12)
     errors.push(
       'Total cost must be a finite non-negative amount within the supported range.',
@@ -136,12 +105,6 @@ export const calculatePricing = (
     settings.discount > 1e12
   )
     errors.push('Discount is outside the allowed range. / 折扣金额无效。');
-  if (
-    !Number.isFinite(settings.gstPercent) ||
-    settings.gstPercent < 0 ||
-    settings.gstPercent > 100
-  )
-    errors.push('Tax rate must be between 0 and 100%. / 税率须为 0–100%。');
   const targetGrossMargin = Number.isFinite(settings.targetGrossMargin)
     ? Math.min(95, Math.max(0, settings.targetGrossMargin))
     : 0;
@@ -149,9 +112,6 @@ export const calculatePricing = (
     Number.isFinite(settings.discount) && settings.discount <= 1e12
       ? roundMoney(Math.max(0, settings.discount))
       : 0;
-  const gstPercent = Number.isFinite(settings.gstPercent)
-    ? Math.min(100, Math.max(0, settings.gstPercent))
-    : 0;
   const weightedProfitShareRate = basis.weightedProfitShareRate;
   const denominator = 1 - (targetGrossMargin + weightedProfitShareRate) / 100;
   if (usesGpTarget && denominator <= 0)
@@ -170,14 +130,27 @@ export const calculatePricing = (
     ? allocateQuotePercentages(settings.manualLines ?? [], gpTarget)
     : undefined;
   if (percentageAllocation) errors.push(...percentageAllocation.errors);
-  const manual = manualPricing
-    ? calculateManualQuoteLines(
-        percentageAllocation?.lines ?? settings.manualLines,
+  // Independent line prices own their GP; the project total is their sum, never an additional target.
+  const lineAllocation = independentLinePricing
+    ? allocateLinePricing(
+        settings.manualLines ?? [],
+        cost,
+        weightedProfitShareRate,
       )
+    : undefined;
+  if (lineAllocation) errors.push(...lineAllocation.errors);
+  const effectiveLines = lineAllocation?.lines ?? percentageAllocation?.lines;
+  const manual = manualPricing
+    ? calculateManualQuoteLines(effectiveLines ?? settings.manualLines)
     : undefined;
   if (manual) errors.push(...manual.errors);
   // A saved target is a customer-output constraint, never permission to silently reprice saved lines.
-  if (manual && !gpManualPricing && settings.manualTargetPrice !== undefined) {
+  if (
+    manual &&
+    !gpManualPricing &&
+    !independentLinePricing &&
+    settings.manualTargetPrice !== undefined
+  ) {
     const target = settings.manualTargetPrice;
     if (
       !Number.isFinite(target) ||
@@ -190,7 +163,7 @@ export const calculatePricing = (
       );
     else if (roundMoney(manual.total) !== target)
       errors.push(
-        'Quotation lines must match the target total before discount and tax. Adjust their proportions or fixed prices.',
+        'Quotation lines must match the target total before discount. Adjust their proportions or fixed prices.',
       );
   }
   const rawListPrice = gpManualPricing ? gpTarget : (manual?.total ?? gpTarget);
@@ -201,8 +174,11 @@ export const calculatePricing = (
   if (!Number.isFinite(rawListPrice) || rawListPrice > 1e12)
     errors.push('Calculated target price exceeds the supported range.');
   const quoteBeforeTax = roundMoney(Math.max(0, listPrice - discount));
-  const gstAmount = roundMoney(quoteBeforeTax * (gstPercent / 100));
-  const quoteAfterTax = roundMoney(quoteBeforeTax + gstAmount);
+  // Retain result keys consumed by stored contracts without applying obsolete tax settings.
+  // Existing quotation history is an immutable snapshot and is never recalculated here.
+  const gstPercent = 0;
+  const gstAmount = 0;
+  const quoteAfterTax = quoteBeforeTax;
   const profitShareAmount = roundMoney(
     (quoteBeforeTax * weightedProfitShareRate) / 100,
   );
@@ -231,9 +207,7 @@ export const calculatePricing = (
       'Calculated quote exceeds the supported range. / 报价计算结果超出范围。',
     );
   return {
-    ...(percentageAllocation
-      ? { allocatedManualLines: percentageAllocation.lines }
-      : {}),
+    ...(effectiveLines ? { allocatedManualLines: effectiveLines } : {}),
     cost,
     listPrice,
     discount,

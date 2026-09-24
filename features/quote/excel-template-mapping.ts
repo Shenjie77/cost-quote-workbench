@@ -15,8 +15,6 @@ export const requiredQuoteExcelFields: ReadonlyArray<QuoteExcelField> = [
   'client',
   'project',
   'quoteBeforeTax',
-  'gstAmount',
-  'quoteAfterTax',
   'validityDays',
   'paymentTerms',
 ];
@@ -120,9 +118,13 @@ export function validateQuoteExcelMapping(
   else {
     const used = new Set<string>();
     for (const field of requiredQuoteExcelFields)
-      if (!mapping.cells[field])
+      // An existing after-total coordinate remains a supported destination for the unified quote total.
+      if (
+        !mapping.cells[field] &&
+        !(field === 'quoteBeforeTax' && mapping.cells.quoteAfterTax)
+      )
         errors.push(
-          `The ${field} cell is required for complete quotation output.`,
+          `The ${field === 'quoteBeforeTax' ? 'Quote Total' : field} cell is required for complete quotation output.`,
         );
     for (const [field, address] of Object.entries(mapping.cells)) {
       if (!fields.has(field as QuoteExcelField))

@@ -240,7 +240,7 @@ export const initialProcessSteps: WorkflowStep[] = [
     date: '05 Sep · planned',
     dateZh: '预计 9 月 5 日',
     detail:
-      'Set contingency, target margin, discount, and tax after the cost baseline is frozen.',
+      'Set contingency, target margin, and discount after the cost baseline is frozen.',
     detailZh: '需要在成本冻结后设置风险准备金、目标毛利、折扣与税率。',
     input: 'Depends on frozen Cost V3',
     inputZh: '依赖：成本 V3 冻结',

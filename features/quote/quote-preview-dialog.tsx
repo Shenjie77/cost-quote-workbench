@@ -23,7 +23,11 @@ import type { CostExportSnapshot } from '@/features/cost/contracts';
 import { formatSgd } from '@/lib/formatters';
 import type { PricingResult } from './domain';
 import type { QuoteLine } from './excel-template-types';
-import type { QuoteAssumption, QuoteTemplate } from './types';
+import {
+  isRetiredQuoteAssumption,
+  type QuoteAssumption,
+  type QuoteTemplate,
+} from './types';
 
 const unitPriceFormat = new Intl.NumberFormat('en-SG', {
   minimumFractionDigits: 2,
@@ -148,7 +152,7 @@ export function QuotePreviewDialog({
               )}
             </TableBody>
           </Table>
-          {/* Show the complete reconciliation from service price to tax-inclusive customer total. */}
+          {/* Show the service price and discount leading to one customer quotation total. */}
           <dl className="ml-auto mt-3 grid max-w-sm grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 border-y py-3 text-xs">
             <dt>Service price</dt>
             <dd className="financial-numeral text-right">
@@ -158,19 +162,9 @@ export function QuotePreviewDialog({
             <dd className="financial-numeral text-right">
               {formatSgd(pricing.discount)}
             </dd>
-            <dt className="font-semibold">Total Before Tax</dt>
+            <dt className="font-semibold">Quote Total</dt>
             <dd className="financial-numeral text-right text-base font-bold text-primary">
               {formatSgd(pricing.quoteBeforeTax)}
-            </dd>
-            <dt className="text-muted-foreground">
-              GST {pricing.gstPercent.toFixed(2)}%
-            </dt>
-            <dd className="financial-numeral text-right text-muted-foreground">
-              {formatSgd(pricing.gstAmount)}
-            </dd>
-            <dt className="font-semibold">Total After Tax</dt>
-            <dd className="financial-numeral text-right font-semibold">
-              {formatSgd(pricing.quoteAfterTax)}
             </dd>
           </dl>
           {/* Preserve selected terms and included assumptions verbatim, including their line breaks. */}
@@ -189,7 +183,7 @@ export function QuotePreviewDialog({
               </div>
             )}
             {assumptions
-              .filter((row) => row.included)
+              .filter((row) => row.included && !isRetiredQuoteAssumption(row))
               .map((row) => (
                 <p className="whitespace-pre-wrap break-words" key={row.id}>
                   • {row.text}

@@ -56,6 +56,10 @@ export type QuoteLine = {
 
 /** Manual entries derive their amount from quantity and unit price. */
 export type ManualQuoteLine = Omit<QuoteLine, 'amount'> & {
+  /** Internal relative cost basis, independent of customer price and revenue allocation. */
+  costWeight?: number;
+  /** Independent sales GP after project-weighted BU profit share; absent retains the saved unit price. */
+  targetGrossMargin?: number;
   /** Relative weight for legacy targets; full 0–100 percentage in GP-based allocation. */
   allocationWeight?: number;
   /** Preserve the user-entered percentage when sharing the remaining target across other lines. */

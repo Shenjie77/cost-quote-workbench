@@ -254,6 +254,45 @@ test('quotes retain local Excel mappings and legacy text while validating saved 
   assert.deepEqual(cleared.items[0].defaultAssumptionIds, []);
 });
 
+test('saved quote template mappings require one total and accept either legacy total address without tax cells', () => {
+  const template = imported('quote-templates').items[0];
+  const cells = Object.fromEntries(
+    requiredQuoteExcelFields.map((key, index) => [key, `B${index + 1}`]),
+  );
+  const excel = {
+    assetId: 'b'.repeat(64),
+    fileName: 'Customer.xlsx',
+    sheetName: 'Quote',
+    detailRow: 20,
+    columns: { description: 'A', amount: 'F' },
+    cells,
+  };
+  const { quoteBeforeTax, ...commonCells } = cells;
+  for (const mappedCells of [
+    cells,
+    { ...commonCells, quoteAfterTax: quoteBeforeTax },
+    { ...cells, quoteAfterTax: 'B7', gstPercent: 'B8', gstAmount: 'B9' },
+  ]) {
+    const saved = [{ ...template, excel: { ...excel, cells: mappedCells } }];
+    assert.doesNotThrow(() =>
+      validateGlobalMasterDataRows('quote-templates', saved),
+    );
+    const updated = imported(
+      'quote-templates',
+      { id: template.id, paymentTerms: '45 days' },
+      saved,
+    );
+    assert.deepEqual(updated.items[0].excel.cells, mappedCells);
+  }
+  assert.throws(
+    () =>
+      validateGlobalMasterDataRows('quote-templates', [
+        { ...template, excel: { ...excel, cells: commonCells } },
+      ]),
+    /quoteBeforeTax|quoteAfterTax/,
+  );
+});
+
 test('strict scalar parsing rejects invalid calendars, malformed decimals, non-finite values and false-like typos', () => {
   for (const [field, value] of [
     ['quoteDate', '2026-02-30'],

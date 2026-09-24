@@ -91,6 +91,22 @@ export function validateManualQuoteLines(
       errors.push(
         `${prefix}allocation weight must be a number between 0 and 1,000,000.`,
       );
+    if (
+      line.costWeight !== undefined &&
+      (!Number.isFinite(line.costWeight) ||
+        line.costWeight < 0 ||
+        line.costWeight > MAX_QUOTE_AMOUNT)
+    )
+      errors.push(
+        `${prefix}cost weight must be a number between 0 and 1,000,000,000,000.`,
+      );
+    if (
+      line.targetGrossMargin !== undefined &&
+      (!Number.isFinite(line.targetGrossMargin) ||
+        line.targetGrossMargin < 0 ||
+        line.targetGrossMargin > 95)
+    )
+      errors.push(`${prefix}target GP must be between 0 and 95%.`);
     if (line.priceFixed !== undefined && typeof line.priceFixed !== 'boolean')
       errors.push(`${prefix}fixed price must be true or false.`);
     if (
@@ -270,7 +286,7 @@ export function buildQuoteLines(
   }));
 }
 
-/** Customer output must reconcile to the service price before overall discount and tax. */
+/** Customer output must reconcile to the service price before overall discount. */
 export function validateQuoteLines(
   lines: QuoteLine[],
   listPrice: number,
@@ -293,7 +309,7 @@ export function validateQuoteLines(
     roundMoney(listPrice)
   )
     errors.push(
-      'Quotation line amounts must equal the service price before discount and tax.',
+      'Quotation line amounts must equal the service price before discount.',
     );
   return errors;
 }

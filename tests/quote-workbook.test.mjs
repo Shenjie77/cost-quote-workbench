@@ -92,8 +92,13 @@ test('quotation workbook contains pricing, template terms, and assumptions', asy
   assert.equal(sheet.getCell('C5').value, 'QT-001-V1');
   assert.equal(sheet.getCell('C6').value, 'Test Client');
   assert.equal(sheet.getCell('D14').value, 1250);
-  assert.equal(sheet.getCell('D16').value, 1362.5);
-  assert.match(sheet.getCell('B20').text, /Validity/);
+  assert.equal(sheet.getCell('B14').value, 'Quote Total');
+  assert.equal(sheet.getCell('D16').value, null);
+  assert.match(sheet.getCell('B18').text, /Validity/);
+  assert.doesNotMatch(
+    JSON.stringify(sheet.getSheetValues()),
+    /GST|Before Tax|After Tax|gstAmount|targetGrossMargin|allocationWeight|priceFixed/,
+  );
   assert.doesNotMatch(
     JSON.stringify(sheet.getSheetValues()),
     /\p{Script=Han}/u,
@@ -152,4 +157,78 @@ test('new quotation output ignores legacy translations and retains long English 
   assert.ok(paragraphs.join('').includes(terms));
   assert.match(text, /Delivery scope retained/);
   assert.deepEqual(input, before, 'export must preserve saved legacy fields');
+});
+
+/** New pricing controls remain internal even when callers pass richer line objects. */
+test('customer workbooks expose one quote total and never export line costs, weights, GP or legacy tax', async () => {
+  const input = {
+    project: {
+      id: 'PUBLIC-QUOTE',
+      name: 'Delivery',
+      client: 'Customer',
+      currency: 'SGD',
+    },
+    quoteNumber: 'PUBLIC-001',
+    costVersion: 'V1',
+    template: initialQuoteTemplates[0],
+    assumptions: [
+      {
+        id: 'assumption-tax',
+        text: 'SYSTEM TAX CLAUSE MUST NOT APPEAR',
+        textZh: '',
+        included: true,
+      },
+      {
+        id: 'custom',
+        text: 'Customer statement remains.',
+        textZh: '',
+        included: true,
+      },
+    ],
+    pricing: calculatePricing(100, {
+      targetGrossMargin: 50,
+      discount: 10,
+      gstPercent: 9,
+    }),
+    lineMode: 'manual',
+    lines: [
+      {
+        id: 'service',
+        description: 'Delivery service',
+        quantity: 1,
+        unit: 'lot',
+        unitPrice: 200,
+        amount: 200,
+        cost: 100,
+        allocationWeight: 100,
+        targetGrossMargin: 50,
+        priceFixed: false,
+      },
+    ],
+  };
+  const before = structuredClone(input);
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(await buildQuoteWorkbookBuffer(input));
+  const quote = book.getWorksheet('Quotation');
+  assert.equal(quote.getCell('B14').value, 'Quote Total');
+  assert.equal(quote.getCell('D14').value, 190);
+  assert.match(
+    JSON.stringify(quote.getSheetValues()),
+    /Customer statement remains/,
+  );
+  const details = book.getWorksheet('Quotation Details');
+  assert.deepEqual(details.getRow(1).values.slice(1), [
+    'No.',
+    'Description',
+    'Quantity',
+    'Unit',
+    'Unit Price',
+    'Amount',
+  ]);
+  assert.equal(details.getCell('F2').value, 200);
+  assert.doesNotMatch(
+    JSON.stringify(book.worksheets.map((sheet) => sheet.getSheetValues())),
+    /GST|Tax|gstAmount|allocationWeight|targetGrossMargin|priceFixed|Internal Cost/,
+  );
+  assert.deepEqual(input, before);
 });

@@ -12,6 +12,7 @@ import { calculateBuCostAllocation } from './profit-share.ts';
 import { matchesClient } from './catalog-domain.ts';
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
 import { buildQuoteLines, validateQuoteLines } from './quote-lines.ts';
+import { isRetiredQuoteAssumption } from './types.ts';
 /** Captures the same immutable pricing and detail output used by the Quote page. */
 export function validatedQuoteInput(
   workspace: WorkbenchWorkspace,
@@ -75,7 +76,11 @@ export function validatedQuoteInput(
     !matchesClient(template.clientPattern, workspace.project.client)
   )
     errors.push('Select an applicable active quotation template');
-  if (workspace.quoteAssumptions.some((a) => a.included && !a.text.trim()))
+  // Retire the old system clause in current output without rewriting project data or quoted history.
+  const assumptions = workspace.quoteAssumptions.filter(
+    (row) => !isRetiredQuoteAssumption(row),
+  );
+  if (assumptions.some((a) => a.included && !a.text.trim()))
     errors.push('Included assumption text is required');
   if (errors.length) throw new TypeError(errors.join('; '));
   return {
@@ -83,7 +88,7 @@ export function validatedQuoteInput(
     quoteNumber,
     costVersion: version.code,
     template: structuredClone(template!),
-    assumptions: structuredClone(workspace.quoteAssumptions),
+    assumptions: structuredClone(assumptions),
     pricing,
     lines,
     lineMode: workspace.pricing.lineMode ?? 'single',

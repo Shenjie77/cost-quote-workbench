@@ -220,8 +220,8 @@ test('CLI narrow pricing updates preserve target and allocation settings; zero-t
   assert.equal(sheet.getCell('D12').value, 250);
   assert.equal(sheet.getCell('D13').value, 10);
   assert.equal(sheet.getCell('D14').value, 240);
-  assert.equal(sheet.getCell('D15').value, 0);
-  assert.equal(sheet.getCell('D16').value, 240);
+  assert.equal(sheet.getCell('D15').value, null);
+  assert.equal(sheet.getCell('D16').value, null);
   assert.doesNotMatch(
     JSON.stringify(sheet.getSheetValues()),
     /manualTargetPrice|allocationWeight|priceFixed|weighted|targetGrossMargin/,
@@ -367,7 +367,7 @@ test('schema rejects invalid target and allocation values atomically while custo
   });
 });
 
-test('mapped customer XLSX receives reconciled target prices and zero tax without internal allocation fields', async (t) => {
+test('mapped customer XLSX receives reconciled prices and clears mapped tax cells without internal allocation fields', async (t) => {
   const { inspect, updatePricing } = setup(t);
   updatePricing({ ...targetPricing(), gstPercent: 0 });
   const input = inspect((repo) =>
@@ -431,7 +431,8 @@ test('mapped customer XLSX receives reconciled target prices and zero tax withou
   const result = output.getWorksheet('Customer');
   assert.equal(result.getCell('B4').value, 250);
   assert.equal(result.getCell('B6').value, 240);
-  assert.equal(result.getCell('B8').value, 0);
+  assert.equal(result.getCell('B7').value, null);
+  assert.equal(result.getCell('B8').value, null);
   assert.equal(result.getCell('B9').value, 240);
   assert.equal(result.getCell('E16').value, 100);
   assert.equal(result.getCell('F16').value, 100);

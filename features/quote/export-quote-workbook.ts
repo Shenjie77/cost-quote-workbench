@@ -7,6 +7,7 @@ import { matchesClient } from './catalog-domain.ts';
 import type { QuoteLine, QuoteLineMode } from './excel-template-types.ts';
 import { validateQuoteLines } from './quote-lines.ts';
 import { assertValidQuotePricing } from './export-validation.ts';
+import { isRetiredQuoteAssumption } from './types.ts';
 
 export type QuoteWorkbookInput = {
   project: CostExportSnapshot['project'];
@@ -30,6 +31,10 @@ export const buildQuoteWorkbookBuffer = async (
 ) => {
   // Freeze output content before loading either the workbook library or local assets.
   input = structuredClone(input);
+  // Retire only the old system clause; customer-authored terms and saved snapshots remain untouched.
+  input.assumptions = input.assumptions.filter(
+    (row) => !isRetiredQuoteAssumption(row),
+  );
   assertValidQuotePricing(input.pricing);
   if (
     !input.template.active ||
@@ -89,9 +94,7 @@ export const buildQuoteWorkbookBuffer = async (
   const pricingRows: Array<[string, number]> = [
     ['Service Price', input.pricing.listPrice],
     ['Discount', input.pricing.discount],
-    ['Quote Before Tax', input.pricing.quoteBeforeTax],
-    [`GST ${input.pricing.gstPercent.toFixed(2)}%`, input.pricing.gstAmount],
-    ['Total After Tax', input.pricing.quoteAfterTax],
+    ['Quote Total', input.pricing.quoteBeforeTax],
   ];
   pricingRows.forEach(([label, amount], index) => {
     const row = pricingStart + index;
@@ -188,7 +191,7 @@ export const buildQuoteWorkbookBuffer = async (
       details.addRow({ number: index + 1, ...line }),
     );
     details.addRow({
-      description: 'Service Price (before discount and tax)',
+      description: 'Service Price (before discount)',
       amount: input.pricing.listPrice,
     });
     details.getRow(1).font = { bold: true, name: 'Aptos', size: 10 };

@@ -42,8 +42,8 @@ export function ProfitShareEditor({
         <div>
           <p className="font-medium">BU Profit Share Rates</p>
           <p className="mt-1 text-muted-foreground">
-            Share is deducted from the pre-tax selling price. Existing
-            quotations retain their applied rates.
+            Share is deducted from the net quotation price. Existing quotations
+            retain their applied rates.
           </p>
         </div>
         <Button

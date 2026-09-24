@@ -1,14 +1,20 @@
-/** Default tax changes apply to new inputs; saved commercial terms and exported history remain exact. */
+/** New quotations omit tax and start at 50% GP; saved inputs and exported history remain exact. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import ExcelJS from 'exceljs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import {
   calculatePricing,
   initialPricingSettings,
 } from '../features/quote/domain.ts';
-import { buildQuoteWorkbookBuffer } from '../features/quote/export-quote-workbook.ts';
 import { quoteHistoryRecord } from '../features/quote/history-record.ts';
-import { initialQuoteTemplates } from '../features/quote/types.ts';
+import {
+  initialQuoteAssumptions,
+  initialQuoteTemplates,
+  isRetiredQuoteAssumption,
+} from '../features/quote/types.ts';
 import {
   createBlankWorkspace,
   projectRecord,
@@ -20,23 +26,16 @@ import {
   createProject,
 } from '../server/workspace-resources.mjs';
 
-/** Read exported customer totals by their business label rather than a layout-dependent row index. */
-function workbookAmount(sheet, label) {
-  let amount;
-  sheet.eachRow((row) => {
-    if (row.getCell(2).value === label) amount = row.getCell(4).value;
-  });
-  assert.notEqual(amount, undefined, `Missing workbook amount: ${label}`);
-  return amount;
-}
-
-test('new browser and API projects start at zero tax and have independent pricing settings', () => {
+test('new browser and API projects start at 50% GP without tax and have independent pricing settings', () => {
+  assert.equal(initialPricingSettings.targetGrossMargin, 50);
   assert.equal(initialPricingSettings.gstPercent, 0);
   const blank = createBlankWorkspace(
     projectRecord('BROWSER-ZERO-TAX', 'New project', 'Customer'),
     'input_preparation',
   );
   assert.equal(blank.pricing.gstPercent, 0);
+  assert.equal(blank.pricing.targetGrossMargin, 50);
+  assert.equal(blank.quoteAssumptions.some(isRetiredQuoteAssumption), false);
   const repository = openWorkspaceRepository(':memory:');
   try {
     for (const id of ['NEW-A', 'NEW-B'])
@@ -45,14 +44,65 @@ test('new browser and API projects start at zero tax and have independent pricin
     const second = repository.get('NEW-B');
     assert.equal(first.workspace.pricing.gstPercent, 0);
     assert.equal(second.workspace.pricing.gstPercent, 0);
+    assert.equal(first.workspace.pricing.targetGrossMargin, 50);
+    assert.equal(second.workspace.pricing.targetGrossMargin, 50);
     const price = calculatePricing(1000, first.workspace.pricing);
     assert.equal(price.gstAmount, 0);
+    assert.equal(price.listPrice, 2000);
     assert.equal(price.quoteAfterTax, price.quoteBeforeTax);
     first.workspace.pricing.gstPercent = 9;
     repository.save('NEW-A', first.workspace, first.revision);
     assert.equal(repository.get('NEW-A').workspace.pricing.gstPercent, 9);
     assert.equal(repository.get('NEW-B').workspace.pricing.gstPercent, 0);
     assert.equal(initialPricingSettings.gstPercent, 0);
+  } finally {
+    repository.close();
+  }
+});
+
+test('real CLI project creation uses the same 50% GP defaults as browser and API factories', (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'quote-default-gp-'));
+  const database = path.join(directory, 'workspace.sqlite');
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const child = spawnSync(
+    process.execPath,
+    [
+      '--disable-warning=ExperimentalWarning',
+      'cli/cost-cli.mjs',
+      'project',
+      'create',
+      '--db',
+      database,
+      '--input',
+      '-',
+    ],
+    {
+      cwd: path.resolve(import.meta.dirname, '..'),
+      encoding: 'utf8',
+      input: JSON.stringify({
+        apiVersion: 'cost-workbench/v2',
+        kind: 'OperationRequest',
+        requestId: 'new-default-gp',
+        data: {
+          schemaVersion: '1.0.0',
+          operation: 'project.create',
+          project: { id: 'CLI-GP', name: 'CLI default GP', client: 'Customer' },
+        },
+      }),
+    },
+  );
+  assert.equal(child.status, 0, child.stdout + child.stderr);
+  assert.equal(JSON.parse(child.stdout).ok, true);
+  const repository = openWorkspaceRepository(database);
+  try {
+    const workspace = repository.get('CLI-GP').workspace;
+    assert.equal(workspace.pricing.targetGrossMargin, 50);
+    assert.equal(workspace.pricing.gstPercent, 0);
+    assert.equal(calculatePricing(1000, workspace.pricing).listPrice, 2000);
+    assert.equal(
+      workspace.quoteAssumptions.some(isRetiredQuoteAssumption),
+      false,
+    );
   } finally {
     repository.close();
   }
@@ -78,8 +128,21 @@ test('saved tax and quotation history survive migration, persistence and new cos
         quoteNumber: 'EXISTING-TAX-Q1',
         costVersion: 'V1',
         template: initialQuoteTemplates[0],
-        assumptions: [],
-        pricing: calculatePricing(1000, terms),
+        assumptions: [
+          {
+            id: 'assumption-tax',
+            text: 'Applicable taxes are shown separately from the pre-tax price.',
+            textZh: '适用税费与未税报价分开列示。',
+            included: true,
+          },
+        ],
+        // This is an already-issued historical snapshot, not a newly calculated quotation.
+        pricing: {
+          ...calculatePricing(1000, terms),
+          gstPercent: 9,
+          gstAmount: 112.5,
+          quoteAfterTax: 1362.5,
+        },
       },
       { path: 'historical-quote.xlsx', sha256: 'a'.repeat(64) },
     );
@@ -104,16 +167,19 @@ test('saved tax and quotation history survive migration, persistence and new cos
     assert.deepEqual(reopened.quoteHistory, [history]);
     assert.equal(reopened.quoteHistory[0].gstAmount, 112.5);
     assert.equal(reopened.quoteHistory[0].quoteAfterTax, 1362.5);
+    const current = calculatePricing(1000, reopened.pricing);
+    assert.equal(current.gstAmount, 0);
+    assert.equal(current.quoteAfterTax, 1250);
+    assert.deepEqual(repository.get('EXISTING-TAX').workspace.quoteHistory, [
+      history,
+    ]);
   } finally {
     repository.close();
   }
 });
 
-test('customer workbook uses zero for new default tax while honoring explicitly saved tax rates', async () => {
-  for (const [gstPercent, expectedTax, expectedTotal] of [
-    [0, 0, 1250],
-    [9, 112.5, 1362.5],
-  ]) {
+test('new quote history records no tax even when pricing settings retain a saved tax rate', () => {
+  for (const gstPercent of [0, 9]) {
     const input = {
       project: {
         id: 'TAX-EXPORT',
@@ -132,14 +198,43 @@ test('customer workbook uses zero for new default tax while honoring explicitly 
       }),
     };
     const before = structuredClone(input);
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(await buildQuoteWorkbookBuffer(input));
-    const sheet = workbook.getWorksheet('Quotation');
-    assert.equal(
-      workbookAmount(sheet, `GST ${gstPercent.toFixed(2)}%`),
-      expectedTax,
-    );
-    assert.equal(input.pricing.quoteAfterTax, expectedTotal);
+    const history = quoteHistoryRecord(input, {
+      path: 'new-quotation.xlsx',
+      sha256: 'b'.repeat(64),
+    });
+    assert.equal(history.gstAmount, 0);
+    assert.equal(history.quoteAfterTax, 1250);
+    assert.equal(input.pricing.quoteAfterTax, 1250);
     assert.deepEqual(input, before);
   }
+});
+
+test('only the retired system assumption identity is filtered, never customer text or old snapshots', () => {
+  const original = [
+    { id: 'assumption-tax', text: 'Original system clause', included: true },
+    {
+      id: 'copy',
+      sourceAssumptionId: 'assumption-tax',
+      text: 'Referenced clause',
+      included: true,
+    },
+    {
+      id: 'customer-tax',
+      text: 'Customer handles local tax documentation.',
+      included: true,
+    },
+    {
+      id: 'customer-matching-text',
+      text: 'Applicable taxes are shown separately from the pre-tax price.',
+      included: true,
+    },
+  ];
+  const before = structuredClone(original);
+  const current = original.filter((row) => !isRetiredQuoteAssumption(row));
+  assert.deepEqual(
+    current.map((row) => row.id),
+    ['customer-tax', 'customer-matching-text'],
+  );
+  assert.deepEqual(original, before);
+  assert.equal(initialQuoteAssumptions.some(isRetiredQuoteAssumption), false);
 });

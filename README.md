@@ -57,11 +57,26 @@ project workflow; quote export checks confirmed cost and valid quotation inputs
 without requiring a duplicate local SSR approval chain.
 
 **Master Data → Profit Share** maintains each BU's share of selling revenue.
-Pricing Parameters uses the project's captured rates and BU cost weights to
-calculate net **Sales GP** and solve the target price. Costs without a BU,
+Quotation details use the project's captured rates and BU cost weights to
+price each line; the header shows the resulting net **Actual Sales GP** as a
+read-only value. Costs without a BU,
 including EHS and Risk, go to the largest direct-cost BU. Existing projects use
 **Apply Latest Master Data** to adopt new rates; locked costs and quotation
 history stay unchanged. See [BU profit share and pricing](docs/profit-share.md).
+
+Quotation details show **Cost**, **Weight %**, **Quote share %**, **Target GP %**,
+and **Price / Unit**. Cost allocates the complete project cost including Risk;
+Weight is that line's cost share. New lines use 50% GP, with quotation shares
+initially following cost shares. Edit an individual GP or unit price to change
+that line and the total. Editing a quotation share redistributes the current
+line total across the remaining unlocked rows. **Quote Total** is the sum of
+line amounts less the overall discount; actual Sales GP uses that net amount
+and captured BU profit share. There is no editable overall GP target.
+Current quotation UI, calculations and standard customer output have no GST or
+tax fields. Saved historical records and compatibility fields remain intact.
+Only mapped tax-value cells are cleared in custom Excel templates; unconnected
+customer text is preserved. See [line pricing](docs/manual-quote-target-pricing.md)
+and [customer Excel templates](docs/customer-excel-quotation.md).
 
 Cost Input is a compact editable grid with All/Y1–Y5 views and a toolbar
 Mode selector for Sites or Direct MD; it has no separate search bar. The

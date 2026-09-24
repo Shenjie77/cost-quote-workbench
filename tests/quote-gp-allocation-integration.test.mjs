@@ -221,14 +221,48 @@ function assertAllocation(input, total, amounts) {
     assert.deepEqual(Object.keys(line).sort(), publicLineKeys);
 }
 
+test('new quote inputs omit retired system tax assumptions without rewriting saved custom terms or history', (t) => {
+  const { inspect } = setup(t);
+  inspect((repository) => {
+    const workspace = repository.get(projectId).workspace;
+    workspace.quoteAssumptions = [
+      { id: 'assumption-tax', text: '', textZh: '', included: true },
+      {
+        id: 'referenced-tax',
+        sourceAssumptionId: 'assumption-tax',
+        text: 'Former system tax clause',
+        textZh: '',
+        included: true,
+      },
+      {
+        id: 'customer-tax',
+        text: 'Customer handles tax documentation.',
+        textZh: '',
+        included: true,
+      },
+    ];
+    const before = structuredClone(workspace);
+    const input = validatedQuoteInput(workspace, 'Q-NO-TAX');
+    assert.deepEqual(input.assumptions, [before.quoteAssumptions[2]]);
+    assert.deepEqual(workspace, before);
+    input.assumptions[0].text = 'Changed detached output';
+    assert.deepEqual(workspace, before);
+  });
+});
+
 /** Read back generated XLSX detail prices and totals, not only the in-memory calculation. */
 async function assertExportFile(filename, total, amounts) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(readFileSync(filename));
   const summary = workbook.getWorksheet('Quotation');
   assert.equal(summary.getCell('D12').value, total);
-  assert.equal(summary.getCell('D15').value, 0);
-  assert.equal(summary.getCell('D16').value, total);
+  let quoteTotal;
+  summary.eachRow((row) => {
+    if (row.getCell(2).value === 'Quote Total')
+      quoteTotal = row.getCell(4).value;
+  });
+  assert.equal(quoteTotal, total);
+  assert.doesNotMatch(JSON.stringify(summary.getSheetValues()), /GST|Tax/);
   const details = workbook.getWorksheet('Quotation Details');
   assert.deepEqual(
     amounts.map((_, index) => details.getCell(index + 2, 6).value),
@@ -322,7 +356,7 @@ test('invalid percentage or contradictory locks block CLI output without files o
   }
 });
 
-test('unmarked legacy manual quotes keep saved totals and tax through GP and cost changes', (t) => {
+test('unmarked legacy manual quotes keep saved prices through GP and cost changes without charging old tax', (t) => {
   const { inspect, updatePricing, quote, changeCost } = setup(t);
   updatePricing({
     lineMode: 'manual',
@@ -349,8 +383,8 @@ test('unmarked legacy manual quotes keep saved totals and tax through GP and cos
   const input = quote();
   assert.equal(input.pricing.cost, 150);
   assert.equal(input.pricing.listPrice, 250);
-  assert.equal(input.pricing.gstAmount, 22.5);
-  assert.equal(input.pricing.quoteAfterTax, 272.5);
+  assert.equal(input.pricing.gstAmount, 0);
+  assert.equal(input.pricing.quoteAfterTax, 250);
   assert.deepEqual(
     input.lines.map((line) => line.amount),
     [250],
@@ -360,6 +394,7 @@ test('unmarked legacy manual quotes keep saved totals and tax through GP and cos
     assert.equal(Object.hasOwn(pricing, 'manualPricingBasis'), false);
     assert.deepEqual(pricing.manualLines, saved.manualLines);
     assert.equal(pricing.manualTargetPrice, 250);
+    assert.equal(pricing.gstPercent, 9);
   });
   updatePricing({ manualTargetPrice: 251 });
   assert.throws(
@@ -463,7 +498,8 @@ test('mapped customer XLSX receives effective GP prices and omits all internal a
   );
   const output = result.getWorksheet('Customer');
   assert.equal(output.getCell('B4').value, 200);
-  assert.equal(output.getCell('B8').value, 0);
+  assert.equal(output.getCell('B7').value, null);
+  assert.equal(output.getCell('B8').value, null);
   assert.equal(output.getCell('B9').value, 200);
   assert.deepEqual(
     [16, 17, 18, 19].map((row) => output.getCell(row, 6).value),

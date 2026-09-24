@@ -24,6 +24,7 @@ import {
 } from './excel-template-mapping.ts';
 import { validateQuoteLines } from './quote-lines.ts';
 import { assertValidQuotePricing } from './export-validation.ts';
+import { isRetiredQuoteAssumption } from './types.ts';
 
 const MAX_COMPRESSED_BYTES = 10 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 50 * 1024 * 1024;
@@ -703,7 +704,7 @@ function validateCommercialCoverage(input: QuoteWorkbookInput): void {
 /** Supplies only customer-facing metadata and commercial amounts to mapped cells. */
 function quoteFieldValues(
   input: QuoteWorkbookInput,
-): Record<QuoteExcelField, string | number> {
+): Record<QuoteExcelField, string | number | null> {
   return {
     quoteNumber: input.quoteNumber,
     client: input.project.client,
@@ -721,9 +722,10 @@ function quoteFieldValues(
     servicePrice: input.pricing.listPrice,
     discount: input.pricing.discount,
     quoteBeforeTax: input.pricing.quoteBeforeTax,
-    gstPercent: input.pricing.gstPercent,
-    gstAmount: input.pricing.gstAmount,
-    quoteAfterTax: input.pricing.quoteAfterTax,
+    // Existing tax mappings are deliberately cleared; both legacy total mappings receive the same final amount.
+    gstPercent: null,
+    gstAmount: null,
+    quoteAfterTax: input.pricing.quoteBeforeTax,
   };
 }
 
@@ -750,6 +752,10 @@ export async function fillQuoteExcelTemplate(
   source: QuoteWorkbookInput,
 ) {
   const input = structuredClone(source);
+  // Retire only the old system clause; customer-authored terms and saved snapshots remain untouched.
+  input.assumptions = input.assumptions.filter(
+    (row) => !isRetiredQuoteAssumption(row),
+  );
   assertValidQuotePricing(input.pricing);
   const bytes = new Uint8Array(
     buffer instanceof ArrayBuffer ? buffer.slice(0) : buffer,
@@ -869,11 +875,8 @@ export async function fillQuoteExcelTemplate(
       addedRows,
     );
     const cell = sheet.getCell(target);
-    // Percent-formatted cells store fractions; unformatted fields display the human percentage.
-    cell.value =
-      field === 'gstPercent' && cell.numFmt?.includes('%')
-        ? input.pricing.gstPercent / 100
-        : values[field as QuoteExcelField];
+    // Null clears a mapped legacy tax value or formula without touching unmapped customer content.
+    cell.value = values[field as QuoteExcelField];
   });
   workbook.calcProperties.fullCalcOnLoad = true;
   return workbook.xlsx.writeBuffer();

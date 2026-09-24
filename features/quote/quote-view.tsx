@@ -54,8 +54,7 @@ import { quoteProfitShareSnapshot } from './history-record';
 import { ProfitShareSummary } from './profit-share-summary';
 import { buildQuoteLines, validateQuoteLines } from './quote-lines';
 import { QuoteLinesEditor } from './quote-lines-editor';
-import { QuoteNumberInput } from './quote-number-input';
-import { applyGpAllocation, gpAllocationLines } from './manual-pricing';
+import { isRetiredQuoteAssumption } from './types';
 import { QuotePreviewDialog } from './quote-preview-dialog';
 
 /** Creates stable local identities for newly recorded assumptions and quotation history. */
@@ -133,10 +132,11 @@ export function QuoteView({
     };
   }, []);
   const result = calculatePricing(totalCost, pricing, costAllocation);
-  const gpPricing = calculatePricing(
-    totalCost,
-    { ...pricing, lineMode: 'single' },
-    costAllocation,
+  const effectiveQuoteAssumptions = quoteAssumptions.filter(
+    (row) => !isRetiredQuoteAssumption(row),
+  );
+  const effectiveAssumptionLibrary = assumptionLibrary.filter(
+    (row) => !isRetiredQuoteAssumption(row),
   );
   const lines = buildQuoteLines(
     costSnapshot,
@@ -160,7 +160,9 @@ export function QuoteView({
           'Select an active template matching this client / 请选择当前客户适用的启用模板',
         ]
       : []),
-    ...(quoteAssumptions.some((row) => row.included && !row.text.trim())
+    ...(effectiveQuoteAssumptions.some(
+      (row) => row.included && !row.text.trim(),
+    )
       ? ['Included assumption text is required / 已包含假设的正文不可为空']
       : []),
   ];
@@ -172,7 +174,7 @@ export function QuoteView({
     setQuoteAssumptions((rows) =>
       referenceAssumptions(
         rows,
-        assumptionLibrary,
+        effectiveAssumptionLibrary,
         chosen.defaultAssumptionIds,
         project.client,
       ),
@@ -181,33 +183,14 @@ export function QuoteView({
       'Template selected; eligible default assumptions added without overwriting existing text. / 已选择模板并补入适用默认假设，原内容保留。',
     );
   };
-  /** GP remains the sole target control; an explicit GP edit activates allocation while other terms retain their arithmetic. */
-  const updateNumber = (
-    key: 'targetGrossMargin' | 'discount' | 'gstPercent',
-    raw: string,
-  ) => {
+  /** Discount changes net revenue and actual GP without repricing the individual quotation lines. */
+  const updateDiscount = (raw: string) => {
     if (isApplyingRates || isExporting || exportInProgress) return;
     const value = Number(raw);
-    setPricing((current) => {
-      const next = { ...current, [key]: Number.isFinite(value) ? value : 0 };
-      if (key !== 'targetGrossMargin' || current.lineMode !== 'manual')
-        return next;
-      const effective =
-        calculatePricing(totalCost, current, costAllocation)
-          .allocatedManualLines ??
-        current.manualLines ??
-        [];
-      const target = calculatePricing(
-        totalCost,
-        { ...next, lineMode: 'single' },
-        costAllocation,
-      ).listPrice;
-      return applyGpAllocation(
-        next,
-        target,
-        gpAllocationLines(current, effective),
-      );
-    });
+    setPricing((current) => ({
+      ...current,
+      discount: Number.isFinite(value) ? value : 0,
+    }));
   };
 
   /** Generates one real XLSX file and records the exact commercial snapshot. */
@@ -245,7 +228,7 @@ export function QuoteView({
       quoteNumber,
       costVersion: activeVersion,
       template,
-      assumptions: quoteAssumptions,
+      assumptions: effectiveQuoteAssumptions,
       pricing: result,
       profitShareMasterDataRevision,
       lines,
@@ -324,8 +307,8 @@ export function QuoteView({
           index="01"
           title="Pricing Parameters"
           titleZh="定价参数"
-          description="Set GP, then allocate line prices."
-          descriptionZh="设置 GP，再分配明细。"
+          description="Set line GP or prices; totals and actual GP update automatically."
+          descriptionZh="逐行设置 GP 或售价，自动汇总总价及实际 GP。"
           action={
             <div className="flex flex-wrap items-center gap-2">
               <QuotePreviewDialog
@@ -334,7 +317,7 @@ export function QuoteView({
                 template={template}
                 pricing={result}
                 lines={lines}
-                assumptions={quoteAssumptions}
+                assumptions={effectiveQuoteAssumptions}
               />
               <Button
                 variant="outline"
@@ -375,7 +358,7 @@ export function QuoteView({
         />
         {/* Keep editable commercial terms beside their results, following the Cost Grid cell layout. */}
         <Table
-          className="min-w-[900px] table-fixed text-xs"
+          className="min-w-[700px] table-fixed text-xs"
           aria-label="Pricing parameters"
         >
           <TableHeader>
@@ -388,29 +371,10 @@ export function QuoteView({
                 />
               </TableHead>
               <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
-                <label htmlFor="target-gross-margin">
-                  <BiText
-                    zhClassName="text-white/70"
-                    en="Target Sales GP (%)"
-                    zh="目标销售毛利率"
-                  />
-                </label>
-              </TableHead>
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
                 <BiText
                   zhClassName="text-white/70"
-                  en={
-                    pricing.lineMode === 'manual' &&
-                    pricing.manualPricingBasis !== 'gp'
-                      ? 'Line Total'
-                      : 'Target List Price'
-                  }
-                  zh={
-                    pricing.lineMode === 'manual' &&
-                    pricing.manualPricingBasis !== 'gp'
-                      ? '明细合计（折扣前）'
-                      : '目标报价（折扣前）'
-                  }
+                  en="Line Total"
+                  zh="明细合计（折扣前）"
                 />
               </TableHead>
               <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
@@ -423,15 +387,10 @@ export function QuoteView({
                 </label>
               </TableHead>
               <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
-                <label htmlFor="pricing-gst">
-                  <BiText zhClassName="text-white/70" en="GST (%)" zh="税率" />
-                </label>
-              </TableHead>
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
                 <BiText
                   zhClassName="text-white/70"
-                  en="Quote Before Tax"
-                  zh="未税报价"
+                  en="Quote Total"
+                  zh="最终报价"
                 />
               </TableHead>
               <TableHead className="px-3 py-1.5 text-xs whitespace-normal text-white">
@@ -448,29 +407,8 @@ export function QuoteView({
               <TableCell className="financial-numeral border-r bg-muted/30 px-3 text-right font-semibold">
                 {formatSgd(result.cost)}
               </TableCell>
-              <TableCell className="border-r bg-blue-50/30 p-0">
-                <QuoteNumberInput
-                  key={`gp-${pricing.targetGrossMargin}`}
-                  id="target-gross-margin"
-                  label="Target Sales GP (%) 目标销售毛利率"
-                  commitUnchanged={
-                    pricing.lineMode === 'manual' &&
-                    pricing.manualPricingBasis !== 'gp'
-                  }
-                  max={95}
-                  value={pricing.targetGrossMargin}
-                  disabled={isApplyingRates || isExporting || exportInProgress}
-                  onCommit={(value) =>
-                    updateNumber('targetGrossMargin', String(value))
-                  }
-                  className="financial-numeral h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
-                />
-              </TableCell>
               <TableCell className="financial-numeral border-r bg-muted/30 px-3 text-right font-semibold">
-                {result.valid ||
-                (pricing.manualPricingBasis === 'gp' && gpPricing.valid)
-                  ? formatSgd(result.listPrice)
-                  : '—'}
+                {result.valid ? formatSgd(result.listPrice) : '—'}
               </TableCell>
               <TableCell className="border-r bg-blue-50/30 p-0">
                 <Input
@@ -480,24 +418,7 @@ export function QuoteView({
                   min="0"
                   step="0.01"
                   value={pricing.discount}
-                  onChange={(event) =>
-                    updateNumber('discount', event.target.value)
-                  }
-                  className="financial-numeral h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
-                />
-              </TableCell>
-              <TableCell className="border-r bg-blue-50/30 p-0">
-                <Input
-                  id="pricing-gst"
-                  disabled={isApplyingRates || isExporting || exportInProgress}
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value={pricing.gstPercent}
-                  onChange={(event) =>
-                    updateNumber('gstPercent', event.target.value)
-                  }
+                  onChange={(event) => updateDiscount(event.target.value)}
                   className="financial-numeral h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
                 />
               </TableCell>
@@ -523,7 +444,9 @@ export function QuoteView({
           pricing={pricing}
           setPricing={setPricing}
           lines={lines}
-          gpTargetPrice={gpPricing.listPrice}
+          costSnapshot={costSnapshot}
+          totalCost={totalCost}
+          weightedProfitShareRate={result.weightedProfitShareRate}
           allocatedLines={result.allocatedManualLines}
           disabled={isExporting || exportInProgress || isApplyingRates}
           embedded
@@ -611,9 +534,9 @@ export function QuoteView({
         />
         <AssumptionPicker
           key={project.id}
-          library={assumptionLibrary}
+          library={effectiveAssumptionLibrary}
           client={project.client}
-          assumptions={quoteAssumptions}
+          assumptions={effectiveQuoteAssumptions}
           setAssumptions={setQuoteAssumptions}
         />
         <div className="wb-table-scroll">
@@ -626,7 +549,7 @@ export function QuoteView({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {quoteAssumptions.map((item) => (
+              {effectiveQuoteAssumptions.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
                     <button
@@ -722,8 +645,7 @@ export function QuoteView({
                 <TableHead>Cost Version</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Cost</TableHead>
-                <TableHead className="text-right">Before Tax</TableHead>
-                <TableHead className="text-right">After Tax</TableHead>
+                <TableHead className="text-right">Quote Total</TableHead>
                 <TableHead className="text-right">Sales GP</TableHead>
                 <TableHead>Note</TableHead>
                 <TableHead className="w-16">Action</TableHead>
@@ -801,9 +723,6 @@ export function QuoteView({
                       {formatSgd(record.quoteBeforeTax)}
                     </TableCell>
                     <TableCell className="financial-numeral text-right">
-                      {formatSgd(record.quoteAfterTax)}
-                    </TableCell>
-                    <TableCell className="financial-numeral text-right">
                       {record.grossMarginPercent.toFixed(2)}%
                     </TableCell>
                     <TableCell>
@@ -840,7 +759,7 @@ export function QuoteView({
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={10}
+                    colSpan={9}
                     className="h-20 text-center text-xs text-muted-foreground"
                   >
                     No quotation history yet / 暂无报价历史

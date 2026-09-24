@@ -24,8 +24,7 @@ export function ManualHistoryForm({
     quoteNumber: '',
     quoteDate: '',
     costAmount: '',
-    quoteBeforeTax: '',
-    gstAmount: '0',
+    quoteTotal: '',
     note: '',
   });
   const [error, setError] = useState('');
@@ -33,8 +32,7 @@ export function ManualHistoryForm({
     ['quoteNumber', 'Quote number / 报价编号', 'text'],
     ['quoteDate', 'Quote date / 实际报价日期', 'date'],
     ['costAmount', 'Actual cost / 历史成本', 'number'],
-    ['quoteBeforeTax', 'Quote before tax / 税前报价', 'number'],
-    ['gstAmount', 'Tax amount / 税额', 'number'],
+    ['quoteTotal', 'Quote Total / 报价总额', 'number'],
     ['note', 'Source / note · 来源备注', 'text'],
   ] as const;
   return (
@@ -43,17 +41,15 @@ export function ManualHistoryForm({
       onSubmit={(event) => {
         event.preventDefault();
         const cost = roundMoney(Number(values.costAmount));
-        const quote = roundMoney(Number(values.quoteBeforeTax));
-        const tax = roundMoney(Number(values.gstAmount));
+        const quote = roundMoney(Number(values.quoteTotal));
         if (
           !values.quoteNumber.trim() ||
           !isValidIsoDate(values.quoteDate) ||
           !values.costAmount.trim() ||
-          !values.quoteBeforeTax.trim() ||
-          [cost, quote, tax].some(
+          !values.quoteTotal.trim() ||
+          [cost, quote].some(
             (value) => !Number.isFinite(value) || value < 0 || value > 1e12,
           ) ||
-          quote + tax > 1e12 ||
           (quote > 0 && ((quote - cost) / quote) * 100 < -100000)
         ) {
           setError(
@@ -70,8 +66,9 @@ export function ManualHistoryForm({
           status: 'Draft',
           costAmount: cost,
           quoteBeforeTax: quote,
-          gstAmount: tax,
-          quoteAfterTax: roundMoney(quote + tax),
+          // Keep durable history fields compatible while recording one quotation amount.
+          gstAmount: 0,
+          quoteAfterTax: quote,
           grossMarginPercent: quote > 0 ? ((quote - cost) / quote) * 100 : 0,
           note: values.note,
         });

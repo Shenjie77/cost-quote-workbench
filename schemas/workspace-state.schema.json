@@ -175,7 +175,11 @@
         },
         "manualPricingBasis": {
           "type": "string",
-          "enum": ["gp"]
+          "enum": ["gp", "line-gp"]
+        },
+        "lineSourceMode": {
+          "type": "string",
+          "enum": ["single", "scope", "item", "manual"]
         }
       }
     },
@@ -2368,6 +2372,16 @@
           "minimum": 0,
           "maximum": 1000000000000
         },
+        "costWeight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000
+        },
+        "targetGrossMargin": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 95
+        },
         "allocationWeight": {
           "type": "number",
           "minimum": 0,
@@ -2564,11 +2578,18 @@
             "quoteNumber",
             "client",
             "project",
-            "quoteBeforeTax",
-            "gstAmount",
-            "quoteAfterTax",
             "validityDays",
             "paymentTerms"
+          ],
+          "anyOf": [
+            {
+              "properties": { "quoteBeforeTax": {} },
+              "required": ["quoteBeforeTax"]
+            },
+            {
+              "properties": { "quoteAfterTax": {} },
+              "required": ["quoteAfterTax"]
+            }
           ]
         }
       }

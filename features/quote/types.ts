@@ -56,6 +56,16 @@ export type QuoteAssumption = {
   sourceAssumptionId?: string;
 };
 
+/** Exclude only the retired system tax clause from new output; saved history and custom terms stay intact. */
+export function isRetiredQuoteAssumption(row: {
+  id: string;
+  sourceAssumptionId?: string;
+}): boolean {
+  return (
+    row.id === 'assumption-tax' || row.sourceAssumptionId === 'assumption-tax'
+  );
+}
+
 export type QuoteHistoryStatus = 'Draft' | 'Final';
 
 export type QuoteHistoryRecord = {
@@ -123,12 +133,6 @@ export const initialQuoteAssumptions: QuoteAssumption[] = [
     id: 'assumption-scope',
     text: 'Work outside the agreed scope requires a change request.',
     textZh: '超出约定范围的工作需另行提交变更申请。',
-    included: true,
-  },
-  {
-    id: 'assumption-tax',
-    text: 'Applicable taxes are shown separately from the pre-tax price.',
-    textZh: '适用税费与未税报价分开列示。',
     included: true,
   },
 ];

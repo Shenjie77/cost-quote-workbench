@@ -282,8 +282,7 @@ test('quotation template entry precedes pricing and customer preview in the real
     'Quantity',
     'Unit price',
     'Amount',
-    'Total Before Tax',
-    'Total After Tax',
+    'Quote Total',
     'Validity',
     'Payment',
   ])

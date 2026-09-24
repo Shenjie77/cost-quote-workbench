@@ -62,10 +62,7 @@ const cellLabels: Array<[QuoteExcelField, string]> = [
   ['assumptions', 'Included assumptions'],
   ['servicePrice', 'Service price'],
   ['discount', 'Discount'],
-  ['quoteBeforeTax', 'Total before tax'],
-  ['gstPercent', 'GST (%)'],
-  ['gstAmount', 'GST amount'],
-  ['quoteAfterTax', 'Total after tax'],
+  ['quoteBeforeTax', 'Quote Total'],
 ];
 
 /** Start with one sample detail row; the workbook stays immutable while this mapping is edited. */
@@ -495,31 +492,43 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               Quote fields and totals
             </summary>
             <p className="mt-2 text-xs text-muted-foreground">
-              Map all eight required fields (*) to keep the quotation complete.
+              Map all six required fields (*) to keep the quotation complete.
               Mapped cells retain their formatting; unmapped cells retain their
               content or formulas. All addresses belong to the selected
               worksheet. Also map Discount when used, Terms &amp; Conditions
               when entered, and Included assumptions when selected.
             </p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {cellLabels.map(([field, label]) => (
-                <label key={field} className="block space-y-1 text-xs">
-                  {label}
-                  {requiredQuoteExcelFields.includes(field) ? ' *' : ''}
-                  <Input
-                    aria-label={`${label} cell`}
-                    placeholder="e.g. B4"
-                    maxLength={10}
-                    value={draft.cells[field] || ''}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        cells: { ...draft.cells, [field]: event.target.value },
-                      })
-                    }
-                  />
-                </label>
-              ))}
+              {cellLabels.map(([field, label]) => {
+                // Edit the existing total coordinate without duplicating old before/after mappings.
+                const mappedField =
+                  field === 'quoteBeforeTax' &&
+                  !Object.hasOwn(draft.cells, field) &&
+                  Object.hasOwn(draft.cells, 'quoteAfterTax')
+                    ? 'quoteAfterTax'
+                    : field;
+                return (
+                  <label key={field} className="block space-y-1 text-xs">
+                    {label}
+                    {requiredQuoteExcelFields.includes(field) ? ' *' : ''}
+                    <Input
+                      aria-label={`${label} cell`}
+                      placeholder="e.g. B4"
+                      maxLength={10}
+                      value={draft.cells[mappedField] || ''}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          cells: {
+                            ...draft.cells,
+                            [mappedField]: event.target.value,
+                          },
+                        })
+                      }
+                    />
+                  </label>
+                );
+              })}
             </div>
           </details>
           <div className="flex flex-wrap gap-2">

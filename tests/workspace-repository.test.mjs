@@ -326,7 +326,7 @@ test('SQLite repository creates, reads, lists, and revises one workspace', () =>
     assert.equal(first.workspace.currentWorkflowStepCode, 'TD_EFFORT_REVIEW');
     assert.equal(first.workspace.costVersions.length, 1);
     assert.equal(first.workspace.costVersions[0].code, 'V1');
-    assert.equal(first.workspace.pricing.targetGrossMargin, 25);
+    assert.equal(first.workspace.pricing.targetGrossMargin, 50);
     assert.match(first.sha256, /^[a-f0-9]{64}$/);
 
     const changed = structuredClone(first.workspace);

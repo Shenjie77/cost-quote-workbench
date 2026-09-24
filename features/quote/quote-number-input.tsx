@@ -35,7 +35,8 @@ export function QuoteNumberInput({
 
   /** Reject empty, out-of-range and excess-precision values instead of silently rounding user input. */
   const commit = () => {
-    if (disabled) return;
+    // Calculated GP may legitimately be negative or 100%; validate only an explicitly entered target.
+    if (disabled || !edited) return;
     const next = Number(draft);
     if (
       !draft.trim() ||

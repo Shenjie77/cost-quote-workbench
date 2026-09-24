@@ -171,10 +171,10 @@ test('single customer line preserves layout, logo, formatting, metadata and sour
   assert.equal(sheet.getCell('B5').value, 'Installation');
   assert.equal(sheet.getCell('F5').value, 1000);
   assert.equal(sheet.getCell('F6').formula, 'SUM($F$5:F5)');
-  assert.equal(sheet.getCell('F7').value, 0.09);
+  assert.equal(sheet.getCell('F7').value, null);
   assert.equal(sheet.getCell('E2').value, 1000);
-  assert.equal(sheet.getCell('F2').value, 90);
-  assert.equal(sheet.getCell('G2').value, 1090);
+  assert.equal(sheet.getCell('F2').value, null);
+  assert.equal(sheet.getCell('G2').value, 1000);
   assert.equal(sheet.getCell('A8').value, source.template.paymentTerms);
   assert.equal(sheet.rowCount, 9);
   assert.deepEqual([...sheet.model.merges].sort(), ['A8:F9', 'B5:C5']);
@@ -242,7 +242,7 @@ test('multiple detail rows copy horizontal merges and formulas while shifting fo
   assert.equal(sheet.getCell('F8').formula, 'SUM($F$5:F7)');
   assert.equal(sheet.getCell('H8').formula, 'IF(F8>0,"F6 is text",0)');
   assert.equal(sheet.getCell('H7').note, 'Row calculation');
-  assert.equal(sheet.getCell('F9').value, 0.09);
+  assert.equal(sheet.getCell('F9').value, null);
   assert.equal(sheet.getCell('A10').value, input().template.paymentTerms);
   assert.deepEqual([...sheet.model.merges].sort(), [
     'A10:F11',
@@ -482,4 +482,41 @@ test('extreme mapped rows and expanding worksheet ranges fail before materializi
     () => inspectQuoteExcelWorkbook(oversizedRows),
     /20,000/,
   );
+});
+
+/** Old mappings remain usable while only explicitly mapped tax values are cleared. */
+test('legacy tax cells are blanked and either total mapping works without rewriting customer static text', async () => {
+  const bytes = await fixture((_workbook, sheet) => {
+    sheet.getCell('A7').value = 'Customer-owned GST / tax wording';
+    sheet.getCell('F7').value = 0.09;
+    sheet.getCell('F2').value = { formula: 'E2*F7', result: 90 };
+  });
+  const before = Buffer.from(bytes);
+  for (const totalField of ['quoteBeforeTax', 'quoteAfterTax']) {
+    const source = input();
+    source.assumptions = [
+      {
+        id: 'copied',
+        sourceAssumptionId: 'assumption-tax',
+        text: 'SYSTEM TAX CLAUSE MUST NOT APPEAR',
+        textZh: '',
+        included: true,
+      },
+    ];
+    delete source.template.excel.cells[
+      totalField === 'quoteBeforeTax' ? 'quoteAfterTax' : 'quoteBeforeTax'
+    ];
+    const book = await read(await fillQuoteExcelTemplate(bytes, source));
+    const sheet = book.getWorksheet('Customer Quote');
+    assert.equal(
+      sheet.getCell(totalField === 'quoteBeforeTax' ? 'E2' : 'G2').value,
+      1000,
+    );
+    assert.equal(sheet.getCell('F2').value, null);
+    assert.equal(sheet.getCell('F2').formula, undefined);
+    assert.equal(sheet.getCell('F7').value, null);
+    assert.equal(sheet.getCell('F7').numFmt, '0.00%');
+    assert.equal(sheet.getCell('A7').value, 'Customer-owned GST / tax wording');
+  }
+  assert.deepEqual(Buffer.from(bytes), before);
 });

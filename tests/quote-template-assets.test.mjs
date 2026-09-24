@@ -281,7 +281,8 @@ test('customer mappings and manual lines survive persistence and CLI export with
     assert.equal(sheet.getCell('F12').value, 100);
     assert.equal(sheet.getCell('B13').value, 'Acceptance');
     assert.equal(sheet.getCell('F13').value, 25);
-    assert.equal(sheet.getCell('F17').value, 125.35);
+    assert.equal(sheet.getCell('F17').value, 115);
+    assert.equal(sheet.getCell('F16').value, null);
     const history = repository.get(project.project.id).workspace
       .quoteHistory[0];
     assert.equal(history.lineSnapshots.length, 2);

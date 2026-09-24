@@ -280,7 +280,7 @@ test('BU rate matching ignores whitespace/case and inactive or missing entries s
   assert.ok(result.warnings.some((warning) => /Network.*0%/.test(warning)));
 });
 
-test('discount reduces pre-tax revenue and actual sales GP while tax stays outside share', () => {
+test('discount reduces revenue and actual sales GP while legacy tax settings are ignored', () => {
   const allocation = calculateBuCostAllocation(snapshot([row('a', 'A', 50)]));
   const result = calculatePricing(
     50,
@@ -292,8 +292,8 @@ test('discount reduces pre-tax revenue and actual sales GP while tax stays outsi
   assert.equal(result.profitShareAmount, 18);
   assert.equal(result.salesGrossProfit, 22);
   assert.equal(result.grossMarginPercent.toFixed(2), '24.44');
-  assert.equal(result.gstAmount, 8.1);
-  assert.equal(result.quoteAfterTax, 98.1);
+  assert.equal(result.gstAmount, 0);
+  assert.equal(result.quoteAfterTax, 90);
 });
 
 test('rounded allocation amounts sum to the quote and total share', () => {
@@ -425,7 +425,7 @@ test('mismatched BU allocation cannot use an unrelated cost baseline', () => {
   assert.ok(result.errors.some((error) => /allocation must match/.test(error)));
 });
 
-test('legacy no-share and explicit zero-share pricing preserve target/discount/tax arithmetic', () => {
+test('legacy no-share and explicit zero-share pricing preserve target and discount arithmetic without tax', () => {
   const allocation = calculateBuCostAllocation(snapshot([row('a', 'A', 750)]));
   const legacy = calculatePricing(750, {
     targetGrossMargin: 25,

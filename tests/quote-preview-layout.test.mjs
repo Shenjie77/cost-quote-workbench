@@ -25,7 +25,9 @@ const loader = registerHooks({
   resolve(specifier, context, nextResolve) {
     if (
       specifier === 'react' &&
-      /\/(quote-view|quote-preview-dialog)\.tsx$/.test(context.parentURL || '')
+      /\/(quote-view|quote-preview-dialog|manual-history-form)\.tsx$/.test(
+        context.parentURL || '',
+      )
     )
       return { url: adapter, shortCircuit: true };
     if (
@@ -62,6 +64,8 @@ const loader = registerHooks({
 const { QuoteView } = await import('../features/quote/quote-view.tsx');
 const { QuotePreviewDialog } =
   await import('../features/quote/quote-preview-dialog.tsx');
+const { ManualHistoryForm } =
+  await import('../features/quote/manual-history-form.tsx');
 const { QuoteLinesEditor } =
   await import('../features/quote/quote-lines-editor.tsx');
 const { Dialog, DialogTrigger, DialogContent, DialogFooter } =
@@ -80,6 +84,16 @@ const walk = (node) =>
     : React.isValidElement(node)
       ? [node, ...walk(node.props.children), ...walk(node.props.action)]
       : [];
+
+/** Read native labels without rendering controlled inputs or invoking their browser effects. */
+const textOf = (node) =>
+  Array.isArray(node)
+    ? node.map(textOf).join('')
+    : React.isValidElement(node)
+      ? textOf(node.props.children)
+      : typeof node === 'string'
+        ? node
+        : '';
 
 /** Retain only local hook state while running a component's actual event handlers. */
 function harness(component, props) {
@@ -183,6 +197,12 @@ function fixture(overrides = {}) {
       setSelectedQuoteTemplateId: changed,
       quoteAssumptions: [
         {
+          id: 'assumption-tax',
+          text: 'SYSTEM TAX CLAUSE MUST NOT APPEAR',
+          textZh: '',
+          included: true,
+        },
+        {
           id: 'included',
           text: 'Access is provided by the client.',
           textZh: '',
@@ -230,12 +250,15 @@ test('pricing occupies one full-width section with the input grid before the det
     (node) =>
       node.type === QuoteNumberInput && node.props.id === 'target-gross-margin',
   );
-  assert.notEqual(
-    gp.props.disabled,
-    true,
-    'manual quotations must retain an editable GP control',
+  assert.equal(
+    gp,
+    undefined,
+    'whole-quote GP is computed from the detail prices',
   );
-  assert.equal(gp.props.title, undefined);
+  assert.equal(
+    nodes.find((node) => node.props.id === 'pricing-discount').props.disabled,
+    false,
+  );
   assert.equal(writes(), 0);
 });
 
@@ -281,7 +304,7 @@ test('opening and closing the preview changes only visibility and preserves ever
     'First condition.',
     'Second condition.',
     'Access is provided by the client.',
-    'GST 0.00%',
+    'Quote Total',
     '250.00',
     '220.00',
     '30.00',
@@ -289,7 +312,7 @@ test('opening and closing the preview changes only visibility and preserves ever
     assert.ok(html.includes(text), text);
   assert.doesNotMatch(
     html,
-    /INTERNAL EXCLUDED ASSUMPTION|allocationWeight|priceFixed|<input|<textarea|<button|<select/,
+    /SYSTEM TAX CLAUSE|INTERNAL EXCLUDED ASSUMPTION|allocationWeight|priceFixed|targetGrossMargin|GST|Before Tax|After Tax|<input|<textarea|<button|<select/,
   );
   dialog.props.onOpenChange(false);
   assert.equal(render().props.open, false);
@@ -310,9 +333,9 @@ test('opening and closing the preview changes only visibility and preserves ever
   );
 });
 
-test('GP-derived allocated lines are shared by the editor and preview without persisting a render-time price change', () => {
+test('independent line prices are shared by editor and preview with current costs and no overall target control', () => {
   const { props, writes } = fixture({
-    manualPricingBasis: 'gp',
+    manualPricingBasis: 'line-gp',
     manualTargetPrice: undefined,
     manualLines: [
       {
@@ -320,16 +343,18 @@ test('GP-derived allocated lines are shared by the editor and preview without pe
         description: 'Design',
         quantity: 1,
         unit: 'lot',
-        unitPrice: 100,
-        allocationWeight: 40,
+        unitPrice: 1,
+        costWeight: 40,
+        targetGrossMargin: 50,
       },
       {
         id: 'line-2',
         description: 'Delivery',
         quantity: 2,
         unit: 'visit',
-        unitPrice: 75,
-        allocationWeight: 60,
+        unitPrice: 1,
+        costWeight: 60,
+        targetGrossMargin: 75,
       },
     ],
   });
@@ -340,12 +365,17 @@ test('GP-derived allocated lines are shared by the editor and preview without pe
   const result = calculatePricing(props.totalCost, props.pricing);
   assert.equal(result.valid, true, result.errors.join('; '));
   assert.deepEqual(editor.allocatedLines, result.allocatedManualLines);
-  assert.equal(editor.gpTargetPrice, result.listPrice);
+  assert.equal(editor.gpTargetPrice, undefined);
+  assert.equal(editor.costSnapshot, props.costSnapshot);
+  assert.equal(editor.totalCost, props.totalCost);
+  assert.equal(editor.weightedProfitShareRate, result.weightedProfitShareRate);
   assert.deepEqual(preview.lines, editor.lines);
-  assert.equal(
-    preview.lines.reduce((sum, line) => sum + line.amount, 0),
-    result.listPrice,
+  assert.deepEqual(
+    preview.lines.map((line) => line.amount),
+    [80, 240],
   );
+  assert.equal(result.listPrice, 320);
+  assert.equal(preview.pricing.quoteBeforeTax, 290);
   assert.deepEqual(props.pricing, before);
   assert.equal(writes(), 0);
 });
@@ -383,44 +413,83 @@ test('preview preserves four-decimal unit rates and flags unresolved draft price
   assert.doesNotMatch(html, /373\.34|Draft has unresolved pricing/);
 });
 
-/** Exercise the real page-level GP handler with controlled state, including legacy activation and export locks. */
-test('the original GP control updates manual targets and locks without a second target field', () => {
-  const { props } = fixture();
-  let writes = 0;
-  props.setPricing = (next) => {
-    writes++;
-    props.pricing = typeof next === 'function' ? next(props.pricing) : next;
-  };
+/** Whole-quotation GP is derived from line prices; only discount remains editable in the pricing summary. */
+test('quotation summary displays computed GP without whole-quote GP or tax inputs and disables line editing during export', () => {
+  const { props, writes } = fixture({ gstPercent: 9 });
+  const before = structuredClone(props.pricing);
   const render = harness(QuoteView, props);
-  const gp = () =>
-    walk(render()).find(
-      (node) =>
-        node.type === QuoteNumberInput &&
-        node.props.id === 'target-gross-margin',
-    );
-  gp().props.onCommit(50);
-  assert.equal(props.pricing.manualPricingBasis, 'gp');
-  assert.equal(props.pricing.manualTargetPrice, undefined);
-  assert.equal(props.pricing.targetGrossMargin, 50);
-  assert.equal(props.pricing.discount, 30);
-  assert.equal(props.pricing.gstPercent, 0);
-  let result = calculatePricing(100, props.pricing);
-  assert.equal(result.listPrice, 200);
-  assert.deepEqual(
-    result.allocatedManualLines.map((line) => line.quantity * line.unitPrice),
-    [50, 150],
+  const nodes = walk(render());
+  assert.equal(
+    nodes.some((node) => node.props.id === 'target-gross-margin'),
+    false,
   );
-  gp().props.onCommit(60);
-  result = calculatePricing(100, props.pricing);
-  assert.equal(result.listPrice, 250);
-  assert.deepEqual(
-    result.allocatedManualLines.map((line) => line.quantity * line.unitPrice),
-    [100, 150],
+  assert.equal(
+    nodes.some((node) => node.type === QuoteNumberInput),
+    false,
   );
-  assert.equal(writes, 2);
+  assert.equal(
+    nodes.some((node) =>
+      /gst|tax/i.test(node.props.id || node.props['aria-label'] || ''),
+    ),
+    false,
+  );
+  const pageText = [
+    textOf(render()),
+    ...nodes.map((node) => node.props.en || ''),
+  ].join(' ');
+  assert.match(pageText, /Actual Sales GP/);
+  assert.match(pageText, /54\.55%/);
+  assert.match(pageText, /Quote Total/);
+  assert.doesNotMatch(pageText, /GST|Before Tax|After Tax|SYSTEM TAX CLAUSE/);
+  const editor = nodes.find((node) => node.type === QuoteLinesEditor);
+  assert.equal(editor.props.disabled, false);
+  assert.equal(editor.props.totalCost, 100);
+  assert.equal(editor.props.costSnapshot, props.costSnapshot);
+  const preview = nodes.find((node) => node.type === QuotePreviewDialog);
+  assert.equal(preview.props.pricing.gstAmount, 0);
+  assert.equal(preview.props.pricing.quoteBeforeTax, 220);
+  assert.equal(preview.props.pricing.quoteAfterTax, 220);
   props.exportInProgress = true;
-  assert.equal(gp().props.disabled, true);
-  gp().props.onCommit(70);
-  assert.equal(writes, 2);
-  assert.equal(props.pricing.targetGrossMargin, 60);
+  const locked = walk(render());
+  assert.equal(
+    locked.find((node) => node.type === QuoteLinesEditor).props.disabled,
+    true,
+  );
+  assert.equal(
+    locked.find((node) => node.props.id === 'pricing-discount').props.disabled,
+    true,
+  );
+  assert.equal(writes(), 0);
+  assert.deepEqual(props.pricing, before);
+});
+
+/** New manual references accept one final quotation amount while keeping the durable record shape. */
+test('manual history has one Quote Total field and stores no tax amount', () => {
+  const records = [];
+  const render = harness(ManualHistoryForm, {
+    costVersion: 'V2',
+    templateId: 'customer',
+    onAdd: (record) => records.push(record),
+    onCancel: () => {},
+  });
+  const set = (label, value) => {
+    const control = walk(render()).find(
+      (node) => node.type === 'label' && textOf(node).includes(label),
+    );
+    assert.ok(control, label);
+    walk(control)
+      .find((node) => typeof node.props.onChange === 'function')
+      .props.onChange({ target: { value } });
+  };
+  assert.doesNotMatch(textOf(render()), /GST|tax|税/);
+  set('Quote number', 'HISTORY-001');
+  set('Quote date', '2026-09-24');
+  set('Actual cost', '100');
+  set('Quote Total', '200');
+  render().props.onSubmit({ preventDefault() {} });
+  assert.equal(records.length, 1);
+  assert.equal(records[0].quoteBeforeTax, 200);
+  assert.equal(records[0].quoteAfterTax, 200);
+  assert.equal(records[0].gstAmount, 0);
+  assert.equal(records[0].grossMarginPercent, 50);
 });

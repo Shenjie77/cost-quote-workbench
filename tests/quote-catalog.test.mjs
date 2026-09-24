@@ -93,7 +93,16 @@ test('customer matching is exact, normalized and never executes regular expressi
 });
 
 test('library references preserve edits and exclusions and are idempotent', () => {
-  const library = createAssumptionLibrary(initialQuoteAssumptions);
+  // Explicit fixture clauses keep catalogue behavior independent of bundled default additions/removals.
+  const sourceAssumptions = ['Currency', 'Scope', 'Site access'].map(
+    (text, index) => ({
+      id: `catalogue-fixture-${index}`,
+      text,
+      textZh: '',
+      included: true,
+    }),
+  );
+  const library = createAssumptionLibrary(sourceAssumptions);
   const first = referenceAssumptions(
     [],
     library,
@@ -111,13 +120,9 @@ test('library references preserve edits and exclusions and are idempotent', () =
     first,
   );
   assert.equal(
-    referenceAssumptions(
-      initialQuoteAssumptions,
-      library,
-      [library[1].id],
-      'Client',
-    ).length,
-    initialQuoteAssumptions.length,
+    referenceAssumptions(sourceAssumptions, library, [library[1].id], 'Client')
+      .length,
+    sourceAssumptions.length,
   );
   library[1].active = false;
   library[2].clientPattern = 'Other';

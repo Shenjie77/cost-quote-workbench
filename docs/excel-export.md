@@ -76,20 +76,36 @@ resource/rate snapshot is used. Change is measured against its source version.
 
 ## Customer quotation workbook
 
-The Pricing & Quote page creates a separate one-sheet `.xlsx` using the
-selected quotation template and included bilingual assumptions. It contains
-the project/client metadata, service price, discount, pre-tax quote, GST, final
-total, validity, payment terms and customer-specific T&C. Long terms flow into
-additional rows/pages; the worksheet is fitted to one page wide, not one page tall.
-Internal cost and gross-margin values are
-kept in the workbench/quote-history snapshot and are deliberately excluded from
-the customer workbook.
+The Pricing & Quote page creates a separate customer `.xlsx` using the selected
+quotation template and included primary-language assumptions. The standard
+`Quotation` sheet contains project/client metadata, service price, discount,
+one **Quote Total**, validity, payment terms and customer-specific T&C. Detailed
+modes also include a `Quotation Details` sheet with description, quantity, unit,
+unit price and amount. Long terms flow into additional rows/pages; the worksheet
+is fitted to one page wide, not one page tall.
+
+Each line's internal Cost includes its allocation of the complete project cost
+with Risk. Weight is the cost share; quotation share is a separate editable
+selling-price proportion. New line GP defaults to 50%. Line GP or price edits
+change the summed line total; quotation-share edits redistribute that current
+total across unlocked lines. The page's overall GP is a read-only result based
+on the final quotation after discount and BU profit share. See
+[line pricing](manual-quote-target-pricing.md) for lock and rounding rules.
+
+Internal costs, cost weights, quotation shares, line GP, locks and BU profit-share
+values stay in the workbench and are excluded from customer detail columns.
+Current calculations and standard customer output do not apply or show GST/tax.
+Saved historical tax fields remain readable without rewriting their original
+amounts. Customer Excel mappings expose one **Quote Total** destination. Existing
+before/after-total mappings both receive the same final quotation amount; old
+mapped tax-rate and tax-amount cells are cleared. Unmapped customer text and
+formulas are preserved, including any static tax labels in the original template.
 
 Every generated workbook appends a quote-history record with quote number,
 timestamp, cost version, template ID, cost, quote totals, margin, and lifecycle
 status. Customer output requires a Confirmed version plus valid cost and pricing
 inputs; a Confirmed label alone does not bypass validation. Historical references
-use a separate form for actual quote number, date, cost, price, tax, and source.
+use a separate form for actual quote number, date, cost, one Quote Total, and source.
 
 Generated history also stores the exact template and included assumption text.
 Later master-data edits do not rewrite that snapshot. Template selection must

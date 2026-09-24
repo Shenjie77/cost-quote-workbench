@@ -92,8 +92,6 @@ const requiredCells = {
   client: 'B3',
   project: 'B4',
   quoteBeforeTax: 'F20',
-  gstAmount: 'F21',
-  quoteAfterTax: 'F22',
   validityDays: 'B5',
   paymentTerms: 'B6',
 };
@@ -113,9 +111,7 @@ function populateRequired(editor) {
     ['Quote number', 'quoteNumber'],
     ['Client', 'client'],
     ['Project', 'project'],
-    ['Total before tax', 'quoteBeforeTax'],
-    ['GST amount', 'gstAmount'],
-    ['Total after tax', 'quoteAfterTax'],
+    ['Quote Total', 'quoteBeforeTax'],
     ['Validity days', 'validityDays'],
     ['Payment terms', 'paymentTerms'],
   ])
@@ -263,7 +259,9 @@ test('mapping rejects conflicting writes, malformed addresses and out-of-workboo
     delete missing.cells[field];
     assert.match(
       validateQuoteExcelMapping(missing).join(' '),
-      new RegExp(`${field} cell is required`),
+      new RegExp(
+        `${field === 'quoteBeforeTax' ? 'Quote Total' : field} cell is required`,
+      ),
     );
   }
 });
@@ -571,4 +569,40 @@ test('sample export uses three synthetic rows and downloads without applying map
         request.url.includes('/quote-template-assets/'),
     ),
   );
+});
+
+/** The editor exposes one current total while preserving old hidden mappings for safe output cleanup. */
+test('mapping UI presents one Quote Total and edits legacy total coordinates without exposing tax fields', async (t) => {
+  const saved = mapping({
+    cells: { gstPercent: 'D21', gstAmount: 'F21', quoteAfterTax: 'F22' },
+  });
+  delete saved.cells.quoteBeforeTax;
+  const before = structuredClone(saved);
+  const changes = [];
+  t.mock.method(globalThis, 'fetch', async () => response(asset()));
+  const editor = harness({
+    templateId: 'legacy-total',
+    value: saved,
+    onChange: (next) => changes.push(next),
+  });
+  editor.render();
+  await settle();
+  t.after(() => editor.unmount());
+  assert.deepEqual(validateQuoteExcelMapping(saved), []);
+  assert.equal(editor.input('Quote Total cell').props.value, 'F22');
+  const labels = elements(editor.render())
+    .map((node) => node.props['aria-label'])
+    .filter(Boolean);
+  assert.equal(
+    labels.filter((label) => label === 'Quote Total cell').length,
+    1,
+  );
+  assert.ok(labels.every((label) => !/GST|tax/i.test(label)));
+  editor.change('Quote Total cell', ' f24 ');
+  await editor.button('Apply mapping').props.onClick();
+  assert.equal(changes[0].cells.quoteAfterTax, 'F24');
+  assert.equal(changes[0].cells.quoteBeforeTax, undefined);
+  assert.equal(changes[0].cells.gstAmount, 'F21');
+  assert.equal(changes[0].cells.gstPercent, 'D21');
+  assert.deepEqual(saved, before);
 });

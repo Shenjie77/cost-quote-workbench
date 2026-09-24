@@ -230,7 +230,7 @@ test('empty, zero-cost and risk-only projects still produce a reconciled quote',
   assert.deepEqual(validateQuoteLines(buildQuoteLines(free, 'item', 0), 0), []);
 });
 
-test('manual line quantity and price set total before existing discount, GST and profit share', () => {
+test('manual line quantity and price set total before discount and profit share, ignoring legacy tax', () => {
   const input = snapshot({ costRows: [row('a', 'Service', 50)] });
   const pricing = calculatePricing(
     50,
@@ -247,7 +247,8 @@ test('manual line quantity and price set total before existing discount, GST and
   assert.equal(pricing.valid, true, pricing.errors.join('; '));
   assert.equal(pricing.listPrice, 100);
   assert.equal(pricing.quoteBeforeTax, 90);
-  assert.equal(pricing.gstAmount, 8.1);
+  assert.equal(pricing.gstAmount, 0);
+  assert.equal(pricing.quoteAfterTax, 90);
   assert.equal(pricing.profitShareAmount, 18);
   assert.equal(pricing.salesGrossProfit, 22);
   assert.equal(pricing.grossMarginPercent, (22 / 90) * 100);
