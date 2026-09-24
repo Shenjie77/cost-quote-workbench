@@ -879,10 +879,11 @@ const addStatement = (
 };
 
 /** Values are fixed to this version's snapshot, using the page's shared calculations. */
-export const buildSimpleCostWorkbookBytes = async (
+export const buildSimpleCostWorkbook = async (
   input: CostExportSnapshot,
   requestedLayout?: PersonnelTableLayout,
   selectedSheets?: readonly SimpleCostSheetId[],
+  destination?: Workbook,
 ) => {
   // Detach before the first asynchronous boundary, even for direct CLI callers.
   const snapshot = structuredClone(input);
@@ -927,7 +928,8 @@ export const buildSimpleCostWorkbookBytes = async (
     throw error;
   }
   const ExcelJS = (await import('exceljs')).default;
-  const workbook = new ExcelJS.Workbook();
+  const workbook = destination ?? new ExcelJS.Workbook();
+  const existingSheets = new Set(workbook.worksheets.map((sheet) => sheet.id));
   workbook.creator = 'Cost & Quote Workbench';
   workbook.created = new Date(snapshot.exportedAt);
   workbook.modified = new Date(snapshot.exportedAt);
@@ -980,8 +982,25 @@ export const buildSimpleCostWorkbookBytes = async (
   // These reports contain fixed values, so omitting sheets creates no broken formula references.
   // Filtering after generation preserves the existing content, formatting and workbook order.
   for (const sheet of workbook.worksheets)
-    if (!selected.has(sheet.name as SimpleCostSheetId))
+    if (
+      !existingSheets.has(sheet.id) &&
+      !selected.has(sheet.name as SimpleCostSheetId)
+    )
       workbook.removeWorksheet(sheet.id);
+  return workbook;
+};
+
+/** Serialize the shared workbook without changing standalone Simple Cost export behavior. */
+export const buildSimpleCostWorkbookBytes = async (
+  input: CostExportSnapshot,
+  requestedLayout?: PersonnelTableLayout,
+  selectedSheets?: readonly SimpleCostSheetId[],
+) => {
+  const workbook = await buildSimpleCostWorkbook(
+    input,
+    requestedLayout,
+    selectedSheets,
+  );
   const buffer = await workbook.xlsx.writeBuffer();
   return buffer instanceof ArrayBuffer
     ? new Uint8Array(buffer)

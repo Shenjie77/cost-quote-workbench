@@ -74,6 +74,33 @@ unallocated project cost and potential external-labour/subcontract overlap.
 Any stored version can be opened from Version Comparison and exported. Its own
 resource/rate snapshot is used. Change is measured against its source version.
 
+## Combined internal quotation and Simple Cost workbook
+
+**Quotation + Simple Cost** in Pricing & Quote exports an internal workbook with
+`Quotation Details` first and all standard Simple Cost sheets. It is available
+for valid draft costs without a customer template; it archives under project cost
+files and does not create a customer quotation history entry.
+
+The formula chain is **captured annual cost amounts → detail totals → Cost
+Statement → allocated quotation Cost → Price / Unit → Amount → final total and
+actual GP**. Custom cost weights and all commercial inputs are captured together.
+Cost allocation uses largest-remainder cents, keeping the row costs equal to the
+complete statement including risk. EHS uses labour + subcontract + settlement.
+
+Blue inputs include quantity, cost weight, target GP and saved price. `Target GP`
+rows use formulas with the application's upward-cent rounding and four-decimal
+unit prices. `Saved price` rows retain explicit or historical prices; change the
+price-basis dropdown to use GP pricing. The BU share is the captured weighted
+rate, and discount applies after summing the lines. Zero or invalid denominators
+remain visible as spreadsheet errors rather than silently producing a price.
+
+Simple Cost annual amounts are snapshot inputs, not a duplicate personnel or
+Subcon rate engine. Editing these annual amounts or manual Cost Statement
+accounts updates the quote. Existing Summary tabs are explicitly labelled as
+export snapshots and do not recalculate. A hidden `Pricing Calculations` sheet
+contains the cost-allocation and GP rounding steps; no external workbook links
+or macros are required. Ordinary Simple Export and customer exports are unchanged.
+
 ## Customer quotation workbook
 
 The Pricing & Quote page creates a separate customer `.xlsx` using the selected

@@ -4,6 +4,10 @@ Local-first personal workbench for project delivery review, cost construction,
 pricing, quote output, review follow-up, reusable master data, and maintenance
 price history.
 
+Pricing & Quote also offers **Quotation + Simple Cost**, an internal Excel export
+with quotation cost and price formulas linked to the complete cost statement.
+See [combined export](docs/excel-export.md#combined-internal-quotation-and-simple-cost-workbook).
+
 Current release: [v0.10.0 · Saved cost views, MD table entry and account summaries](docs/releases/v0.10.0.md).
 
 The product UI is English-first with compact Chinese helper labels. It runs on

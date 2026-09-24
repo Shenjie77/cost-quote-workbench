@@ -223,6 +223,25 @@ function fixture(overrides = {}) {
   };
 }
 
+test('internal combined export is available without a customer template and respects cost and pricing errors', () => {
+  const { props, writes } = fixture();
+  props.quoteTemplates = [];
+  props.versionState = 'Draft';
+  const button = () =>
+    walk(harness(QuoteView, props)()).find(
+      (node) =>
+        typeof node.props.onClick === 'function' &&
+        textOf(node).includes('Quotation + Simple Cost'),
+    );
+  assert.equal(button().props.disabled, false);
+  props.costErrors = ['Invalid cost'];
+  assert.equal(button().props.disabled, true);
+  props.costErrors = [];
+  props.exportInProgress = true;
+  assert.equal(button().props.disabled, true);
+  assert.equal(writes(), 0);
+});
+
 test('pricing occupies one full-width section with the input grid before the detail editor', () => {
   const { props, writes } = fixture();
   const view = harness(QuoteView, props)();

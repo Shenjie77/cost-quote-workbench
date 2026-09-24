@@ -56,6 +56,7 @@ import { buildQuoteLines, validateQuoteLines } from './quote-lines';
 import { QuoteLinesEditor } from './quote-lines-editor';
 import { isRetiredQuoteAssumption } from './types';
 import { QuotePreviewDialog } from './quote-preview-dialog';
+import { downloadCombinedQuoteWorkbook } from './export-combined-workbook';
 
 /** Creates stable local identities for newly recorded assumptions and quotation history. */
 const newId = (prefix: string) => `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -124,6 +125,7 @@ export function QuoteView({
   const [isExporting, setIsExporting] = useState(false);
   const [isApplyingRates, setIsApplyingRates] = useState(false);
   const applyingRates = useRef(false);
+  const combinedExportInFlight = useRef(false);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -166,6 +168,45 @@ export function QuoteView({
       ? ['Included assumption text is required / 已包含假设的正文不可为空']
       : []),
   ];
+  /** Export the internal calculation workbook without requiring a customer template or recording a customer issue. */
+  const exportCombined = async () => {
+    if (
+      combinedExportInFlight.current ||
+      isExporting ||
+      exportInProgress ||
+      applyingRates.current
+    )
+      return;
+    const errors = [
+      ...costErrors,
+      ...validatePricingSettings(pricing, totalCost, costAllocation),
+      ...validateQuoteLines(lines, result.listPrice),
+    ];
+    if (decisionError || errors.length) {
+      announce(decisionError || `Combined export blocked: ${errors[0]}`);
+      return;
+    }
+    combinedExportInFlight.current = true;
+    setIsExporting(true);
+    onExportStateChange(true);
+    try {
+      const exported = await downloadCombinedQuoteWorkbook({
+        costSnapshot,
+        pricing,
+      });
+      announce(
+        `Exported ${exported.fileName} / 已导出报价明细与 Simple Cost，成本及价格使用关联公式。`,
+      );
+    } catch (error) {
+      announce(
+        `Combined export failed: ${error instanceof Error ? error.message : 'Unknown error'} / 合并导出失败。`,
+      );
+    } finally {
+      combinedExportInFlight.current = false;
+      onExportStateChange(false);
+      if (mounted.current) setIsExporting(false);
+    }
+  };
   /** Explicit selection applies eligible defaults once, retaining all local changes. */
   const applyTemplate = (id: string) => {
     const chosen = choices.find((item) => item.id === id);
@@ -352,6 +393,21 @@ export function QuoteView({
                 {isExporting ? <Download /> : <FileCheck2 />}
                 {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
                 <span className="text-xs opacity-60">生成报价</span>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={exportCombined}
+                disabled={
+                  isExporting ||
+                  isApplyingRates ||
+                  exportInProgress ||
+                  Boolean(decisionError) ||
+                  costErrors.length > 0 ||
+                  !result.valid
+                }
+                title="Internal workbook with linked cost and pricing formulas"
+              >
+                <Download /> Quotation + Simple Cost
               </Button>
             </div>
           }
