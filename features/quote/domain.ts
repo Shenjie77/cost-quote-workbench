@@ -31,6 +31,8 @@ export type PricingSettings = {
   manualLines?: ManualQuoteLine[];
   /** Independent custom-mode draft survives regrouping, saves and reloads. */
   customLinesDraft?: ManualQuoteLine[];
+  /** Project-wide Risk shares by Scope; missing entries track current cost weights. */
+  riskScopeShares?: { key: string; percentage: number }[];
   /** Optional manual-line target before overall discount; absent preserves historical pricing. */
   manualTargetPrice?: number;
   /** Independent line GP is explicit; historical project-GP allocation and saved manual prices retain their own rules. */
@@ -134,7 +136,12 @@ export const calculatePricing = (
   );
   const bound =
     source && manualPricing
-      ? resolveQuoteCostBindings(settings.manualLines ?? [], source, cost)
+      ? resolveQuoteCostBindings(
+          settings.manualLines ?? [],
+          source,
+          cost,
+          settings.riskScopeShares,
+        )
       : { lines: settings.manualLines ?? [], errors: [] };
   errors.push(...bound.errors);
   const percentageAllocation = gpManualPricing

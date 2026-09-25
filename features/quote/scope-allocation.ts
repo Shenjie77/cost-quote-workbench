@@ -151,13 +151,64 @@ export function resolveQuoteScopeCosts(
   return { lines: next, errors };
 }
 
+/** Allocate project Risk across every Scope, independently of any quotation-line selection. */
+export function allocateScopeRisk(
+  scopes: Array<{ key: string; amount: number }>,
+  risk: number,
+  overrides: ScopeAllocation[] = [],
+) {
+  const active = overrides.filter((item) =>
+    scopes.some((scope) => scope.key === item.key),
+  );
+  const errors: string[] = [];
+  if (
+    new Set(overrides.map((item) => item.key)).size !== overrides.length ||
+    overrides.some(
+      (item) =>
+        !Number.isFinite(item.percentage) ||
+        item.percentage < 0 ||
+        item.percentage > 100,
+    )
+  )
+    errors.push('Invalid Scope Risk shares.');
+  const reserved = active.reduce((sum, item) => sum + item.percentage, 0);
+  const automatic = scopes.filter(
+    (scope) => !active.some((item) => item.key === scope.key),
+  );
+  if (
+    reserved > 100 + 1e-8 ||
+    (!automatic.length && scopes.length && Math.abs(reserved - 100) > 1e-8)
+  )
+    errors.push(
+      'Scope Risk shares must total 100%; leave other Scopes automatic to allocate the remainder.',
+    );
+  const basis = automatic.reduce((sum, scope) => sum + scope.amount, 0);
+  const percentages = scopes.map(
+    (scope) =>
+      active.find((item) => item.key === scope.key)?.percentage ??
+      Math.max(0, 100 - reserved) *
+        (basis > 0 ? scope.amount / basis : 1 / Math.max(1, automatic.length)),
+  );
+  const amounts = allocateMoneyByWeights(risk, percentages);
+  return {
+    errors,
+    scopes: scopes.map((scope, index) => ({
+      ...scope,
+      riskPercentage: percentages[index],
+      riskAmount: amounts[index],
+    })),
+  };
+}
+
 /** Apply saved bindings using the current source snapshot, never the previously calculated cost weights. */
 export function resolveQuoteCostBindings(
   lines: ManualQuoteLine[],
   source: QuoteCostSource,
   totalCost: number,
+  riskScopeShares?: ScopeAllocation[],
 ) {
   if (
+    riskScopeShares === undefined &&
     !lines.some(
       (line) =>
         savedScopeAllocations(line) !== undefined ||
@@ -169,12 +220,24 @@ export function resolveQuoteCostBindings(
     totalCost,
     Math.max(0, roundMoney(source.manualCosts.riskContingency || 0)),
   );
-  return resolveQuoteScopeCosts(
-    lines,
-    quoteScopeCosts(source, roundMoney(totalCost - risk)),
-    totalCost,
-    risk,
-  );
+  const scopes = quoteScopeCosts(source, roundMoney(totalCost - risk));
+  if (riskScopeShares !== undefined) {
+    const distributed = allocateScopeRisk(scopes, risk, riskScopeShares);
+    const resolved = resolveQuoteScopeCosts(
+      lines.map((line) => ({ ...line, riskAllocationPercent: undefined })),
+      distributed.scopes.map((scope) => ({
+        key: scope.key,
+        amount: roundMoney(scope.amount + scope.riskAmount),
+      })),
+      totalCost,
+      0,
+    );
+    return {
+      lines: resolved.lines,
+      errors: [...distributed.errors, ...resolved.errors],
+    };
+  }
+  return resolveQuoteScopeCosts(lines, scopes, totalCost, risk);
 }
 
 /** Set the edited row's percentages; shrink competing reservations only when necessary to keep each pool at 100%. */

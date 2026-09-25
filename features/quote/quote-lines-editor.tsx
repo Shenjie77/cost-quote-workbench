@@ -125,10 +125,11 @@ export function QuoteLinesEditor({
   const saveLines = (
     next: ManualQuoteLine[],
     sourceMode: QuoteLineMode = mode,
+    riskScopeShares = pricing.riskScopeShares,
   ) => {
     if (disabled) return;
     const bound = costSnapshot
-      ? resolveQuoteCostBindings(next, costSnapshot, totalCost)
+      ? resolveQuoteCostBindings(next, costSnapshot, totalCost, riskScopeShares)
       : { lines: next, errors: [] };
     if (bound.errors.length) {
       setAllocationError(bound.errors[0]);
@@ -146,6 +147,7 @@ export function QuoteLinesEditor({
         lineMode: 'manual',
         manualPricingBasis: 'line-gp',
         lineSourceMode: sourceMode,
+        riskScopeShares,
         manualLines: calculated.lines,
         // Preserve the outgoing custom draft even for legacy workspaces without a cache.
         customLinesDraft:
@@ -175,6 +177,12 @@ export function QuoteLinesEditor({
       source.map(({ amount, ...line }) => ({
         ...line,
         costWeight: amount,
+        costScopeAllocations:
+          nextMode === 'scope' && pricing.riskScopeShares !== undefined
+            ? scopeOptions
+                .filter((scope) => scope.description === line.description)
+                .map((scope) => ({ key: scope.key, percentage: 100 }))
+            : undefined,
         targetGrossMargin: 50,
         priceFixed: false,
         allocationFixed: false,
@@ -488,11 +496,27 @@ export function QuoteLinesEditor({
                         saved ? savedScopeAllocations(saved) : undefined
                       }
                       riskAmount={costSnapshot.manualCosts.riskContingency || 0}
-                      riskPercentage={saved?.riskAllocationPercent}
+                      riskScopeShares={pricing.riskScopeShares}
                       disabled={disabled || totalCost <= 0}
-                      onSave={(keys, percentages, risk) => {
+                      onSave={(keys, percentages, riskShares) => {
                         const next = assignQuoteScopePercentages(
-                          draftLines,
+                          mode === 'scope'
+                            ? draftLines.map((row) => {
+                                const scope = scopeOptions.find(
+                                  (item) =>
+                                    item.description === row.description,
+                                );
+                                return savedScopeAllocations(row) ===
+                                  undefined && scope
+                                  ? {
+                                      ...row,
+                                      costScopeAllocations: [
+                                        { key: scope.key, percentage: 100 },
+                                      ],
+                                    }
+                                  : row;
+                              })
+                            : draftLines,
                           line.id,
                           keys.length ||
                             (saved &&
@@ -502,9 +526,9 @@ export function QuoteLinesEditor({
                                 percentage: percentages?.[key] ?? 100,
                               }))
                             : undefined,
-                          risk,
+                          undefined,
                         );
-                        saveLines(next, mode);
+                        saveLines(next, mode, riskShares);
                       }}
                     />
                   ) : (

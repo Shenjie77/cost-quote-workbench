@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   assignQuoteScopes,
+  allocateScopeRisk,
+  resolveQuoteCostBindings,
   savedScopeAllocations,
   resolveQuoteScopeCosts,
   assignQuoteScopePercentages,
@@ -224,4 +226,83 @@ test('invalid duplicate or overcommitted source shares cannot be priced', () => 
       ).errors.length,
     );
   }
+});
+
+test('Scope Risk defaults follow current cost weights; explicit shares reserve only their own percentage', () => {
+  const sources = [
+    { key: 'a', amount: 30 },
+    { key: 'b', amount: 70 },
+  ];
+  assert.deepEqual(
+    allocateScopeRisk(sources, 20).scopes.map((s) => s.riskAmount),
+    [6, 14],
+  );
+  const shares = [{ key: 'b', percentage: 25 }];
+  assert.deepEqual(
+    allocateScopeRisk(sources, 20, shares).scopes.map((s) => s.riskAmount),
+    [15, 5],
+  );
+  assert.deepEqual(
+    allocateScopeRisk(
+      [
+        { key: 'a', amount: 60 },
+        { key: 'b', amount: 40 },
+      ],
+      40,
+      shares,
+    ).scopes.map((s) => s.riskAmount),
+    [30, 10],
+  );
+  assert.ok(
+    allocateScopeRisk(sources, 20, [
+      { key: 'a', percentage: 80 },
+      { key: 'b', percentage: 30 },
+    ]).errors.length,
+  );
+});
+
+test('project Scope Risk flows into bound quote lines and survives reload and changing costs', () => {
+  const snapshot = makeCostSnapshot();
+  snapshot.costRows = [];
+  snapshot.manualCosts = {
+    ...snapshot.manualCosts,
+    localPurchasedEquipment: 60,
+    inlandLogistics: 40,
+    riskContingency: 20,
+  };
+  const lines = [
+    {
+      ...row('one'),
+      costScopeAllocations: [
+        { key: 'scope:equipment supply', percentage: 100 },
+      ],
+    },
+    {
+      ...row('two'),
+      costScopeAllocations: [
+        { key: 'scope:inland logistics', percentage: 100 },
+      ],
+    },
+  ];
+  const shares = JSON.parse(
+    JSON.stringify([{ key: 'scope:inland logistics', percentage: 25 }]),
+  );
+  const first = resolveQuoteCostBindings(lines, snapshot, 120, shares);
+  assert.deepEqual(first.errors, []);
+  assert.deepEqual(
+    first.lines.map((line) => line.costWeight),
+    [75, 45],
+  );
+  snapshot.manualCosts.localPurchasedEquipment = 80;
+  snapshot.manualCosts.inlandLogistics = 20;
+  const next = resolveQuoteCostBindings(first.lines, snapshot, 120, shares);
+  assert.deepEqual(
+    next.lines.map((line) => line.costWeight),
+    [95, 25],
+  );
+  const automatic = resolveQuoteCostBindings(lines, snapshot, 120, []);
+  assert.deepEqual(
+    automatic.lines.map((line) => line.costWeight),
+    [96, 24],
+  );
 });

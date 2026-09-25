@@ -1005,7 +1005,7 @@ test('Scope dialog edits source and risk percentages, rejects invalid shares, an
     selectedKeys: [],
     allocations: [{ key: 'a', percentage: 33.333333 }],
     riskAmount: 20,
-    riskPercentage: 0,
+    riskScopeShares: [],
     scopes: [{ key: 'a', description: 'Planning', amount: 100 }],
     disabled: false,
     onSave: (...args) => writes.push(args),
@@ -1016,7 +1016,7 @@ test('Scope dialog edits source and risk percentages, rejects invalid shares, an
   assert.equal(view.label('Scope percentage Planning').props.type, 'text');
   view.button('Apply scopes / 应用').props.onClick();
   assert.equal(writes[0][1].a, 33.333333);
-  assert.equal(writes[0][2], 0);
+  assert.deepEqual(writes[0][2], []);
   view
     .find((node) => typeof node.props.onOpenChange === 'function')
     .props.onOpenChange(true);
@@ -1026,4 +1026,44 @@ test('Scope dialog edits source and risk percentages, rejects invalid shares, an
   assert.equal(view.button('Apply scopes / 应用').props.disabled, true);
   view.button('Apply scopes / 应用').props.onClick();
   assert.equal(writes.length, 1);
+});
+
+test('every Scope exposes independent Risk share before selection, defaulting to cost Weight', async () => {
+  const { QuoteScopeDialog } =
+    await import('../features/quote/quote-scope-dialog.tsx');
+  const writes = [];
+  const view = harness(QuoteScopeDialog, {
+    lineNumber: 1,
+    amount: 100,
+    selectedKeys: [],
+    riskAmount: 20,
+    scopes: [
+      { key: 'a', description: 'Planning', amount: 30 },
+      { key: 'b', description: 'Delivery', amount: 70 },
+    ],
+    disabled: false,
+    onSave: (...args) => writes.push(args),
+  });
+  view
+    .find((node) => typeof node.props.onOpenChange === 'function')
+    .props.onOpenChange(true);
+  assert.equal(view.label('Scope percentage Planning').props.value, '100.00');
+  assert.equal(view.label('Risk percentage Planning').props.value, '30.00');
+  assert.equal(view.label('Risk percentage Delivery').props.value, '70.00');
+  assert.equal(view.label('Risk percentage Delivery').props.disabled, false);
+  view
+    .label('Risk percentage Delivery')
+    .props.onChange({ target: { value: '25' } });
+  assert.equal(view.label('Risk percentage Planning').props.value, '75.00');
+  assert.equal(view.label('Include scope Delivery').props.checked, false);
+  view.button('Apply scopes / 应用').props.onClick();
+  assert.deepEqual(writes[0], [[], {}, [{ key: 'b', percentage: 25 }]]);
+  view
+    .find((node) => typeof node.props.onOpenChange === 'function')
+    .props.onOpenChange(true);
+  view
+    .label('Risk percentage Delivery')
+    .props.onChange({ target: { value: '25' } });
+  view.button('Reset Risk to Weight').props.onClick();
+  assert.equal(view.label('Risk percentage Delivery').props.value, '70.00');
 });

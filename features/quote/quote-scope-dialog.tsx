@@ -12,7 +12,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { formatSgd } from '@/lib/formatters';
-import type { ScopeAllocation } from './scope-allocation';
+import { allocateScopeRisk, type ScopeAllocation } from './scope-allocation';
 
 /** Draft percentages remain local until Apply; reopening restores the persisted source allocation rules. */
 export function QuoteScopeDialog({
@@ -22,7 +22,7 @@ export function QuoteScopeDialog({
   selectedKeys,
   allocations,
   riskAmount = 0,
-  riskPercentage,
+  riskScopeShares,
   disabled,
   onSave,
 }: {
@@ -32,18 +32,18 @@ export function QuoteScopeDialog({
   selectedKeys: string[];
   allocations?: ScopeAllocation[];
   riskAmount?: number;
-  riskPercentage?: number;
+  riskScopeShares?: ScopeAllocation[];
   disabled: boolean;
   onSave: (
     keys: string[],
     percentages?: Record<string, number>,
-    risk?: number,
+    riskShares?: ScopeAllocation[],
   ) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [percentages, setPercentages] = useState<Record<string, string>>({});
-  const [risk, setRisk] = useState('');
+  const [riskDrafts, setRiskDrafts] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
   /** Snapshot current selections without writing commercial data when opening or cancelling. */
   const changeOpen = (next: boolean) => {
@@ -56,7 +56,14 @@ export function QuoteScopeDialog({
           ).map((item) => [item.key, item.percentage.toFixed(2)]),
         ),
       );
-      setRisk(riskPercentage === undefined ? '' : riskPercentage.toFixed(2));
+      setRiskDrafts(
+        Object.fromEntries(
+          (riskScopeShares ?? []).map((item) => [
+            item.key,
+            item.percentage.toFixed(2),
+          ]),
+        ),
+      );
       setSearch('');
     }
     setOpen(next);
@@ -69,17 +76,36 @@ export function QuoteScopeDialog({
     Number.isFinite(Number(text)) &&
     Number(text) >= 0 &&
     Number(text) <= 100;
+  // Only edited shares are fixed; untouched Scopes track the current cost weights.
+  const riskShares = Object.entries(riskDrafts)
+    .filter(([, text]) => text.trim() !== '')
+    .map(([key, text]) => {
+      const original = riskScopeShares?.find(
+        (item) => item.key === key,
+      )?.percentage;
+      return {
+        key,
+        percentage:
+          original !== undefined && text === original.toFixed(2)
+            ? original
+            : Number(text),
+      };
+    });
+  const riskAllocation = allocateScopeRisk(scopes, riskAmount, riskShares);
   const invalid =
     selected.some((key) => !valid(percentages[key] ?? '100')) ||
-    (risk !== '' && !valid(risk));
-  const total =
-    scopes
-      .filter((scope) => selected.includes(scope.key))
-      .reduce(
-        (sum, scope) =>
-          sum + (scope.amount * Number(percentages[scope.key] ?? 100)) / 100,
-        0,
-      ) + (risk === '' ? 0 : (riskAmount * Number(risk)) / 100);
+    Object.values(riskDrafts).some((text) => text !== '' && !valid(text)) ||
+    riskAllocation.errors.length > 0;
+  const total = riskAllocation.scopes
+    .filter((scope) => selected.includes(scope.key))
+    .reduce(
+      (sum, scope) =>
+        sum +
+        ((scope.amount + scope.riskAmount) *
+          Number(percentages[scope.key] ?? 100)) /
+          100,
+      0,
+    );
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger
@@ -98,10 +124,10 @@ export function QuoteScopeDialog({
         <DialogHeader>
           <DialogTitle>Line {lineNumber} cost scopes / 成本 Scope</DialogTitle>
           <DialogDescription>
-            选择 Scope
-            并输入该行承担的比例，成本更新后自动按原选项和比例重算。Risk
-            单独分配；自动余额按未指定行的成本占比分摊。超出余额时会相应减少其他行的同项比例。手动改
-            Weight 会解除绑定。
+            Cost Share 默认 100%。Risk Share 为项目风险在各 Scope
+            间的分配，默认按成本
+            Weight，未勾选也可调整，所有报价行共用。留空恢复自动分配。勾选后，成本和对应风险按
+            Cost Share 计入本行，并随成本变化重算。
           </DialogDescription>
         </DialogHeader>
         <Input
@@ -127,16 +153,17 @@ export function QuoteScopeDialog({
           </Button>
         </div>
         <div className="max-h-[42vh] overflow-y-auto divide-y border">
-          <div className="grid grid-cols-[1fr_100px_90px_100px] gap-2 bg-muted p-2 text-xs font-semibold">
+          <div className="grid grid-cols-[minmax(100px,1fr)_90px_80px_80px_90px] gap-2 bg-muted p-2 text-xs font-semibold">
             <span>Scope</span>
             <span>Cost</span>
-            <span>Share %</span>
-            <span>Allocated</span>
+            <span>Cost Share %</span>
+            <span>Risk Share %</span>
+            <span>Cost + Risk</span>
           </div>
           {visible.map((scope) => (
             <div
               key={scope.key}
-              className="grid grid-cols-[1fr_100px_90px_100px] items-center gap-2 p-2 text-xs"
+              className="grid grid-cols-[minmax(100px,1fr)_90px_80px_80px_90px] items-center gap-2 p-2 text-xs"
             >
               <label className="flex min-w-0 items-start gap-2">
                 <input
@@ -178,11 +205,44 @@ export function QuoteScopeDialog({
                 }}
                 className="text-right"
               />
+              <Input
+                aria-label={`Risk percentage ${scope.description}`}
+                type="text"
+                inputMode="decimal"
+                disabled={disabled}
+                value={
+                  riskDrafts[scope.key] ??
+                  (
+                    riskAllocation.scopes.find((item) => item.key === scope.key)
+                      ?.riskPercentage ?? 0
+                  ).toFixed(2)
+                }
+                onChange={(event) =>
+                  setRiskDrafts((current) => ({
+                    ...current,
+                    [scope.key]: event.target.value,
+                  }))
+                }
+                onBlur={() => {
+                  const value = riskDrafts[scope.key];
+                  if (value && valid(value))
+                    setRiskDrafts((current) => ({
+                      ...current,
+                      [scope.key]: Number(value).toFixed(2),
+                    }));
+                }}
+                title="Project-wide Risk share; clear to restore automatic cost weight"
+                className="text-right"
+              />
               <span className="financial-numeral">
                 {formatSgd(
                   selected.includes(scope.key) &&
                     valid(percentages[scope.key] ?? '100')
-                    ? (scope.amount * Number(percentages[scope.key] ?? 100)) /
+                    ? ((scope.amount +
+                        (riskAllocation.scopes.find(
+                          (item) => item.key === scope.key,
+                        )?.riskAmount ?? 0)) *
+                        Number(percentages[scope.key] ?? 100)) /
                         100
                     : 0,
                 )}
@@ -190,32 +250,21 @@ export function QuoteScopeDialog({
             </div>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-3 rounded border bg-muted/40 p-3 text-sm">
-          <span className="font-medium">Risk Cost {formatSgd(riskAmount)}</span>
-          <Input
-            aria-label="Risk cost percentage"
-            type="text"
-            inputMode="decimal"
-            placeholder="Auto"
-            value={risk}
-            onChange={(event) => setRisk(event.target.value)}
-            onBlur={() => {
-              if (valid(risk)) setRisk(Number(risk).toFixed(2));
-            }}
-            className="w-24 text-right"
-          />
-          <span>%</span>
-          <Button variant="ghost" size="sm" onClick={() => setRisk('')}>
-            Auto / 自动余额
+        <div className="flex items-center justify-between text-sm">
+          <span>
+            Risk Cost {formatSgd(riskAmount)} - 100% across all Scopes
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => setRiskDrafts({})}>
+            Reset Risk to Weight
           </Button>
         </div>
         <p className="text-right text-sm">
           {selected.length} selected · {invalid ? '—' : formatSgd(total)}
-          {risk === '' ? ' + Auto Risk' : ''}
         </p>
         {invalid && (
           <p role="alert" className="text-sm text-destructive">
-            Enter a percentage from 0 to 100 / 比例必须为 0–100。
+            {riskAllocation.errors[0] ??
+              'Enter a percentage from 0 to 100 / 比例必须为 0–100。'}
           </p>
         )}
         <DialogFooter>
@@ -242,12 +291,7 @@ export function QuoteScopeDialog({
                     ];
                   }),
                 ),
-                risk === ''
-                  ? undefined
-                  : riskPercentage !== undefined &&
-                      risk === riskPercentage.toFixed(2)
-                    ? riskPercentage
-                    : Number(risk),
+                riskShares,
               );
               setOpen(false);
             }}
