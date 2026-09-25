@@ -1,3 +1,4 @@
+import { PercentageInput } from '@/components/ui/percentage-input';
 /** Compact delivery mapping with annual rate settings available on demand. */
 import { useState } from 'react';
 import { ChevronDown, RefreshCcw } from 'lucide-react';
@@ -129,9 +130,8 @@ export function RateAssumptions({
               htmlFor="default-uplift"
             >
               Default Uplift %
-              <Input
+              <PercentageInput
                 id="default-uplift"
-                type="number"
                 min={-100}
                 max={1000}
                 step="any"
@@ -156,9 +156,8 @@ export function RateAssumptions({
                   Y{index + 1}
                   {year ? ` · ${year}` : ''}
                 </p>
-                <Input
+                <PercentageInput
                   aria-label={`Y${index + 1} labour rate uplift`}
-                  type="number"
                   min={-100}
                   max={1000}
                   step="any"

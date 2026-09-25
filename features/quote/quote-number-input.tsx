@@ -10,6 +10,7 @@ export function QuoteNumberInput({
   min = 0,
   max = 1e12,
   decimals = 4,
+  percentage = false,
   disabled,
   onCommit,
   commitUnchanged = false,
@@ -21,6 +22,8 @@ export function QuoteNumberInput({
   min?: number;
   max?: number;
   decimals?: number;
+  /** Percentages are typed manually and displayed with two decimals without rounding saved calculations. */
+  percentage?: boolean;
   disabled: boolean;
   onCommit: (value: number) => void;
   /** Explicitly typing an existing percentage/price can still lock that allocation. */
@@ -28,7 +31,9 @@ export function QuoteNumberInput({
   className?: string;
 }) {
   // Seeded ratios retain full precision for allocation while presenting a compact editable number.
-  const displayedValue = Number(value.toFixed(decimals));
+  const displayedValue = percentage
+    ? value.toFixed(2)
+    : String(Number(value.toFixed(decimals)));
   const [draft, setDraft] = useState(String(displayedValue));
   const [invalid, setInvalid] = useState(false);
   const [edited, setEdited] = useState(false);
@@ -50,6 +55,7 @@ export function QuoteNumberInput({
     }
     setInvalid(false);
     setEdited(false);
+    setDraft(percentage ? next.toFixed(2) : String(next));
     if (edited && (commitUnchanged || next !== value)) onCommit(next);
   };
 
@@ -59,7 +65,8 @@ export function QuoteNumberInput({
         id={id}
         aria-label={label}
         aria-invalid={invalid}
-        type="number"
+        type={percentage ? 'text' : 'number'}
+        inputMode="decimal"
         min={min}
         max={max}
         step={10 ** -decimals}

@@ -4,6 +4,8 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { assignQuoteScopes } from './scope-allocation';
+import { QuoteScopeDialog } from './quote-scope-dialog';
 import { QuoteDescriptionDialog } from './quote-description-dialog';
 import {
   Select,
@@ -33,6 +35,7 @@ import {
   buildQuoteLines,
   calculateManualQuoteLines,
   MAX_QUOTE_LINES,
+  quoteScopeCosts,
 } from './quote-lines';
 import { allocateQuotePercentages } from './percentage-allocation';
 import { allocateLinePricing, lineCostAmounts } from './line-pricing';
@@ -102,6 +105,9 @@ export function QuoteLinesEditor({
     }),
   );
   const costs = lineCostAmounts(draftLines, totalCost);
+  const scopeOptions = costSnapshot
+    ? quoteScopeCosts(costSnapshot, totalCost)
+    : [];
   const quoteShare = (line: QuoteLine) =>
     currentTotal > 0 ? (line.amount / currentTotal) * 100 : 0;
 
@@ -124,6 +130,13 @@ export function QuoteLinesEditor({
         manualPricingBasis: 'line-gp',
         lineSourceMode: sourceMode,
         manualLines: calculated.lines,
+        // Preserve the outgoing custom draft even for legacy workspaces without a cache.
+        customLinesDraft:
+          sourceMode === 'manual'
+            ? calculated.lines
+            : mode === 'manual'
+              ? draftLines
+              : current.customLinesDraft,
       };
     });
   };
@@ -131,9 +144,10 @@ export function QuoteLinesEditor({
   /** Regroup cost-backed rows explicitly, starting every new row at 50% GP and matching cost/quote weights. */
   const selectMode = (nextMode: QuoteLineMode) => {
     if (disabled) return;
+    if (nextMode === mode) return;
     setAllocationError('');
     if (nextMode === 'manual') {
-      saveLines(draftLines, nextMode);
+      saveLines(pricing.customLinesDraft ?? draftLines, nextMode);
       return;
     }
     const source = costSnapshot
@@ -174,6 +188,7 @@ export function QuoteLinesEditor({
     saveLines(
       draftLines.map((line) => ({
         ...line,
+        costScopeKeys: undefined,
         costWeight:
           line.id === id
             ? percentage
@@ -223,11 +238,13 @@ export function QuoteLinesEditor({
 
   /** A custom line has no source cost; entering a price must not steal cost from existing cost-backed rows. */
   const addLine = () => {
-    if (disabled || lines.length >= MAX_QUOTE_LINES) return;
+    const custom =
+      mode === 'manual' ? draftLines : (pricing.customLinesDraft ?? draftLines);
+    if (disabled || custom.length >= MAX_QUOTE_LINES) return;
     setAllocationError('');
     saveLines(
       [
-        ...draftLines,
+        ...custom,
         {
           id: `quote-line-${globalThis.crypto.randomUUID()}`,
           description: '',
@@ -249,7 +266,9 @@ export function QuoteLinesEditor({
     if (disabled) return;
     setAllocationError('');
     saveLines(
-      draftLines.filter((line) => line.id !== id),
+      draftLines
+        .filter((line) => line.id !== id)
+        .map((line) => ({ ...line, costScopeKeys: undefined })),
       'manual',
     );
   };
@@ -310,7 +329,9 @@ export function QuoteLinesEditor({
         <span className="block">
           Weight 为成本占比，Custom lines
           可调整，其他行按原成本比例分摊余额；报价比例可调，未锁定行均分剩余比例。逐行定价后汇总总价；GP
-          含分成、未扣整单折扣。Cost 含分摊风险，自定义新增行初始成本为 0。
+          含分成、未扣整单折扣。点击 Custom lines 的 Cost 可按 Scope 分配；Cost
+          含分摊风险。手动调整 Weight 后清除 Scope
+          选择，其他行按比例分摊剩余成本。
         </span>
       </p>
       {(allocationError || lineErrors[0]) && (
@@ -439,13 +460,42 @@ export function QuoteLinesEditor({
                   )}
                 </TableCell>
                 <TableCell className="financial-numeral bg-muted/30 text-right">
-                  {formatSgd(costs[index] ?? 0)}
+                  {mode === 'manual' && costSnapshot ? (
+                    <QuoteScopeDialog
+                      lineNumber={index + 1}
+                      amount={costs[index] ?? 0}
+                      scopes={scopeOptions}
+                      selectedKeys={saved?.costScopeKeys ?? []}
+                      disabled={disabled || totalCost <= 0}
+                      onSave={(keys) => {
+                        const next = assignQuoteScopes(
+                          draftLines,
+                          line.id,
+                          keys,
+                          scopeOptions,
+                          totalCost,
+                          `quote-line-${globalThis.crypto.randomUUID()}`,
+                        );
+                        if (next.length > MAX_QUOTE_LINES) {
+                          setAllocationError(
+                            'Too many lines; leave one row available for remaining costs.',
+                          );
+                          return;
+                        }
+                        setAllocationError('');
+                        saveLines(next);
+                      }}
+                    />
+                  ) : (
+                    formatSgd(costs[index] ?? 0)
+                  )}
                 </TableCell>
                 <TableCell className="financial-numeral bg-muted/30 text-right">
                   {mode === 'manual' ? (
                     <QuoteNumberInput
                       key={`cost-weight-${saved?.costWeight}-${costs[index]}`}
                       label={`Line ${index + 1} cost weight`}
+                      percentage
                       value={
                         totalCost > 0
                           ? ((costs[index] ?? 0) / totalCost) * 100
@@ -468,6 +518,7 @@ export function QuoteLinesEditor({
                   <QuoteNumberInput
                     key={`share-${quoteShare(line)}`}
                     label={`Line ${index + 1} quotation percentage`}
+                    percentage
                     value={quoteShare(line)}
                     max={100}
                     commitUnchanged
@@ -479,6 +530,7 @@ export function QuoteLinesEditor({
                   <QuoteNumberInput
                     key={`gp-${targetGp}`}
                     label={`Line ${index + 1} target GP`}
+                    percentage
                     value={targetGp}
                     max={95}
                     commitUnchanged

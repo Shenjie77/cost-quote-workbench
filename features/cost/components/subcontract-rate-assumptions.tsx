@@ -26,16 +26,19 @@ export function SubcontractUpliftInput({
   className: string;
   onChange: (value: number) => void;
 }) {
-  const [draft, setDraft] = useState(String(value));
+  const [draft, setDraft] = useState(value.toFixed(2));
   const [invalid, setInvalid] = useState(false);
+  const [edited, setEdited] = useState(false);
   const save = () => {
-    if (disabled) return;
+    if (disabled || !edited) return;
     const next = Number(draft);
     if (!draft.trim() || !Number.isFinite(next) || next < -100 || next > 1000) {
       setInvalid(true);
       return;
     }
     setInvalid(false);
+    setDraft(next.toFixed(2));
+    setEdited(false);
     if (next !== value) onChange(next);
   };
   return (
@@ -44,7 +47,8 @@ export function SubcontractUpliftInput({
         id={id}
         aria-label={label}
         aria-invalid={invalid}
-        type="number"
+        type="text"
+        inputMode="decimal"
         min={-100}
         max={1000}
         step="any"
@@ -54,6 +58,7 @@ export function SubcontractUpliftInput({
         onChange={(event) => {
           if (!disabled) {
             setDraft(event.target.value);
+            setEdited(true);
             setInvalid(false);
           }
         }}
@@ -61,7 +66,8 @@ export function SubcontractUpliftInput({
         onKeyDown={(event) => {
           if (event.key === 'Enter') event.currentTarget.blur();
           if (event.key === 'Escape') {
-            setDraft(String(value));
+            setDraft(value.toFixed(2));
+            setEdited(false);
             setInvalid(false);
           }
         }}

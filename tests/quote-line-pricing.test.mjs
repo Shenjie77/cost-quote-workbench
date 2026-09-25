@@ -193,7 +193,11 @@ test('domain sums independent lines and calculates whole-quote GP while retainin
     manualTargetPrice: 9999,
     discount: 10,
     manualLines: [
-      line('a', { costWeight: 1, targetGrossMargin: 50 }),
+      line('a', {
+        costWeight: 1,
+        targetGrossMargin: 50,
+        costScopeKeys: ['scope:equipment delivery'],
+      }),
       line('b', { costWeight: 3, targetGrossMargin: 75 }),
     ],
   };
@@ -286,11 +290,16 @@ test('API persistence and customer workbook use effective independent prices wit
         line('b', { costWeight: 3, targetGrossMargin: 75 }),
       ],
     };
+    pricing.customLinesDraft = structuredClone(pricing.manualLines);
     update('quote', 'settings', { set: { pricing } });
     const saved = repository.get(id);
     assert.equal(saved.workspace.pricing.manualPricingBasis, 'line-gp');
     assert.equal(saved.workspace.pricing.lineSourceMode, 'item');
     assert.deepEqual(saved.workspace.pricing.manualLines, pricing.manualLines);
+    assert.deepEqual(
+      saved.workspace.pricing.customLinesDraft,
+      pricing.customLinesDraft,
+    );
     const input = validatedQuoteInput(saved.workspace, 'Q-INDEPENDENT');
     assert.equal(input.pricing.listPrice, 350);
     assert.deepEqual(
@@ -312,7 +321,7 @@ test('API persistence and customer workbook use effective independent prices wit
     assert.match(text, /Service a/);
     assert.doesNotMatch(
       text,
-      /costWeight|targetGrossMargin|allocationWeight|priceFixed/,
+      /costWeight|costScopeKeys|customLinesDraft|targetGrossMargin|allocationWeight|priceFixed/,
     );
     assert.deepEqual(
       repository.get(id).workspace.pricing,

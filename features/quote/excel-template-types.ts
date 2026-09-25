@@ -58,6 +58,8 @@ export type QuoteLine = {
 export type ManualQuoteLine = Omit<QuoteLine, 'amount'> & {
   /** Internal relative cost basis, independent of customer price and revenue allocation. */
   costWeight?: number;
+  /** Selected cost-scope references; manual weight changes detach these references. */
+  costScopeKeys?: string[];
   /** Independent sales GP after project-weighted BU profit share; absent retains the saved unit price. */
   targetGrossMargin?: number;
   /** Relative weight for legacy targets; full 0–100 percentage in GP-based allocation. */

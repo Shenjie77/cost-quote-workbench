@@ -1,3 +1,4 @@
+import { PercentageInput } from '@/components/ui/percentage-input';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -105,11 +106,10 @@ export function ProfitShareEditor({
                   />
                 </TableCell>
                 <TableCell>
-                  <Input
+                  <PercentageInput
                     className="financial-numeral h-8 text-right text-xs"
                     aria-label={`${row.bu || 'New BU'} profit share rate`}
                     value={row.ratePercent}
-                    type="number"
                     min={0}
                     max={100}
                     step="0.01"

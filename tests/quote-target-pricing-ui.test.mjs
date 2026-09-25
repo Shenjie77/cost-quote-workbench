@@ -30,9 +30,12 @@ const hooks = registerHooks({
     const parent = context.parentURL || '';
     if (
       specifier === 'react' &&
-      ['/quote-lines-editor.tsx', '/quote-number-input.tsx'].some((name) =>
-        parent.endsWith(name),
-      )
+      [
+        '/quote-lines-editor.tsx',
+        '/quote-number-input.tsx',
+        '/quote-scope-dialog.tsx',
+        '/percentage-input.tsx',
+      ].some((name) => parent.endsWith(name))
     )
       return { url: reactAdapter, shortCircuit: true };
     const alias = specifier.startsWith('@/');
@@ -264,7 +267,10 @@ const { QuoteNumberInput } =
 /** Run the real numeric input handlers, including local text state before committing. */
 function numericHarness(props) {
   const view = harness(QuoteNumberInput, props);
-  const input = () => view.find((node) => node.props.type === 'number');
+  const input = () =>
+    view.find(
+      (node) => node.props.type === 'number' || node.props.type === 'text',
+    );
   return {
     ...view,
     input,
@@ -874,4 +880,117 @@ test('disabled numeric inputs cannot commit or replace an existing local draft',
   view.blur();
   view.key('Enter');
   assert.deepEqual(commits, []);
+});
+
+test('custom drafts survive repeated regrouping and a persisted workspace reload', () => {
+  const view = quotationHarness(QuoteLinesEditor, {
+    targetGrossMargin: 50,
+    discount: 0,
+    gstPercent: 0,
+    lineMode: 'manual',
+    lineSourceMode: 'manual',
+    manualPricingBasis: 'line-gp',
+    manualLines: manualLines(),
+  });
+  commitNumber(view, 'Line 1 cost weight', 60);
+  commitNumber(view, 'Line 2 unit price', 123);
+  const expected = structuredClone(view.pricing.manualLines);
+  view.mode('scope');
+  commitNumber(view, 'Line 1 target GP', 30);
+  view.mode('item');
+  view.mode('single');
+  assert.deepEqual(view.pricing.customLinesDraft, expected);
+  const restored = quotationHarness(
+    QuoteLinesEditor,
+    JSON.parse(JSON.stringify(view.pricing)),
+  );
+  restored.mode('manual');
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(restored.pricing.manualLines)),
+    JSON.parse(JSON.stringify(expected)),
+  );
+  restored.mode('scope');
+  restored.mode('manual');
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(restored.pricing.manualLines)),
+    JSON.parse(JSON.stringify(expected)),
+  );
+});
+
+test('percentage controls show two decimals, use manual text input and do not round untouched values', () => {
+  const writes = [];
+  const view = numericHarness({
+    label: 'Percent',
+    value: 33.333333,
+    percentage: true,
+    disabled: false,
+    onCommit: (value) => writes.push(value),
+  });
+  assert.equal(view.input().props.type, 'text');
+  assert.equal(view.input().props.inputMode, 'decimal');
+  assert.equal(view.input().props.value, '33.33');
+  view.blur();
+  assert.deepEqual(writes, []);
+  view.type('25.5');
+  view.blur();
+  assert.deepEqual(writes, [25.5]);
+  assert.equal(view.input().props.value, '25.50');
+});
+
+test('scope dialog supports searchable multiselect, cancels cleanly, and applies chosen keys only', async () => {
+  const { QuoteScopeDialog } =
+    await import('../features/quote/quote-scope-dialog.tsx');
+  const writes = [];
+  const view = harness(QuoteScopeDialog, {
+    lineNumber: 1,
+    amount: 100,
+    selectedKeys: ['a'],
+    scopes: [
+      { key: 'a', description: 'Planning', amount: 30 },
+      { key: 'b', description: 'Delivery', amount: 70 },
+    ],
+    disabled: false,
+    onSave: (keys) => writes.push(keys),
+  });
+  const open = () =>
+    view
+      .find((node) => typeof node.props.onOpenChange === 'function')
+      .props.onOpenChange(true);
+  open();
+  view
+    .label('Include scope Delivery')
+    .props.onChange({ target: { checked: true } });
+  view.button('Cancel').props.onClick();
+  assert.deepEqual(writes, []);
+  open();
+  assert.equal(view.label('Include scope Delivery').props.checked, false);
+  view
+    .label('Search cost scopes')
+    .props.onChange({ target: { value: 'Delivery' } });
+  view.button('Select visible / 全选搜索结果').props.onClick();
+  view.button('Apply scopes / 应用').props.onClick();
+  assert.deepEqual(writes, [['a', 'b']]);
+});
+
+test('shared percentage input retains full precision until editing and validates bounds', async () => {
+  const { PercentageInput } =
+    await import('../components/ui/percentage-input.tsx');
+  const writes = [];
+  const view = harness(PercentageInput, {
+    value: 3.4567,
+    min: -100,
+    max: 1000,
+    onChange: (event) => writes.push(Number(event.target.value)),
+  });
+  const input = () => view.find((node) => node.props.type === 'text');
+  assert.equal(input().props.value, '3.46');
+  input().props.onBlur();
+  assert.deepEqual(writes, []);
+  input().props.onChange({ target: { value: '-' } });
+  input().props.onBlur();
+  assert.equal(input().props['aria-invalid'], true);
+  assert.deepEqual(writes, []);
+  input().props.onChange({ target: { value: '2.5' } });
+  input().props.onBlur();
+  assert.deepEqual(writes, [2.5]);
 });

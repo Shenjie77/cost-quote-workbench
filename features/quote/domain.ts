@@ -27,6 +27,8 @@ export type PricingSettings = {
   lineMode?: QuoteLineMode;
   /** Project-owned customer prices; unused modes retain these edits for later use. */
   manualLines?: ManualQuoteLine[];
+  /** Independent custom-mode draft survives regrouping, saves and reloads. */
+  customLinesDraft?: ManualQuoteLine[];
   /** Optional manual-line target before overall discount; absent preserves historical pricing. */
   manualTargetPrice?: number;
   /** Independent line GP is explicit; historical project-GP allocation and saved manual prices retain their own rules. */

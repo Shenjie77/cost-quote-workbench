@@ -340,3 +340,34 @@ export function validateQuoteLines(
     );
   return errors;
 }
+
+/** Stable scope references with risk-inclusive costs, reconciled exactly to the current project total. */
+export function quoteScopeCosts(
+  snapshot: CostExportSnapshot,
+  totalCost: number,
+) {
+  const groups = new Map<
+    string,
+    { key: string; description: string; weight: number }
+  >();
+  for (const leaf of costQuoteLeaves(snapshot, 'scope')) {
+    const description = leaf.description.replace(/\s+/g, ' ').trim();
+    const key = leaf.id.startsWith('subcontract:')
+      ? leaf.id
+      : `scope:${description.toLocaleLowerCase('en')}`;
+    const previous = groups.get(key);
+    if (previous) previous.weight = roundMoney(previous.weight + leaf.weight);
+    else groups.set(key, { key, description, weight: leaf.weight });
+  }
+  const scopes = [...groups.values()];
+  const positive = scopes.some((scope) => scope.weight > 0);
+  const amounts = allocateMoneyByWeights(
+    totalCost,
+    scopes.map((scope) => (positive ? scope.weight : 1)),
+  );
+  return scopes.map((scope, index) => ({
+    key: scope.key,
+    description: scope.description,
+    amount: amounts[index],
+  }));
+}

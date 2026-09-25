@@ -191,6 +191,13 @@
         "lineSourceMode": {
           "type": "string",
           "enum": ["single", "scope", "item", "manual"]
+        },
+        "customLinesDraft": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/manualQuoteLine"
+          }
         }
       }
     },
@@ -2403,6 +2410,16 @@
         },
         "allocationFixed": {
           "type": "boolean"
+        },
+        "costScopeKeys": {
+          "type": "array",
+          "maxItems": 10000,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
         }
       }
     },

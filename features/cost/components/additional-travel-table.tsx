@@ -1,3 +1,4 @@
+import { PercentageInput } from '@/components/ui/percentage-input';
 /** Optional non-HQ travel table; kept outside the governed export snapshot for now. */
 
 import { Plane, Plus } from 'lucide-react';
@@ -187,9 +188,8 @@ export function AdditionalTravelTable({
             className="text-xs text-muted-foreground"
           />
           <div className="relative mt-2 max-w-[140px]">
-            <Input
+            <PercentageInput
               id="travel-uplift"
-              type="number"
               step="0.1"
               className="h-8 rounded-sm border-input bg-white pr-7 text-right text-xs shadow-none focus-visible:ring-1"
               value={travelUplift}

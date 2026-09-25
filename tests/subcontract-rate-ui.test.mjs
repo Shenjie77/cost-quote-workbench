@@ -112,7 +112,9 @@ function harness(Component, props) {
       return element;
     },
     input() {
-      return this.find((node) => node.props.type === 'number');
+      return this.find(
+        (node) => node.props.type === 'number' || node.props.type === 'text',
+      );
     },
     type(value) {
       this.input().props.onChange({ target: { value } });
@@ -182,7 +184,7 @@ test('invalid percentage ranges never save, Escape restores saved text, and unch
   }
   assert.deepEqual(saved, []);
   input.key('Escape');
-  assert.equal(input.input().props.value, '3');
+  assert.equal(input.input().props.value, '3.00');
   assert.equal(input.input().props['aria-invalid'], false);
   input.blur();
   assert.deepEqual(saved, []);
@@ -331,7 +333,7 @@ test('locked inputs and parent setters refuse changes while the settings panel r
   lockedUplift.type('99');
   lockedUplift.blur();
   lockedUplift.key('Enter');
-  assert.equal(lockedUplift.input().props.value, '3');
+  assert.equal(lockedUplift.input().props.value, '3.00');
   const lockedBase = harness(SubcontractBaseYearInput, {
     value: 2025,
     locked: true,

@@ -246,7 +246,7 @@ test('legacy manual quotation keeps its saved prices while showing computed whol
   )?.[0];
   assert.ok(lineTargetInput);
   assert.doesNotMatch(lineTargetInput, /\sdisabled(?:=|\s|\/?>)/);
-  assert.match(lineTargetInput, /value="30"/);
+  assert.match(lineTargetInput, /value="30\.00"/);
   assert.doesNotMatch(
     markup,
     /Target sales GP plus weighted profit-share rate must be less/,

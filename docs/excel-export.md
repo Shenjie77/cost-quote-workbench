@@ -153,3 +153,9 @@ site-type costs retain one line per site type. Saved custom lines remain unchang
 ## Export filenames
 
 Browser-generated cost, combined quotation, customer quotation, CPQ, maintenance and Master Data exports include Singapore time down to milliseconds (`YYYYMMDD_HHmmss_SSS`). Project exports use readable project names instead of internal IDs; full and simple costs retain their version code. For example: `Cost_Simple_Test Project_V1_20260925_143012_123.xlsx`. Workspace backup downloads use the same clock and short naming convention. Explicit CLI `--output` paths remain controlled by the caller.
+
+### 自定义报价明细与 Scope 分配
+
+Custom lines 的草稿独立保存，切换 Single / Scope / Item 后再切回，恢复原来的描述、数量、成本 Weight、定价和锁定状态；保存并刷新后仍保留。点击自定义行的 Cost 可搜索并多选成本 Scope，所选成本含按比例分摊的风险。同一 Scope 改选到另一行时从原行移除，未指定 Scope 的行按原成本比例分摊余额；若没有承接余额的行，自动新增 Other scopes。手动改 Weight 或删除行后取消 Scope 绑定，继续按原有 Weight 规则分摊完整项目成本。选择记录仅用于内部成本分配，不进入客户报价文件。
+
+所有百分比输入使用手动文本输入，失焦或 Enter 时提交，显示两位小数；未主动编辑时不截断内部计算精度。
