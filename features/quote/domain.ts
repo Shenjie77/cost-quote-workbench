@@ -1,3 +1,5 @@
+import { resolveQuoteCostBindings } from './scope-allocation.ts';
+import type { QuoteCostSource } from './quote-lines.ts';
 /** Shared pricing rules used by the quote page and project portfolio. */
 
 import { roundMoney } from '../cost/domain.ts';
@@ -50,7 +52,8 @@ export const validatePricingSettings = (
   settings: PricingSettings,
   totalCost: number,
   allocation?: BuCostAllocation,
-): string[] => calculatePricing(totalCost, settings, allocation).errors;
+  source?: QuoteCostSource,
+): string[] => calculatePricing(totalCost, settings, allocation, source).errors;
 
 /**
  * Revenue is apportioned by final BU cost weights. Profit share is charged on
@@ -61,6 +64,7 @@ export const calculatePricing = (
   totalCost: number,
   settings: PricingSettings,
   allocation?: BuCostAllocation,
+  source?: QuoteCostSource,
 ) => {
   const cost =
     Number.isFinite(totalCost) && totalCost >= 0 && totalCost <= 1e12
@@ -128,20 +132,24 @@ export const calculatePricing = (
     weightedProfitShareRate,
     denominator,
   );
+  const bound =
+    source && manualPricing
+      ? resolveQuoteCostBindings(settings.manualLines ?? [], source, cost)
+      : { lines: settings.manualLines ?? [], errors: [] };
+  errors.push(...bound.errors);
   const percentageAllocation = gpManualPricing
-    ? allocateQuotePercentages(settings.manualLines ?? [], gpTarget)
+    ? allocateQuotePercentages(bound.lines, gpTarget)
     : undefined;
   if (percentageAllocation) errors.push(...percentageAllocation.errors);
   // Independent line prices own their GP; the project total is their sum, never an additional target.
   const lineAllocation = independentLinePricing
-    ? allocateLinePricing(
-        settings.manualLines ?? [],
-        cost,
-        weightedProfitShareRate,
-      )
+    ? allocateLinePricing(bound.lines, cost, weightedProfitShareRate)
     : undefined;
   if (lineAllocation) errors.push(...lineAllocation.errors);
-  const effectiveLines = lineAllocation?.lines ?? percentageAllocation?.lines;
+  const effectiveLines =
+    lineAllocation?.lines ??
+    percentageAllocation?.lines ??
+    (source && manualPricing ? bound.lines : undefined);
   const manual = manualPricing
     ? calculateManualQuoteLines(effectiveLines ?? settings.manualLines)
     : undefined;

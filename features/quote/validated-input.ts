@@ -59,14 +59,24 @@ export function validatedQuoteInput(
     getY1Year(version.rateSettings),
   ).totalWithRisk;
   const allocation = calculateBuCostAllocation(snapshot);
-  const pricing = calculatePricing(total, workspace.pricing, allocation);
+  const pricing = calculatePricing(
+    total,
+    workspace.pricing,
+    allocation,
+    snapshot,
+  );
   const lines = buildQuoteLines(
     snapshot,
     workspace.pricing.lineMode,
     pricing.listPrice,
     pricing.allocatedManualLines ?? workspace.pricing.manualLines,
   );
-  const errors = validatePricingSettings(workspace.pricing, total, allocation);
+  const errors = validatePricingSettings(
+    workspace.pricing,
+    total,
+    allocation,
+    snapshot,
+  );
   errors.push(...validateQuoteLines(lines, pricing.listPrice));
   const template = workspace.quoteTemplates.find(
     (t) => t.id === workspace.selectedQuoteTemplateId,

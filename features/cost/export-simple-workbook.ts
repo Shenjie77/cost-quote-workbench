@@ -186,6 +186,12 @@ const addSheet = (
   return sheet;
 };
 
+/** Cell addresses captured while rendering the shared personnel view for dependent formula exporters. */
+export type PersonnelExportReferences = Map<
+  string,
+  Partial<Record<PersonnelColumnId, string>>
+>;
+
 /** Cost Input's business columns and two-tier Y1–Y5 header, without controls. */
 const addDetail = (workbook: Workbook, snapshot: CostExportSnapshot) => {
   const columns = 7 + YEAR_BUCKETS.length * 3;
@@ -417,6 +423,7 @@ function addPersonnelDetail(
   snapshot: CostExportSnapshot,
   layout: PersonnelTableLayout,
   columns: PersonnelColumnId[],
+  references?: PersonnelExportReferences,
 ) {
   const rows = snapshot.costRows.filter(
     (row) => !isLegacySubcontractRow(row, snapshot.resourceTypes),
@@ -518,6 +525,12 @@ function addPersonnelDetail(
       ),
     });
     setRowValues(row, values);
+    references?.set(
+      input.id,
+      Object.fromEntries(
+        columns.map((id, index) => [id, row.getCell(index + 1).address]),
+      ),
+    );
     columns.forEach((id, index) => {
       const cell = row.getCell(index + 1);
       if (!personnelTextColumn(id)) {
@@ -565,6 +578,15 @@ function addPersonnelDetail(
         ? `Visible Total · ${rows.length} rows`
         : value;
     if (typeof value === 'number') {
+      // Combined exports retain the same visible layout and link totals to its actual input rows.
+      if (references && personnelMoneyColumn(id) && rows.length)
+        cell.value = {
+          formula: `SUM(${rows
+            .map((row) => references.get(row.id)?.[id])
+            .filter(Boolean)
+            .join(',')})`,
+          result: value,
+        };
       cell.numFmt = personnelMoneyColumn(id) ? MONEY : quantityFormat(value);
       cell.alignment = { horizontal: 'right', vertical: 'middle' };
     }
@@ -884,6 +906,7 @@ export const buildSimpleCostWorkbook = async (
   requestedLayout?: PersonnelTableLayout,
   selectedSheets?: readonly SimpleCostSheetId[],
   destination?: Workbook,
+  references?: PersonnelExportReferences,
 ) => {
   // Detach before the first asynchronous boundary, even for direct CLI callers.
   const snapshot = structuredClone(input);
@@ -940,7 +963,7 @@ export const buildSimpleCostWorkbook = async (
   );
   if (selected.has('Cost Detail')) {
     if (layout && columns)
-      addPersonnelDetail(workbook, snapshot, layout, columns);
+      addPersonnelDetail(workbook, snapshot, layout, columns, references);
     else addDetail(workbook, snapshot);
   }
   if (layout) addLegacySubcontractDetail(workbook, snapshot);

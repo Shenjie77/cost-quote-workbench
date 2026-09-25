@@ -165,6 +165,7 @@ const summarizeWorkspace = (workspace, asOf = normalizeDigestDate()) => {
       manualCosts: workspace.manualCosts || {},
       subcontractCost: workspace.subcontractCost,
     }),
+    { ...workspace, costRows: rows, resourceTypes: resources },
   );
   const activeVersion = workspace.activeVersion || 'V1';
   const versionState =

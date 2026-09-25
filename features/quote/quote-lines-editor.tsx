@@ -4,7 +4,11 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { assignQuoteScopes } from './scope-allocation';
+import {
+  assignQuoteScopePercentages,
+  savedScopeAllocations,
+  resolveQuoteCostBindings,
+} from './scope-allocation';
 import { QuoteScopeDialog } from './quote-scope-dialog';
 import { QuoteDescriptionDialog } from './quote-description-dialog';
 import {
@@ -106,7 +110,13 @@ export function QuoteLinesEditor({
   );
   const costs = lineCostAmounts(draftLines, totalCost);
   const scopeOptions = costSnapshot
-    ? quoteScopeCosts(costSnapshot, totalCost)
+    ? quoteScopeCosts(
+        costSnapshot,
+        Math.max(
+          0,
+          totalCost - (costSnapshot.manualCosts.riskContingency || 0),
+        ),
+      )
     : [];
   const quoteShare = (line: QuoteLine) =>
     currentTotal > 0 ? (line.amount / currentTotal) * 100 : 0;
@@ -117,8 +127,15 @@ export function QuoteLinesEditor({
     sourceMode: QuoteLineMode = mode,
   ) => {
     if (disabled) return;
+    const bound = costSnapshot
+      ? resolveQuoteCostBindings(next, costSnapshot, totalCost)
+      : { lines: next, errors: [] };
+    if (bound.errors.length) {
+      setAllocationError(bound.errors[0]);
+      return;
+    }
     const calculated = allocateLinePricing(
-      next,
+      bound.lines,
       totalCost,
       weightedProfitShareRate,
     );
@@ -189,6 +206,9 @@ export function QuoteLinesEditor({
       draftLines.map((line) => ({
         ...line,
         costScopeKeys: undefined,
+        costScopeAllocations: undefined,
+        riskAllocationPercent: undefined,
+        unboundCostWeight: undefined,
         costWeight:
           line.id === id
             ? percentage
@@ -266,9 +286,7 @@ export function QuoteLinesEditor({
     if (disabled) return;
     setAllocationError('');
     saveLines(
-      draftLines
-        .filter((line) => line.id !== id)
-        .map((line) => ({ ...line, costScopeKeys: undefined })),
+      draftLines.filter((line) => line.id !== id),
       'manual',
     );
   };
@@ -329,9 +347,9 @@ export function QuoteLinesEditor({
         <span className="block">
           Weight 为成本占比，Custom lines
           可调整，其他行按原成本比例分摊余额；报价比例可调，未锁定行均分剩余比例。逐行定价后汇总总价；GP
-          含分成、未扣整单折扣。点击 Custom lines 的 Cost 可按 Scope 分配；Cost
-          含分摊风险。手动调整 Weight 后清除 Scope
-          选择，其他行按比例分摊剩余成本。
+          含分成、未扣整单折扣。点击 Cost 可设置 Scope 和 Risk
+          分配比例，成本更新后自动重算。手动调整 Weight 后解除来源与 Risk
+          绑定，恢复按成本权重分摊。
         </span>
       </p>
       {(allocationError || lineErrors[0]) && (
@@ -460,30 +478,33 @@ export function QuoteLinesEditor({
                   )}
                 </TableCell>
                 <TableCell className="financial-numeral bg-muted/30 text-right">
-                  {mode === 'manual' && costSnapshot ? (
+                  {costSnapshot ? (
                     <QuoteScopeDialog
                       lineNumber={index + 1}
                       amount={costs[index] ?? 0}
                       scopes={scopeOptions}
                       selectedKeys={saved?.costScopeKeys ?? []}
+                      allocations={
+                        saved ? savedScopeAllocations(saved) : undefined
+                      }
+                      riskAmount={costSnapshot.manualCosts.riskContingency || 0}
+                      riskPercentage={saved?.riskAllocationPercent}
                       disabled={disabled || totalCost <= 0}
-                      onSave={(keys) => {
-                        const next = assignQuoteScopes(
+                      onSave={(keys, percentages, risk) => {
+                        const next = assignQuoteScopePercentages(
                           draftLines,
                           line.id,
-                          keys,
-                          scopeOptions,
-                          totalCost,
-                          `quote-line-${globalThis.crypto.randomUUID()}`,
+                          keys.length ||
+                            (saved &&
+                              savedScopeAllocations(saved) !== undefined)
+                            ? keys.map((key) => ({
+                                key,
+                                percentage: percentages?.[key] ?? 100,
+                              }))
+                            : undefined,
+                          risk,
                         );
-                        if (next.length > MAX_QUOTE_LINES) {
-                          setAllocationError(
-                            'Too many lines; leave one row available for remaining costs.',
-                          );
-                          return;
-                        }
-                        setAllocationError('');
-                        saveLines(next);
+                        saveLines(next, mode);
                       }}
                     />
                   ) : (

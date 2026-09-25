@@ -156,6 +156,10 @@ Browser-generated cost, combined quotation, customer quotation, CPQ, maintenance
 
 ### 自定义报价明细与 Scope 分配
 
-Custom lines 的草稿独立保存，切换 Single / Scope / Item 后再切回，恢复原来的描述、数量、成本 Weight、定价和锁定状态；保存并刷新后仍保留。点击自定义行的 Cost 可搜索并多选成本 Scope，所选成本含按比例分摊的风险。同一 Scope 改选到另一行时从原行移除，未指定 Scope 的行按原成本比例分摊余额；若没有承接余额的行，自动新增 Other scopes。手动改 Weight 或删除行后取消 Scope 绑定，继续按原有 Weight 规则分摊完整项目成本。选择记录仅用于内部成本分配，不进入客户报价文件。
+Custom lines 的草稿独立保存，切换 Single / Scope / Item 后再切回仍保留。点击明细行的 Cost 可多选 Scope 并设置每个来源的百分比，同一 Scope 可由多行共同承担。系统保存来源及比例，成本更新后自动重新计算，无需重新勾选。提高某行比例导致来源超额时，其他行对该来源的比例按比例缩减。
+
+Risk Cost 独立设置百分比，留空自动分摊未指定余额，填 0 表示不承担 Risk。只修改 Risk 不清除成本来源。未绑定行按原成本比例分摊剩余来源；没有承接行时新增 Other scopes。删除一行保留其他来源绑定；手动修改 Weight 解除各行来源与 Risk 绑定，恢复按 Weight 分摊。来源配置仅用于内部计算，不进入客户报价文件。
+
+Quotation + Simple Cost 的 Cost Detail 复用 Simple Cost Export 生成器，采用该项目成本版本已保存的 Cost Input 列顺序、显示列、年度与分组。Cost Statement 按实际单元格建立公式引用；未显示年度与未选择明细保留快照金额。
 
 所有百分比输入使用手动文本输入，失焦或 Enter 时提交，显示两位小数；未主动编辑时不截断内部计算精度。

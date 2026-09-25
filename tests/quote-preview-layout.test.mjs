@@ -20,12 +20,13 @@ const adapter = `data:text/javascript,${encodeURIComponent(`
   export const useState = (...args) => hooks().useState(...args);
   export const useRef = (...args) => hooks().useRef(...args);
   export const useEffect = (...args) => hooks().useEffect(...args);
+  export const useSyncExternalStore = (...args) => hooks().useSyncExternalStore(...args);
 `)}`;
 const loader = registerHooks({
   resolve(specifier, context, nextResolve) {
     if (
       specifier === 'react' &&
-      /\/(quote-view|quote-preview-dialog|quote-description-dialog|manual-history-form)\.tsx$/.test(
+      /\/(quote-view|quote-preview-dialog|quote-description-dialog|manual-history-form|use-personnel-table-view)\.tsx?$/.test(
         context.parentURL || '',
       )
     )
@@ -119,6 +120,9 @@ function harness(component, props) {
       return (state[cursor++] ??= { current: initial });
     },
     useEffect() {},
+    useSyncExternalStore(_subscribe, getSnapshot) {
+      return getSnapshot();
+    },
   };
   return () => {
     cursor = 0;

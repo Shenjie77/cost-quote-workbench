@@ -171,11 +171,21 @@ export function calculateManualQuoteLines(
   };
 }
 
+export type QuoteCostSource = Pick<
+  CostExportSnapshot,
+  | 'costRows'
+  | 'resourceTypes'
+  | 'travelSettings'
+  | 'manualCosts'
+  | 'subcontractCost'
+  | 'rateSettings'
+> & { project?: { name: string } };
+
 type WeightedLine = { id: string; description: string; weight: number };
 
 /** Builds independent priced leaves; overhead/risk is included through total-price allocation. */
 function costQuoteLeaves(
-  snapshot: CostExportSnapshot,
+  snapshot: QuoteCostSource,
   mode: 'scope' | 'item',
 ): WeightedLine[] {
   // Use captured costs exactly as pricing does; export validation rejects stale calculations.
@@ -258,7 +268,7 @@ function costQuoteLeaves(
     : [
         {
           id: 'service:project',
-          description: snapshot.project.name || 'Project services',
+          description: snapshot.project?.name || 'Project services',
           weight: 1,
         },
       ];
@@ -276,7 +286,7 @@ export function buildQuoteLines(
     return [
       {
         id: 'service:project',
-        description: snapshot.project.name || 'Project services',
+        description: snapshot.project?.name || 'Project services',
         quantity: 1,
         unit: 'lot',
         unitPrice: listPrice,
@@ -341,11 +351,8 @@ export function validateQuoteLines(
   return errors;
 }
 
-/** Stable scope references with risk-inclusive costs, reconciled exactly to the current project total. */
-export function quoteScopeCosts(
-  snapshot: CostExportSnapshot,
-  totalCost: number,
-) {
+/** Stable Scope references reconciled to the supplied cost pool; callers exclude Risk for independent allocation. */
+export function quoteScopeCosts(snapshot: QuoteCostSource, totalCost: number) {
   const groups = new Map<
     string,
     { key: string; description: string; weight: number }

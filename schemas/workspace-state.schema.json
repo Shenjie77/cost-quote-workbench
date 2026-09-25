@@ -2420,6 +2420,37 @@
             "minLength": 1,
             "maxLength": 8000
           }
+        },
+        "costScopeAllocations": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "percentage"],
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              },
+              "percentage": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          }
+        },
+        "riskAllocationPercent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "unboundCostWeight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000
         }
       }
     },

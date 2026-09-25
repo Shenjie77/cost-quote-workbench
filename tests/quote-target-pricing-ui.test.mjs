@@ -994,3 +994,36 @@ test('shared percentage input retains full precision until editing and validates
   input().props.onBlur();
   assert.deepEqual(writes, [2.5]);
 });
+
+test('Scope dialog edits source and risk percentages, rejects invalid shares, and preserves untouched precision', async () => {
+  const { QuoteScopeDialog } =
+    await import('../features/quote/quote-scope-dialog.tsx');
+  const writes = [];
+  const view = harness(QuoteScopeDialog, {
+    lineNumber: 1,
+    amount: 100,
+    selectedKeys: [],
+    allocations: [{ key: 'a', percentage: 33.333333 }],
+    riskAmount: 20,
+    riskPercentage: 0,
+    scopes: [{ key: 'a', description: 'Planning', amount: 100 }],
+    disabled: false,
+    onSave: (...args) => writes.push(args),
+  });
+  view
+    .find((node) => typeof node.props.onOpenChange === 'function')
+    .props.onOpenChange(true);
+  assert.equal(view.label('Scope percentage Planning').props.type, 'text');
+  view.button('Apply scopes / 应用').props.onClick();
+  assert.equal(writes[0][1].a, 33.333333);
+  assert.equal(writes[0][2], 0);
+  view
+    .find((node) => typeof node.props.onOpenChange === 'function')
+    .props.onOpenChange(true);
+  view
+    .label('Scope percentage Planning')
+    .props.onChange({ target: { value: '101' } });
+  assert.equal(view.button('Apply scopes / 应用').props.disabled, true);
+  view.button('Apply scopes / 应用').props.onClick();
+  assert.equal(writes.length, 1);
+});

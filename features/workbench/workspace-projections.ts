@@ -58,6 +58,7 @@ export function calculateWorkspaceMetrics(
     statement.totalWithRisk,
     pricing,
     costAllocation,
+    inputs,
   );
   return {
     serviceCost: roundMoney(statement.service - statement.subcontract),

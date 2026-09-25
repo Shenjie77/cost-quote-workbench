@@ -245,3 +245,111 @@ test('combined export captures sheet choices at click time and rejects unknown n
     }),
   );
 });
+
+test('combined Cost Detail matches saved Cost Input layout and statement references follow reordered grouped cells', async () => {
+  const input = combinedFixture();
+  input.personnelLayout = {
+    grouped: true,
+    yearIndex: 0,
+    columns: ['scope', 'totalCost', 'Y1:cost', 'bu'],
+  };
+  const simple = await buildSimpleCostWorkbook(
+    input.costSnapshot,
+    input.personnelLayout,
+  );
+  const combined = await buildCombinedQuoteWorkbook(input);
+  const expected = simple.getWorksheet('Cost Detail');
+  const actual = combined.getWorksheet('Cost Detail');
+  assert.equal(actual.rowCount, expected.rowCount);
+  assert.deepEqual(actual.model.merges, expected.model.merges);
+  expected.eachRow((row, index) =>
+    row.eachCell((cell, column) => {
+      const value = actual.getCell(index, column);
+      assert.equal(value.formula ? value.result : value.value, cell.value);
+    }),
+  );
+  const statement = combined.getWorksheet('Cost Statement');
+  let linked = false;
+  statement.eachRow((row) =>
+    row.eachCell((cell) => {
+      if (cell.formula?.includes("'Cost Detail'!")) {
+        linked = true;
+        for (const match of cell.formula.matchAll(
+          /'Cost Detail'!([A-Z]+\d+)/g,
+        )) {
+          assert.match(match[1], /^B/);
+          assert.ok(actual.getCell(match[1]).formula);
+        }
+      }
+    }),
+  );
+  assert.ok(linked);
+});
+
+test('pricing and exported quotation use persisted Scope and Risk percentages after cost sources change', async () => {
+  const input = combinedFixture();
+  input.costSnapshot.costRows = input.costSnapshot.costRows
+    .slice(0, 1)
+    .map((row) => ({
+      ...row,
+      years: row.years.map((year) => ({ ...year, sites: 0, cost: 0 })),
+    }));
+  input.costSnapshot.manualCosts = {
+    ...input.costSnapshot.manualCosts,
+    localPurchasedEquipment: 60,
+    inlandLogistics: 40,
+    riskContingency: 20,
+  };
+  input.pricing.discount = 0;
+  input.pricing.manualLines = [
+    {
+      id: 'a',
+      description: 'Supply',
+      quantity: 1,
+      unit: 'lot',
+      unitPrice: 0,
+      targetGrossMargin: 50,
+      costScopeAllocations: [
+        { key: 'scope:equipment supply', percentage: 100 },
+      ],
+      riskAllocationPercent: 25,
+    },
+    {
+      id: 'b',
+      description: 'Delivery',
+      quantity: 1,
+      unit: 'lot',
+      unitPrice: 0,
+      targetGrossMargin: 50,
+      costScopeAllocations: [
+        { key: 'scope:inland logistics', percentage: 100 },
+      ],
+      riskAllocationPercent: 75,
+    },
+  ];
+  const price = () =>
+    calculatePricing(120, input.pricing, undefined, input.costSnapshot);
+  assert.equal(price().valid, true);
+  assert.deepEqual(
+    price().allocatedManualLines.map((line) => line.costWeight),
+    [65, 55],
+  );
+  input.pricing = JSON.parse(JSON.stringify(input.pricing));
+  input.costSnapshot.manualCosts.localPurchasedEquipment = 80;
+  input.costSnapshot.manualCosts.inlandLogistics = 20;
+  const updated = price();
+  assert.deepEqual(
+    updated.allocatedManualLines.map((line) => line.costWeight),
+    [85, 35],
+  );
+  assert.deepEqual(
+    updated.allocatedManualLines.map((line) => line.unitPrice),
+    [170, 70],
+  );
+  const workbook = await buildCombinedQuoteWorkbook(input);
+  const sheet = workbook.getWorksheet('Quotation Details');
+  assert.equal(sheet.getCell('E9').result, 85);
+  assert.equal(sheet.getCell('E10').result, 35);
+  assert.equal(sheet.getCell('I9').result, 170);
+  assert.equal(sheet.getCell('I10').result, 70);
+});

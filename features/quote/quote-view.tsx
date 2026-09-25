@@ -1,3 +1,4 @@
+import { usePersonnelTableView } from '@/features/cost/use-personnel-table-view';
 /** Pricing, client-template output, assumptions, and quotation history. */
 
 import { useEffect, useRef, useState } from 'react';
@@ -143,7 +144,15 @@ export function QuoteView({
       mounted.current = false;
     };
   }, []);
-  const result = calculatePricing(totalCost, pricing, costAllocation);
+  const personnelTableView = usePersonnelTableView(
+    `${project.id}:${activeVersion}`,
+  );
+  const result = calculatePricing(
+    totalCost,
+    pricing,
+    costAllocation,
+    costSnapshot,
+  );
   const effectiveQuoteAssumptions = quoteAssumptions.filter(
     (row) => !isRetiredQuoteAssumption(row),
   );
@@ -165,7 +174,12 @@ export function QuoteView({
   );
   const outputErrors = [
     ...costErrors,
-    ...validatePricingSettings(pricing, totalCost, costAllocation),
+    ...validatePricingSettings(
+      pricing,
+      totalCost,
+      costAllocation,
+      costSnapshot,
+    ),
     ...validateQuoteLines(lines, result.listPrice),
     ...(!templateAvailable
       ? [
@@ -191,7 +205,12 @@ export function QuoteView({
       return false;
     const errors = [
       ...costErrors,
-      ...validatePricingSettings(pricing, totalCost, costAllocation),
+      ...validatePricingSettings(
+        pricing,
+        totalCost,
+        costAllocation,
+        costSnapshot,
+      ),
       ...validateQuoteLines(lines, result.listPrice),
     ];
     if (decisionError || errors.length) {
@@ -206,6 +225,7 @@ export function QuoteView({
         costSnapshot,
         pricing,
         selectedSheets,
+        personnelLayout: personnelTableView.layout,
       });
       announce(
         `Exported ${exported.fileName} / 已导出报价明细与 Simple Cost，成本及价格使用关联公式。`,
@@ -409,9 +429,14 @@ export function QuoteView({
                 key={`${project.id}-${activeVersion}`}
                 triggerLabel="Quotation + Simple Cost"
                 title="Quotation + Simple Cost"
-                description="选择成本页签。Quotation Details 和 Cost Statement 始终保留；未选明细的成本以快照数值保留在 Cost Statement，不会产生失效引用。"
+                description="Cost Detail 使用当前成本版本已保存的 Cost Input 视图。Quotation Details 和 Cost Statement 始终保留；未选明细以快照数值保留，不会产生失效引用。"
                 requiredSheets={['Cost Statement']}
-                getSheets={() => getAvailableSimpleCostSheets(costSnapshot)}
+                getSheets={() =>
+                  getAvailableSimpleCostSheets(
+                    costSnapshot,
+                    personnelTableView.layout,
+                  )
+                }
                 onExport={exportCombined}
                 disabled={
                   isExporting ||

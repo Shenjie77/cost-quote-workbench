@@ -1,3 +1,5 @@
+import type { PersonnelTableLayout } from '../cost/personnel-table-layout.ts';
+import type { PersonnelExportReferences } from '../cost/export-simple-workbook.ts';
 /** Internal quotation review workbook with live links to the complete Simple Cost statement. */
 import type { Workbook, Worksheet } from 'exceljs';
 import type { CostExportSnapshot } from '../cost/contracts.ts';
@@ -25,6 +27,7 @@ export type CombinedQuoteWorkbookInput = {
   costSnapshot: CostExportSnapshot;
   pricing: PricingSettings;
   selectedSheets?: readonly SimpleCostSheetId[];
+  personnelLayout?: PersonnelTableLayout;
 };
 
 const FIRST_LINE = 9;
@@ -47,7 +50,11 @@ function formula(
 }
 
 /** Link captured annual cost inputs to row totals and the canonical statement hierarchy. */
-function linkCostStatement(workbook: Workbook, snapshot: CostExportSnapshot) {
+function linkCostStatement(
+  workbook: Workbook,
+  snapshot: CostExportSnapshot,
+  personnelReferences?: PersonnelExportReferences,
+) {
   const detail = workbook.getWorksheet('Cost Detail');
   const statement = workbook.getWorksheet('Cost Statement')!;
   const travel = getHQTravelSummary(
@@ -72,26 +79,46 @@ function linkCostStatement(workbook: Workbook, snapshot: CostExportSnapshot) {
   snapshot.costRows.forEach((row, index) => {
     if (!detail) return;
     const number = index + 6;
-    const cell = detail.getCell(`G${number}`);
-    formula(
-      detail,
-      cell.address,
-      `SUM(J${number},M${number},P${number},S${number},V${number})`,
-      Number(cell.value),
+    const references = personnelReferences?.get(row.id);
+    const totalAddress = personnelReferences
+      ? references?.totalCost
+      : `G${number}`;
+    const annualAddresses = row.years.map((year, yearIndex) =>
+      personnelReferences
+        ? references?.[`Y${yearIndex + 1}:cost` as keyof typeof references]
+        : `${['J', 'M', 'P', 'S', 'V'][yearIndex]}${number}`,
     );
+    const terms = row.years.map((year, yearIndex) =>
+      annualAddresses[yearIndex]
+        ? `'Cost Detail'!${annualAddresses[yearIndex]}`
+        : String(year.cost),
+    );
+    const amount = roundMoney(
+      row.years.reduce((sum, year) => sum + year.cost, 0),
+    );
+    if (totalAddress && annualAddresses.some(Boolean))
+      formula(
+        detail,
+        totalAddress,
+        `SUM(${(personnelReferences ? terms : annualAddresses).join(',')})`,
+        amount,
+      );
+    const reference = totalAddress
+      ? `'Cost Detail'!${totalAddress}`
+      : annualAddresses.some(Boolean)
+        ? `SUM(${terms.join(',')})`
+        : undefined;
     const category = snapshot.resourceTypes.find(
       (resource) => resource.id === row.reTypeId,
     )?.category;
-    if (category) {
-      categoryRefs[category].push(`'Cost Detail'!G${number}`);
-      linkedCosts[category] = roundMoney(
-        linkedCosts[category] + Number(cell.result),
-      );
+    if (category && reference) {
+      categoryRefs[category].push(reference);
+      linkedCosts[category] = roundMoney(linkedCosts[category] + amount);
     }
   });
-  // Simple Cost annual amounts remain the editable snapshot inputs, not a second rate engine.
+  // Legacy default layout retains its complete annual totals; page-shaped layouts keep their rendered summary rows.
   const totalRow = 6 + snapshot.costRows.length;
-  if (detail && snapshot.costRows.length) {
+  if (detail && !personnelReferences && snapshot.costRows.length) {
     for (const column of ['G', 'J', 'M', 'P', 'S', 'V']) {
       const cell = detail.getCell(`${column}${totalRow}`);
       formula(
@@ -240,14 +267,20 @@ export async function buildCombinedQuoteWorkbook(
     costSnapshot: snapshot,
     pricing,
     selectedSheets,
+    personnelLayout,
   } = structuredClone(input);
-  const available = getAvailableSimpleCostSheets(snapshot);
+  const available = getAvailableSimpleCostSheets(snapshot, personnelLayout);
   const selected = new Set<SimpleCostSheetId>(
     selectedSheets ?? available.map((sheet) => sheet.id),
   );
   selected.add('Cost Statement');
   const allocation = calculateBuCostAllocation(snapshot);
-  const result = calculatePricing(allocation.totalCost, pricing, allocation);
+  const result = calculatePricing(
+    allocation.totalCost,
+    pricing,
+    allocation,
+    snapshot,
+  );
   assertValidQuotePricing(result);
   const lines = buildQuoteLines(
     snapshot,
@@ -269,8 +302,16 @@ export async function buildCombinedQuoteWorkbook(
       paperSize: 9,
     },
   });
-  await buildSimpleCostWorkbook(snapshot, undefined, [...selected], workbook);
-  const statement = linkCostStatement(workbook, snapshot);
+  const personnelReferences: PersonnelExportReferences | undefined =
+    personnelLayout ? new Map() : undefined;
+  await buildSimpleCostWorkbook(
+    snapshot,
+    personnelLayout,
+    [...selected],
+    workbook,
+    personnelReferences,
+  );
+  const statement = linkCostStatement(workbook, snapshot, personnelReferences);
   // Open on the internal quote, followed by its complete Simple Cost source sheets.
   workbook.views = [
     {
