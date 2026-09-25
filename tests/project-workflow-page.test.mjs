@@ -154,7 +154,7 @@ test('full page puts compact references above one directly editable task with pa
   assert.match(html, /Complete Step/);
   assert.match(html, /Save Update/);
   assert.match(html, /Project Workflow Info/);
-  assert.match(html, /Edit Info/);
+  assert.match(html, /Edit project information/);
   assert.ok(
     html.indexOf('Project Workflow Info') < html.indexOf('Workflow Steps'),
   );

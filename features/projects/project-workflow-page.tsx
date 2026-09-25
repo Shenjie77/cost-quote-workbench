@@ -170,6 +170,7 @@ export type ProjectWorkflowPageProps = {
   onSaveReferences: (meta: ProjectWorkflowMeta) => Promise<void>;
   onBack: () => void;
   onRefresh: () => Promise<void>;
+  onEditProject?: () => void;
   onOpenCost: () => void;
   onSetHold?: (onHold: boolean) => Promise<void>;
   announce?: (message: string) => void;
@@ -190,6 +191,7 @@ export function ProjectWorkflowPage({
   onBack,
   onRefresh,
   onOpenCost,
+  onEditProject,
   onSetHold,
   announce,
   busy = false,
@@ -386,6 +388,8 @@ export function ProjectWorkflowPage({
       aria-label="Project Workflow Page"
     >
       <ProjectWorkflowHeader
+        onEditProject={onEditProject}
+        status={onHold ? 'On Hold' : complete ? 'Completed' : 'In Progress'}
         project={project}
         round={workspace.workflowVersion || workspace.activeVersion}
         currency={workspace.project?.currency || 'SGD'}

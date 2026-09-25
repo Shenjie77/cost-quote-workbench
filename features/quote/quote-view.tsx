@@ -19,12 +19,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { BiInline, BiText } from '@/components/workbench/bilingual-text';
+import { BiText } from '@/components/workbench/bilingual-text';
 import { SectionHeading } from '@/components/workbench/section-heading';
 import { StatusBadge } from '@/components/workbench/status-badge';
 import type { CostExportSnapshot } from '@/features/cost/contracts';
 import type { CostVersionState } from '@/features/cost/domain';
-import { ContextBand } from '@/features/projects/project-context-band';
+import {
+  ContextBand,
+  type ProjectContextActions,
+} from '@/features/projects/project-context-band';
 import {
   calculatePricing,
   type PricingSettings,
@@ -71,6 +74,7 @@ export function QuoteView({
   project,
   proposalNumber,
   onProposalNumberChange,
+  projectContext,
   activeVersion,
   versionState,
   totalCost,
@@ -96,6 +100,7 @@ export function QuoteView({
   announce,
 }: {
   project: CostExportSnapshot['project'];
+  projectContext?: ProjectContextActions;
   proposalNumber?: string;
   onProposalNumberChange?: (value: string) => void;
   activeVersion: string;
@@ -333,16 +338,12 @@ export function QuoteView({
   return (
     <div className="wb-page-stack gap-3">
       <ContextBand
+        {...projectContext}
         proposalNumber={proposalNumber}
         onProposalNumberChange={onProposalNumberChange}
         project={project}
         costVersion={activeVersion}
         versionStatus={versionState}
-        action={
-          <StatusBadge tone="amber">
-            <BiInline en="Pricing draft" zh="定价草稿" />
-          </StatusBadge>
-        }
       />
       <QuoteTemplatePicker
         key={project.id}

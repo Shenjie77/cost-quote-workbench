@@ -1,22 +1,34 @@
-/** Current project/version context shown above project, cost, and quote views. */
-
+/** One compact project identity strip shared by cost, quotation and workflow pages. */
 import type React from 'react';
 import { useState } from 'react';
-import { Briefcase } from 'lucide-react';
+import { Briefcase, FolderOpen, Pencil } from 'lucide-react';
 import { StatusBadge } from '@/components/workbench/status-badge';
-import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { ReferenceLink } from './project-reference-link';
+import { openArchiveFolder } from './project-files';
 
-/** Keep project identity and editable references on a compact contextual strip. */
+export type ProjectContextActions = {
+  companyUrl?: string;
+  cpqUrl?: string;
+  onEdit?: () => void;
+  editDisabled?: boolean;
+};
+
+/** Show project references in a fixed order; folder requests resolve the saved path on the API host. */
 export function ContextBand({
-  project = { id: 'NO-PROJECT', client: 'Not selected', currency: 'SGD' },
+  project = { id: '', name: 'No project', client: '' },
   stage,
-  costVersion = 'V3',
+  costVersion = '—',
   latestCostVersion,
   versionStatus = 'Draft',
   proposalNumber = '',
-  onProposalNumberChange,
+  versionLabel = 'Current Version',
+  companyUrl,
+  cpqUrl,
+  onEdit,
+  editDisabled = false,
   action,
-}: {
+}: ProjectContextActions & {
   project?: { id: string; name?: string; client: string; currency?: string };
   stage?: string;
   stageZh?: string;
@@ -24,105 +36,106 @@ export function ContextBand({
   latestCostVersion?: string;
   versionStatus?: string;
   proposalNumber?: string;
+  /** Kept for older embedded consumers; project references are now edited together using Edit. */
   onProposalNumberChange?: (value: string) => void;
+  versionLabel?: 'Current Version' | 'Current Round';
   action?: React.ReactNode;
 }) {
-  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [error, setError] = useState('');
+  /** Prevent duplicate launches and expose actionable API errors without navigating away. */
+  const openFolder = async () => {
+    if (opening || !project.id) return;
+    setOpening(true);
+    setError('');
+    try {
+      await openArchiveFolder(project.id);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Unable to open project folder.',
+      );
+    } finally {
+      setOpening(false);
+    }
+  };
+  const historical = latestCostVersion && latestCostVersion !== costVersion;
   return (
-    <div className="wb-toolbar min-w-0 border-b text-xs">
-      <div className="flex items-center gap-1.5 font-semibold text-primary">
-        <Briefcase className="size-3.5" /> {project.name || 'Project'}
-      </div>
-      {/* Narrow workspaces prioritize task controls; reference fields remain one click away. */}
-      <button
-        type="button"
-        className="ml-auto h-8 rounded px-2 text-xs font-medium text-primary hover:bg-muted sm:hidden"
-        aria-expanded={detailsExpanded}
-        aria-controls={`project-context-${project.id}`}
-        onClick={() => setDetailsExpanded((expanded) => !expanded)}
-      >
-        {detailsExpanded ? 'Hide details' : 'Project details'}
-      </button>
-      <div
-        id={`project-context-${project.id}`}
-        className={`${detailsExpanded ? 'flex' : 'hidden sm:flex'} min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1.5`}
-      >
-        <div>
-          <span className="text-xs text-muted-foreground">Client</span>
-          <span className="ml-2 break-words font-medium">{project.client}</span>
+    <section aria-label="Project information" className="wb-panel min-w-0">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-xs">
+        <div
+          className="flex min-w-0 max-w-full items-center gap-1.5 font-semibold text-primary"
+          title={project.name}
+        >
+          <Briefcase className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="break-words">{project.name || 'Project'}</span>
         </div>
-        <div>
-          <span className="text-xs text-muted-foreground">Currency</span>
-          <span className="financial-numeral ml-2 font-medium">
-            {project.currency ?? 'SGD'}
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span className="shrink-0 text-muted-foreground">
+            Proposal Number
+          </span>
+          <span className="break-all font-medium">
+            {proposalNumber || 'Not set'}
           </span>
         </div>
-        <label className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Proposal Number</span>
-          {onProposalNumberChange ? (
-            <Input
-              aria-label="Proposal Number / Proposal 编号"
-              className="h-8 w-32 bg-background text-xs"
-              value={proposalNumber}
-              onChange={(event) => onProposalNumberChange(event.target.value)}
-              placeholder="Not set"
-              maxLength={2000}
-            />
-          ) : (
-            <span className="font-medium">{proposalNumber || 'Not set'}</span>
-          )}
-        </label>
-        <div>
-          <span className="text-xs text-muted-foreground">Current Version</span>
-          <span className="financial-numeral ml-2 font-semibold">
-            {costVersion}
-          </span>
-        </div>
-        {latestCostVersion ? (
-          <div
-            className={
-              costVersion === latestCostVersion
-                ? ''
-                : 'rounded border border-amber-200 bg-amber-50 px-2 py-1'
-            }
+        <div className="flex items-center gap-1">
+          <ReferenceLink label="iSales" value={companyUrl} />
+          <ReferenceLink label="CPQ" value={cpqUrl} />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={openFolder}
+            disabled={opening || !project.id}
+            aria-label="Open project folder"
           >
-            <span className="text-xs text-muted-foreground">
-              Latest Version
-            </span>
-            <span className="financial-numeral ml-2 font-bold text-primary">
-              {latestCostVersion}
-            </span>
-            {costVersion !== latestCostVersion ? (
-              <span className="ml-2 text-xs font-semibold text-amber-800">
-                Historical
-              </span>
-            ) : null}
-          </div>
-        ) : null}
-        {stage ? (
-          <div>
-            <span className="text-xs text-muted-foreground">Current Stage</span>
-            <span className="ml-2 font-semibold text-primary">{stage}</span>
-          </div>
-        ) : (
+            <FolderOpen className="size-3.5" aria-hidden="true" />
+            {opening ? 'Opening…' : 'Folder'}
+          </Button>
+        </div>
+        <div
+          className="flex items-baseline gap-2"
+          title={
+            historical ? `Latest Version: ${latestCostVersion}` : undefined
+          }
+        >
+          <span className="text-muted-foreground">{versionLabel}</span>
+          <span className="financial-numeral font-semibold">{costVersion}</span>
+          {historical && <span className="text-amber-700">Historical</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground">Status</span>
           <StatusBadge
             tone={
-              versionStatus === 'Confirmed'
+              versionStatus === 'Confirmed' || versionStatus === 'Completed'
                 ? 'green'
-                : versionStatus === 'Suspended'
+                : versionStatus === 'Suspended' || versionStatus === 'On Hold'
                   ? 'gray'
                   : 'amber'
             }
           >
-            {versionStatus}
+            {stage || versionStatus}
           </StatusBadge>
-        )}
-        {action && (
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            {action}
-          </div>
-        )}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          {action}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onEdit}
+            disabled={editDisabled || !onEdit}
+            aria-label="Edit project information"
+          >
+            <Pencil className="size-3.5" aria-hidden="true" />
+            Edit
+          </Button>
+        </div>
       </div>
-    </div>
+      {error && (
+        <p role="alert" className="border-t px-3 py-2 text-xs text-destructive">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }

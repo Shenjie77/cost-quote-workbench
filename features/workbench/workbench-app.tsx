@@ -4,6 +4,8 @@
  */
 
 'use client';
+import { ContextBand } from '@/features/projects/project-context-band';
+
 import { readableFileStem, exportTimestamp } from '../../lib/file-names';
 
 import {
@@ -2256,6 +2258,35 @@ function ProjectSessionApp({
     setOpenProjectIds(remaining);
   };
 
+  /** Reuse the project editor and existing save guards from every project context bar. */
+  const editProjectInformation = (project: Project) => {
+    if (
+      quoteExportingRef.current ||
+      switchingRef.current ||
+      versionTransitionRef.current ||
+      !isReady
+    ) {
+      setNotice('请等待当前保存或导出完成后编辑项目。');
+      return;
+    }
+    void (async () => {
+      if (project.id === activeProjectId && !(await saveNow())) {
+        setNotice(
+          'Resolve the current save error before editing project information.',
+        );
+        return;
+      }
+      if (!switchingRef.current && !versionTransitionRef.current)
+        setEditTarget(project);
+    })();
+  };
+  const projectContext = {
+    companyUrl: ssr.companyUrl,
+    cpqUrl: ssr.cpqUrl,
+    onEdit: () => editProjectInformation(activeProject),
+    editDisabled: !isReady || quoteExporting || isVersionTransitioning,
+  };
+
   // Feature views receive explicit data and callbacks; session lifecycles remain above.
   const workflowFeedback = workflowRestoreFeedback(
     isReady,
@@ -2292,27 +2323,7 @@ function ProjectSessionApp({
         onOpenQuote={(project) => openProjectModule(project, 'quote')}
         onTrackWorkflow={openProjectWorkflow}
         onCreateProject={() => setPanel({ type: 'new-project' })}
-        onEditProject={(project) => {
-          if (
-            quoteExportingRef.current ||
-            switchingRef.current ||
-            versionTransitionRef.current ||
-            !isReady
-          ) {
-            setNotice('请等待当前保存或导出完成后编辑项目。');
-            return;
-          }
-          void (async () => {
-            if (project.id === activeProjectId && !(await saveNow())) {
-              setNotice(
-                'Resolve the current save error before editing project information.',
-              );
-              return;
-            }
-            if (!switchingRef.current && !versionTransitionRef.current)
-              setEditTarget(project);
-          })();
-        }}
+        onEditProject={editProjectInformation}
         onDeleteProject={(project) => {
           setDeleteTarget(project);
           setDeleteError('');
@@ -2324,6 +2335,7 @@ function ProjectSessionApp({
     content = (
       <CostView
         businessUnits={costBusinessUnits}
+        projectContext={projectContext}
         onSave={() =>
           isReady && !switchingRef.current && !versionTransitionRef.current
             ? saveNow()
@@ -2485,6 +2497,7 @@ function ProjectSessionApp({
   else if (activeView === 'quote')
     content = (
       <QuoteView
+        projectContext={projectContext}
         costSnapshot={buildCostExportSnapshot({
           activeVersion,
           versionStatus:
@@ -2804,12 +2817,28 @@ function ProjectSessionApp({
                 }}
               />
             )}
+            {(activeView === 'cpq' || activeView === 'maintenance') && (
+              <ContextBand
+                {...projectContext}
+                project={exportProject}
+                proposalNumber={ssr.proposalNumber}
+                costVersion={activeVersion}
+                versionStatus={
+                  synchronizedVersions.find(
+                    (version) => version.code === activeVersion,
+                  )?.state || 'Draft'
+                }
+              />
+            )}
             {workflowTarget && (
               <div
                 hidden={activeView !== 'workflow'}
                 inert={activeView !== 'workflow'}
               >
                 <ProjectWorkflowPage
+                  onEditProject={() =>
+                    editProjectInformation(workflowTarget.project)
+                  }
                   key={`${workflowTarget.project.id}:${workflowPageKey}`}
                   project={workflowTarget.project}
                   navigationRequest={workflowNavigationRequest}

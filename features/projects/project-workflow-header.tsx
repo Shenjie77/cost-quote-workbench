@@ -1,6 +1,9 @@
+import { ContextBand } from './project-context-band';
+import { safeProjectReferenceUrl } from './project-reference-link';
+export { safeProjectReferenceUrl } from './project-reference-link';
 /** Compact project context and editable references shared by the workflow tasks. */
 import { useState } from 'react';
-import { ArrowLeft, ArrowUpRight, Pencil, RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -9,25 +12,6 @@ import type { ProjectWorkflowMeta } from './project-workflow-dialog';
 
 type LinkField = 'companyUrl' | 'cpqUrl';
 type EditedLinks = Partial<Record<LinkField, boolean>>;
-
-/** References may contain legacy notes; only explicit web addresses are links. */
-export function safeProjectReferenceUrl(value?: string): string | null {
-  const address = value?.trim();
-  if (!address || !/^https?:\/\/\S+$/i.test(address)) return null;
-  try {
-    const parsed = new URL(address);
-    if (
-      !['http:', 'https:'].includes(parsed.protocol) ||
-      !parsed.hostname ||
-      parsed.username ||
-      parsed.password
-    )
-      return null;
-    return parsed.href;
-  } catch {
-    return null;
-  }
-}
 
 /** An existing free-text reference must not block an unrelated proposal edit. */
 export function projectReferenceLinkErrors(
@@ -43,31 +27,6 @@ export function projectReferenceLinkErrors(
           !safeProjectReferenceUrl(value[field]),
       )
       .map((field) => [field, 'Enter a full http:// or https:// address.']),
-  );
-}
-
-/** Render a readable web link or the saved reference status without changing the underlying value. */
-function ReferenceLink({ label, value }: { label: string; value?: string }) {
-  const href = safeProjectReferenceUrl(value);
-  return href ? (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`Open ${label} in a new tab`}
-      title={href}
-      className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary underline-offset-4 hover:bg-primary/5 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
-    >
-      {label}
-      <ArrowUpRight className="size-3" aria-hidden="true" />
-    </a>
-  ) : (
-    <span
-      className="px-1.5 py-0.5 text-xs text-muted-foreground"
-      title={value?.trim() || `${label} link is not set`}
-    >
-      {label}: {value?.trim() ? 'Reference only' : 'Not set'}
-    </span>
   );
 }
 
@@ -268,6 +227,8 @@ export type ProjectWorkflowHeaderProps = {
   project: Project;
   round: string;
   currency?: string;
+  onEditProject?: () => void;
+  status?: string;
   value: ProjectWorkflowMeta;
   /** Latest canonical references distinguish draft edits from legacy link text. */
   savedValue?: ProjectWorkflowMeta;
@@ -288,7 +249,8 @@ export type ProjectWorkflowHeaderProps = {
 export function ProjectWorkflowHeader({
   project,
   round,
-  currency = 'SGD',
+  onEditProject,
+  status,
   value,
   savedValue,
   dirty,
@@ -358,79 +320,57 @@ export function ProjectWorkflowHeader({
       aria-label="Project Workflow Info"
       className="wb-panel min-w-0 px-3 py-2"
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Back from Workflow"
-          title="Back from Workflow"
-          onClick={onBack}
-          disabled={disabled}
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
-        </Button>
-        <h2 className="min-w-0 flex-1 basis-48 break-words text-base font-semibold leading-6 tracking-tight text-primary">
-          {project.name || project.nameZh || project.id}
-        </h2>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {onSetHold && (
-            <ProjectWorkflowHoldControl
-              onHold={onHold}
-              onSetHold={onSetHold}
-              disabled={disabled || holdDisabled}
-            />
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={refresh}
-            disabled={disabled}
-          >
-            <RefreshCw className="size-3.5" aria-hidden="true" />
-            Refresh
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onOpenCost}
-            disabled={disabled}
-          >
-            Open Cost
-          </Button>
-        </div>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-        <dl className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
-          {[
-            ['Project ID', project.id],
-            ['Client', project.client || project.clientZh || 'Not set'],
-            ['Currency', currency],
-            ['Round', round],
-            ['Proposal', value.proposalNumber || 'Not set'],
-          ].map(([label, text]) => (
-            <div key={label} className="flex min-w-0 items-baseline gap-1.5">
-              <dt className="shrink-0 text-muted-foreground">{label}</dt>
-              <dd className="break-words font-medium">{text}</dd>
+      <ContextBand
+        project={project}
+        proposalNumber={value.proposalNumber}
+        companyUrl={value.companyUrl}
+        cpqUrl={value.cpqUrl}
+        costVersion={round}
+        versionLabel="Current Round"
+        versionStatus={status || (onHold ? 'On Hold' : 'In Progress')}
+        onEdit={onEditProject || (() => setEditing((current) => !current))}
+        editDisabled={disabled}
+        action={
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Back from Workflow"
+              title="Back from Workflow"
+              onClick={onBack}
+              disabled={disabled}
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+            </Button>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {onSetHold && (
+                <ProjectWorkflowHoldControl
+                  onHold={onHold}
+                  onSetHold={onSetHold}
+                  disabled={disabled || holdDisabled}
+                />
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={refresh}
+                disabled={disabled}
+              >
+                <RefreshCw className="size-3.5" aria-hidden="true" />
+                Refresh
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onOpenCost}
+                disabled={disabled}
+              >
+                Open Cost
+              </Button>
             </div>
-          ))}
-        </dl>
-        <div className="flex flex-wrap items-center gap-1">
-          <ReferenceLink label="iSales / Company" value={value.companyUrl} />
-          <ReferenceLink label="CPQ" value={value.cpqUrl} />
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto"
-          disabled={disabled}
-          aria-expanded={editing}
-          onClick={() => setEditing((current) => !current)}
-        >
-          <Pencil className="size-3" aria-hidden="true" />
-          {editing ? 'Close Info' : 'Edit Info'}
-          {dirty && <span className="text-amber-700">*</span>}
-        </Button>
-      </div>
+          </div>
+        }
+      />
       {!editing && (
         <div className="mt-2 grid min-w-0 gap-x-4 gap-y-1 lg:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)]">
           <ReferenceText label="Scope Brief" value={value.scopeBrief} />

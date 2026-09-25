@@ -103,9 +103,6 @@ test('compact read view includes identity and references together, with actionab
   assert.match(html, /aria-label="Project Workflow Info"/);
   for (const text of [
     'test2',
-    'PRJ-2026-460042',
-    'Client A',
-    'SGD',
     'V2',
     value.proposalNumber,
     value.scopeBrief,
@@ -121,8 +118,16 @@ test('compact read view includes identity and references together, with actionab
     (html.match(/target="_blank" rel="noopener noreferrer"/g) || []).length,
     2,
   );
-  assert.match(html, /Edit Info/);
+  assert.match(html, /Edit project information/);
   assert.doesNotMatch(html, /<form|<input|<textarea|Project References/);
+  assert.doesNotMatch(html, /Project ID|Currency|Latest Version/);
+  const labels = ['test2', 'Proposal Number', 'iSales', 'CPQ', 'Folder', 'Current Round', 'Status', 'Edit project information'];
+  let cursor = -1;
+  for (const label of labels) {
+    const next = html.indexOf(label, cursor + 1);
+    assert.ok(next > cursor, label);
+    cursor = next;
+  }
   assert.deepEqual(value, before);
 });
 

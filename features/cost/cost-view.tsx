@@ -39,7 +39,10 @@ import {
 } from '@/features/cost/domain';
 import type { TravelCostRow } from '@/features/cost/additional-travel-domain';
 import type { CostViewKey } from '@/features/cost/ui-types';
-import { ContextBand } from '@/features/projects/project-context-band';
+import {
+  ContextBand,
+  type ProjectContextActions,
+} from '@/features/projects/project-context-band';
 import { formatSgd } from '@/lib/formatters';
 
 /** Compose the current version's cost inputs, summaries and export controls. */
@@ -79,6 +82,7 @@ export function CostView({
   project,
   proposalNumber,
   onProposalNumberChange,
+  projectContext,
   announce,
 }: {
   businessUnits?: BusinessUnitOption[];
@@ -114,6 +118,7 @@ export function CostView({
   manualCosts: ManualCostInputs;
   setManualCosts: React.Dispatch<React.SetStateAction<ManualCostInputs>>;
   project: CostExportSnapshot['project'];
+  projectContext?: ProjectContextActions;
   proposalNumber?: string;
   onProposalNumberChange?: (value: string) => void;
   announce: (message: string) => void;
@@ -274,6 +279,7 @@ export function CostView({
         </output>
       )}
       <ContextBand
+        {...projectContext}
         project={project}
         proposalNumber={proposalNumber}
         onProposalNumberChange={onProposalNumberChange}
