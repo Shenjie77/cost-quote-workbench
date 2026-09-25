@@ -440,41 +440,36 @@ test('failed promise selection preserves query, and unmount ignores a later succ
   assert.equal(next.input().props['aria-expanded'], false);
 });
 
-test('tag editor creates and reuses multiple labels, supports removal and ignores composing Enter', () => {
+test('tag assignment selects only catalog labels, supports multiple selections and preserves retired assignments', () => {
   const props = {
-    value: [],
-    suggestions: ['Data Centre'],
+    value: ['Retired'],
+    suggestions: ['Data Centre', '维保'],
     disabled: false,
     onChange: (tags) => {
       props.value = tags;
     },
   };
   const h = harness(props, ProjectTagsInput);
-  const input = () =>
+  const checkbox = (name) =>
     elements(h.render()).find(
-      (node) => node.props['aria-label'] === 'New or existing project tag',
+      (node) => node.props['aria-label'] === `Assign tag ${name}`,
     );
-  const enter = (nativeEvent = {}) =>
-    input().props.onKeyDown({ key: 'Enter', nativeEvent, preventDefault() {} });
-  input().props.onChange({ target: { value: 'data centre' } });
-  enter({ isComposing: true });
-  assert.deepEqual(props.value, []);
-  enter();
-  assert.deepEqual(props.value, ['Data Centre']);
-  input().props.onChange({ target: { value: '维保' } });
-  enter();
+  checkbox('Data Centre').props.onChange({ target: { checked: true } });
+  checkbox('维保').props.onChange({ target: { checked: true } });
+  assert.deepEqual(props.value, ['Retired', 'Data Centre', '维保']);
+  checkbox('Retired').props.onChange({ target: { checked: true } });
+  assert.equal(props.value.length, 3);
+  checkbox('Retired').props.onChange({ target: { checked: false } });
   assert.deepEqual(props.value, ['Data Centre', '维保']);
-  elements(h.render())
-    .find((node) => node.props['aria-label'] === 'Remove tag Data Centre')
-    .props.onClick();
-  assert.deepEqual(props.value, ['维保']);
+  assert.equal(
+    elements(h.render()).some(
+      (node) => node.props['aria-label'] === 'New or existing project tag',
+    ),
+    false,
+  );
   props.disabled = true;
-  input().props.onChange({ target: { value: 'Blocked' } });
-  enter();
-  elements(h.render())
-    .find((node) => node.props['aria-label'] === 'Remove tag 维保')
-    .props.onClick();
-  assert.deepEqual(props.value, ['维保']);
+  checkbox('Data Centre').props.onChange({ target: { checked: false } });
+  assert.deepEqual(props.value, ['Data Centre', '维保']);
 });
 
 test('portfolio tag selector and tag chips filter projects and allow returning to all projects', () => {

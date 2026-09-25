@@ -47,7 +47,7 @@ test('global catalogs can be read and maintained without any project', () => {
   try {
     assert.equal(initializeGlobalMasterData(db), true);
     const store = makeGlobalMasterDataStore(db);
-    assert.equal(store.all().length, 10);
+    assert.equal(store.all().length, 11);
     const current = store.get('resources');
     assert.equal(current.scope, 'global');
     assert.equal(current.initializedFrom, 'defaults');
@@ -586,6 +586,70 @@ test('pagination and CPQ equipment quantity rules are validated independently', 
         1,
       ).items.length,
       1,
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('tag catalog migrates existing labels once, preserves project snapshots and has independent revision checks', () => {
+  const db = database();
+  try {
+    seed(db, 'TAG-PROJECT', { projectTags: ['Data Centre', '维保'] });
+    initializeGlobalMasterData(db);
+    // Simulate a database initialized before the new tab existed.
+    db.prepare("DELETE FROM master_data_tabs WHERE tab = 'project-tags'").run();
+    db.prepare(
+      "DELETE FROM master_data_revisions WHERE tab = 'project-tags'",
+    ).run();
+    const before = db.prepare('SELECT * FROM workspace_snapshots').all();
+    const store = makeGlobalMasterDataStore(db);
+    const tags = store.get('project-tags');
+    assert.deepEqual(
+      tags.items.map((item) => item.name).sort(),
+      ['Data Centre', '维保'].sort(),
+    );
+    const updated = store.update(
+      'project-tags',
+      { upsert: [{ ...tags.items[0], active: false }] },
+      tags.revision,
+    );
+    assert.equal(updated.revision, 2);
+    assert.throws(
+      () =>
+        store.update(
+          'project-tags',
+          {
+            upsert: [
+              {
+                id: 'duplicate',
+                name: tags.items[0].name.toLowerCase(),
+                active: true,
+              },
+            ],
+          },
+          2,
+        ),
+      /duplicate|unique/i,
+    );
+    assert.throws(
+      () =>
+        store.update(
+          'project-tags',
+          { upsert: [{ id: 'new', name: 'New', active: true }] },
+          1,
+        ),
+      /changed|revision|reload/i,
+    );
+    assert.deepEqual(
+      db.prepare('SELECT * FROM workspace_snapshots').all(),
+      before,
+    );
+    assert.equal(
+      store
+        .get('project-tags')
+        .items.find((item) => item.id === tags.items[0].id).active,
+      false,
     );
   } finally {
     db.close();

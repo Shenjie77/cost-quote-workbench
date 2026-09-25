@@ -262,9 +262,10 @@ export function ProjectSearch({
                     </span>
                     <span
                       className="mt-0.5 block truncate text-[11px] text-muted-foreground"
-                      title={`${project.proposalNumber || project.id} · ${project.client}`}
+                      title={`${project.proposalNumber || project.name} · ${project.client}`}
                     >
-                      {project.proposalNumber || project.id} · {project.client}
+                      {project.proposalNumber || project.name} ·{' '}
+                      {project.client}
                     </span>
                     <span className="mt-1 block text-[11px] leading-4 text-muted-foreground [overflow-wrap:anywhere]">
                       {workflow}

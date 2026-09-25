@@ -572,6 +572,7 @@ export async function downloadCombinedQuoteWorkbook(
   input: CombinedQuoteWorkbookInput,
 ) {
   const captured = structuredClone(input);
+  captured.costSnapshot.exportedAt = new Date().toISOString();
   const bytes = await buildCombinedQuoteWorkbookBytes(captured);
   const fileName = getSimpleCostWorkbookFileName(captured.costSnapshot).replace(
     /^Cost_Simple_/,

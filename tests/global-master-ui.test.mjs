@@ -253,7 +253,7 @@ test('load error preserves tab navigation and disables data mutation', () => {
   const tabs = [
     ...markup.matchAll(/<button\b[^>]*role="tab"[^>]*>[\s\S]*?<\/button>/g),
   ].map(([button]) => button);
-  assert.equal(tabs.length, 9);
+  assert.equal(tabs.length, 10);
   assert.ok(tabs.some((tab) => tab.includes('CPQ Catalog')));
   for (const tab of tabs)
     assert.doesNotMatch(tab, /aria-disabled="true"|\sdisabled=/);

@@ -1,14 +1,9 @@
-/** Multi-label project editor with reusable suggestions and local validation. */
+/** Project assignments select saved Master Data labels; catalog changes belong to Master Data. */
 import { useId, useState } from 'react';
-import { X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import {
-  MAX_PROJECT_TAG_LENGTH,
-  normalizeProjectTags,
-  projectTagKey,
-} from './project-tags';
+import { normalizeProjectTags, projectTagKey } from './project-tags';
 
+/** Keep existing unavailable assignments visible so retiring a global label never silently removes project data. */
 export function ProjectTagsInput({
   value,
   suggestions = [],
@@ -21,103 +16,88 @@ export function ProjectTagsInput({
   onChange: (tags: string[]) => void;
 }) {
   const id = useId();
-  const [draft, setDraft] = useState('');
+  const [query, setQuery] = useState('');
   const [error, setError] = useState('');
-  /** Add one new or suggested label; duplicates keep their existing spelling and order. */
-  const add = () => {
-    if (disabled || !draft.trim()) return;
-    try {
-      const existing = suggestions.find(
-        (tag) => projectTagKey(tag) === projectTagKey(draft),
-      );
-      onChange(normalizeProjectTags([...value, existing ?? draft]));
-      setDraft('');
-      setError('');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Invalid tag.');
-    }
-  };
+  const options = [
+    ...new Map(
+      [...suggestions, ...value].map((tag) => [projectTagKey(tag), tag]),
+    ).values(),
+  ];
   return (
     <section aria-label="Project tags" className="space-y-2">
       <label htmlFor={id} className="text-xs font-medium">
         Tags / 项目标签
       </label>
-      <div className="flex flex-wrap gap-1">
-        {value.map((tag) => (
-          <span
-            key={projectTagKey(tag)}
-            className="inline-flex max-w-full items-center gap-1 rounded border bg-muted/40 px-2 py-1 text-xs"
-          >
-            <span className="break-words">{tag}</span>
-            <button
-              type="button"
-              aria-label={`Remove tag ${tag}`}
-              disabled={disabled}
-              className="rounded focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              onClick={() => {
-                if (!disabled)
-                  onChange(
-                    value.filter(
-                      (item) => projectTagKey(item) !== projectTagKey(tag),
-                    ),
-                  );
-              }}
-            >
-              <X className="size-3" />
-            </button>
+      <Input
+        id={id}
+        aria-label="Search project tags"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Search saved tags / 搜索主数据标签"
+        disabled={disabled}
+      />
+      <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto rounded border p-2">
+        {options
+          .filter((tag) => projectTagKey(tag).includes(projectTagKey(query)))
+          .map((tag) => {
+            const selected = value.some(
+              (item) => projectTagKey(item) === projectTagKey(tag),
+            );
+            const available = suggestions.some(
+              (item) => projectTagKey(item) === projectTagKey(tag),
+            );
+            return (
+              <label
+                key={projectTagKey(tag)}
+                className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs"
+              >
+                <input
+                  type="checkbox"
+                  aria-label={`Assign tag ${tag}`}
+                  checked={selected}
+                  disabled={disabled || (!available && !selected)}
+                  onChange={(event) => {
+                    if (disabled || (event.target.checked && !available))
+                      return;
+                    try {
+                      onChange(
+                        normalizeProjectTags(
+                          event.target.checked
+                            ? [...value, tag]
+                            : value.filter(
+                                (item) =>
+                                  projectTagKey(item) !== projectTagKey(tag),
+                              ),
+                        ),
+                      );
+                      setError('');
+                    } catch (cause) {
+                      setError(
+                        cause instanceof Error
+                          ? cause.message
+                          : 'Invalid tags.',
+                      );
+                    }
+                  }}
+                />
+                {tag}
+                {!available && (
+                  <span className="text-muted-foreground">
+                    （已停用或不在目录）
+                  </span>
+                )}
+              </label>
+            );
+          })}
+        {!options.length && (
+          <span className="text-xs text-muted-foreground">
+            No tags available / 暂无可选标签
           </span>
-        ))}
+        )}
       </div>
-      <div className="flex gap-2">
-        <Input
-          id={id}
-          aria-label="New or existing project tag"
-          list={`${id}-suggestions`}
-          value={draft}
-          maxLength={MAX_PROJECT_TAG_LENGTH}
-          disabled={disabled}
-          placeholder="New or existing tag / 新建或选择标签"
-          onChange={(event) => {
-            setDraft(event.target.value);
-            setError('');
-          }}
-          onKeyDown={(event) => {
-            if (
-              event.key === 'Enter' &&
-              !event.nativeEvent.isComposing &&
-              Reflect.get(event.nativeEvent, 'keyCode') !== 229
-            ) {
-              event.preventDefault();
-              add();
-            }
-          }}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled || !draft.trim()}
-          onClick={add}
-        >
-          Add tag
-        </Button>
-      </div>
-      <datalist id={`${id}-suggestions`}>
-        {suggestions
-          .filter(
-            (tag) =>
-              !value.some(
-                (selected) => projectTagKey(selected) === projectTagKey(tag),
-              ),
-          )
-          .map((tag) => (
-            <option key={projectTagKey(tag)} value={tag}>
-              {tag}
-            </option>
-          ))}
-      </datalist>
       <p className="text-xs text-muted-foreground">
-        按 Enter 或 Add tag 添加，可分配多个标签。保存项目后生效。
+        可多选。新增或停用标签请前往 Master Data → Project
+        Tags；保存项目后生效。
       </p>
       {error && (
         <p role="alert" className="text-xs text-destructive">

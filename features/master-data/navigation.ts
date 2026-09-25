@@ -9,6 +9,7 @@ export const masterDataTabs = [
   { value: 'quote-templates', label: 'Quote Templates', labelZh: '报价模板' },
   { value: 'profit-share', label: 'Profit Share', labelZh: 'BU 分成' },
   { value: 'workflow', label: 'Workflow', labelZh: '流程节点' },
+  { value: 'project-tags', label: 'Project Tags', labelZh: '项目标签' },
   { value: 'status', label: 'Status', labelZh: '状态节点' },
 ] as const;
 

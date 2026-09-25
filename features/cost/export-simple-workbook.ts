@@ -1016,7 +1016,10 @@ export const downloadSimpleCostWorkbook = async (
   requestedLayout?: PersonnelTableLayout,
   selectedSheets?: readonly SimpleCostSheetId[],
 ) => {
-  const snapshot = structuredClone(input);
+  const snapshot = {
+    ...structuredClone(input),
+    exportedAt: new Date().toISOString(),
+  };
   const layout =
     requestedLayout === undefined
       ? undefined

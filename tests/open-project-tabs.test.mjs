@@ -53,15 +53,15 @@ test('project navigation preserves open-tab order and identifies the active proj
     React.createElement(OpenProjectTabs, props()),
   );
   assert.match(html, /aria-label="Open Projects"/);
-  assert.match(html, /title="PRJ-SECOND · test2"/);
-  assert.match(html, /title="PRJ-FIRST · Service Project"/);
+  assert.match(html, /title="test2"/);
+  assert.match(html, /title="Service Project"/);
   assert.doesNotMatch(html, /PRJ-MISSING|Unopened Project/);
-  assert.ok(html.indexOf('PRJ-SECOND') < html.indexOf('PRJ-FIRST'));
+  assert.ok(html.indexOf('test2') < html.indexOf('Service Project'));
   const active = walk(OpenProjectTabs(props())).filter(
     (node) => node.props['aria-current'] === 'page',
   );
   assert.equal(active.length, 1);
-  assert.equal(active[0].props.title, 'PRJ-SECOND · test2');
+  assert.equal(active[0].props.title, 'test2');
 });
 
 test('select and close are independent controls and retain exact project identity', () => {
@@ -76,7 +76,7 @@ test('select and close are independent controls and retain exact project identit
     ),
   );
   const select = controls.find(
-    (node) => node.props.title === 'PRJ-FIRST · Service Project',
+    (node) => node.props.title === 'Service Project',
   );
   const close = controls.find(
     (node) => node.props['aria-label'] === 'Close test2 tab',

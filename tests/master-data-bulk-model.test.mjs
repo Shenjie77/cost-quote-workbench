@@ -44,6 +44,7 @@ const samples = {
     documentTitle: 'QUOTATION',
     paymentTerms: '30 days',
   },
+  'project-tags': { name: 'Data Centre' },
   'profit-share': { bu: 'Delivery', ratePercent: 10 },
   workflow: { no: 1, name: 'Review', owner: 'Engineering' },
   status: { code: 'ACTIVE', name: 'Active' },

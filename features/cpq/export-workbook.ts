@@ -1,3 +1,4 @@
+import { exportTimestamp } from '../../lib/file-names.ts';
 /** CPQ output is an internal configuration record, never a customer quotation. */
 import type { CpqArchive } from './domain.ts';
 import {
@@ -199,7 +200,7 @@ export async function downloadCpqArchive(
   const blob = new Blob([bytes as BlobPart], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const fileName = `${archive.id}.xlsx`;
+  const fileName = `CPQ_${exportTimestamp()}.xlsx`;
   const { archiveProjectFile } = await import('../projects/project-files.ts');
   await archiveProjectFile(projectId, blob, {
     originalName: fileName,

@@ -1,4 +1,8 @@
 /** Durable project archives. File metadata and settings are independent of cost snapshots. */
+import {
+  readableFileStem,
+  readableArchiveFileName,
+} from '../lib/file-names.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   constants,
@@ -74,6 +78,25 @@ const safeSegment = (value, max = 65) =>
     .replace(/[^\p{L}\p{N}._-]+/gu, '-')
     .replace(/^[.-]+|[.-]+$/g, '')
     .slice(0, max) || 'item';
+/** Reserve readable names across case-insensitive Windows folders without overwriting user files. */
+const unusedName = (directory, original, folder = false) => {
+  const names = new Set(
+    readdirSync(directory).map((name) =>
+      name.normalize('NFKC').toLocaleLowerCase('en'),
+    ),
+  );
+  for (let duplicate = 1; duplicate <= 10000; duplicate++) {
+    const name = folder
+      ? `${readableFileStem(original, 40)}${duplicate > 1 ? ` (${duplicate})` : ''}`
+      : readableArchiveFileName(original, duplicate);
+    if (!names.has(name.normalize('NFKC').toLocaleLowerCase('en'))) return name;
+  }
+  fail(
+    'Too many files or folders with the same name.',
+    409,
+    'ARCHIVE_NAME_CONFLICT',
+  );
+};
 /** Preserve read-only source access; Windows needs write access to flush copied bytes. */
 const hashRegularFile = (filename, { flushWrites = false } = {}) => {
   const descriptor = openSync(
@@ -687,7 +710,13 @@ export const makeProjectFileStore = (db, databasePath) => {
           labels.get(row.node_code) || row.node_name || row.node_code,
           policy[row.node_code] === true,
         );
-        let target = path.join(...parts, path.basename(row.relative_path));
+        // Remove only our old generated prefix; the original user filename remains the source of truth.
+        const oldName = path.basename(row.relative_path);
+        const legacyName = oldName.startsWith(`${row.id}--`);
+        let target = path.join(
+          ...parts,
+          legacyName ? readableArchiveFileName(row.original_name) : oldName,
+        );
         if (target === row.relative_path) continue;
         const bytes = verifyFile(
           archive,
@@ -701,6 +730,24 @@ export const makeProjectFileStore = (db, databasePath) => {
           true,
         );
         let absolute = within(location(archive).projectPath, target);
+        if (
+          existsSync(absolute) &&
+          (legacyName ||
+            db
+              .prepare(
+                'SELECT 1 FROM project_files WHERE project_id = ? AND relative_path = ? AND id != ?',
+              )
+              .get(archive.project_id, target, row.id))
+        ) {
+          target = path.join(
+            ...parts,
+            unusedName(
+              path.dirname(absolute),
+              legacyName ? row.original_name : oldName,
+            ),
+          );
+          absolute = within(location(archive).projectPath, target);
+        }
         if (existsSync(absolute)) {
           try {
             verifyFile(archive, target, row.sha256, row.size_bytes);
@@ -710,7 +757,10 @@ export const makeProjectFileStore = (db, databasePath) => {
           } catch {
             target = path.join(
               ...parts,
-              `${randomUUID()}--${path.basename(row.relative_path)}`,
+              unusedName(
+                path.dirname(absolute),
+                legacyName ? row.original_name : oldName,
+              ),
             );
             absolute = within(location(archive).projectPath, target);
           }
@@ -800,7 +850,7 @@ export const makeProjectFileStore = (db, databasePath) => {
       return { archive: location(previous), ...sync };
     }
     const root = prepareRoot(getSettings().rootPath);
-    const projectFolder = `${safeSegment(id)}--${safeSegment(info.name, 45)}--${randomUUID()}`;
+    const projectFolder = unusedName(root, info.name, true);
     const projectPath = within(root, projectFolder);
     let created = false;
     try {
@@ -1035,7 +1085,22 @@ export const makeProjectFileStore = (db, databasePath) => {
       if (!archive) {
         ensureProject(id);
         archive = mapping(id);
-      } else if (existsSync(location(archive).projectPath)) syncProject(id);
+      } else if (existsSync(location(archive).projectPath)) {
+        // Upgrade only the former system-generated directory convention, using the existing copy/verify/commit move.
+        if (
+          archive.project_folder.startsWith(`${safeSegment(id)}--`) &&
+          /--[a-f0-9-]{36}$/.test(archive.project_folder)
+        ) {
+          store.moveProject(id, {
+            expectedProjectPath: location(archive).projectPath,
+            projectPath: path.join(
+              archive.root_path,
+              unusedName(archive.root_path, project(id).name, true),
+            ),
+          });
+          archive = mapping(id);
+        } else syncProject(id);
+      }
       const conditions = ['project_id = ?'];
       const values = [id];
       for (const [property, column] of [
@@ -1198,7 +1263,10 @@ export const makeProjectFileStore = (db, databasePath) => {
         const fileId = randomUUID();
         const relativePath = path.join(
           ...parts,
-          `${fileId}--${safeSegment(originalName, 130)}`,
+          unusedName(
+            within(result.archive.projectPath, path.join(...parts)),
+            originalName,
+          ),
         );
         const absolute = within(result.archive.projectPath, relativePath);
         const fd = openSync(

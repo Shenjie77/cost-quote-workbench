@@ -1,3 +1,4 @@
+import { readableFileStem, exportTimestamp } from '../../lib/file-names.ts';
 import { subcontractCostDetails } from './subcontract-domain.ts';
 import { addSubcontractWorkbookSheets } from './export-subcontract-workbook.ts';
 /**
@@ -2408,10 +2409,9 @@ export const buildCostWorkbookBytes = async (snapshot: CostExportSnapshot) => {
 
 /** Creates a filesystem-safe deterministic filename for the browser export. */
 export const getCostWorkbookFileName = (snapshot: CostExportSnapshot) => {
-  const safeProject = snapshot.project.id.replace(/[^A-Za-z0-9_-]/g, '_');
-  const safeVersion = snapshot.costVersion.code.replace(/[^A-Za-z0-9_-]/g, '_');
-  const date = snapshot.exportedAt.slice(0, 10);
-  return `Cost_${safeProject}_${safeVersion}_${date}.xlsx`;
+  const projectName = readableFileStem(snapshot.project.name);
+  const version = readableFileStem(snapshot.costVersion.code, 12);
+  return `Cost_${projectName}_${version}_${exportTimestamp(snapshot.exportedAt)}.xlsx`;
 };
 
 /**
@@ -2419,7 +2419,10 @@ export const getCostWorkbookFileName = (snapshot: CostExportSnapshot) => {
  * removed synchronously; URL revocation waits until the click has dispatched.
  */
 export const downloadCostWorkbook = async (snapshot: CostExportSnapshot) => {
-  snapshot = structuredClone(snapshot);
+  snapshot = {
+    ...structuredClone(snapshot),
+    exportedAt: new Date().toISOString(),
+  };
   const bytes = await buildCostWorkbookBytes(snapshot);
   const blobBytes = bytes.slice().buffer as ArrayBuffer;
   const blob = new Blob([blobBytes], {

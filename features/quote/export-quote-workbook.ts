@@ -1,3 +1,4 @@
+import { readableFileStem, exportTimestamp } from '../../lib/file-names.ts';
 /** Client quotation XLSX exporter used by the Pricing & Quote page. */
 
 import type { CostExportSnapshot } from '../cost/contracts.ts';
@@ -214,7 +215,7 @@ export const downloadQuoteWorkbook = async (input: QuoteWorkbookInput) => {
   const blob = new Blob([bytes], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const fileName = `${input.quoteNumber.replace(/[^A-Za-z0-9._-]+/g, '_')}.xlsx`;
+  const fileName = `Quotation_${readableFileStem(input.project.name)}_${exportTimestamp()}.xlsx`;
   const { archiveProjectFile } = await import('../projects/project-files.ts');
   await archiveProjectFile(input.project.id, blob, {
     originalName: fileName,

@@ -127,6 +127,8 @@ export function captureGlobalMasterData(
   const next = structuredClone(workspace);
   next.masterDataRevisions = {};
   for (const raw of records) {
+    // Classification is selected per project; it is not a cost or commercial snapshot.
+    if (raw.tab === 'project-tags') continue;
     const record = assertMasterCapture(raw);
     const field =
       capturedMasterFields[record.tab as keyof typeof capturedMasterFields];

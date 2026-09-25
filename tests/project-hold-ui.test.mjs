@@ -174,7 +174,7 @@ test('Project List exposes the canonical On Hold marker without changing cost ac
   const html = render(ProjectTable, props);
   assert.match(html, /On Hold \/ 已挂起/);
   assert.match(html, /On Hold · Workflow monitoring paused/);
-  assert.match(html, /HOLD-UI/);
+  assert.match(html, /Held service project/);
   assert.match(html, /Open Cost Workspace/);
   assert.doesNotMatch(html, /报价完成 · 停止提醒/);
   assert.deepEqual(values.project, before);

@@ -1,4 +1,5 @@
 'use client';
+import { exportTimestamp } from '../../lib/file-names';
 import { Fragment, useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -81,7 +82,7 @@ export function MaintenanceView({
       const blob = new Blob([new Uint8Array(bytes).buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
-      const fileName = `Maintenance_${id}.xlsx`;
+      const fileName = `Maintenance_${exportTimestamp()}.xlsx`;
       await archiveProjectFile(projectId, blob, {
         originalName: fileName,
         category: 'maintenance',

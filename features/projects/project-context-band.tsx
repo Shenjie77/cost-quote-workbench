@@ -17,7 +17,7 @@ export function ContextBand({
   onProposalNumberChange,
   action,
 }: {
-  project?: { id: string; client: string; currency?: string };
+  project?: { id: string; name?: string; client: string; currency?: string };
   stage?: string;
   stageZh?: string;
   costVersion?: string;
@@ -31,7 +31,7 @@ export function ContextBand({
   return (
     <div className="wb-toolbar min-w-0 border-b text-xs">
       <div className="flex items-center gap-1.5 font-semibold text-primary">
-        <Briefcase className="size-3.5" /> {project.id}
+        <Briefcase className="size-3.5" /> {project.name || 'Project'}
       </div>
       {/* Narrow workspaces prioritize task controls; reference fields remain one click away. */}
       <button

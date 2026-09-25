@@ -176,7 +176,7 @@ export function ProjectEditDialog({
       >
         <DialogHeader>
           <DialogTitle>Edit Project</DialogTitle>
-          <DialogDescription>{project.id}</DialogDescription>
+          <DialogDescription>{project.name}</DialogDescription>
         </DialogHeader>
         <form
           className="space-y-3"

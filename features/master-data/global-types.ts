@@ -7,6 +7,7 @@ export const GLOBAL_MASTER_DATA_TABS = [
   'assumptions',
   'quote-templates',
   'profit-share',
+  'project-tags',
   'workflow',
   'status',
   'cpq-catalog',
@@ -50,4 +51,11 @@ export type GlobalMasterDataChanges<T = Record<string, unknown>> = {
   /** Existing keys accept field updates; new keys and conflict resolutions need complete rows. */
   upsert?: (Partial<T> & Record<string, unknown>)[];
   remove?: string[];
+};
+
+/** Globally managed classification labels, independent from cost and quotation policy. */
+export type ProjectTagDefinition = {
+  id: string;
+  name: string;
+  active: boolean;
 };

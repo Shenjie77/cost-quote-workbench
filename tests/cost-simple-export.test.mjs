@@ -1,3 +1,4 @@
+import { exportTimestamp } from '../lib/file-names.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import ExcelJS from 'exceljs';
@@ -334,11 +335,12 @@ test('simple export handles direct mandays, applies shared validation and uses a
     );
     return true;
   });
-  snapshot.project.id = '../Project / test';
+  snapshot.project.id = 'internal-id';
+  snapshot.project.name = '../Project / test';
   snapshot.costVersion.code = 'V/2';
   assert.equal(
     getSimpleCostWorkbookFileName(snapshot),
-    'Cost_Simple____Project___test_V_2_2026-09-04.xlsx',
+    `Cost_Simple_..-Project - test_V-2_${exportTimestamp(snapshot.exportedAt)}.xlsx`,
   );
 });
 

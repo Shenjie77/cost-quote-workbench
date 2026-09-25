@@ -1,4 +1,5 @@
 'use client';
+import { exportTimestamp } from '../../lib/file-names';
 
 import { useEffect, useRef, useState } from 'react';
 import { Download, FileSpreadsheet, Upload } from 'lucide-react';
@@ -134,7 +135,7 @@ export function BulkImportControls({
       if (!alive.current || request !== operation.current) return;
       downloadWorkbook(
         bytes,
-        `master-data-${tab}-${includeCurrent ? 'data' : 'template'}.xlsx`,
+        `master-data-${tab}-${includeCurrent ? 'data' : 'template'}_${exportTimestamp()}.xlsx`,
       );
       announce(
         `${label} Excel ${includeCurrent ? 'data' : 'template'} downloaded.`,

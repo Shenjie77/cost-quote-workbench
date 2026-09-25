@@ -1,3 +1,4 @@
+import { readableFileStem } from '../lib/file-names.ts';
 /** Real XLSX adapters: browser side effects wait for the matching archive write. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -208,8 +209,14 @@ for (const { name, download } of [
       input.costVersion.code = 'V10';
       reply.resolve(success());
       const result = await pending;
-      const expectedName = `Cost_${name === 'Simple' ? 'Simple_' : ''}${before.project.id}_${before.costVersion.code}_${before.exportedAt.slice(0, 10)}.xlsx`;
-      assert.equal(result.fileName, expectedName);
+      const expectedName = result.fileName;
+      assert.ok(
+        expectedName.startsWith(
+          `Cost_${name === 'Simple' ? 'Simple_' : ''}${readableFileStem(before.project.name)}_${before.costVersion.code}_`,
+        ),
+      );
+      assert.match(expectedName, /_\d{8}_\d{6}_\d{3}\.xlsx$/);
+      assert.ok(!expectedName.includes(before.project.id));
       assert.equal(result.sizeBytes, bytes.byteLength);
       assert.equal(request.url.searchParams.get('originalName'), expectedName);
       assert.equal(view.blobs.length, 1);

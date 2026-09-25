@@ -321,7 +321,7 @@ function downloads(t) {
 
 test('all ten tabs expose an accessible template and import entry, with disabled catalogs protected', (t) => {
   const { ui, props, calls } = fixture(t);
-  assert.equal(masterDataTabs.length, 10);
+  assert.equal(masterDataTabs.length, 11);
   for (const tab of masterDataTabs) {
     props.tab = tab.value;
     assert.equal(
@@ -347,9 +347,9 @@ test('template and current-data downloads use the selected tab and copy draft re
   ui.button('Download RE Types Excel template').props.onClick();
   await settle();
   assert.deepEqual(calls.create, [['resources', undefined]]);
-  assert.equal(
+  assert.match(
     output.anchors[0].download,
-    'master-data-resources-template.xlsx',
+    /^master-data-resources-template_\d{8}_\d{6}_\d{3}\.xlsx$/,
   );
   assert.equal(
     output.anchors[0].clicked &&
@@ -366,7 +366,10 @@ test('template and current-data downloads use the selected tab and copy draft re
   await settle();
   assert.deepEqual(calls.create[1], ['resources', props.items]);
   assert.notEqual(calls.create[1][1], props.items);
-  assert.equal(output.anchors[1].download, 'master-data-resources-data.xlsx');
+  assert.match(
+    output.anchors[1].download,
+    /^master-data-resources-data_\d{8}_\d{6}_\d{3}\.xlsx$/,
+  );
   assert.deepEqual(calls.apply, []);
   output.timers.forEach((callback) => callback());
   assert.deepEqual(output.revoked, [

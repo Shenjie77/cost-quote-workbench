@@ -543,7 +543,7 @@ export function WorkflowPendingTaskList({
                   {project.name}
                 </p>
                 <p className="mt-0.5 break-words text-xs text-muted-foreground">
-                  {project.client} · {project.id}
+                  {project.client}
                 </p>
               </div>
               <div className="text-xs text-muted-foreground">

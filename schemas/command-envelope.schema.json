@@ -886,6 +886,7 @@
                   "workflow",
                   "status",
                   "cpq-catalog",
+                  "project-tags",
                   "profit-share"
                 ]
               },
@@ -1071,6 +1072,7 @@
                   "workflow",
                   "status",
                   "cpq-catalog",
+                  "project-tags",
                   "profit-share"
                 ]
               },

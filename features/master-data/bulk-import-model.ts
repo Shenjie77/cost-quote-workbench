@@ -1,3 +1,7 @@
+import {
+  projectTagKey,
+  normalizeProjectTags,
+} from '../projects/project-tags.ts';
 /** Spreadsheet import contracts and an atomic, side-effect-free catalog merge preview. */
 import Ajv2020, { type ValidateFunction } from 'ajv/dist/2020.js';
 import costSchema from '../../schemas/cost-export.schema.json' with { type: 'json' };
@@ -437,6 +441,21 @@ const specs: Record<GlobalMasterDataTab, BulkTabSpec> = {
       active,
     ],
   },
+  'project-tags': {
+    tab: 'project-tags',
+    label: 'Project Tags',
+    columns: [
+      id,
+      textColumn(
+        'name',
+        'Tag name',
+        'Unique project classification label.',
+        true,
+        'Data Centre',
+      ),
+      active,
+    ],
+  },
   'profit-share': {
     tab: 'profit-share',
     label: 'Business Units & Profit Share',
@@ -766,6 +785,7 @@ function newItem(tab: GlobalMasterDataTab, values: Item): Item {
       active: true,
     },
     'profit-share': { active: true },
+    'project-tags': { active: true },
     workflow: {
       code: `CUSTOM-STAGE-${crypto.randomUUID()}`,
       nameZh: '',
@@ -816,6 +836,7 @@ const definitionNames: Record<GlobalMasterDataTab, string> = {
   assumptions: 'assumptionDefinition',
   'quote-templates': 'quoteTemplate',
   'profit-share': 'profitShareRate',
+  'project-tags': 'projectTagDefinition',
   workflow: 'workflowStep',
   status: 'projectStatusDefinition',
   'cpq-catalog': 'cpqCatalogItem',
@@ -874,6 +895,11 @@ function validateItem(
       if (item.hqTravel && item.pool !== 'HQ')
         add('HQ travel applies only to HQ resources.', 'hqTravel');
     }
+    if (
+      tab === 'project-tags' &&
+      normalizeProjectTags([scalarText(item.name)])[0] !== item.name
+    )
+      add('Remove leading, trailing or repeated whitespace.', 'name');
     if (tab === 'maintenance')
       assertMaintenanceImport({ schemaVersion: '1.0.0', records: [item] });
     if (tab === 'profit-share')
@@ -945,6 +971,10 @@ function matchingItems(
       (['resources', 'subcontract', 'supplemental'].includes(tab) &&
         !!values.code &&
         values.code === item.code) ||
+      (tab === 'project-tags' &&
+        !!values.name &&
+        projectTagKey(scalarText(values.name)) ===
+          projectTagKey(scalarText(item.name))) ||
       (tab === 'profit-share' &&
         !!values.bu &&
         normalizeBu(scalarText(values.bu)) ===
@@ -1077,6 +1107,8 @@ export function previewBulkImport(
     const identitiesForItem = [`${keyField}:${String(item[keyField])}`];
     if (['resources', 'subcontract', 'supplemental'].includes(tab))
       identitiesForItem.push(`code:${String(item.code)}`);
+    if (tab === 'project-tags')
+      identitiesForItem.push(`tag:${projectTagKey(scalarText(item.name))}`);
     if (tab === 'profit-share')
       identitiesForItem.push(`bu:${normalizeBu(String(item.bu))}`);
     for (const identity of identitiesForItem) {

@@ -1,3 +1,5 @@
+import { ProjectTagsEditor } from './project-tags-editor';
+import type { ProjectTagDefinition } from './global-types';
 /**
  * Compact master-data editor. Personnel level and pricing live in one RE Type
  * record so users cannot create an invalid RE Type + Grade combination.
@@ -93,6 +95,8 @@ type Props = {
   >;
   quoteTemplates: QuoteTemplate[];
   setQuoteTemplates: React.Dispatch<React.SetStateAction<QuoteTemplate[]>>;
+  projectTags?: ProjectTagDefinition[];
+  setProjectTags?: React.Dispatch<React.SetStateAction<ProjectTagDefinition[]>>;
   profitShareRates?: ProfitShareRate[];
   setProfitShareRates?: React.Dispatch<React.SetStateAction<ProfitShareRate[]>>;
   processSteps: WorkflowStep[];
@@ -282,6 +286,8 @@ export function MasterDataView(props: Props) {
     setAssumptionLibrary,
     quoteTemplates,
     setQuoteTemplates,
+    projectTags = [],
+    setProjectTags = () => {},
     profitShareRates = [],
     setProfitShareRates = () => {},
     processSteps,
@@ -311,6 +317,7 @@ export function MasterDataView(props: Props) {
     assumptions: assumptionLibrary.length,
     'quote-templates': quoteTemplates.length,
     'profit-share': profitShareRates.length,
+    'project-tags': projectTags.length,
     workflow: processSteps.length,
     status: projectStatusDefinitions.length,
   };
@@ -1488,6 +1495,13 @@ export function MasterDataView(props: Props) {
                 library={assumptionLibrary}
                 query={query}
                 announce={announce}
+              />
+            </TabsContent>
+            <TabsContent value="project-tags" className="mt-0">
+              <ProjectTagsEditor
+                items={projectTags}
+                onChange={setProjectTags}
+                query={query}
               />
             </TabsContent>
             <TabsContent value="profit-share" className="mt-0">

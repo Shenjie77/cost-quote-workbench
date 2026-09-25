@@ -233,6 +233,11 @@ test('all master tabs have independent reads, filters and stable-ID updates', ()
       },
       1,
     );
+    repo.globalMasterData.update(
+      'project-tags',
+      { upsert: [{ id: 'tag-dc', name: 'Data Centre', active: true }] },
+      1,
+    );
     for (const [tab, [, key]] of Object.entries(GLOBAL_MASTER_TABS)) {
       const projectBefore = repo.get('P-TEST');
       const allBefore = repo.globalMasterData.all();

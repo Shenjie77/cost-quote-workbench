@@ -112,7 +112,7 @@ export function ProjectTable({
                     </span>
                   )}
                   <span className="financial-numeral mt-1 block whitespace-normal break-words text-xs text-muted-foreground">
-                    {project.id} · {project.client}
+                    {project.client}
                   </span>
                 </button>
                 {!!project.tags?.length && (

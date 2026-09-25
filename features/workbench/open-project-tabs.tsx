@@ -49,9 +49,8 @@ export function OpenProjectTabs({
               onClick={() => {
                 if (!disabled) void onSelect(project);
               }}
-              title={`${project.id} · ${project.name}`}
+              title={project.name}
             >
-              <span className="financial-numeral sr-only">{project.id}</span>
               <span className="block truncate text-xs font-medium">
                 {project.name}
               </span>

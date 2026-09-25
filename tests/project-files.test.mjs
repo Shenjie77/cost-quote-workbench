@@ -55,10 +55,7 @@ test('new project creates stable category folders; new root only affects future 
     assert.equal(initialSettings.revision, 1);
     create(f.repository);
     const first = f.repository.files.list('P-ARCHIVE');
-    assert.match(
-      path.basename(first.projectPath),
-      /P-ARCHIVE--Document-Project/,
-    );
+    assert.equal(path.basename(first.projectPath), 'Document Project');
     assert.deepEqual(readdirSync(first.projectPath).sort(), [
       'cost',
       'quotation',
@@ -1113,6 +1110,75 @@ test('legacy Finder-only version folders are pruned without removing real files 
     assert.equal(readFileSync(outside, 'utf8'), 'outside');
     assert.ok(existsSync(path.join(linked, '.DS_Store')));
     assert.equal(f.repository.get('P-ARCHIVE').revision, saved.revision);
+  } finally {
+    f.close();
+  }
+});
+
+test('readable archives keep duplicate files independent and shorten only generated legacy directories', () => {
+  const f = fixture();
+  try {
+    const before = create(f.repository);
+    const first = f.repository.files.add('P-ARCHIVE', {
+      originalName: '报价.xlsx',
+      category: 'general',
+      mimeType: 'application/octet-stream',
+      buffer: binary,
+    });
+    const second = f.repository.files.add('P-ARCHIVE', {
+      originalName: '报价.xlsx',
+      category: 'general',
+      mimeType: 'application/octet-stream',
+      buffer: binary,
+    });
+    const old = f.repository.files.list('P-ARCHIVE');
+    assert.equal(path.basename(first.relativePath), '报价.xlsx');
+    assert.equal(path.basename(second.relativePath), '报价 (2).xlsx');
+    const legacyFolder =
+      'P-ARCHIVE--Document-Project--11111111-1111-4111-8111-111111111111';
+    const legacyRoot = path.join(old.rootPath, legacyFolder);
+    renameSync(old.projectPath, legacyRoot);
+    const db = new DatabaseSync(f.database);
+    try {
+      db.prepare(
+        'UPDATE project_file_roots SET project_folder = ? WHERE project_id = ?',
+      ).run(legacyFolder, 'P-ARCHIVE');
+      for (const file of [first, second]) {
+        const legacyRelative = path.join(
+          path.dirname(file.relativePath),
+          `${file.id}--报价.xlsx`,
+        );
+        renameSync(
+          path.join(legacyRoot, file.relativePath),
+          path.join(legacyRoot, legacyRelative),
+        );
+        db.prepare(
+          'UPDATE project_files SET relative_path = ? WHERE id = ?',
+        ).run(legacyRelative, file.id);
+      }
+    } finally {
+      db.close();
+    }
+    const migrated = f.repository.files.list('P-ARCHIVE');
+    assert.equal(path.basename(migrated.projectPath), 'Document Project');
+    assert.equal(existsSync(legacyRoot), false);
+    assert.equal(
+      new Set(migrated.files.map((file) => file.relativePath)).size,
+      2,
+    );
+    for (const file of migrated.files) {
+      assert.doesNotMatch(file.relativePath, /[a-f0-9]{8}-[a-f0-9-]{27}/);
+      assert.deepEqual(
+        f.repository.files.read('P-ARCHIVE', file.id).buffer,
+        binary,
+      );
+    }
+    assert.deepEqual(f.repository.get('P-ARCHIVE').workspace, before.workspace);
+    create(f.repository, 'P-OTHER');
+    assert.equal(
+      path.basename(f.repository.files.list('P-OTHER').projectPath),
+      'Document Project (2)',
+    );
   } finally {
     f.close();
   }

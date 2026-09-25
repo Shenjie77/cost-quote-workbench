@@ -2594,14 +2594,39 @@
           ],
           "anyOf": [
             {
-              "properties": { "quoteBeforeTax": {} },
+              "properties": {
+                "quoteBeforeTax": {}
+              },
               "required": ["quoteBeforeTax"]
             },
             {
-              "properties": { "quoteAfterTax": {} },
+              "properties": {
+                "quoteAfterTax": {}
+              },
               "required": ["quoteAfterTax"]
             }
           ]
+        }
+      }
+    },
+    "projectTagDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "active"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "\\S"
+        },
+        "active": {
+          "type": "boolean"
         }
       }
     }

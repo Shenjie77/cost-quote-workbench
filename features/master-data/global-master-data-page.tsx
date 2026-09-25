@@ -24,6 +24,7 @@ import {
   type GlobalMasterDataStore,
 } from './use-global-master-data';
 import type {
+  ProjectTagDefinition,
   GlobalMasterDataConflict,
   GlobalMasterDataTab,
 } from './global-types';
@@ -496,6 +497,8 @@ export function GlobalMasterDataPage({
           setAssumptionLibrary={setter('assumptions')}
           quoteTemplates={rows<QuoteTemplate>('quote-templates')}
           setQuoteTemplates={setter('quote-templates')}
+          projectTags={rows<ProjectTagDefinition>('project-tags')}
+          setProjectTags={setter('project-tags')}
           profitShareRates={rows<ProfitShareRate>('profit-share')}
           setProfitShareRates={setter('profit-share')}
           processSteps={rows<WorkflowStep>('workflow')}

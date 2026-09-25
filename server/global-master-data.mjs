@@ -1,4 +1,9 @@
 /** Independent source catalogs. No update path reads or mutates a project. */
+import { createHash } from 'node:crypto';
+import {
+  projectTagKey,
+  normalizeProjectTags,
+} from '../features/projects/project-tags.ts';
 import { readFileSync } from 'node:fs';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { GLOBAL_MASTER_DATA_TABS } from '../features/master-data/global-types.ts';
@@ -29,6 +34,7 @@ export const GLOBAL_MASTER_TABS = {
   assumptions: ['assumptionLibrary', 'id', 'assumptionDefinition'],
   'quote-templates': ['quoteTemplates', 'id', 'quoteTemplate'],
   'profit-share': ['profitShareRates', 'id', 'profitShareRate'],
+  'project-tags': ['projectTags', 'id', 'projectTagDefinition'],
   workflow: ['processSteps', 'code', 'workflowStep'],
   status: ['projectStatusDefinitions', 'code', 'projectStatusDefinition'],
   'cpq-catalog': ['catalog', 'code', 'cpqCatalogItem'],
@@ -98,6 +104,7 @@ const keyOf = (tab, item) => item[tabSpec(tab)[1]];
 const sameIdentity = (tab, a, b) =>
   keyOf(tab, a) === keyOf(tab, b) ||
   (codedTabs.has(tab) && a.code === b.code) ||
+  (tab === 'project-tags' && projectTagKey(a.name) === projectTagKey(b.name)) ||
   (tab === 'profit-share' &&
     a.bu &&
     b.bu &&
@@ -126,6 +133,13 @@ const workflowDefinition = (item) => {
     delete definition[key];
   return definition;
 };
+/** One-time migration reads legacy labels without rewriting project snapshots. */
+const legacyTagRows = (tags) =>
+  normalizeProjectTags(tags).map((name) => ({
+    id: `tag-${createHash('sha256').update(projectTagKey(name)).digest('hex').slice(0, 16)}`,
+    name,
+    active: true,
+  }));
 const defaultCatalogs = () => ({
   resources: initialResourceTypes,
   subcontract: [],
@@ -134,6 +148,7 @@ const defaultCatalogs = () => ({
   assumptions: createAssumptionLibrary(initialQuoteAssumptions),
   'quote-templates': initialQuoteTemplates,
   'profit-share': [],
+  'project-tags': [],
   workflow: createProjectWorkflowSteps(),
   status: initialProjectStatusDefinitions,
   'cpq-catalog': [],
@@ -175,6 +190,13 @@ function validateItems(tab, items) {
       );
   }
   try {
+    if (tab === 'project-tags') {
+      const names = items.map((item) => item.name);
+      if (new Set(names.map(projectTagKey)).size !== names.length)
+        fail('Project tag names must be unique.');
+      if (names.some((name) => normalizeProjectTags([name])[0] !== name))
+        fail('Remove leading, trailing or repeated whitespace from tag names.');
+    }
     if (tab === 'profit-share') {
       const errors = validateProfitShareRates(items);
       if (errors.length) fail(errors.join(' '));
@@ -311,9 +333,11 @@ export function initializeGlobalMasterData(db) {
         // a source of company profit-share policy.
         if (tab === 'profit-share') continue;
         const items =
-          tab === 'cpq-catalog'
-            ? workspace.cpq?.catalog
-            : workspace[GLOBAL_MASTER_TABS[tab][0]];
+          tab === 'project-tags'
+            ? legacyTagRows(workspace.projectTags)
+            : tab === 'cpq-catalog'
+              ? workspace.cpq?.catalog
+              : workspace[GLOBAL_MASTER_TABS[tab][0]];
         for (const item of items || []) rows[tab].push({ item, source });
       }
     }
@@ -533,14 +557,37 @@ export function makeGlobalMasterDataStore(db) {
     'SELECT tab,revision,payload_json,updated_at FROM master_data_tabs WHERE tab = ?',
   );
   const ensureAdditiveTab = (tab) => {
-    if (tab !== 'profit-share' || select.get(tab)) return;
+    if (!['profit-share', 'project-tags'].includes(tab) || select.get(tab))
+      return;
     // A savepoint works both standalone and inside an existing repository
-    // transaction. Never reseed existing tabs or inspect project snapshots.
+    // transaction. Never reseed existing tabs. Only the first tag-catalog
+    // initialization reads legacy project labels; project snapshots stay intact.
     db.exec('SAVEPOINT initialize_profit_share');
     try {
       if (!select.get(tab)) {
         const timestamp = new Date().toISOString();
-        const payload = collectTab(tab, [], 'defaults', timestamp);
+        const entries =
+          tab === 'project-tags'
+            ? db
+                .prepare(
+                  'SELECT project_id, payload_json FROM workspace_snapshots ORDER BY project_id',
+                )
+                .all()
+                .flatMap((row) =>
+                  legacyTagRows(JSON.parse(row.payload_json).projectTags).map(
+                    (item) => ({
+                      item,
+                      source: { kind: 'project', projectId: row.project_id },
+                    }),
+                  ),
+                )
+            : [];
+        const payload = collectTab(
+          tab,
+          entries,
+          entries.length ? 'projects' : 'defaults',
+          timestamp,
+        );
         const json = JSON.stringify(payload);
         db.prepare(
           'INSERT INTO master_data_tabs (tab,revision,payload_json,updated_at) VALUES (?,1,?,?)',

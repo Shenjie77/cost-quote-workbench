@@ -4,6 +4,7 @@
  */
 
 'use client';
+import { readableFileStem, exportTimestamp } from '../../lib/file-names';
 
 import {
   useCallback,
@@ -154,10 +155,7 @@ import {
 } from './workspace-factories';
 import { ProjectView } from '@/features/projects/project-view';
 import { ProjectEditDialog } from '@/features/projects/project-edit-dialog';
-import {
-  availableProjectTags,
-  normalizeProjectTags,
-} from '@/features/projects/project-tags';
+import { normalizeProjectTags } from '@/features/projects/project-tags';
 import { applyProjectDetails } from '@/features/projects/project-details';
 import { calculateBuCostAllocation } from '@/features/quote/profit-share';
 import { getBusinessUnitOptions } from '@/features/master-data/business-units';
@@ -539,6 +537,7 @@ function ProjectSessionApp({
   // Cost selectors use saved global BU definitions, independently of captured pricing rates.
   useEffect(() => {
     if (activeView === 'cost') void loadGlobalMasterData('profit-share');
+    void loadGlobalMasterData('project-tags');
   }, [activeView, loadGlobalMasterData]);
   const costBusinessUnits = getBusinessUnitOptions(
     globalMasterData.tabs['profit-share']?.record?.items,
@@ -546,7 +545,7 @@ function ProjectSessionApp({
   const title = viewTitles[activeView];
   const projectScopedView = activeView === 'cost' || activeView === 'quote';
   const pageEyebrow = projectScopedView
-    ? `${activeView === 'cost' ? 'COST' : 'PRICING'} / ${activeProject.id}`
+    ? `${activeView === 'cost' ? 'COST' : 'PRICING'} / ${activeProject.name}`
     : title.eyebrow;
   const pageSubtitle =
     activeView === 'workflow'
@@ -1218,7 +1217,7 @@ function ProjectSessionApp({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    const fileName = `${exportProject.id}_${activeVersion}_workspace-backup.json`;
+    const fileName = `Backup_${readableFileStem(exportProject.name)}_${readableFileStem(activeVersion, 12)}_${exportTimestamp()}.json`;
     anchor.download = fileName;
     anchor.click();
     URL.revokeObjectURL(url);
@@ -2896,7 +2895,11 @@ function ProjectSessionApp({
         <ProjectEditDialog
           key={editTarget.id}
           project={editTarget}
-          tagSuggestions={availableProjectTags(portfolioProjects)}
+          tagSuggestions={(
+            globalMasterData.tabs['project-tags']?.record?.items || []
+          )
+            .filter((item) => item.active === true)
+            .map((item) => String(item.name))}
           onClose={() => setEditTarget(null)}
           onSave={async (details, baseline) => {
             const targetId = editTarget.id;
