@@ -1,3 +1,7 @@
+import {
+  calculateComponentMaintenance,
+  maintenanceGridDraft,
+} from '../maintenance/component-pricing';
 import { MaintenanceSummary } from '../maintenance/maintenance-summary';
 import { emptyMaintenance } from '../maintenance/domain';
 import type { MaintenanceWorkspace } from '../maintenance/domain';
@@ -158,6 +162,18 @@ export function QuoteView({
     costAllocation,
     costSnapshot,
   );
+  // Use the same annual maintenance calculation as the detail grid and export.
+  let quoteWithMaintenance: number | undefined;
+  try {
+    if (result.valid)
+      quoteWithMaintenance =
+        result.quoteBeforeTax +
+        calculateComponentMaintenance(
+          maintenanceGridDraft(maintenance ?? emptyMaintenance()),
+        ).quote;
+  } catch {
+    /* Invalid maintenance stays unavailable until its inputs are corrected. */
+  }
   const effectiveQuoteAssumptions = quoteAssumptions.filter(
     (row) => !isRetiredQuoteAssumption(row),
   );
@@ -500,6 +516,13 @@ export function QuoteView({
                   zh="销售毛利率（扣除分成）"
                 />
               </TableHead>
+              <TableHead className="border-l border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
+                <BiText
+                  zhClassName="text-white/70"
+                  en="Quote + Maintenance"
+                  zh="含维保总报价"
+                />
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -534,6 +557,11 @@ export function QuoteView({
                 <span className="block text-xs text-muted-foreground">
                   {result.valid ? formatSgd(result.salesGrossProfit) : '—'}
                 </span>
+              </TableCell>
+              <TableCell className="financial-numeral border-l bg-accent/60 px-3 text-right font-semibold text-primary">
+                {quoteWithMaintenance === undefined
+                  ? '—'
+                  : formatSgd(quoteWithMaintenance)}
               </TableCell>
             </TableRow>
           </TableBody>
@@ -595,11 +623,7 @@ export function QuoteView({
         ) : null}
       </section>
       <section className="wb-panel overflow-hidden">
-        <div className="wb-toolbar border-b">
-          <h2 className="text-sm font-semibold text-primary">
-            Maintenance / 维保报价
-          </h2>
-        </div>
+        <SectionHeading index="02" title="Maintenance" titleZh="维保报价" />
         <MaintenanceSummary
           value={maintenance ?? emptyMaintenance()}
           serviceQuote={result.quoteBeforeTax}
@@ -608,7 +632,7 @@ export function QuoteView({
       </section>
       <section className="wb-panel">
         <SectionHeading
-          index="02"
+          index="03"
           title="Quote Assumptions"
           titleZh="报价假设"
           description="Included rows are written into the generated client workbook."
@@ -725,7 +749,7 @@ export function QuoteView({
 
       <section className="wb-panel">
         <SectionHeading
-          index="03"
+          index="04"
           title="Quotation History"
           titleZh="报价历史"
           description="Every generated file creates a frozen value reference; manual records are also supported."
