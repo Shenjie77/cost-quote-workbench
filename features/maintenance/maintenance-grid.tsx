@@ -75,10 +75,13 @@ function NumberCell({
   onCommit: (value: number) => void;
   disabled: boolean;
 }) {
-  const [draft, setDraft] = useState(String(value || '')),
+  const [draft, setDraft] = useState(
+      integer ? String(value) : value.toFixed(2),
+    ),
     [error, setError] = useState(false);
   const commit = () => {
-    if (disabled || draft === String(value || '')) return;
+    if (disabled || draft === (integer ? String(value) : value.toFixed(2)))
+      return;
     const next = Number(draft);
     const valid =
       Number.isFinite(next) &&
@@ -87,7 +90,10 @@ function NumberCell({
       (!integer || Number.isInteger(next)) &&
       Math.abs(next * 100 - Math.round(next * 100)) < 1e-6;
     setError(!valid);
-    if (valid) onCommit(next);
+    if (valid) {
+      setDraft(integer ? String(next) : next.toFixed(2));
+      onCommit(next);
+    }
   };
   return (
     <Input
@@ -108,7 +114,7 @@ function NumberCell({
       onKeyDown={(e) => {
         if (e.key === 'Enter') commit();
         if (e.key === 'Escape') {
-          setDraft(String(value || ''));
+          setDraft(integer ? String(value) : value.toFixed(2));
           setError(false);
         }
       }}
@@ -195,9 +201,13 @@ function ResizeHandle({
 function HistoryCell({
   model,
   records,
+  onApply,
+  disabled,
 }: {
   model: string;
   records: MaintenancePriceRecord[];
+  onApply: (ct: number, spms: number) => void;
+  disabled: boolean;
 }) {
   const matches = model.trim() ? maintenanceCandidates(records, model) : [];
   return (
@@ -218,22 +228,47 @@ function HistoryCell({
           <Table>
             <TableHeader>
               <TableRow>
-                {['Client', 'Date', 'SLA', 'Annual Price', 'Source'].map(
-                  (label) => (
-                    <TableHead key={label}>{label}</TableHead>
-                  ),
-                )}
+                {[
+                  'Client',
+                  'Year',
+                  'CT',
+                  'SPMS',
+                  'U/P',
+                  'Project',
+                  'Action',
+                ].map((label) => (
+                  <TableHead key={label}>{label}</TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
               {matches.map(({ record, unitAnnualQuote }) => (
                 <TableRow key={record.id}>
                   <TableCell>{record.client}</TableCell>
-                  <TableCell>{record.quoteDate}</TableCell>
-                  <TableCell>{record.serviceLevel}</TableCell>
+                  <TableCell>
+                    {record.quotedYear ?? record.quoteDate.slice(0, 4)}
+                  </TableCell>
+                  <TableCell>
+                    {record.ct === undefined ? '—' : money(record.ct)}
+                  </TableCell>
+                  <TableCell>
+                    {record.spms === undefined ? '—' : money(record.spms)}
+                  </TableCell>
                   <TableCell>{money(unitAnnualQuote)}</TableCell>
                   <TableCell className="whitespace-normal">
-                    {record.source}
+                    {record.project ?? record.source}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={disabled}
+                      onClick={() =>
+                        onApply(record.ct ?? unitAnnualQuote, record.spms ?? 0)
+                      }
+                    >
+                      采用价格
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -384,7 +419,12 @@ export function MaintenanceGrid({
                 <span className="px-2">{money(totals.get(row.id) ?? 0)}</span>
               </TableCell>
               <TableCell>
-                <HistoryCell model={row.model} records={records} />
+                <HistoryCell
+                  model={row.model}
+                  records={records}
+                  disabled={disabled}
+                  onApply={(ct, spms) => onPatch(row.id, { ct, spms })}
+                />
               </TableCell>
               <TableCell>
                 <textarea

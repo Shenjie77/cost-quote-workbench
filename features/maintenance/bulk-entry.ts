@@ -1,3 +1,4 @@
+import { roundMoney } from '../cost/domain.ts';
 /** Parse pasted Excel rows without requiring history, SLA, site or remarks. */
 import { readBulkTable } from '../cost/bulk-table-reader.ts';
 import { newMaintenanceLine } from './component-pricing.ts';
@@ -33,11 +34,6 @@ export function parseMaintenanceBulk(text: string): {
       !Number.isInteger(values[2]) ||
       values[2] > 1e6 ||
       values[3] > 100 ||
-      values
-        .slice(0, 2)
-        .some(
-          (value) => Math.abs(value * 100 - Math.round(value * 100)) > 1e-6,
-        ) ||
       model.length > 500 ||
       remark.length > 10000 ||
       description.length > 10000
@@ -50,8 +46,8 @@ export function parseMaintenanceBulk(text: string): {
     rows.push({
       ...newMaintenanceLine(0),
       model,
-      ct: values[0],
-      spms: values[1],
+      ct: roundMoney(values[0]),
+      spms: roundMoney(values[1]),
       quantity: values[2],
       durationYears: values[3],
       remark,

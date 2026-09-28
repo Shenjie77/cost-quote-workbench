@@ -1,3 +1,4 @@
+import { MaintenancePriceInput } from '../maintenance/price-input';
 import { ProjectTagsEditor } from './project-tags-editor';
 import type { ProjectTagDefinition } from './global-types';
 /**
@@ -377,7 +378,14 @@ export function MasterDataView(props: Props) {
     matches(row.code, row.name, row.statementCode, row.owner),
   );
   const maintenance = maintenancePriceRecords.filter((row) =>
-    matches(row.client, row.service, row.productModel, row.site, row.source),
+    matches(
+      row.client,
+      row.service,
+      row.productModel,
+      row.project,
+      row.site,
+      row.source,
+    ),
   );
   const statuses = projectStatusDefinitions.filter((row) =>
     matches(row.code, row.name, row.nameZh, row.active),
@@ -491,6 +499,10 @@ export function MasterDataView(props: Props) {
       ...rows,
       {
         id: newRecordId('mh'),
+        ct: 0,
+        spms: 0,
+        quotedYear: new Date().getFullYear(),
+        project: '',
         client: 'New Client',
         service: 'Maintenance Service',
         productModel: 'TBD Model',
@@ -1306,26 +1318,20 @@ export function MasterDataView(props: Props) {
                 </div>
               </div>
               <div className="min-w-0">
-                <Table className="min-w-[1400px]">
+                <Table className="min-w-[900px] [&_td]:border [&_th]:border">
                   <TableHeader>
-                    <TableRow className="bg-muted/60">
+                    <TableRow>
                       {[
+                        'Model',
                         'Client',
-                        'Service',
-                        'Product / Model',
-                        'Service Level',
-                        'Site',
-                        'Months',
-                        'Qty',
-                        'Cost',
-                        'Quoted',
-                        'Unit / Year',
-                        'Quote Date',
-                        'Outcome',
-                        'Source',
-                        'Action / 操作',
-                      ].map((h) => (
-                        <TableHead key={h}>{h}</TableHead>
+                        'CT',
+                        'SPMS',
+                        'U/P',
+                        'Quoted Year',
+                        'Project',
+                        'Action',
+                      ].map((label) => (
+                        <TableHead key={label}>{label}</TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
@@ -1334,141 +1340,110 @@ export function MasterDataView(props: Props) {
                       <TableRow key={row.id}>
                         <TableCell>
                           <EditCell
-                            value={row.client}
-                            ariaLabel="Client"
-                            onChange={(v) =>
-                              updateMaintenance(row.id, 'client', v)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            value={row.service}
-                            ariaLabel="Service"
-                            onChange={(v) =>
-                              updateMaintenance(row.id, 'service', v)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
                             value={row.productModel}
                             ariaLabel="Product model"
-                            onChange={(v) =>
-                              updateMaintenance(row.id, 'productModel', v)
+                            onChange={(value) =>
+                              updateMaintenance(row.id, 'productModel', value)
                             }
                           />
                         </TableCell>
                         <TableCell>
                           <EditCell
-                            value={row.serviceLevel}
-                            ariaLabel="Service level"
-                            onChange={(v) =>
-                              updateMaintenance(row.id, 'serviceLevel', v)
+                            value={row.client}
+                            ariaLabel="Client"
+                            onChange={(value) =>
+                              updateMaintenance(row.id, 'client', value)
                             }
                           />
                         </TableCell>
-                        <TableCell>
-                          <EditCell
-                            value={row.site}
-                            ariaLabel="Site"
-                            onChange={(v) =>
-                              updateMaintenance(row.id, 'site', v)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            type="number"
-                            value={row.coverageMonths}
-                            ariaLabel="Coverage months"
-                            onChange={(v) =>
-                              updateMaintenance(
-                                row.id,
-                                'coverageMonths',
-                                Math.max(0, Number(v) || 0),
-                              )
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            type="number"
-                            value={row.quantity}
-                            ariaLabel="Quantity"
-                            onChange={(v) =>
-                              updateMaintenance(
-                                row.id,
-                                'quantity',
-                                Math.max(0, Number(v) || 0),
-                              )
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            type="number"
-                            value={row.costAmount}
-                            ariaLabel="Cost amount"
-                            onChange={(v) =>
-                              updateMaintenance(
-                                row.id,
-                                'costAmount',
-                                roundMoney(Number(v) || 0),
-                              )
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditCell
-                            type="number"
-                            value={row.quotedAmount}
-                            ariaLabel="Quoted amount"
-                            onChange={(v) =>
-                              updateMaintenance(
-                                row.id,
-                                'quotedAmount',
-                                roundMoney(Number(v) || 0),
-                              )
-                            }
-                          />
-                        </TableCell>
+                        {(['ct', 'spms'] as const).map((field) => (
+                          <TableCell key={field}>
+                            <MaintenancePriceInput
+                              key={`${row.id}-${field}-${row[field]}`}
+                              value={row[field]}
+                              label={field.toUpperCase()}
+                              onChange={(value) =>
+                                setMaintenancePriceRecords((current) =>
+                                  current.map((item) => {
+                                    if (item.id !== row.id) return item;
+                                    const ct =
+                                      field === 'ct'
+                                        ? roundMoney(Number(value) || 0)
+                                        : (item.ct ??
+                                          unitAnnualMaintenanceQuote(item) ??
+                                          0);
+                                    const spms =
+                                      field === 'spms'
+                                        ? roundMoney(Number(value) || 0)
+                                        : (item.spms ?? 0);
+                                    return {
+                                      ...item,
+                                      ct,
+                                      spms,
+                                      quotedAmount: roundMoney(ct + spms),
+                                      coverageMonths: 12,
+                                      quantity: 1,
+                                    };
+                                  }),
+                                )
+                              }
+                            />
+                          </TableCell>
+                        ))}
                         <TableCell className="financial-numeral">
-                          {unitAnnualMaintenanceQuote(row) === null
-                            ? '不可比较'
-                            : formatSgd(unitAnnualMaintenanceQuote(row)!)}
+                          {formatSgd(unitAnnualMaintenanceQuote(row) ?? 0)}
                         </TableCell>
                         <TableCell>
                           <EditCell
-                            type="date"
-                            value={row.quoteDate}
-                            ariaLabel="Quote date"
-                            onChange={(v) =>
-                              updateMaintenance(row.id, 'quoteDate', v)
+                            type="number"
+                            value={
+                              row.quotedYear ??
+                              Number(row.quoteDate.slice(0, 4))
                             }
+                            ariaLabel="Quoted year"
+                            onChange={(value) => {
+                              const year = Number(value);
+                              if (
+                                Number.isInteger(year) &&
+                                year >= 1900 &&
+                                year <= 9999
+                              )
+                                setMaintenancePriceRecords((current) =>
+                                  current.map((item) =>
+                                    item.id === row.id
+                                      ? {
+                                          ...item,
+                                          quotedYear: year,
+                                          quoteDate: `${year}-01-01`,
+                                        }
+                                      : item,
+                                  ),
+                                );
+                            }}
                           />
                         </TableCell>
-                        <TableCell>{row.outcome}</TableCell>
                         <TableCell>
                           <EditCell
-                            value={row.source}
-                            ariaLabel="Source"
-                            onChange={(v) =>
-                              updateMaintenance(row.id, 'source', v)
+                            value={row.project ?? row.source}
+                            ariaLabel="Project"
+                            onChange={(value) =>
+                              updateMaintenance(row.id, 'project', value)
                             }
                           />
                         </TableCell>
-                        <TableCell className="text-center">
+                        <TableCell>
                           <DeleteRowButton
-                            label={`${row.client} · ${row.service}`}
+                            label={`${row.client} · ${row.productModel}`}
                             onDelete={() =>
                               deleteUnreferencedRow(
-                                `${row.client} · ${row.service}`,
+                                row.productModel,
                                 () =>
-                                  setMaintenancePriceRecords((rows) =>
-                                    rows.filter((item) => item.id !== row.id),
+                                  setMaintenancePriceRecords((current) =>
+                                    current.filter(
+                                      (item) => item.id !== row.id,
+                                    ),
                                   ),
-                                `Maintenance history deleted. / 已删除维保历史记录。`,
+                                'Maintenance history deleted. / 已删除维保历史记录。',
                               )
                             }
                           />

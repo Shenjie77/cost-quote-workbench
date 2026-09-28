@@ -19,6 +19,11 @@ export type SupplementalCostItem = {
 };
 
 export type MaintenancePriceRecord = {
+  ct?: number;
+  spms?: number;
+  quotedYear?: number;
+  project?: string;
+  archiveId?: string;
   id: string;
   client: string;
   service: string;

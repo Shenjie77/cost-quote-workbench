@@ -6,10 +6,14 @@
   "additionalProperties": false,
   "required": ["schemaVersion", "records"],
   "properties": {
-    "schemaVersion": { "const": "1.0.0" },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
     "records": {
       "type": "array",
-      "items": { "$ref": "#/$defs/maintenancePriceRecord" }
+      "items": {
+        "$ref": "#/$defs/maintenancePriceRecord"
+      }
     }
   },
   "$defs": {
@@ -39,12 +43,36 @@
           "maxLength": 100,
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
         },
-        "client": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "service": { "type": "string", "minLength": 1, "maxLength": 300 },
-        "productModel": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "serviceLevel": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "site": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "coverageMonths": { "type": "integer", "minimum": 1, "maximum": 240 },
+        "client": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "service": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "productModel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "serviceLevel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "site": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "coverageMonths": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 240
+        },
         "quantity": {
           "type": "number",
           "exclusiveMinimum": 0,
@@ -60,13 +88,44 @@
           "minimum": 0,
           "maximum": 1000000000000
         },
-        "currency": { "const": "SGD" },
+        "currency": {
+          "const": "SGD"
+        },
         "quoteDate": {
           "type": "string",
           "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
         },
-        "outcome": { "enum": ["Quoted", "Won", "Lost", "Reference"] },
-        "source": { "type": "string", "minLength": 1, "maxLength": 300 }
+        "outcome": {
+          "enum": ["Quoted", "Won", "Lost", "Reference"]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "ct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000000000.0
+        },
+        "spms": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000000000.0
+        },
+        "quotedYear": {
+          "type": "integer",
+          "minimum": 1900,
+          "maximum": 9999
+        },
+        "project": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "archiveId": {
+          "type": "string",
+          "maxLength": 100
+        }
       }
     }
   }

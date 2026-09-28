@@ -1,3 +1,5 @@
+import { MaintenanceSummary } from '../maintenance/maintenance-summary';
+import { emptyMaintenance } from '../maintenance/domain';
 import type { MaintenanceWorkspace } from '../maintenance/domain';
 import { usePersonnelTableView } from '@/features/cost/use-personnel-table-view';
 /** Pricing, client-template output, assumptions, and quotation history. */
@@ -592,6 +594,18 @@ export function QuoteView({
           </p>
         ) : null}
       </section>
+      <section className="wb-panel overflow-hidden">
+        <div className="wb-toolbar border-b">
+          <h2 className="text-sm font-semibold text-primary">
+            Maintenance / 维保报价
+          </h2>
+        </div>
+        <MaintenanceSummary
+          value={maintenance ?? emptyMaintenance()}
+          serviceQuote={result.quoteBeforeTax}
+          details
+        />
+      </section>
       <section className="wb-panel">
         <SectionHeading
           index="02"
@@ -841,7 +855,7 @@ export function QuoteView({
                     <TableCell>
                       <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="sm"
                         aria-label={`Delete quotation history ${record.quoteNumber}`}
                         onClick={() =>
                           setQuoteHistory((rows) =>
@@ -849,7 +863,7 @@ export function QuoteView({
                           )
                         }
                       >
-                        <Trash2 />
+                        <Trash2 /> 删除归档
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -46,7 +46,7 @@ export function MaintenanceBulkDialog({
           <DialogDescription>
             从 Excel
             复制七列：Model、CT、SPMS、QTY、Duration（年）、Remark、Description。可含表头，空白数值按
-            0；U/P、Yearly 和 Total 自动计算。
+            0；CT、SPMS 自动向上取整至两位小数。U/P、Yearly 和 Total 自动计算。
           </DialogDescription>
         </DialogHeader>
         <textarea
@@ -71,8 +71,9 @@ export function MaintenanceBulkDialog({
           <div className="max-h-40 overflow-auto text-xs">
             {preview.rows.map((row, index) => (
               <p key={row.id}>
-                {index + 1}. {row.model || '—'} · CT {row.ct} + SPMS {row.spms}{' '}
-                · {row.quantity} × {row.durationYears} years
+                {index + 1}. {row.model || '—'} · CT {row.ct?.toFixed(2)} + SPMS{' '}
+                {row.spms?.toFixed(2)} · {row.quantity} × {row.durationYears}{' '}
+                years
               </p>
             ))}
           </div>

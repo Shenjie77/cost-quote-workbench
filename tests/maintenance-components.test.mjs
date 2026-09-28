@@ -120,3 +120,68 @@ test('annual archives persist without historical references and export component
     repo.close();
   }
 });
+
+test('bulk annual prices round up to cents instead of rejecting extra decimals', () => {
+  const result = parseMaintenanceBulk('Router\t12.341\t0.001\t2\t3\t');
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.rows[0].ct, 12.35);
+  assert.equal(result.rows[0].spms, 0.01);
+  assert.equal(
+    calculateComponentMaintenance({ ...draft(), boq: result.rows }).quote,
+    74.16,
+  );
+});
+
+test('archiving publishes per-device annual references once and soft deletion preserves locked amounts', () => {
+  const repo = openWorkspaceRepository(':memory:');
+  try {
+    const workspace = createBlankWorkspace(
+      projectRecord('MAINT-MASTER', 'Maintenance project', 'Client'),
+      'costing',
+    );
+    workspace.maintenanceBoq = {
+      ...draft(),
+      boq: [
+        {
+          ...newMaintenanceLine(3),
+          model: 'Router',
+          ct: 100,
+          spms: 50,
+          quantity: 4,
+        },
+      ],
+    };
+    let saved = repo.save(workspace.project.id, workspace, null);
+    const next = structuredClone(saved.workspace);
+    next.maintenanceBoq = archiveMaintenance(next.maintenanceBoq, [], 'Client');
+    saved = repo.save(workspace.project.id, next, saved.revision);
+    const catalog = repo.globalMasterData.get('maintenance');
+    const record = catalog.items.find(
+      (row) => row.archiveId === next.maintenanceBoq.archives[0].id,
+    );
+    assert.equal(record.ct, 100);
+    assert.equal(record.spms, 50);
+    assert.equal(record.quotedAmount, 150);
+    assert.equal(record.quantity, 1);
+    assert.equal(record.coverageMonths, 12);
+    assert.equal(record.project, 'Maintenance project');
+    const revision = catalog.revision;
+    saved = repo.save(workspace.project.id, saved.workspace, saved.revision);
+    assert.equal(repo.globalMasterData.get('maintenance').revision, revision);
+    const deleted = structuredClone(saved.workspace);
+    deleted.maintenanceBoq.archives[0].deletedAt = new Date().toISOString();
+    saved = repo.save(workspace.project.id, deleted, saved.revision);
+    const changed = structuredClone(saved.workspace);
+    changed.maintenanceBoq.archives[0].lines[0].boq.ct = 1;
+    assert.throws(() =>
+      repo.save(workspace.project.id, changed, saved.revision),
+    );
+    const restored = structuredClone(saved.workspace);
+    delete restored.maintenanceBoq.archives[0].deletedAt;
+    saved = repo.save(workspace.project.id, restored, saved.revision);
+    assert.equal(saved.workspace.maintenanceBoq.archives[0].quote, 1800);
+    assert.equal(repo.globalMasterData.get('maintenance').revision, revision);
+  } finally {
+    repo.close();
+  }
+});

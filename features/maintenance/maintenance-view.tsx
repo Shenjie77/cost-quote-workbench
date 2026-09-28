@@ -1,4 +1,5 @@
 'use client';
+import { MaintenanceSummary } from './maintenance-summary';
 import { exportTimestamp } from '../../lib/file-names';
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -180,36 +181,17 @@ export function MaintenanceView({
                 attempt(() => {
                   if (canApply && !canApply()) return;
                   onChange(archiveMaintenance(value, records, client));
-                  announce('已归档设备明细、年度单价和计算结果');
+                  announce(
+                    '已锁定归档；保存成功后自动加入 Master Data 维保历史。',
+                  );
                 })
               }
             >
-              归档配置
+              锁定并归档
             </Button>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b px-3 py-3 text-xs">
-          <div>
-            维保总价{' '}
-            <strong className="ml-2 financial-numeral text-base">
-              SGD {summary?.quote.toFixed(2) ?? '—'}
-            </strong>
-          </div>
-          <div>
-            维保年份{' '}
-            <strong>
-              {summary?.annual.length
-                ? `${value.startYear}–${summary.annual.at(-1)!.year}`
-                : '—'}
-            </strong>
-          </div>
-          {summary?.annual.map((item) => (
-            <div key={item.year} className="financial-numeral">
-              {item.year}{' '}
-              <strong className="ml-1">{item.total.toFixed(2)}</strong>
-            </div>
-          ))}
-        </div>
+        <MaintenanceSummary value={value} />
         {calculationError && (
           <p role="alert" className="px-3 py-2 text-xs text-destructive">
             {calculationError}
@@ -447,7 +429,10 @@ export function MaintenanceView({
             <TableBody>
               {[...value.archives].reverse().map((a) => (
                 <TableRow key={a.id}>
-                  <TableCell>{a.createdAt.slice(0, 10)}</TableCell>
+                  <TableCell>
+                    {a.createdAt.slice(0, 10)}
+                    {a.deletedAt ? ' · 已删除' : ' · 已锁定'}
+                  </TableCell>
                   <TableCell>{a.client}</TableCell>
                   <TableCell className="financial-numeral">
                     {a.pricingMode === 'components'
@@ -464,6 +449,26 @@ export function MaintenanceView({
                       onClick={() => void download(a.id)}
                     >
                       导出维保草稿 Excel
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => {
+                        if (canApply && !canApply()) return;
+                        onChange({
+                          ...value,
+                          archives: value.archives.map((archive) => {
+                            if (archive.id !== a.id) return archive;
+                            const next = { ...archive };
+                            if (next.deletedAt) delete next.deletedAt;
+                            else next.deletedAt = new Date().toISOString();
+                            return next;
+                          }),
+                        });
+                      }}
+                    >
+                      {a.deletedAt ? '恢复归档' : '删除归档'}
                     </Button>
                   </TableCell>
                 </TableRow>

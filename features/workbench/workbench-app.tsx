@@ -539,6 +539,7 @@ function ProjectSessionApp({
   // Cost selectors use saved global BU definitions, independently of captured pricing rates.
   useEffect(() => {
     if (activeView === 'cost') void loadGlobalMasterData('profit-share');
+    void loadGlobalMasterData('maintenance');
     void loadGlobalMasterData('project-tags');
   }, [activeView, loadGlobalMasterData]);
   const costBusinessUnits = getBusinessUnitOptions(
@@ -2449,7 +2450,11 @@ function ProjectSessionApp({
           if (isReady && !switchingRef.current && !versionTransitionRef.current)
             setMaintenanceBoq(change);
         }}
-        records={maintenancePriceRecords}
+        records={
+          (globalMasterData.tabs.maintenance?.record?.items as
+            | MaintenancePriceRecord[]
+            | undefined) ?? maintenancePriceRecords
+        }
         client={exportProject.client}
         announce={setNotice}
       />

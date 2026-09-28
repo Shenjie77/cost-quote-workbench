@@ -1,3 +1,4 @@
+import { maintenanceArchiveReferences } from '../features/maintenance/archive-reference.ts';
 /**
  * Synchronous SQLite repository shared by the local HTTP API and cost CLI.
  * All public methods return plain JSON records and never leak SQLite objects.
@@ -784,7 +785,11 @@ export const openWorkspaceRepository = (databasePath) => {
             const kept = document.maintenanceBoq?.archives.find(
               (a) => a.id === old.id,
             );
-            if (contentKey(kept) !== contentKey(old))
+            if (
+              !kept ||
+              contentKey({ ...kept, deletedAt: undefined }) !==
+                contentKey({ ...old, deletedAt: undefined })
+            )
               throw new WorkspaceValidationError(
                 'Archived maintenance configurations cannot be changed',
               );
@@ -1009,6 +1014,28 @@ export const openWorkspaceRepository = (databasePath) => {
         if (!current)
           rollbackProjectArchive =
             files.ensureProjectInTransaction(projectId).rollback;
+        // Commit archive references atomically with the project so retries never duplicate prices.
+        const newMaintenanceReferences = (
+          document.maintenanceBoq?.archives ?? []
+        )
+          .filter(
+            (archive) =>
+              !previous?.maintenanceBoq?.archives.some(
+                (old) => old.id === archive.id,
+              ),
+          )
+          .flatMap((archive) =>
+            maintenanceArchiveReferences(archive, document.project.name),
+          );
+        if (newMaintenanceReferences.length) {
+          const catalog = globalMasterData.get('maintenance', { limit: 10000 });
+          globalMasterData.update(
+            'maintenance',
+            { upsert: newMaintenanceReferences },
+            catalog.revision,
+            { inTransaction: true },
+          );
+        }
         if (ownsTransaction) db.exec('COMMIT');
         return mapWorkspace(selectWorkspace.get(projectId));
       } catch (error) {

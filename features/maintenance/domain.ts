@@ -35,6 +35,7 @@ export type MaintenanceQuoteLine = {
   quote: number;
 };
 export type MaintenanceArchive = {
+  deletedAt?: string;
   pricingMode?: 'components';
   startYear?: number;
   id: string;
@@ -154,6 +155,7 @@ export function archiveMaintenance(
   if (
     data.archives.some(
       (a) =>
+        !a.deletedAt &&
         a.client === client &&
         a.coverageMonths === data.coverageMonths &&
         a.startYear === data.startYear &&
