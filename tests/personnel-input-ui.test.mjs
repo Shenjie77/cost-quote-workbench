@@ -978,3 +978,47 @@ test('flat row moves preserve existing Group assignments and drag feedback marks
     ['Design', 'Build'],
   );
 });
+
+test('group headers summarize only their own rows and track selected year and updated inputs', () => {
+  const a = row({ id: 'a', groupName: 'Design' });
+  const b = row({
+    id: 'b',
+    groupName: 'Design',
+    inputMode: 'mandays',
+    years: a.years.map((year, index) => ({ ...year, mandays: index + 1 })),
+  });
+  const c = row({ id: 'c', groupName: 'Delivery' });
+  const totals = (rows, yearIndex) =>
+    walk(
+      PersonnelLinesTable(
+        tableProps(rows[0], { rows, grouped: true, yearIndex }),
+      ),
+    ).find((node) => node.props['aria-label'] === 'Group totals Design');
+  const text = (node) =>
+    Array.isArray(node)
+      ? node.map(text).join('')
+      : React.isValidElement(node)
+        ? text(node.props.children)
+        : String(node ?? '');
+  const amount = (value) =>
+    value.toLocaleString('en-SG', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  const all = text(totals([a, b, c], 'all'));
+  assert.match(all, /All Years/);
+  assert.ok(all.includes('45 MD'));
+  assert.ok(
+    all.includes(
+      amount(
+        [...a.years, ...b.years].reduce((sum, year) => sum + year.cost, 0),
+      ),
+    ),
+  );
+  const first = text(totals([a, b, c], 0));
+  assert.ok(first.includes('Y1'));
+  assert.ok(first.includes('3 MD'));
+  assert.ok(first.includes(amount(a.years[0].cost + b.years[0].cost)));
+  const changed = row({ ...a, mdPerSite: 4 });
+  assert.ok(text(totals([changed, b, c], 0)).includes('5 MD'));
+});

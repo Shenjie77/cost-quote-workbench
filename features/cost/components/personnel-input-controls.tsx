@@ -54,7 +54,13 @@ export type PersonnelModeChangePlan = {
 };
 export type PersonnelPool = NonNullable<ResourceType['pool']>;
 type PersonnelDisplayEntry =
-  | { kind: 'group'; groupName: string; rowIds: string[] }
+  | {
+      kind: 'group';
+      groupName: string;
+      rowIds: string[];
+      cost: number;
+      mandays: number;
+    }
   | { kind: 'row'; row: CostInputRow };
 export type PersonnelRowMove = {
   rowId: string;
@@ -452,6 +458,25 @@ export function PersonnelLinesTable({
           kind: 'group',
           groupName: group.groupName,
           rowIds: group.rows.map((row) => row.id),
+          // Match the selected delivery year; all-years includes every annual bucket.
+          cost: roundMoney(
+            group.rows.reduce(
+              (sum, row) =>
+                sum +
+                (yearIndex === 'all'
+                  ? totalRowCost(row)
+                  : (row.years[yearIndex]?.cost ?? 0)),
+              0,
+            ),
+          ),
+          mandays: group.rows.reduce(
+            (sum, row) =>
+              sum +
+              (yearIndex === 'all'
+                ? totalRowMandays(row)
+                : yearRowMandays(row, yearIndex)),
+            0,
+          ),
         },
         ...group.rows.map((row) => ({ kind: 'row' as const, row })),
       ])
@@ -851,7 +876,7 @@ export function PersonnelLinesTable({
               >
                 <TableCell colSpan={columns.length} className="h-8 px-2 py-0">
                   <form
-                    className="sticky left-2 inline-flex max-w-[440px] items-center gap-1.5"
+                    className="sticky left-2 inline-flex max-w-[calc(100vw-4rem)] flex-wrap items-center gap-1.5 py-1"
                     onSubmit={(event) => {
                       event.preventDefault();
                       if (locked || !onRenameGroup) return;
@@ -894,6 +919,22 @@ export function PersonnelLinesTable({
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {entry.rowIds.length}{' '}
                       {entry.rowIds.length === 1 ? 'row' : 'rows'}
+                    </span>
+                    <span
+                      aria-label={`Group totals ${title}`}
+                      className="financial-numeral inline-flex flex-wrap items-center gap-x-3 gap-y-1 border-l pl-3 text-xs"
+                    >
+                      <span className="text-muted-foreground">
+                        {yearIndex === 'all'
+                          ? 'All Years'
+                          : YEAR_BUCKETS[yearIndex]}
+                      </span>
+                      <span>
+                        Cost <strong>S$ {money(entry.cost)}</strong>
+                      </span>
+                      <span>
+                        Mandays <strong>{number(entry.mandays)} MD</strong>
+                      </span>
                     </span>
                   </form>
                 </TableCell>
