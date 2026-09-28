@@ -1022,3 +1022,35 @@ test('group headers summarize only their own rows and track selected year and up
   const changed = row({ ...a, mdPerSite: 4 });
   assert.ok(text(totals([changed, b, c], 0)).includes('5 MD'));
 });
+
+test('group movement buttons move complete membership and guard boundaries and locked versions', () => {
+  const rows = [
+    row({ id: 'a', groupName: 'A' }),
+    row({ id: 'b', groupName: 'B' }),
+    row({ id: 'c', groupName: 'A' }),
+  ];
+  const writes = [];
+  const props = tableProps(rows[0], {
+    rows,
+    grouped: true,
+    onMoveGroup: (move) => writes.push(move),
+  });
+  const button = (label, extra = {}) =>
+    walk(PersonnelLinesTable({ ...props, ...extra })).find(
+      (node) => node.props['aria-label'] === label,
+    );
+  assert.equal(button('Move group A up').props.disabled, true);
+  assert.equal(button('Move group B down').props.disabled, true);
+  button('Move group A down').props.onClick();
+  assert.deepEqual(writes, [
+    {
+      groupName: 'A',
+      targetGroupName: 'B',
+      direction: 'down',
+      rowIds: ['a', 'c'],
+    },
+  ]);
+  button('Move group A down', { locked: true }).props.onClick();
+  button('Move group A up').props.onClick();
+  assert.equal(writes.length, 1);
+});

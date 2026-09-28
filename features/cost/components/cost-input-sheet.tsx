@@ -25,6 +25,8 @@ import type { PersonnelTableView } from '../use-personnel-table-view';
 import { PersonnelColumnSettings } from './personnel-column-settings';
 import {
   movePersonnelRow,
+  movePersonnelGroup,
+  type PersonnelGroupMove,
   renamePersonnelGroup,
   type PersonnelRowMove,
   type PersonnelGroupRename,
@@ -97,13 +99,17 @@ export function CostInputSheet({
   const totalCost = rows.reduce((sum, row) => sum + totalRowCost(row), 0);
   const totalMd = rows.reduce((sum, row) => sum + totalRowMandays(row), 0);
 
-  const applyRowLayout = (change: PersonnelRowMove | PersonnelGroupRename) => {
+  const applyRowLayout = (
+    change: PersonnelRowMove | PersonnelGroupRename | PersonnelGroupMove,
+  ) => {
     if (locked || (canEditCost && !canEditCost())) return;
     setAllRows((current) => {
       const next =
-        'rowId' in change
-          ? movePersonnelRow(current, allResourceTypes, change)
-          : renamePersonnelGroup(current, allResourceTypes, change);
+        'direction' in change
+          ? movePersonnelGroup(current, allResourceTypes, change)
+          : 'rowId' in change
+            ? movePersonnelRow(current, allResourceTypes, change)
+            : renamePersonnelGroup(current, allResourceTypes, change);
       if (next === null) {
         queueMicrotask(() =>
           announce(
@@ -375,6 +381,7 @@ export function CostInputSheet({
         columns={columnSettings.columns}
         onMoveRow={applyRowLayout}
         onRenameGroup={applyRowLayout}
+        onMoveGroup={applyRowLayout}
         locked={locked}
         announce={announce}
         onPatch={(id, patch) => {

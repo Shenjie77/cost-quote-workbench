@@ -24,6 +24,7 @@ import {
   type RateSettings,
   type ResourceType,
 } from '../domain';
+import type { PersonnelGroupMove } from '../personnel-row-layout';
 import { isLegacySubcontractRow } from '../personnel-cost-rows';
 import {
   defaultPersonnelColumns,
@@ -429,6 +430,7 @@ export function PersonnelLinesTable({
   onDelete,
   onMoveRow,
   onRenameGroup,
+  onMoveGroup,
   locked = false,
   announce,
 }: {
@@ -443,6 +445,7 @@ export function PersonnelLinesTable({
   onDelete: (row: CostInputRow) => void;
   onMoveRow?: (move: PersonnelRowMove) => void;
   onRenameGroup?: (rename: PersonnelGroupRename) => void;
+  onMoveGroup?: (move: PersonnelGroupMove) => void;
   locked?: boolean;
   announce: (message: string) => void;
 }) {
@@ -452,8 +455,9 @@ export function PersonnelLinesTable({
   );
   const hasAnnual = columns.some((id) => annualColumn(id));
   const segments = getPersonnelHeaderSegments(columns);
+  const groups = grouped ? groupPersonnelRows(rows) : [];
   const entries: PersonnelDisplayEntry[] = grouped
-    ? groupPersonnelRows(rows).flatMap((group): PersonnelDisplayEntry[] => [
+    ? groups.flatMap((group): PersonnelDisplayEntry[] => [
         {
           kind: 'group',
           groupName: group.groupName,
@@ -916,6 +920,41 @@ export function PersonnelLinesTable({
                       <Save className="size-3" />
                       Save / Merge
                     </Button>
+                    {(['up', 'down'] as const).map((direction) => {
+                      const index = groups.findIndex(
+                        (group) => group.groupName === entry.groupName,
+                      );
+                      const target =
+                        groups[index + (direction === 'up' ? -1 : 1)];
+                      const Icon = direction === 'up' ? ArrowUp : ArrowDown;
+                      return (
+                        <Button
+                          key={direction}
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          aria-label={`Move group ${title} ${direction}`}
+                          title={
+                            direction === 'up'
+                              ? 'Move entire group up'
+                              : 'Move entire group down'
+                          }
+                          disabled={locked || !onMoveGroup || !target}
+                          onClick={() => {
+                            if (locked || !onMoveGroup || !target) return;
+                            onMoveGroup({
+                              groupName: entry.groupName,
+                              targetGroupName: target.groupName,
+                              direction,
+                              rowIds: [...entry.rowIds],
+                            });
+                          }}
+                        >
+                          <Icon className="size-3" />
+                        </Button>
+                      );
+                    })}
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {entry.rowIds.length}{' '}
                       {entry.rowIds.length === 1 ? 'row' : 'rows'}

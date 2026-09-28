@@ -1,5 +1,49 @@
 import type { CostInputRow, ResourceType } from './domain.ts';
 import { isLegacySubcontractRow } from './personnel-cost-rows.ts';
+import { groupPersonnelRows } from './personnel-table-layout.ts';
+
+export type PersonnelGroupMove = {
+  groupName: string;
+  targetGroupName: string;
+  direction: 'up' | 'down';
+  rowIds: string[];
+};
+
+/** Move complete adjacent groups, retaining member order, latest values and legacy Subcon slots. */
+export function movePersonnelGroup(
+  current: CostInputRow[],
+  resources: ResourceType[],
+  request: PersonnelGroupMove,
+  locked = false,
+): CostInputRow[] | null {
+  if (locked) return null;
+  const groups = groupPersonnelRows(
+    current.filter((row) => !isLegacySubcontractRow(row, resources)),
+  );
+  const index = groups.findIndex(
+    (group) => group.groupName === request.groupName.trim(),
+  );
+  if (index < 0) return null;
+  const ids = new Set(request.rowIds);
+  if (
+    ids.size !== request.rowIds.length ||
+    groups[index].rows.length !== ids.size ||
+    groups[index].rows.some((row) => !ids.has(row.id))
+  )
+    return null;
+  const target = index + (request.direction === 'up' ? -1 : 1);
+  if (
+    !groups[target] ||
+    groups[target].groupName !== request.targetGroupName.trim()
+  )
+    return null;
+  [groups[index], groups[target]] = [groups[target], groups[index]];
+  return replacePersonnelSlots(
+    current,
+    groups.flatMap((group) => group.rows),
+    resources,
+  );
+}
 
 export type PersonnelRowMove = {
   rowId: string;

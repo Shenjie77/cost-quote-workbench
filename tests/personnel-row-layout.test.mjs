@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   movePersonnelRow,
+  movePersonnelGroup,
   renamePersonnelGroup,
 } from '../features/cost/personnel-row-layout.ts';
 
@@ -186,4 +187,74 @@ test('group rename rejects changed membership, duplicate IDs, excessive names an
   );
   assert.equal(renamePersonnelGroup(rows, resources, request, true), null);
   assert.equal(renamePersonnelGroup(rows, resources, request)[2], rows[2]);
+});
+
+test('whole-group moves preserve member order, cost values and legacy Subcon slots across interleaved groups', () => {
+  const rows = [
+    makeRow('a1', 'A'),
+    makeRow('sub', '', { reTypeId: 'sub' }),
+    makeRow('b1', 'B'),
+    makeRow('a2', 'A', { source }),
+    makeRow('c1', 'C'),
+    makeRow('b2', 'B'),
+  ];
+  const before = structuredClone(rows);
+  const next = movePersonnelGroup(rows, resources, {
+    groupName: 'B',
+    targetGroupName: 'A',
+    direction: 'up',
+    rowIds: ['b1', 'b2'],
+  });
+  assert.deepEqual(
+    next.map((row) => row.id),
+    ['b1', 'sub', 'b2', 'a1', 'a2', 'c1'],
+  );
+  assert.deepEqual(rows, before);
+  for (const item of next)
+    assert.equal(
+      item,
+      rows.find((row) => row.id === item.id),
+    );
+  const down = movePersonnelGroup(next, resources, {
+    groupName: 'B',
+    targetGroupName: 'A',
+    direction: 'down',
+    rowIds: ['b1', 'b2'],
+  });
+  assert.deepEqual(
+    down.map((row) => row.id),
+    ['a1', 'sub', 'a2', 'b1', 'b2', 'c1'],
+  );
+  assert.equal(
+    movePersonnelGroup(rows, resources, {
+      groupName: 'B',
+      targetGroupName: 'A',
+      direction: 'up',
+      rowIds: ['b1'],
+    }),
+    null,
+  );
+  assert.equal(
+    movePersonnelGroup(rows, resources, {
+      groupName: 'B',
+      targetGroupName: 'C',
+      direction: 'up',
+      rowIds: ['b1', 'b2'],
+    }),
+    null,
+  );
+  assert.equal(
+    movePersonnelGroup(
+      rows,
+      resources,
+      {
+        groupName: 'B',
+        targetGroupName: 'A',
+        direction: 'up',
+        rowIds: ['b1', 'b2'],
+      },
+      true,
+    ),
+    null,
+  );
 });
