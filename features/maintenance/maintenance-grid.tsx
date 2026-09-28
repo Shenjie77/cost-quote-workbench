@@ -24,18 +24,31 @@ import type { MaintenancePriceRecord } from '../master-data/domain';
 import { maintenanceCandidates, type BoqLine } from './domain';
 
 const labels = [
-  'Model / 设备型号',
+  'Model',
   'CT',
   'SPMS',
-  'UnitPrice',
+  'U/P',
   'QTY',
-  'Duration (years)',
+  'Dur.',
   'Total',
-  'History',
-  'Remark',
+  'Hist.',
+  'Rmk.',
   '',
 ];
-const defaultWidths = [220, 100, 100, 110, 80, 120, 130, 100, 220, 42];
+/** Full labels remain available on hover so abbreviations retain their meaning. */
+const columnTitles = [
+  'Equipment model / 设备型号',
+  'CT',
+  'SPMS',
+  'Unit price / 年度单价',
+  'Quantity / 数量',
+  'Duration / 维保年数',
+  'Total / 总价',
+  'History / 历史价格',
+  'Remark / 备注',
+  'Actions / 操作',
+];
+const defaultWidths = [220, 100, 100, 100, 70, 70, 130, 90, 220, 42];
 const money = (amount: number) =>
   amount.toLocaleString('en-SG', {
     minimumFractionDigits: 2,
@@ -263,7 +276,11 @@ export function MaintenanceGrid({
       <TableHeader>
         <TableRow>
           {labels.map((label, index) => (
-            <TableHead key={index} className="relative h-8 px-2 text-xs">
+            <TableHead
+              key={index}
+              title={columnTitles[index]}
+              className="relative h-8 px-2 text-xs"
+            >
               {label}
               <ResizeHandle
                 label={`Resize ${label || 'actions'} column`}
