@@ -1,6 +1,6 @@
 'use client';
 import { exportTimestamp } from '../../lib/file-names';
-import { Fragment, useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -18,17 +18,23 @@ import {
   appendBoq,
   archiveMaintenance,
   calculateMaintenance,
-  maintenanceCandidates,
   importBoq,
   buildMaintenanceWorkbook,
   type MaintenanceWorkspace,
   type BoqLine,
 } from './domain';
+import {
+  maintenanceGridDraft,
+  calculateComponentMaintenance,
+  newMaintenanceLine,
+} from './component-pricing';
+import { MaintenanceGrid } from './maintenance-grid';
+import { MaintenanceBulkDialog } from './maintenance-bulk-dialog';
 /** Keeps BOQ quantities, reference selection and draft actions in one compact workspace. */
 export function MaintenanceView({
   projectId,
   canApply,
-  value,
+  value: storedValue,
   onChange,
   records,
   client,
@@ -42,6 +48,14 @@ export function MaintenanceView({
   client: string;
   announce: (s: string) => void;
 }) {
+  const value = maintenanceGridDraft(storedValue);
+  let summary: ReturnType<typeof calculateComponentMaintenance> | undefined;
+  let calculationError = '';
+  try {
+    summary = calculateComponentMaintenance(value);
+  } catch (error) {
+    calculationError = String(error);
+  }
   const mounted = useRef(true);
   const importing = useRef(false);
   const latest = useRef(value);
@@ -63,11 +77,31 @@ export function MaintenanceView({
     [excluded, setExcluded] = useState(''),
     [preview, setPreview] = useState<BoqLine[]>([]),
     [busy, setBusy] = useState(false);
-  const update = (id: string, patch: Partial<BoqLine>) =>
-    onChange({
-      ...value,
-      boq: value.boq.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+  /** Apply edits to the latest draft while preserving immutable archive snapshots. */
+  const update = (id: string, patch: Partial<BoqLine>) => {
+    if (busy || (canApply && !canApply())) return;
+    onChange((current) => {
+      const draft = maintenanceGridDraft(current);
+      return {
+        ...draft,
+        boq: draft.boq.map((row) =>
+          row.id === id ? { ...row, ...patch } : row,
+        ),
+      };
     });
+  };
+  /** Validate the entire batch before adding any rows. */
+  const addRows = (rows: BoqLine[]) => {
+    if (busy || (canApply && !canApply())) return false;
+    try {
+      const boq = appendBoq(value.boq, rows);
+      onChange({ ...value, boq });
+      return true;
+    } catch (error) {
+      announce(String(error));
+      return false;
+    }
+  };
   const attempt = (fn: () => void) => {
     try {
       fn();
@@ -100,64 +134,53 @@ export function MaintenanceView({
   return (
     <div className="wb-page-stack">
       <section className="wb-panel overflow-hidden">
-        {/* Keep the frequently edited coverage period beside the BOQ title. */}
         <div className="wb-toolbar justify-between border-b">
           <h2 className="text-sm font-semibold text-primary">BOQ 维保配置</h2>
-          <label className="flex flex-wrap items-center gap-2 text-xs">
-            维保期限（月）
+          <label className="flex items-center gap-2 text-xs">
+            开始年份
             <Input
-              type="number"
+              aria-label="Maintenance start year"
+              type="text"
+              inputMode="numeric"
               className="h-8 w-24"
-              value={value.coverageMonths}
-              onChange={(e) =>
-                onChange({ ...value, coverageMonths: Number(e.target.value) })
-              }
+              value={value.startYear}
+              disabled={busy}
+              onChange={(event) => {
+                if (canApply && !canApply()) return;
+                if (/^\d{0,4}$/.test(event.target.value))
+                  onChange({ ...value, startYear: Number(event.target.value) });
+              }}
             />
           </label>
-          {/* Calculation and archive stay available above long BOQ lists. */}
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
-              onClick={() =>
-                onChange({
-                  ...value,
-                  boq: [
-                    ...value.boq,
-                    {
-                      id: crypto.randomUUID(),
-                      model: '',
-                      quantity: 1,
-                      serviceLevel: '',
-                      site: '',
-                      referenceId: '',
-                      unitAnnualQuote: 0,
-                      basis: '',
-                      source: 'Manual BOQ',
-                    },
-                  ],
-                })
-              }
+              disabled={busy}
+              onClick={() => addRows([newMaintenanceLine()])}
             >
-              手工添加设备
+              添加设备
             </Button>
+            <MaintenanceBulkDialog disabled={busy} onImport={addRows} />
             <Button
               variant="outline"
+              disabled={busy || !!calculationError}
               onClick={() =>
-                attempt(() => {
-                  const r = calculateMaintenance(value, records);
+                attempt(() =>
                   announce(
-                    `维保报价草稿 SGD ${r.quote.toFixed(2)}；历史成本推算 SGD ${r.cost.toFixed(2)}。请核实差异依据。`,
-                  );
-                })
+                    `维保总价 SGD ${calculateMaintenance(value, records).quote.toFixed(2)}`,
+                  ),
+                )
               }
             >
               计算维保草稿
             </Button>
             <Button
+              disabled={busy || !!calculationError}
               onClick={() =>
                 attempt(() => {
+                  if (canApply && !canApply()) return;
                   onChange(archiveMaintenance(value, records, client));
-                  announce('已归档BOQ、参考价格、选价依据与计算结果');
+                  announce('已归档设备明细、年度单价和计算结果');
                 })
               }
             >
@@ -165,17 +188,38 @@ export function MaintenanceView({
             </Button>
           </div>
         </div>
-
-        <details className="border-b bg-muted/10 px-3 py-2">
-          <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-            维保参考与报价说明
-          </summary>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            按同型号查看各客户历史单台年价，选择参考后填写本次
-            SLA、年价与选价依据。 输出为维保报价草稿，正式报价仍需整理税费、T&C
-            并完成公司决策。
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b px-3 py-3 text-xs">
+          <div>
+            维保总价{' '}
+            <strong className="ml-2 financial-numeral text-base">
+              SGD {summary?.quote.toFixed(2) ?? '—'}
+            </strong>
+          </div>
+          <div>
+            维保年份{' '}
+            <strong>
+              {summary?.annual.length
+                ? `${value.startYear}–${summary.annual.at(-1)!.year}`
+                : '—'}
+            </strong>
+          </div>
+          {summary?.annual.map((item) => (
+            <div key={item.year} className="financial-numeral">
+              {item.year}{' '}
+              <strong className="ml-1">{item.total.toFixed(2)}</strong>
+            </div>
+          ))}
+        </div>
+        {calculationError && (
+          <p role="alert" className="px-3 py-2 text-xs text-destructive">
+            {calculationError}
           </p>
-        </details>
+        )}
+        <p className="border-b px-3 py-2 text-xs text-muted-foreground">
+          UnitPrice = CT + SPMS（单台年度价格）；Total = UnitPrice × QTY ×
+          Duration（年）。各项可留空；History
+          仅供价格对比。拖动列边界调整列宽，行末底边调整行高，也可聚焦后使用方向键。
+        </p>
         <details className="bg-muted/10 px-3 py-2">
           <summary className="cursor-pointer text-xs font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring">
             从产品 BOQ Excel 导入设备
@@ -362,142 +406,24 @@ export function MaintenanceView({
             {value.boq.length} 条设备记录
           </span>
         </div>
-        <Table className="min-w-[1020px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-44">设备型号</TableHead>
-              <TableHead className="w-28 text-right">BOQ 实际数量</TableHead>
-              <TableHead className="w-36">本次 SLA</TableHead>
-              <TableHead className="w-32">站点</TableHead>
-              <TableHead className="w-40 text-right">
-                本次单台年价 SGD
-              </TableHead>
-              <TableHead>选价依据及差异（期限、SLA、客户折扣等）</TableHead>
-              <TableHead className="w-28">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!value.boq.length && (
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="h-20 whitespace-normal text-center text-xs text-muted-foreground"
-                >
-                  暂无设备。手工添加设备，或从产品 BOQ Excel 导入。
-                </TableCell>
-              </TableRow>
-            )}
-            {value.boq.map((row) => (
-              <Fragment key={row.id}>
-                <TableRow>
-                  {(['model', 'quantity', 'serviceLevel', 'site'] as const).map(
-                    (k, i) => (
-                      <TableCell key={k}>
-                        <Input
-                          aria-label={
-                            ['设备型号', 'BOQ 实际数量', '本次 SLA', '站点'][i]
-                          }
-                          className={`h-8 text-xs ${k === 'quantity' ? 'financial-numeral text-right' : k === 'model' ? 'font-semibold' : ''}`}
-                          type={k === 'quantity' ? 'number' : 'text'}
-                          value={row[k]}
-                          onChange={(e) =>
-                            update(row.id, {
-                              [k]:
-                                k === 'quantity'
-                                  ? Number(e.target.value)
-                                  : e.target.value,
-                            })
-                          }
-                        />
-                      </TableCell>
-                    ),
-                  )}
-                  <TableCell>
-                    <Input
-                      aria-label="本次单台年价 SGD"
-                      className="financial-numeral h-8 text-right text-xs"
-                      type="number"
-                      value={row.unitAnnualQuote}
-                      onChange={(e) =>
-                        update(row.id, {
-                          unitAnnualQuote: Number(e.target.value),
-                        })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      aria-label="选价依据及差异（期限、SLA、客户折扣等）"
-                      className="h-8 min-w-60 text-xs"
-                      value={row.basis}
-                      onChange={(e) =>
-                        update(row.id, { basis: e.target.value })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() =>
-                        onChange({
-                          ...value,
-                          boq: value.boq.filter((r) => r.id !== row.id),
-                        })
-                      }
-                    >
-                      移除设备行
-                    </Button>
-                  </TableCell>
-                </TableRow>
-                <TableRow className="bg-muted/20 hover:bg-muted/30">
-                  <TableCell colSpan={7} className="whitespace-normal">
-                    <div className="grid items-center gap-2 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-                      <label className="flex min-w-0 items-center gap-2 text-xs">
-                        <span className="shrink-0 text-muted-foreground">
-                          同型号的客户历史参考
-                        </span>
-                        <select
-                          className="h-8 min-w-0 flex-1 rounded-md border border-input bg-card px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring"
-                          value={row.referenceId}
-                          onChange={(e) => {
-                            const ref = maintenanceCandidates(
-                              records,
-                              row.model,
-                            ).find((x) => x.record.id === e.target.value);
-                            update(row.id, {
-                              referenceId: e.target.value,
-                              unitAnnualQuote: ref?.unitAnnualQuote || 0,
-                            });
-                          }}
-                        >
-                          <option value="">选择历史记录</option>
-                          {maintenanceCandidates(records, row.model).map(
-                            ({ record: r, unitAnnualQuote: q }) => (
-                              <option key={r.id} value={r.id}>
-                                {r.client} · SGD {q}/台/年 · {r.serviceLevel} ·{' '}
-                                {r.quoteDate} · {r.source}
-                              </option>
-                            ),
-                          )}
-                        </select>
-                      </label>
-                      <p className="break-words text-xs text-muted-foreground">
-                        来源：{row.source}
-                        {row.originalQuantity !== undefined &&
-                        (row.originalQuantity !== row.quantity ||
-                          row.originalModel !== row.model)
-                          ? `（已手工修订，原型号 ${row.originalModel}，原数量 ${row.originalQuantity}）`
-                          : ''}
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              </Fragment>
-            ))}
-          </TableBody>
-        </Table>
+        <MaintenanceGrid
+          rows={value.boq}
+          totals={
+            new Map(
+              summary?.lines.map((line) => [line.boq.id, line.quote]) ?? [],
+            )
+          }
+          records={records}
+          onPatch={update}
+          disabled={busy}
+          onDelete={(id) => {
+            if (busy || (canApply && !canApply())) return;
+            onChange({
+              ...value,
+              boq: value.boq.filter((row) => row.id !== id),
+            });
+          }}
+        />
       </section>
 
       {value.archives.length > 0 && (
@@ -513,7 +439,7 @@ export function MaintenanceView({
               <TableRow>
                 <TableHead>归档日期</TableHead>
                 <TableHead>客户</TableHead>
-                <TableHead>期限（月）</TableHead>
+                <TableHead>维保期限</TableHead>
                 <TableHead className="text-right">报价 SGD</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
@@ -524,7 +450,9 @@ export function MaintenanceView({
                   <TableCell>{a.createdAt.slice(0, 10)}</TableCell>
                   <TableCell>{a.client}</TableCell>
                   <TableCell className="financial-numeral">
-                    {a.coverageMonths}
+                    {a.pricingMode === 'components'
+                      ? `${a.startYear} · ${Math.max(0, ...a.lines.map((line) => line.boq.durationYears ?? 0))} 年`
+                      : `${a.coverageMonths} 月（旧归档）`}
                   </TableCell>
                   <TableCell className="financial-numeral text-right">
                     {a.quote.toFixed(2)}

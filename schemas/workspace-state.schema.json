@@ -2205,6 +2205,25 @@
         "originalModel": {
           "type": "string",
           "maxLength": 500
+        },
+        "ct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000000000.0
+        },
+        "spms": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000000000.0
+        },
+        "durationYears": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "remark": {
+          "type": "string",
+          "maxLength": 10000
         }
       }
     },
@@ -2213,7 +2232,6 @@
       "additionalProperties": false,
       "required": [
         "boq",
-        "reference",
         "annualReferenceQuote",
         "annualReferenceCost",
         "cost",
@@ -2294,6 +2312,14 @@
           "type": "number",
           "minimum": 0,
           "maximum": 100000000000000
+        },
+        "pricingMode": {
+          "const": "components"
+        },
+        "startYear": {
+          "type": "integer",
+          "minimum": 1900,
+          "maximum": 9999
         }
       }
     },
@@ -2320,6 +2346,14 @@
           "items": {
             "$ref": "#/$defs/maintenanceArchive"
           }
+        },
+        "pricingMode": {
+          "const": "components"
+        },
+        "startYear": {
+          "type": "integer",
+          "minimum": 1900,
+          "maximum": 9999
         }
       }
     },

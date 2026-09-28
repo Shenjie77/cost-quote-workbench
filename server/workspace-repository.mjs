@@ -807,12 +807,13 @@ export const openWorkspaceRepository = (databasePath) => {
               );
             for (const line of added.lines) {
               if (
+                line.reference &&
                 contentKey(line.reference) !==
-                contentKey(
-                  document.maintenancePriceRecords.find(
-                    (r) => r.id === line.reference.id,
-                  ),
-                )
+                  contentKey(
+                    document.maintenancePriceRecords.find(
+                      (r) => r.id === line.reference.id,
+                    ),
+                  )
               )
                 throw new WorkspaceValidationError(
                   'New maintenance archive must capture current references',
@@ -827,6 +828,13 @@ export const openWorkspaceRepository = (databasePath) => {
                   'New archive must capture current BOQ',
                 );
             }
+            if (
+              added.pricingMode !== document.maintenanceBoq.pricingMode ||
+              added.startYear !== document.maintenanceBoq.startYear
+            )
+              throw new WorkspaceValidationError(
+                'Maintenance pricing basis differs from current BOQ',
+              );
             if (added.coverageMonths !== document.maintenanceBoq.coverageMonths)
               throw new WorkspaceValidationError(
                 'Maintenance duration differs from current BOQ',

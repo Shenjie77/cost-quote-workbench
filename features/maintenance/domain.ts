@@ -1,3 +1,4 @@
+import { calculateComponentMaintenance } from './component-pricing.ts';
 /** BOQ quantities and independently selected maintenance price references. */
 import { roundMoney } from '../cost/domain.ts';
 import { contentKey } from '../cpq/domain.ts';
@@ -8,6 +9,10 @@ import {
   type MaintenancePriceRecord,
 } from '../master-data/domain.ts';
 export type BoqLine = {
+  ct?: number;
+  spms?: number;
+  durationYears?: number;
+  remark?: string;
   originalQuantity?: number;
   originalModel?: string;
   id: string;
@@ -22,13 +27,15 @@ export type BoqLine = {
 };
 export type MaintenanceQuoteLine = {
   boq: BoqLine;
-  reference: MaintenancePriceRecord;
+  reference?: MaintenancePriceRecord;
   annualReferenceQuote: number;
   annualReferenceCost: number;
   cost: number;
   quote: number;
 };
 export type MaintenanceArchive = {
+  pricingMode?: 'components';
+  startYear?: number;
   id: string;
   createdAt: string;
   client: string;
@@ -38,6 +45,8 @@ export type MaintenanceArchive = {
   quote: number;
 };
 export type MaintenanceWorkspace = {
+  pricingMode?: 'components';
+  startYear?: number;
   coverageMonths: number;
   boq: BoqLine[];
   archives: MaintenanceArchive[];
@@ -68,6 +77,10 @@ export function calculateMaintenance(
   data: MaintenanceWorkspace,
   records: MaintenancePriceRecord[],
 ) {
+  if (data.pricingMode === 'components') {
+    const { annual: _annual, ...result } = calculateComponentMaintenance(data);
+    return result;
+  }
   if (
     !Number.isInteger(data.coverageMonths) ||
     data.coverageMonths <= 0 ||
@@ -142,6 +155,8 @@ export function archiveMaintenance(
       (a) =>
         a.client === client &&
         a.coverageMonths === data.coverageMonths &&
+        a.startYear === data.startYear &&
+        a.pricingMode === data.pricingMode &&
         contentKey(a.lines) === contentKey(result.lines),
     )
   )
@@ -153,6 +168,9 @@ export function archiveMaintenance(
       {
         id: `maintenance-${crypto.randomUUID()}`,
         createdAt: new Date().toISOString(),
+        ...(data.pricingMode
+          ? { pricingMode: data.pricingMode, startYear: data.startYear }
+          : {}),
         client,
         coverageMonths: data.coverageMonths,
         ...result,
@@ -165,11 +183,17 @@ export function assertMaintenanceWorkspace(data: MaintenanceWorkspace) {
     throw new TypeError('Duplicate maintenance archive IDs');
   for (const a of data.archives) {
     const refs = [
-      ...new Map(a.lines.map((l) => [l.reference.id, l.reference])).values(),
+      ...new Map(
+        a.lines.flatMap((l) =>
+          l.reference ? [[l.reference.id, l.reference] as const] : [],
+        ),
+      ).values(),
     ];
     const result = calculateMaintenance(
       {
         coverageMonths: a.coverageMonths,
+        pricingMode: a.pricingMode,
+        startYear: a.startYear,
         boq: a.lines.map((l) => l.boq),
         archives: [],
       },
@@ -257,6 +281,10 @@ export async function buildMaintenanceWorkbook(archive: MaintenanceArchive) {
     boq: [],
     archives: [archive],
   });
+  if (archive.pricingMode === 'components') {
+    const { buildComponentWorkbook } = await import('./component-workbook.ts');
+    return buildComponentWorkbook(archive);
+  }
   const ExcelJS = (await import('exceljs')).default,
     book = new ExcelJS.Workbook(),
     sheet = book.addWorksheet('Maintenance Quote Draft');
