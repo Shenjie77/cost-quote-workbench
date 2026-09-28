@@ -1,3 +1,4 @@
+import { unmergeWorkbook } from '../../lib/unmerged-workbook.ts';
 import { addSubcontractWorkbookSheets } from './export-subcontract-workbook.ts';
 import { subcontractCostDetails } from './subcontract-domain.ts';
 /** Page-shaped, read-only cost reports built from one detached cost snapshot. */
@@ -1010,6 +1011,7 @@ export const buildSimpleCostWorkbook = async (
       !selected.has(sheet.name as SimpleCostSheetId)
     )
       workbook.removeWorksheet(sheet.id);
+  unmergeWorkbook(workbook);
   return workbook;
 };
 

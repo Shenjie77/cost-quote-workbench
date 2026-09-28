@@ -81,7 +81,15 @@ test('annual archives persist without historical references and export component
   );
   workspace.maintenanceBoq = {
     ...draft(),
-    boq: [{ ...newMaintenanceLine(3), ct: 100, spms: 50, quantity: 2 }],
+    boq: [
+      {
+        ...newMaintenanceLine(3),
+        ct: 100,
+        spms: 50,
+        quantity: 2,
+        description: 'Support service',
+      },
+    ],
   };
   const repo = openWorkspaceRepository(':memory:');
   try {
@@ -95,10 +103,13 @@ test('annual archives persist without historical references and export component
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(await buildMaintenanceWorkbook(snapshot));
     assert.equal(
-      book.worksheets[0].getCell('D6').value.formula,
-      'ROUNDUP(B6+C6,2)',
+      book.worksheets[0].getCell('F6').value.formula,
+      'ROUND(D6+E6,2)',
     );
-    assert.equal(book.worksheets[0].getCell('G6').value.result, 900);
+    assert.equal(book.worksheets[0].getCell('J6').value.result, 900);
+    assert.equal(book.worksheets[0].getCell('H6').value.result, 300);
+    assert.equal(book.worksheets[0].getCell('B6').value, 'Support service');
+    assert.deepEqual(book.worksheets[0].model.merges, []);
     assert.equal(book.worksheets[1].getCell('B2').value, 300);
     const tampered = structuredClone(archived.workspace);
     tampered.maintenanceBoq.archives[0].quote = 1;

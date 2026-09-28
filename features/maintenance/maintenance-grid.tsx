@@ -25,10 +25,12 @@ import { maintenanceCandidates, type BoqLine } from './domain';
 
 const labels = [
   'Model',
+  'Desc.',
   'CT',
   'SPMS',
   'U/P',
   'QTY',
+  'Yearly',
   'Dur.',
   'Total',
   'Hist.',
@@ -38,17 +40,19 @@ const labels = [
 /** Full labels remain available on hover so abbreviations retain their meaning. */
 const columnTitles = [
   'Equipment model / 设备型号',
+  'Description / 描述',
   'CT',
   'SPMS',
   'Unit price / 年度单价',
   'Quantity / 数量',
+  'Yearly price / 每年总价（年度单价 × 数量）',
   'Duration / 维保年数',
   'Total / 总价',
   'History / 历史价格',
   'Remark / 备注',
   'Actions / 操作',
 ];
-const defaultWidths = [220, 100, 100, 100, 70, 70, 130, 90, 220, 42];
+const defaultWidths = [180, 220, 90, 90, 100, 65, 110, 65, 120, 90, 180, 42];
 const money = (amount: number) =>
   amount.toLocaleString('en-SG', {
     minimumFractionDigits: 2,
@@ -299,7 +303,7 @@ export function MaintenanceGrid({
       <TableBody>
         {!rows.length ? (
           <TableRow>
-            <TableCell colSpan={10}>
+            <TableCell colSpan={12}>
               <p className="p-4 text-muted-foreground">
                 添加设备或批量粘贴 Excel 数据。History 和 Remark 可留空。
               </p>
@@ -316,6 +320,19 @@ export function MaintenanceGrid({
                   maxLength={500}
                   onChange={(e) => onPatch(row.id, { model: e.target.value })}
                   className="h-full min-h-8 rounded-none border-transparent bg-transparent px-2 text-xs font-medium shadow-none"
+                />
+              </TableCell>
+              <TableCell>
+                <textarea
+                  aria-label={`Description row ${index + 1}`}
+                  disabled={disabled}
+                  value={row.description ?? ''}
+                  maxLength={10000}
+                  onChange={(event) =>
+                    onPatch(row.id, { description: event.target.value })
+                  }
+                  className="block h-full min-h-8 w-full resize-none bg-transparent px-2 py-1 text-xs"
+                  style={{ height: (heights[row.id] ?? 32) - 2 }}
                 />
               </TableCell>
               {(['ct', 'spms'] as const).map((field) => (
@@ -345,6 +362,11 @@ export function MaintenanceGrid({
                   disabled={disabled}
                   onCommit={(quantity) => onPatch(row.id, { quantity })}
                 />
+              </TableCell>
+              <TableCell className="financial-numeral bg-muted/30 text-right">
+                <span className="px-2">
+                  {money(((row.ct ?? 0) + (row.spms ?? 0)) * row.quantity)}
+                </span>
               </TableCell>
               <TableCell>
                 <NumberCell

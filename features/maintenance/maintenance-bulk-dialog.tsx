@@ -45,8 +45,8 @@ export function MaintenanceBulkDialog({
           <DialogTitle>批量录入维保设备</DialogTitle>
           <DialogDescription>
             从 Excel
-            复制六列：Model、CT、SPMS、QTY、Duration（年）、Remark。可含表头，空白数值按
-            0；UnitPrice 和 Total 自动计算。
+            复制七列：Model、CT、SPMS、QTY、Duration（年）、Remark、Description。可含表头，空白数值按
+            0；U/P、Yearly 和 Total 自动计算。
           </DialogDescription>
         </DialogHeader>
         <textarea
@@ -59,7 +59,7 @@ export function MaintenanceBulkDialog({
           }}
           className="h-48 w-full resize-y rounded border bg-background p-2 font-mono text-xs"
           placeholder={
-            'Model\tCT\tSPMS\tQTY\tDuration\tRemark\nRouter A\t100\t50\t2\t3\t'
+            'Model\tCT\tSPMS\tQTY\tDuration\tRemark\tDescription\nRouter A\t100\t50\t2\t3\t'
           }
         />
         {preview?.errors.length ? (

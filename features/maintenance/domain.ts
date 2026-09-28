@@ -13,6 +13,7 @@ export type BoqLine = {
   spms?: number;
   durationYears?: number;
   remark?: string;
+  description?: string;
   originalQuantity?: number;
   originalModel?: string;
   id: string;

@@ -2497,6 +2497,7 @@ function ProjectSessionApp({
   else if (activeView === 'quote')
     content = (
       <QuoteView
+        maintenance={maintenanceBoq}
         projectContext={projectContext}
         costSnapshot={buildCostExportSnapshot({
           activeVersion,

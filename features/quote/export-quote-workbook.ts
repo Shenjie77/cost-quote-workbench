@@ -1,3 +1,4 @@
+import { unmergeWorkbook } from '../../lib/unmerged-workbook.ts';
 import { readableFileStem, exportTimestamp } from '../../lib/file-names.ts';
 /** Client quotation XLSX exporter used by the Pricing & Quote page. */
 
@@ -204,6 +205,7 @@ export const buildQuoteWorkbookBuffer = async (
       }
     });
   }
+  unmergeWorkbook(workbook);
   return workbook.xlsx.writeBuffer();
 };
 

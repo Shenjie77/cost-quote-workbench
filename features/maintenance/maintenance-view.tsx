@@ -216,8 +216,8 @@ export function MaintenanceView({
           </p>
         )}
         <p className="border-b px-3 py-2 text-xs text-muted-foreground">
-          UnitPrice = CT + SPMS（单台年度价格）；Total = UnitPrice × QTY ×
-          Duration（年）。各项可留空；History
+          UnitPrice = CT + SPMS（单台年度价格）；Yearly = UnitPrice × QTY；Total
+          = Yearly × Duration（年）。各项可留空；History
           仅供价格对比。拖动列边界调整列宽，行末底边调整行高，也可聚焦后使用方向键。
         </p>
         <details className="bg-muted/10 px-3 py-2">

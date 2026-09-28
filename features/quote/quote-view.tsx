@@ -1,3 +1,4 @@
+import type { MaintenanceWorkspace } from '../maintenance/domain';
 import { usePersonnelTableView } from '@/features/cost/use-personnel-table-view';
 /** Pricing, client-template output, assumptions, and quotation history. */
 
@@ -80,6 +81,7 @@ export function QuoteView({
   versionState,
   totalCost,
   costSnapshot,
+  maintenance,
   costAllocation,
   costErrors,
   decisionError,
@@ -109,6 +111,7 @@ export function QuoteView({
   totalCost: number;
   /** Captured active-version cost inputs used only to describe and allocate quote lines. */
   costSnapshot: CostExportSnapshot;
+  maintenance?: MaintenanceWorkspace;
   costAllocation?: BuCostAllocation;
   costErrors: string[];
   decisionError?: string;
@@ -225,6 +228,7 @@ export function QuoteView({
         costSnapshot,
         pricing,
         selectedSheets,
+        maintenance,
         personnelLayout: personnelTableView.layout,
       });
       announce(
@@ -429,7 +433,7 @@ export function QuoteView({
                 key={`${project.id}-${activeVersion}`}
                 triggerLabel="Quotation + Simple Cost"
                 title="Quotation + Simple Cost"
-                description="Cost Detail 使用当前成本版本已保存的 Cost Input 视图。Quotation Details 和 Cost Statement 始终保留；未选明细以快照数值保留，不会产生失效引用。"
+                description="Cost Detail 使用当前成本版本已保存的 Cost Input 视图。Quotation Details 包含当前维保明细与含维保总价，Cost Statement 始终保留；导出不合并单元格，未选成本明细保留快照数值。"
                 requiredSheets={['Cost Statement']}
                 getSheets={() =>
                   getAvailableSimpleCostSheets(

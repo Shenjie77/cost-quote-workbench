@@ -1,3 +1,8 @@
+import { excelMoneyFormula as money } from '../../lib/excel-money.ts';
+import type { MaintenanceWorkspace } from '../maintenance/domain.ts';
+import { emptyMaintenance } from '../maintenance/domain.ts';
+import { writeMaintenanceTable } from '../maintenance/workbook-table.ts';
+import { unmergeWorkbook } from '../../lib/unmerged-workbook.ts';
 import type { PersonnelTableLayout } from '../cost/personnel-table-layout.ts';
 import type { PersonnelExportReferences } from '../cost/export-simple-workbook.ts';
 /** Internal quotation review workbook with live links to the complete Simple Cost statement. */
@@ -26,18 +31,13 @@ import {
 export type CombinedQuoteWorkbookInput = {
   costSnapshot: CostExportSnapshot;
   pricing: PricingSettings;
+  maintenance?: MaintenanceWorkspace;
   selectedSheets?: readonly SimpleCostSheetId[];
   personnelLayout?: PersonnelTableLayout;
 };
 
 const FIRST_LINE = 9;
 const MONEY = '"S$" #,##0.00;[Red]-"S$" #,##0.00';
-
-/** Match the application’s upward cent rounding, including near-cent floating point noise. */
-const money = (expression: string) => {
-  const cents = `((${expression})*100)`;
-  return `IF(ABS(${cents}-ROUND(${cents},0))<MAX(0.0000001,2.220446049250313E-16*ABS(${cents})),ROUND(${cents},0)/100,-INT(-${cents})/100)`;
-};
 
 /** Store a real formula with a cached value for readers that do not recalculate workbooks. */
 function formula(
@@ -268,6 +268,7 @@ export async function buildCombinedQuoteWorkbook(
     pricing,
     selectedSheets,
     personnelLayout,
+    maintenance: maintenanceInput,
   } = structuredClone(input);
   const available = getAvailableSimpleCostSheets(snapshot, personnelLayout);
   const selected = new Set<SimpleCostSheetId>(
@@ -593,6 +594,36 @@ export async function buildCombinedQuoteWorkbook(
   };
   sheet.autoFilter = `A8:M${last}`;
   sheet.pageSetup.printArea = `A1:M${totalRow}`;
+  unmergeWorkbook(workbook);
+  const maintenance = writeMaintenanceTable(
+    sheet,
+    totalRow + 3,
+    maintenanceInput ?? emptyMaintenance(),
+  );
+  sheet.getCell('M4').value = 'Quote Total with Maintenance';
+  formula(
+    sheet,
+    'M5',
+    `ROUND(I5+J${maintenance.totalRow},2)`,
+    roundMoney(result.quoteBeforeTax + maintenance.total),
+  );
+  sheet.getCell('M4').alignment = { wrapText: true, vertical: 'middle' };
+  sheet.getCell('M4').font = {
+    name: 'Arial',
+    size: 10,
+    bold: true,
+    color: { argb: 'FF173A52' },
+  };
+  sheet.getCell('M5').font = {
+    name: 'Arial',
+    size: 10,
+    bold: true,
+    color: { argb: 'FF173A52' },
+  };
+  sheet.getCell('B7').value = 'Professional Service';
+  sheet.getCell('M5').numFmt = MONEY;
+  sheet.getRow(4).height = 44;
+  sheet.pageSetup.printArea = `A1:M${maintenance.totalRow}`;
   workbook.calcProperties.fullCalcOnLoad = true;
   return workbook;
 }

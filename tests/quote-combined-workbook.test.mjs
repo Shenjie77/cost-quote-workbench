@@ -159,8 +159,11 @@ test('generated and legacy quotation modes preserve captured prices and complete
     const workbook = await buildCombinedQuoteWorkbook(input);
     const sheet = workbook.getWorksheet('Quotation Details');
     assert.equal(sheet.getCell('I5').result, result.quoteBeforeTax);
-    assert.equal(sheet.getCell(`E${sheet.rowCount}`).result, result.cost);
-    assert.equal(sheet.getCell(`J${sheet.rowCount}`).result, result.listPrice);
+    const serviceTotal = Number(
+      sheet.getCell('I5').formula.match(/J(\d+)-G5/)[1],
+    );
+    assert.equal(sheet.getCell(`E${serviceTotal}`).result, result.cost);
+    assert.equal(sheet.getCell(`J${serviceTotal}`).result, result.listPrice);
   }
 });
 
@@ -352,4 +355,84 @@ test('pricing and exported quotation use persisted Scope and Risk percentages af
   assert.equal(sheet.getCell('E10').result, 35);
   assert.equal(sheet.getCell('I9').result, 170);
   assert.equal(sheet.getCell('I10').result, 70);
+});
+
+test('maintenance follows service lines with editable descriptions, annual totals and a discounted combined total', async () => {
+  const { newMaintenanceLine } =
+    await import('../features/maintenance/component-pricing.ts');
+  const input = combinedFixture();
+  input.maintenance = {
+    pricingMode: 'components',
+    startYear: 2026,
+    coverageMonths: 12,
+    archives: [],
+    boq: [
+      {
+        ...newMaintenanceLine(3),
+        model: 'Router',
+        description: 'Core support',
+        ct: 100,
+        spms: 50,
+        quantity: 2,
+      },
+      { ...newMaintenanceLine(1.5), model: 'Switch', ct: 50, quantity: 3 },
+    ],
+  };
+  const before = structuredClone(input);
+  const workbook = await buildCombinedQuoteWorkbook(input);
+  assert.deepEqual(input, before);
+  const sheet = workbook.getWorksheet('Quotation Details');
+  const header = Array.from({ length: sheet.rowCount }, (_, i) => i + 1).find(
+    (n) => sheet.getCell(`H${n}`).value === 'Yearly',
+  );
+  assert.ok(header);
+  const first = header + 1,
+    total = first + 2;
+  assert.equal(sheet.getCell(`B${first}`).value, 'Core support');
+  assert.equal(sheet.getCell(`C${first}`).value, 'Router');
+  assert.equal(
+    sheet.getCell(`F${first}`).formula,
+    `ROUND(D${first}+E${first},2)`,
+  );
+  assert.equal(sheet.getCell(`H${first}`).result, 300);
+  assert.equal(sheet.getCell(`J${first}`).result, 900);
+  assert.equal(sheet.getCell(`H${total}`).result, 450);
+  assert.equal(sheet.getCell(`J${total}`).result, 1125);
+  assert.equal(sheet.getCell('M5').formula, `ROUND(I5+J${total},2)`);
+  assert.ok(
+    Math.abs(sheet.getCell('M5').result - sheet.getCell('I5').result - 1125) <
+      0.001,
+  );
+  for (const page of workbook.worksheets)
+    assert.deepEqual(page.model.merges, []);
+  const reopened = new ExcelJS.Workbook();
+  await reopened.xlsx.load(await workbook.xlsx.writeBuffer());
+  for (const page of reopened.worksheets)
+    assert.deepEqual(page.model.merges, []);
+});
+
+test('maintenance is captured before asynchronous export and invalid maintenance blocks the combined workbook', async () => {
+  const { newMaintenanceLine } =
+    await import('../features/maintenance/component-pricing.ts');
+  const input = combinedFixture();
+  input.maintenance = {
+    coverageMonths: 12,
+    archives: [],
+    boq: [
+      {
+        ...newMaintenanceLine(2),
+        ct: 10,
+        quantity: 1,
+        description: 'Original',
+      },
+    ],
+  };
+  const pending = buildCombinedQuoteWorkbook(input);
+  input.maintenance.boq[0].ct = 999;
+  input.maintenance.boq[0].description = 'Changed';
+  const workbook = await pending;
+  const sheet = workbook.getWorksheet('Quotation Details');
+  assert.equal(sheet.getCell(`J${sheet.rowCount}`).result, 20);
+  input.maintenance.boq[0].ct = -1;
+  await assert.rejects(buildCombinedQuoteWorkbook(input), /CT/);
 });

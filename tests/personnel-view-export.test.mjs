@@ -132,7 +132,8 @@ test('Year filtering and reordered columns preserve split annual header segments
   assert.match(all.getCell('A4').value, /^Y2 · /);
   assert.equal(all.getCell('B4').value, 'Scope');
   assert.match(all.getCell('C4').value, /^Y1 · /);
-  assert.equal(all.getCell('D4').master.address, 'C4');
+  assert.equal(all.getCell('D4').master.address, 'D4');
+  assert.deepEqual(all.model.merges, []);
   assert.equal(all.getCell('E4').value, 'Total MD');
   assert.match(all.getCell('F4').value, /^Y1 · /);
   assert.match(all.getCell('G4').value, /^Y2 · /);

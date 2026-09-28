@@ -20,12 +20,13 @@ export function parseMaintenanceBulk(text: string): {
       qty = '',
       duration = '',
       remark = '',
+      description = '',
     ] = entry.cells;
     const values = [ct, spms, qty, duration].map((value) =>
       value.trim() === '' ? 0 : Number(value.replace(/,/g, '')),
     );
     if (
-      entry.cells.length > 6 ||
+      entry.cells.length > 7 ||
       values.some((value) => !Number.isFinite(value) || value < 0) ||
       values[0] > 1e10 ||
       values[1] > 1e10 ||
@@ -38,10 +39,11 @@ export function parseMaintenanceBulk(text: string): {
           (value) => Math.abs(value * 100 - Math.round(value * 100)) > 1e-6,
         ) ||
       model.length > 500 ||
-      remark.length > 10000
+      remark.length > 10000 ||
+      description.length > 10000
     ) {
       errors.push(
-        `Row ${entry.sourceRow}: check CT / SPMS (2 decimals), QTY (integer), Duration (0–100 years), and the six columns.`,
+        `Row ${entry.sourceRow}: check CT / SPMS (2 decimals), QTY (integer), Duration (0–100 years), and the seven columns.`,
       );
       continue;
     }
@@ -53,6 +55,7 @@ export function parseMaintenanceBulk(text: string): {
       quantity: values[2],
       durationYears: values[3],
       remark,
+      ...(description ? { description } : {}),
     });
   }
   if (!source.length) errors.push('Paste at least one row.');
