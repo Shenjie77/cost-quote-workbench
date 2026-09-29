@@ -272,7 +272,64 @@ test('manual platform merge preserves CT/SPMS money and evidence while requiring
   assert.equal(rows[0].spms, 22.5);
   assert.equal(rows[0].quantity, 2);
   assert.deepEqual(
-    combined.parts.map(({ model: _model, ...part }) => part),
-    original.map(({ model: _model, ...part }) => part),
+    combined.parts.map(
+      ({ model: _model, originalModel: _originalModel, ...part }) => part,
+    ),
+    original.map(
+      ({ model: _model, originalModel: _originalModel, ...part }) => part,
+    ),
   );
+});
+
+test('total rows with quantities are ignored and variable comma-delimited descriptions identify models', async () => {
+  const { modelFromNodeInfo, mergeServiceQuoteItems } =
+    await import('../features/maintenance/import-service-quote.ts');
+  assert.equal(
+    modelFromNodeInfo('aaa, Platform Device A, bbbb'),
+    'Platform Device A',
+  );
+  assert.equal(
+    modelFromNodeInfo('Customized support，设备 B，annual subscription'),
+    '设备 B',
+  );
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(await fixture());
+  const sheet = book.worksheets[0];
+  sheet.getCell('C5').value = 'Any CT description, Device A, any billing terms';
+  sheet.getCell('C6').value = 'Different service, Device B, different unit';
+  for (const label of [
+    'total row',
+    'Grand Total:',
+    'Sub-total',
+    'TOTAL AMOUNT',
+    '总计',
+  ])
+    sheet.addRow([label, '', '', 99, null, 999, 999]);
+  sheet.addRow(['', '', 'Total', 99, null, 999, 999]);
+  const preview = await inspectServiceQuote(
+    new Uint8Array(await book.xlsx.writeBuffer()),
+    'Totals.xlsx',
+  );
+  assert.equal(preview.parts.length, 12);
+  assert.ok(preview.parts.every((part) => !part.issue));
+  assert.equal(preview.parts[0].model, 'Device A');
+  assert.equal(preview.parts[1].model, 'Device B');
+  const merged = mergeServiceQuoteItems(
+    preview.parts,
+    preview.parts.map((part) => part.row),
+    'Platform',
+    2,
+  );
+  const rows = serviceQuoteLines(
+    preview,
+    merged.parts,
+    3,
+    { platform: 2 },
+    true,
+  );
+  assert.match(rows[0].description, /SPMS: Device A/);
+  assert.match(rows[0].description, /SPMS: Device B/);
+  assert.match(rows[0].description, /CT: Router A/);
+  assert.equal(rows[0].ct, 22.5);
+  assert.equal(rows[0].spms, 22.5);
 });

@@ -67,6 +67,7 @@ export function ServiceQuoteImport({
     [counts, setCounts] = useState<Record<string, number>>({}),
     [error, setError] = useState('');
   const [mergeRows, setMergeRows] = useState<number[]>([]);
+  const [groupEditing, setGroupEditing] = useState(false);
   const [platformName, setPlatformName] = useState('');
   const [platformQuantity, setPlatformQuantity] = useState('');
   const [mergeUndo, setMergeUndo] = useState<
@@ -131,6 +132,7 @@ export function ServiceQuoteImport({
       setPreview(parsed);
       setParts(parsed.parts);
       setMergeRows([]);
+      setGroupEditing(false);
       setPlatformName('');
       setPlatformQuantity('');
       setMergeUndo([]);
@@ -365,91 +367,78 @@ export function ServiceQuoteImport({
               合并识别条目 / 平台维保
             </legend>
             <p className="text-xs text-muted-foreground">
-              按设备和服务选择，包含该项所有年份及子项。CT、SPMS
-              分别汇总；填写相同的平台名称可继续合并到已有平台。数量必须重新确认。
+              在下方设备名前勾选，再点击 Group。所选设备的 CT、SPMS
+              分别汇总；组名作为 Model 导入，原始成员写入
+              Desc.，平台数量必须重新确认。
             </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {groups.flatMap((group) =>
-                (['CT', 'SPMS'] as const).map((service) => {
-                  const rows = parts
-                    .filter(
-                      (part) =>
-                        group.rows.includes(part.row) &&
-                        part.service === service,
-                    )
-                    .map((part) => part.row);
-                  if (!rows.length) return null;
-                  return (
-                    <label
-                      key={`${group.key}-${service}`}
-                      className="flex items-center gap-2 text-xs"
-                    >
-                      <input
-                        type="checkbox"
-                        aria-label={`Merge ${service} ${group.model}`}
-                        checked={rows.every((row) => mergeRows.includes(row))}
-                        onChange={(event) =>
-                          setMergeRows((current) =>
-                            event.target.checked
-                              ? [...new Set([...current, ...rows])]
-                              : current.filter((row) => !rows.includes(row)),
-                          )
-                        }
-                      />
-                      {group.model} · {service} · SGD{' '}
-                      {group[service === 'CT' ? 'ct' : 'spms'].toFixed(2)}
-                    </label>
-                  );
-                }),
-              )}
-            </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Input
-                aria-label="合并后的平台名称"
-                placeholder="平台名称"
-                value={platformName}
-                onChange={(event) => setPlatformName(event.target.value)}
-                className="w-60"
-              />
-              <Input
-                aria-label="合并后的平台数量"
-                placeholder="平台 QTY（必填）"
-                inputMode="numeric"
-                value={platformQuantity}
-                onChange={(event) => setPlatformQuantity(event.target.value)}
-                className="w-40"
-              />
               <Button
                 variant="outline"
-                disabled={mergeRows.length < 2}
-                onClick={() => {
-                  try {
-                    const merged = mergeServiceQuoteItems(
-                      parts,
-                      mergeRows,
-                      platformName,
-                      Number(platformQuantity),
-                    );
-                    setMergeUndo((current) => [
-                      ...current,
-                      { parts: structuredClone(parts), counts: { ...counts } },
-                    ]);
-                    setParts(merged.parts);
-                    setCounts((current) => ({
-                      ...current,
-                      [merged.key]: merged.quantity,
-                    }));
-                    setMergeRows([]);
-                    setPlatformName('');
-                    setPlatformQuantity('');
-                    setError('');
-                  } catch (error) {
-                    setError(String(error));
-                  }
-                }}
+                disabled={
+                  groups.filter((group) =>
+                    group.rows.every((row) => mergeRows.includes(row)),
+                  ).length < 2
+                }
+                onClick={() => setGroupEditing(true)}
               >
-                合并所选条目
+                Group / 分组
               </Button>
+              {groupEditing && (
+                <>
+                  <Input
+                    aria-label="合并后的平台名称"
+                    placeholder="平台名称"
+                    value={platformName}
+                    onChange={(event) => setPlatformName(event.target.value)}
+                    className="w-60"
+                  />
+                  <Input
+                    aria-label="合并后的平台数量"
+                    placeholder="平台 QTY（必填）"
+                    inputMode="numeric"
+                    value={platformQuantity}
+                    onChange={(event) =>
+                      setPlatformQuantity(event.target.value)
+                    }
+                    className="w-40"
+                  />
+                  <Button
+                    variant="outline"
+                    disabled={mergeRows.length < 2}
+                    onClick={() => {
+                      try {
+                        const merged = mergeServiceQuoteItems(
+                          parts,
+                          mergeRows,
+                          platformName,
+                          Number(platformQuantity),
+                        );
+                        setMergeUndo((current) => [
+                          ...current,
+                          {
+                            parts: structuredClone(parts),
+                            counts: { ...counts },
+                          },
+                        ]);
+                        setParts(merged.parts);
+                        setCounts((current) => ({
+                          ...current,
+                          [merged.key]: merged.quantity,
+                        }));
+                        setMergeRows([]);
+                        setGroupEditing(false);
+                        setPlatformName('');
+                        setPlatformQuantity('');
+                        setError('');
+                      } catch (error) {
+                        setError(String(error));
+                      }
+                    }}
+                  >
+                    确认分组
+                  </Button>
+                </>
+              )}
               <Button
                 variant="outline"
                 disabled={!mergeUndo.length}
@@ -470,52 +459,101 @@ export function ServiceQuoteImport({
             <TableHeader>
               <TableRow>
                 {[
+                  '选择',
                   'Model',
-                  'CT Total',
-                  'SPMS Total',
-                  '实际 Node 数量',
-                  'CT / year / node',
-                  'SPMS / year / node',
+                  'CT',
+                  'SPMS',
+                  'U/P',
+                  'QTY',
+                  'Yearly',
+                  'Dur.',
+                  'Total',
                 ].map((label) => (
                   <TableHead key={label}>{label}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {groups.map((group) => (
-                <TableRow key={group.key}>
-                  <TableCell>{group.model}</TableCell>
-                  <TableCell>{group.ct.toFixed(2)}</TableCell>
-                  <TableCell>{group.spms.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Input
-                      aria-label={`Node quantity ${group.model}`}
-                      type="number"
-                      value={counts[group.key] ?? ''}
-                      onChange={(event) =>
-                        setCounts((current) => ({
-                          ...current,
-                          [group.key]: Number(event.target.value),
-                        }))
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {duration > 0 && counts[group.key] > 0
-                      ? roundMoney(
-                          group.ct / duration / counts[group.key],
-                        ).toFixed(2)
-                      : '—'}
-                  </TableCell>
-                  <TableCell>
-                    {duration > 0 && counts[group.key] > 0
-                      ? roundMoney(
-                          group.spms / duration / counts[group.key],
-                        ).toFixed(2)
-                      : '—'}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {groups.map((group) => {
+                const quantity = counts[group.key];
+                const valid =
+                  Number.isInteger(quantity) && quantity > 0 && duration > 0;
+                const ct = valid
+                  ? roundMoney(group.ct / duration / quantity)
+                  : 0;
+                const spms = valid
+                  ? roundMoney(group.spms / duration / quantity)
+                  : 0;
+                const unit = roundMoney(ct + spms);
+                const yearly = roundMoney(unit * (quantity || 0));
+                const members = [
+                  ...new Set(
+                    parts
+                      .filter(
+                        (part) =>
+                          group.rows.includes(part.row) && part.originalModel,
+                      )
+                      .map((part) => `${part.service}: ${part.originalModel}`),
+                  ),
+                ];
+                return (
+                  <TableRow key={group.key}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        aria-label={`Group ${group.model}`}
+                        checked={group.rows.every((row) =>
+                          mergeRows.includes(row),
+                        )}
+                        onChange={(event) => {
+                          setGroupEditing(false);
+                          setMergeRows((current) =>
+                            event.target.checked
+                              ? [...new Set([...current, ...group.rows])]
+                              : current.filter(
+                                  (row) => !group.rows.includes(row),
+                                ),
+                          );
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {group.model}
+                      {members.length > 0 && (
+                        <details>
+                          <summary className="cursor-pointer text-xs">
+                            组合成员 ({members.length})
+                          </summary>
+                          <div className="whitespace-pre-line text-xs">
+                            {members.join('\n')}
+                          </div>
+                        </details>
+                      )}
+                    </TableCell>
+                    <TableCell>{valid ? ct.toFixed(2) : '—'}</TableCell>
+                    <TableCell>{valid ? spms.toFixed(2) : '—'}</TableCell>
+                    <TableCell>{valid ? unit.toFixed(2) : '—'}</TableCell>
+                    <TableCell>
+                      <Input
+                        aria-label={`Node quantity ${group.model}`}
+                        inputMode="numeric"
+                        value={counts[group.key] ?? ''}
+                        onChange={(event) =>
+                          setCounts((current) => ({
+                            ...current,
+                            [group.key]: Number(event.target.value),
+                          }))
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>{valid ? yearly.toFixed(2) : '—'}</TableCell>
+                    <TableCell>{duration}</TableCell>
+                    <TableCell>
+                      {valid ? roundMoney(yearly * duration).toFixed(2) : '—'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
           <p className="text-xs text-muted-foreground">

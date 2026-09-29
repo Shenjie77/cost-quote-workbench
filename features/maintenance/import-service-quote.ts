@@ -8,6 +8,7 @@ export type ServiceQuotePart = {
   row: number;
   node: string;
   nodeInfo: string;
+  originalModel?: string;
   service: ServiceKind | null;
   model: string;
   year?: number;
@@ -58,10 +59,9 @@ const serviceOf = (text: string): ServiceKind | null =>
       : null;
 /** The device is the middle segment of the supplied “service, model, per node per year” format. */
 export function modelFromNodeInfo(info: string): string {
-  const description = info.match(
-    /(?:spare\s+parts?\s+management\s+service|(?:software|hardware)\s+support\s+service|basic(?:\s+support)?\s+service)\s*[,，]\s*(.+?)\s*[,，]\s*per\s+node(?:\s*(?:per|[*/×·])\s*|\s+)year/i,
-  );
-  if (description) return description[1].trim();
+  // The middle field is stable; service descriptions and billing wording are not.
+  const fields = info.split(/[,，]/);
+  if (fields.length >= 3 && fields[1].trim()) return fields[1].trim();
   return (
     info
       .match(
@@ -160,6 +160,13 @@ export async function inspectServiceQuote(
   for (let row = header + 1; row <= sheet.rowCount; row++) {
     const node = text(row, 'node'),
       info = text(row, 'nodeinfo');
+    // Aggregate rows can carry quantities and amounts; ignore them before inheriting context or validating prices.
+    const totalLabel =
+      /^(?:(?:grand\s*|sub[\s-]*)?total(?:\s+(?:row|amount|price))?|合计|总计|小计)\s*[:：]?$/i;
+    if (
+      [node, info, text(row, 'model')].some((label) => totalLabel.test(label))
+    )
+      continue;
     const quantity = number(cell(row, 'quantity'));
     // A-column subquotation headings define the parent service, regardless of order or row number.
     // Reset inherited context even for repeated or unrecognized sections to prevent cross-section leakage.
@@ -290,6 +297,15 @@ export function serviceQuoteLines(
       ct: roundMoney(group.ct / years / quantity),
       spms: roundMoney(group.spms / years / quantity),
       source: `${preview.fileName.slice(0, 100)} / ${preview.sheet.slice(0, 50)} / rows ${group.rows[0]}-${group.rows.at(-1)} / SHA256 ${preview.sha256}`,
+      description: [
+        ...new Set(
+          parts
+            .filter(
+              (part) => group.rows.includes(part.row) && part.originalModel,
+            )
+            .map((part) => `${part.service}: ${part.originalModel}`),
+        ),
+      ].join('\n'),
       remark: 'Customer price; annual per-node prices rounded upward to cents',
     };
   });
@@ -315,7 +331,15 @@ export function mergeServiceQuoteItems(
     throw new Error('请选择至少两个有效明细进行合并');
   return {
     parts: parts.map((part) =>
-      selected.has(part.row) ? { ...part, model: name } : part,
+      selected.has(part.row) ||
+      part.model.trim().normalize('NFKC').toLowerCase() ===
+        name.normalize('NFKC').toLowerCase()
+        ? {
+            ...part,
+            originalModel: part.originalModel ?? part.model,
+            model: name,
+          }
+        : part,
     ),
     key: name.normalize('NFKC').toLowerCase(),
     quantity,
