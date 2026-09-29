@@ -4,6 +4,7 @@
  */
 
 'use client';
+import { CalculationDraftPage } from '@/features/calculation/calculation-draft-page';
 import { ContextBand } from '@/features/projects/project-context-band';
 
 import { readableFileStem, exportTimestamp } from '../../lib/file-names';
@@ -2331,6 +2332,7 @@ function ProjectSessionApp({
         }}
       />
     );
+  else if (activeView === 'calculation') content = <CalculationDraftPage />;
   else if (activeView === 'workflow') content = null;
   else if (activeView === 'cost')
     content = (
@@ -2649,7 +2651,7 @@ function ProjectSessionApp({
               </div>
               <p className="sr-only">{pageSubtitleZh}</p>
             </div>
-            {activeView !== 'master-data' && activeView !== 'workflow' && (
+            {activeView !== 'master-data' && activeView !== 'workflow' && activeView !== 'calculation' && (
               <WorkspaceToolbar
                 persistenceStatus={persistenceStatus}
                 activeView={activeView}
@@ -2779,15 +2781,15 @@ function ProjectSessionApp({
             tabIndex={-1}
             className="min-w-0 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4"
             inert={
-              activeView !== 'master-data' &&
+              activeView !== 'master-data' && activeView !== 'calculation' &&
               (!isReady || isVersionTransitioning)
             }
             aria-busy={
-              activeView !== 'master-data' &&
+              activeView !== 'master-data' && activeView !== 'calculation' &&
               (!isReady || isVersionTransitioning)
             }
           >
-            {activeView !== 'master-data' && activeView !== 'workflow' && (
+            {activeView !== 'master-data' && activeView !== 'workflow' && activeView !== 'calculation' && (
               <ReminderInbox
                 refreshKey={JSON.stringify(
                   portfolioProjects.map((project) => [

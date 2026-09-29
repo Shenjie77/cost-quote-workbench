@@ -1,0 +1,60 @@
+/** Loaded only after a browser container is mounted; no Univer runtime in SSR. */
+import { createElement } from 'react';
+import { createUniver, LocaleType } from '@univerjs/presets';
+import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
+import EnUS from '@univerjs/preset-sheets-core/locales/en-US';
+import '@univerjs/preset-sheets-core/lib/index.css';
+import type { IWorkbookData } from '@univerjs/core';
+
+export function mountUniver(
+  container: HTMLElement,
+  snapshot: Partial<IWorkbookData>,
+  onChange: (snapshot: IWorkbookData) => void,
+  onToolbarHost?: (host: HTMLDivElement | null) => void,
+) {
+  const { univer, univerAPI } = createUniver({
+    locale: LocaleType.EN_US,
+    locales: { [LocaleType.EN_US]: EnUS },
+    presets: [UniverSheetsCorePreset({ container })],
+  });
+  const toolbarPart = onToolbarHost
+    ? univerAPI.registerUIPart(univerAPI.Enum.BuiltInUIPart.HEADER_MENU, () =>
+        createElement('div', { ref: onToolbarHost }),
+      )
+    : undefined;
+  const workbook = univerAPI.createWorkbook(snapshot);
+  let disposed = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const capture = () => {
+    if (!disposed) onChange(workbook.save());
+  };
+  const listener = univerAPI.addEvent(
+    univerAPI.Event.CommandExecuted,
+    ({ type }) => {
+      if (type !== 2) return;
+      clearTimeout(timer);
+      timer = setTimeout(capture, 250);
+    },
+  );
+  return {
+    snapshot: () => workbook.save(),
+    setReadOnly: (value: boolean) => workbook.setEditable(!value),
+    async calculate() {
+      await workbook.endEditingAsync(true);
+      const formula = univerAPI.getFormula();
+      const applied = formula.onCalculationResultApplied(15000);
+      formula.executeCalculation();
+      await applied;
+      return workbook.save();
+    },
+    dispose() {
+      clearTimeout(timer);
+      capture();
+      disposed = true;
+      listener.dispose();
+      toolbarPart?.dispose();
+      univer.dispose();
+    },
+  };
+}
+export type UniverHandle = ReturnType<typeof mountUniver>;

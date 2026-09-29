@@ -352,3 +352,23 @@
     font-size: 16px;
   }
 }
+
+/* Draft actions share Univer's ribbon tab row; no additional page header. */
+.calculation-page-editor [data-u-comp='ribbon-header-menu'] {
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  background: #f8f9fa;
+}
+.calculation-page-editor [data-u-comp='ribbon-header-menu'] > [role='tablist'] {
+  flex: 1 0 auto;
+  width: auto;
+  justify-content: flex-start;
+}
+.calculation-page-editor
+  [data-u-comp='ribbon-header-menu']
+  > div:not([role='tablist']) {
+  position: static;
+  flex-shrink: 0;
+  padding-inline: 8px;
+}

@@ -1,3 +1,4 @@
+import { SubcontractSpreadsheetEntry } from './subcontract-spreadsheet-entry';
 import { formatMoney } from '@/lib/money';
 /** Version-owned subcontract BOQs with focused quantity entry and staged catalogue selection. */
 import { useEffect, useRef, useState } from 'react';
@@ -179,6 +180,7 @@ export function removeSubcontractSiteLine(
 }
 
 export function SubcontractCostSheet({
+  workspaceKey,
   value,
   onChange,
   catalog,
@@ -189,6 +191,7 @@ export function SubcontractCostSheet({
   onRefreshCatalog,
   announce,
 }: {
+  workspaceKey?: string;
   value: SubcontractCost;
   onChange: (value: SubcontractCost) => void;
   catalog: SubcontractItem[];
@@ -200,6 +203,7 @@ export function SubcontractCostSheet({
   announce: (message: string) => void;
 }) {
   const locked = !!lockedReason;
+  const [page, setPage] = useState<'overview' | 'site' | 'shared'>('overview');
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [catalogTarget, setCatalogTarget] = useState<SubcontractTarget | null>(
     null,
@@ -225,7 +229,7 @@ export function SubcontractCostSheet({
     name: string;
   } | null>(null);
   const [projectYear, setProjectYear] = useState<number | 'all'>(0);
-  const [sharedExpanded, setSharedExpanded] = useState(value.lines.length > 0);
+  const [sharedExpanded, setSharedExpanded] = useState(true);
   const [query, setQuery] = useState('');
   const [refreshedCatalog, setRefreshedCatalog] = useState<{
     source: SubcontractItem[];
@@ -344,6 +348,7 @@ export function SubcontractCostSheet({
       siteTypes: [...value.siteTypes, site],
     });
     setSelectedSiteId(site.id);
+    setPage('site');
   };
   const refresh = async () => {
     if (!onRefreshCatalog || refreshing) return;
@@ -435,12 +440,71 @@ export function SubcontractCostSheet({
           ))}
         </div>
       </div>
-      <SubcontractRateAssumptions
-        settings={value.rateSettings}
-        actualYears={actualYears}
-        locked={locked}
-        onChange={(rateSettings) => change({ ...value, rateSettings })}
-      />
+      {value.mode === 'site-types' && (
+        <nav
+          aria-label="Subcontract worksheets"
+          className="flex flex-wrap items-center gap-1 border-b border-border pb-2"
+        >
+          <Button
+            size="sm"
+            variant={page === 'overview' ? 'default' : 'ghost'}
+            aria-current={page === 'overview' ? 'page' : undefined}
+            onClick={() => setPage('overview')}
+          >
+            Overview
+          </Button>
+          {value.siteTypes.map((site) => (
+            <Button
+              key={site.id}
+              size="sm"
+              variant={
+                page === 'site' && selectedSite?.id === site.id
+                  ? 'default'
+                  : 'ghost'
+              }
+              aria-current={
+                page === 'site' && selectedSite?.id === site.id
+                  ? 'page'
+                  : undefined
+              }
+              onClick={() => {
+                setSelectedSiteId(site.id);
+                setPage('site');
+              }}
+            >
+              {site.name}
+              {site.lines.some((line) => line.unitPrice === null)
+                ? ' · Unpriced'
+                : ''}
+            </Button>
+          ))}
+          <Button
+            size="sm"
+            variant={page === 'shared' ? 'default' : 'ghost'}
+            aria-current={page === 'shared' ? 'page' : undefined}
+            onClick={() => setPage('shared')}
+          >
+            Shared / One-off Project Costs
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={locked}
+            onClick={addSite}
+          >
+            <Plus className="size-3.5" />
+            New site type
+          </Button>
+        </nav>
+      )}
+      {(value.mode === 'project' || page === 'overview') && (
+        <SubcontractRateAssumptions
+          settings={value.rateSettings}
+          actualYears={actualYears}
+          locked={locked}
+          onChange={(rateSettings) => change({ ...value, rateSettings })}
+        />
+      )}
       {locked && (
         <output className="block rounded-md border bg-muted/30 px-3 py-2 text-xs">
           Read only · {lockedReason}
@@ -453,46 +517,15 @@ export function SubcontractCostSheet({
           item.
         </output>
       )}
-      {value.mode === 'site-types' && (
+      {value.mode === 'site-types' && page === 'site' && (
         <section
           className="wb-panel min-w-0 overflow-hidden"
           aria-label="Site configuration"
         >
           <div className="wb-toolbar border-b border-border">
-            <label
-              htmlFor="subcontract-site-type"
-              className="shrink-0 text-xs font-medium"
-            >
-              Site Type
-            </label>
-            <select
-              id="subcontract-site-type"
-              aria-label="Select subcontract site type"
-              className={`${selectClass} w-full flex-1 basis-40`}
-              value={selectedSite?.id ?? ''}
-              onChange={(event) => setSelectedSiteId(event.target.value)}
-            >
-              {!value.siteTypes.length && (
-                <option value="">No site types yet</option>
-              )}
-              {value.siteTypes.map((site) => (
-                <option key={site.id} value={site.id}>
-                  {site.name} ·{' '}
-                  {site.sites.reduce((sum, count) => sum + count, 0)} sites
-                </option>
-              ))}
-            </select>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="shrink-0"
-              disabled={locked}
-              onClick={addSite}
-            >
-              <Plus className="size-3.5" />
-              New
-            </Button>
+            <h3 className="mr-auto text-sm font-semibold">
+              {selectedSite?.name || 'Site type'}
+            </h3>
             {selectedSite && (
               <>
                 <Button
@@ -528,6 +561,7 @@ export function SubcontractCostSheet({
                       siteTypes: [...value.siteTypes, duplicate],
                     });
                     setSelectedSiteId(duplicate.id);
+                    setPage('site');
                     announce(
                       'Site configuration copied. Enter annual site counts for the new site type.',
                     );
@@ -589,31 +623,52 @@ export function SubcontractCostSheet({
                   }}
                 />
               </div>
-              <SubcontractLinesTable
-                lines={selectedSite.lines}
-                actualYears={actualYears}
-                locked={locked}
-                onChange={(line) =>
-                  updateSite({
-                    ...selectedSite,
-                    lines: selectedSite.lines.map((entry) =>
-                      entry.id === line.id
-                        ? (line as SubcontractSiteLine)
-                        : entry,
-                    ),
-                  })
-                }
-                deleteConfirmation={(line) =>
-                  selectedSite.lines.length === 1 &&
-                  selectedSite.sites.some((count) => count > 0)
-                    ? `Remove ${line.description || line.code} and clear all annual deployments for ${selectedSite.name}? This is its last BOQ item.`
-                    : `Remove ${line.description || line.code} from ${selectedSite.name}?`
-                }
-                onDelete={(lineId) =>
-                  updateSite(removeSubcontractSiteLine(selectedSite, lineId))
-                }
-                announce={announce}
-              />
+              {workspaceKey && (
+                <SubcontractSpreadsheetEntry
+                  draftId={`${workspaceKey}:site:${selectedSite.id}`}
+                  name={selectedSite.name}
+                  lines={selectedSite.lines}
+                  factors={rateFactors}
+                  locked={locked}
+                  announce={announce}
+                  onReplace={(lines) =>
+                    updateSite({
+                      ...selectedSite,
+                      lines: lines as SubcontractSiteLine[],
+                    })
+                  }
+                />
+              )}
+              <details className="border-t">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
+                  Item details
+                </summary>
+                <SubcontractLinesTable
+                  lines={selectedSite.lines}
+                  actualYears={actualYears}
+                  locked={locked}
+                  onChange={(line) =>
+                    updateSite({
+                      ...selectedSite,
+                      lines: selectedSite.lines.map((entry) =>
+                        entry.id === line.id
+                          ? (line as SubcontractSiteLine)
+                          : entry,
+                      ),
+                    })
+                  }
+                  deleteConfirmation={(line) =>
+                    selectedSite.lines.length === 1 &&
+                    selectedSite.sites.some((count) => count > 0)
+                      ? `Remove ${line.description || line.code} and clear all annual deployments for ${selectedSite.name}? This is its last BOQ item.`
+                      : `Remove ${line.description || line.code} from ${selectedSite.name}?`
+                  }
+                  onDelete={(lineId) =>
+                    updateSite(removeSubcontractSiteLine(selectedSite, lineId))
+                  }
+                  announce={announce}
+                />
+              </details>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-4 py-3 text-xs">
                 <span className="text-muted-foreground">
                   Cost per Site
@@ -692,14 +747,14 @@ export function SubcontractCostSheet({
           )}
         </section>
       )}
-      {value.mode === 'site-types' && value.siteTypes.length > 1 && (
-        <details className="wb-panel min-w-0 overflow-hidden">
-          <summary className="cursor-pointer px-3 py-2.5 text-xs font-medium hover:bg-muted/20">
+      {value.mode === 'site-types' && page === 'overview' && (
+        <section className="wb-panel min-w-0 overflow-hidden">
+          <h3 className="px-3 py-2.5 text-xs font-medium">
             All site types · Annual breakdown{' '}
             <span className="ml-2 font-normal text-muted-foreground">
               {value.siteTypes.length} configurations
             </span>
-          </summary>
+          </h3>
           <Table>
             <TableHeader>
               <TableRow>
@@ -724,7 +779,10 @@ export function SubcontractCostSheet({
                       <button
                         type="button"
                         className="text-left text-xs font-medium text-primary underline-offset-2 hover:underline"
-                        onClick={() => setSelectedSiteId(site.id)}
+                        onClick={() => {
+                          setSelectedSiteId(site.id);
+                          setPage('site');
+                        }}
                       >
                         {site.name}
                       </button>
@@ -748,121 +806,182 @@ export function SubcontractCostSheet({
                   </TableRow>
                 );
               })}
+              <TableRow>
+                <TableCell>
+                  <button
+                    className="text-primary hover:underline"
+                    onClick={() => setPage('shared')}
+                  >
+                    Shared project costs
+                  </button>
+                </TableCell>
+                <TableCell>—</TableCell>
+                {years.map((_, i) => (
+                  <TableCell key={i} className="text-right tabular-nums">
+                    {money(
+                      summary.lines.reduce(
+                        (sum, line) => sum + line.years[i],
+                        0,
+                      ),
+                    )}
+                  </TableCell>
+                ))}
+                <TableCell className="text-right tabular-nums">
+                  {money(projectTotal)}
+                </TableCell>
+              </TableRow>
+              <TableRow className="font-semibold">
+                <TableCell>Total (including legacy costs)</TableCell>
+                <TableCell>—</TableCell>
+                {years.map((amount, i) => (
+                  <TableCell key={i} className="text-right tabular-nums">
+                    {money(amount)}
+                  </TableCell>
+                ))}
+                <TableCell className="text-right tabular-nums">
+                  {money(total)}
+                </TableCell>
+              </TableRow>
             </TableBody>
           </Table>
-        </details>
+        </section>
       )}
-      <section className="wb-panel min-w-0 overflow-hidden">
-        {value.mode === 'site-types' ? (
-          <button
-            type="button"
-            className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-muted/20"
-            aria-expanded={sharedExpanded}
-            aria-controls="subcontract-project-boq"
-            onClick={() => setSharedExpanded(!sharedExpanded)}
-          >
-            <div>
-              <h3 className="text-xs font-semibold">
-                Shared / One-off Project Costs{' '}
-                <span className="ml-1 font-normal text-muted-foreground">
+      {(value.mode === 'project' || page === 'shared') && (
+        <section className="wb-panel min-w-0 overflow-hidden">
+          {value.mode === 'site-types' ? (
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-muted/20"
+              aria-expanded={sharedExpanded}
+              aria-controls="subcontract-project-boq"
+              onClick={() => setSharedExpanded(!sharedExpanded)}
+            >
+              <div>
+                <h3 className="text-xs font-semibold">
+                  Shared / One-off Project Costs{' '}
+                  <span className="ml-1 font-normal text-muted-foreground">
+                    {value.lines.length} items
+                  </span>
+                </h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Project quantities added once, alongside site costs.
+                </p>
+              </div>
+              <span className="shrink-0 text-xs font-medium tabular-nums">
+                {money(projectTotal)}{' '}
+                <span className="ml-2 text-muted-foreground">
+                  {sharedExpanded ? '−' : '+'}
+                </span>
+              </span>
+            </button>
+          ) : (
+            <div className="px-3 pt-3">
+              <h3 className="text-sm font-semibold">
+                Project BOQ{' '}
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                   {value.lines.length} items
                 </span>
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Project quantities added once, alongside site costs.
+                Add items, then enter quantities for each year.
               </p>
             </div>
-            <span className="shrink-0 text-xs font-medium tabular-nums">
-              {money(projectTotal)}{' '}
-              <span className="ml-2 text-muted-foreground">
-                {sharedExpanded ? '−' : '+'}
-              </span>
-            </span>
-          </button>
-        ) : (
-          <div className="px-3 pt-3">
-            <h3 className="text-sm font-semibold">
-              Project BOQ{' '}
-              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                {value.lines.length} items
-              </span>
-            </h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Add items, then enter quantities for each year.
-            </p>
-          </div>
-        )}
-        {showProjectLines && (
-          <div id="subcontract-project-boq">
-            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3">
-              <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                Quantity year
-                <select
-                  aria-label="Project BOQ quantity year"
-                  className={selectClass}
-                  value={projectYear}
-                  onChange={(event) =>
-                    setProjectYear(
-                      event.target.value === 'all'
-                        ? 'all'
-                        : Number(event.target.value),
-                    )
+          )}
+          {showProjectLines && (
+            <div id="subcontract-project-boq">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3">
+                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  Quantity year
+                  <select
+                    aria-label="Project BOQ quantity year"
+                    className={selectClass}
+                    value={projectYear}
+                    onChange={(event) =>
+                      setProjectYear(
+                        event.target.value === 'all'
+                          ? 'all'
+                          : Number(event.target.value),
+                      )
+                    }
+                  >
+                    {zeroYears().map((_, index) => (
+                      <option key={index} value={index}>
+                        {yearLabel(actualYears, index)}
+                      </option>
+                    ))}
+                    <option value="all">All years</option>
+                  </select>
+                </label>
+                <AddLineActions
+                  locked={locked}
+                  onCatalog={() => openCatalog({ kind: 'project' })}
+                  onBulk={() => {
+                    void openBulk({ kind: 'project' });
+                  }}
+                />
+              </div>
+              {workspaceKey && (
+                <SubcontractSpreadsheetEntry
+                  draftId={`${workspaceKey}:project`}
+                  name={
+                    value.mode === 'project'
+                      ? 'Project BOQ'
+                      : 'Shared project costs'
                   }
-                >
-                  {zeroYears().map((_, index) => (
-                    <option key={index} value={index}>
-                      {yearLabel(actualYears, index)}
-                    </option>
-                  ))}
-                  <option value="all">All years</option>
-                </select>
-              </label>
-              <AddLineActions
-                locked={locked}
-                onCatalog={() => openCatalog({ kind: 'project' })}
-                onBulk={() => {
-                  void openBulk({ kind: 'project' });
-                }}
-              />
+                  lines={value.lines}
+                  project
+                  factors={rateFactors}
+                  locked={locked}
+                  announce={announce}
+                  onReplace={(lines) =>
+                    change({ ...value, lines: lines as SubcontractCostLine[] })
+                  }
+                />
+              )}
+              <details className="border-t">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
+                  Item details
+                </summary>
+                <SubcontractLinesTable
+                  lines={value.lines}
+                  actualYears={actualYears}
+                  locked={locked}
+                  project
+                  yearIndex={projectYear}
+                  rateFactors={rateFactors}
+                  onChange={(line) =>
+                    change({
+                      ...value,
+                      lines: value.lines.map((entry) =>
+                        entry.id === line.id
+                          ? (line as SubcontractCostLine)
+                          : entry,
+                      ),
+                    })
+                  }
+                  onDelete={(lineId) =>
+                    change({
+                      ...value,
+                      lines: value.lines.filter((line) => line.id !== lineId),
+                    })
+                  }
+                  announce={announce}
+                />
+              </details>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2 text-xs">
+                <span className="text-muted-foreground">
+                  {projectYear === 'all'
+                    ? 'BOQ total'
+                    : `${yearLabel(actualYears, projectYear)} subtotal · SGD ${money(roundMoney(summary.lines.reduce((sum, line) => sum + line.years[projectYear], 0)))}`}
+                </span>
+                <span className="font-medium tabular-nums">
+                  All years · SGD {money(projectTotal)}
+                </span>
+              </div>
             </div>
-            <SubcontractLinesTable
-              lines={value.lines}
-              actualYears={actualYears}
-              locked={locked}
-              project
-              yearIndex={projectYear}
-              rateFactors={rateFactors}
-              onChange={(line) =>
-                change({
-                  ...value,
-                  lines: value.lines.map((entry) =>
-                    entry.id === line.id
-                      ? (line as SubcontractCostLine)
-                      : entry,
-                  ),
-                })
-              }
-              onDelete={(lineId) =>
-                change({
-                  ...value,
-                  lines: value.lines.filter((line) => line.id !== lineId),
-                })
-              }
-              announce={announce}
-            />
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2 text-xs">
-              <span className="text-muted-foreground">
-                {projectYear === 'all'
-                  ? 'BOQ total'
-                  : `${yearLabel(actualYears, projectYear)} subtotal · SGD ${money(roundMoney(summary.lines.reduce((sum, line) => sum + line.years[projectYear], 0)))}`}
-              </span>
-              <span className="font-medium tabular-nums">
-                All years · SGD {money(projectTotal)}
-              </span>
-            </div>
-          </div>
-        )}
-      </section>
+          )}
+        </section>
+      )}
       {catalogTarget && (
         <Dialog
           open

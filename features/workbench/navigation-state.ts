@@ -13,6 +13,7 @@ const views: ViewKey[] = [
   'project',
   'workflow',
   'cost',
+  'calculation',
   'quote',
   'cpq',
   'maintenance',

@@ -19,6 +19,9 @@ const reactAdapter = `data:text/javascript,${encodeURIComponent(`
 `)}`;
 const hooks = registerHooks({
   resolve(specifier, context, nextResolve) {
+    // Match the production bundler's Next.js compatibility alias.
+    if (specifier === 'next/link')
+      return nextResolve('vinext/shims/link', context);
     if (
       specifier === 'react' &&
       context.parentURL?.endsWith('/subcontract-cost-sheet.tsx')
@@ -261,9 +264,10 @@ test('project and site controls have compact Bulk Entry actions and item codes a
       announce: noop,
     }),
   );
-  assert.equal((html.match(/Bulk Entry/g) || []).length, 2);
+  assert.equal((html.match(/Bulk Entry/g) || []).length, 0);
+  assert.match(html, /Overview/);
   assert.doesNotMatch(html, /Manual Item/);
-  assert.match(html, /<strong[^>]*font-bold[^>]*>SC-NEW<\/strong>/);
+
   const table = renderToStaticMarkup(
     React.createElement(SubcontractLinesTable, {
       lines: [line],
@@ -275,6 +279,7 @@ test('project and site controls have compact Bulk Entry actions and item codes a
       announce: noop,
     }),
   );
+  assert.match(table, /<strong[^>]*font-bold[^>]*>SC-NEW<\/strong>/);
   assert.match(table, /55.00/);
   assert.match(table, /value="25"/);
 });

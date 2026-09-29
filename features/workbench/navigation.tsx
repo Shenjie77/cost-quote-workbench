@@ -2,6 +2,7 @@
 
 import {
   BarChart3,
+  Calculator,
   Bot,
   Database,
   FolderKanban,
@@ -50,6 +51,14 @@ export const navItems: Array<{
     description: 'Input, versions & views',
     descriptionZh: '录入、版本与汇总',
     icon: BarChart3,
+  },
+  {
+    key: 'calculation',
+    label: 'Calculation Drafts',
+    labelZh: '',
+    description: 'Free-form spreadsheet',
+    descriptionZh: '',
+    icon: Calculator,
   },
   {
     key: 'quote',
@@ -103,6 +112,13 @@ export const viewTitles: Record<
     subtitleZh: string;
   }
 > = {
+  calculation: {
+    eyebrow: 'WORKSPACE / CALCULATIONS',
+    title: 'Calculation Drafts',
+    titleZh: '',
+    subtitle: 'Explore formulas and keep working notes in a local spreadsheet.',
+    subtitleZh: '',
+  },
   maintenance: {
     eyebrow: 'BOQ / MAINTENANCE',
     title: 'Maintenance BOQ',

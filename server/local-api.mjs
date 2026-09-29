@@ -3,6 +3,7 @@
 /** Minimal same-device JSON API for the SQLite workbench repository. */
 
 import { openReminderService } from './reminder-service.mjs';
+import { openCalculationDraftStore, routeCalculationDrafts } from './calculation-drafts.mjs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +37,7 @@ const DATABASE_PATH = path.resolve(
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const repository = openWorkspaceRepository(DATABASE_PATH);
 const quoteTemplates = openQuoteTemplateStore(DATABASE_PATH);
+const calculationDrafts = openCalculationDraftStore(DATABASE_PATH);
 const reminders = openReminderService(DATABASE_PATH, repository);
 const scanReminders = () => {
   try {
@@ -97,6 +99,7 @@ const route = async (request, response) => {
     return;
   }
   const url = new URL(request.url || '/', `http://${request.headers.host}`);
+  if (await routeCalculationDrafts({ request, url, store: calculationDrafts, respond, readJson })) return;
   if (request.method === 'GET' && url.pathname === '/api/local/health') {
     respond(200, {
       apiVersion: LOCAL_API_VERSION,
@@ -491,6 +494,7 @@ const shutdown = () => {
     clearInterval(reminderTimer);
     reminders.close();
     quoteTemplates.close();
+    calculationDrafts.close();
     repository.close();
     process.exit(0);
   });

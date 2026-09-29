@@ -23,6 +23,9 @@ const adapter = `data:text/javascript,${encodeURIComponent(`
 `)}`;
 const loader = registerHooks({
   resolve(specifier, context, nextResolve) {
+    // Match the production bundler's Next.js compatibility alias.
+    if (specifier === 'next/link')
+      return nextResolve('vinext/shims/link', context);
     if (
       specifier === 'react' &&
       context.parentURL?.endsWith('/simple-cost-export-dialog.tsx')

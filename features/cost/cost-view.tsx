@@ -576,6 +576,8 @@ export function CostView({
       ) : null}
       {costView === 'subcontract' ? (
         <SubcontractCostSheet
+          key={`${project.id}:${activeVersion}`}
+          workspaceKey={`subcontract:${project.id}:${activeVersion}`}
           value={subcontractCost ?? emptySubcontractCost()}
           onChange={writeIfUnlocked((value: SubcontractCost) =>
             onSubcontractCostChange?.(value),

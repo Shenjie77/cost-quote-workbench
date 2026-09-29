@@ -13,6 +13,9 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 // application modules; leave dependency resolution and production builds alone.
 const hooks = registerHooks({
   resolve(specifier, context, nextResolve) {
+    // Match the production bundler's Next.js compatibility alias.
+    if (specifier === 'next/link')
+      return nextResolve('vinext/shims/link', context);
     const alias = specifier.startsWith('@/');
     const relative =
       specifier.startsWith('.') &&
@@ -188,12 +191,14 @@ test('site deployments include shared project lines and cannot be hidden by chan
   };
   const original = structuredClone(value);
   const html = render(SubcontractCostSheet, sheetProps(value));
-  assert.match(html, /BOQ per Site/);
-  assert.match(html, /Annual Site Deployments/);
+  assert.match(html, /Subcontract worksheets/);
+  assert.match(html, /Overview/);
+  assert.match(html, /Shared project costs/);
+  assert.doesNotMatch(html, /BOQ per Site/);
   assert.match(html, /Shared \/ One-off Project Costs/);
   assert.match(html, /1,350.00/);
-  assert.match(inputMarkup(html, 'CABLE quantity per site'), /value="25"/);
-  assert.match(inputMarkup(html, 'Small Site Y1 sites'), /value="2"/);
+  assert.match(html, /Small Site/);
+  assert.match(html, /2 sites/);
   assert.throws(
     () => changeSubcontractMode(value, 'project'),
     /cannot be hidden/,
@@ -408,15 +413,17 @@ test('locked cost keeps year and site navigation available without editable cost
     ),
   );
   for (const label of [
-    'Project BOQ quantity year',
-    'Select subcontract site type',
+    'Overview',
+    'Small Site',
+    'Shared / One-off Project Costs',
   ]) {
-    const select = html.match(
-      new RegExp('<select[^>]*aria-label="' + label + '"[^>]*>'),
-    )?.[0];
-    assert.ok(select, label);
-    assert.doesNotMatch(select, /disabled/);
+    const button = [...html.matchAll(/<button[^>]*>[\s\S]*?<\/button>/g)]
+      .map((match) => match[0])
+      .find((markup) => markup.includes(`>${label}</button>`));
+    assert.ok(button, label);
+    assert.doesNotMatch(button, /disabled=""/);
   }
+  assert.match(html, /Read only/);
 });
 
 test('a site with ID project keeps catalogue additions in its own BOQ', () => {

@@ -10,6 +10,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const hooks = registerHooks({
   resolve(specifier, context, nextResolve) {
+    // Match the production bundler's Next.js compatibility alias.
+    if (specifier === 'next/link')
+      return nextResolve('vinext/shims/link', context);
     const alias = specifier.startsWith('@/');
     const relative =
       specifier.startsWith('.') &&
