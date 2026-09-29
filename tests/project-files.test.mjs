@@ -1183,3 +1183,53 @@ test('readable archives keep duplicate files independent and shorten only genera
     f.close();
   }
 });
+
+test('maintenance evidence uses independent version folders and rejects unknown maintenance versions', () => {
+  const f = fixture();
+  try {
+    const saved = create(f.repository);
+    saved.workspace.maintenanceBoq = {
+      coverageMonths: 12,
+      boq: [],
+      archives: [],
+      versionCode: 'MV2',
+    };
+    saved.workspace.maintenanceBoq.versions = [
+      { code: 'MV1', coverageMonths: 12, boq: [] },
+    ];
+    f.repository.save('P-ARCHIVE', saved.workspace, saved.revision);
+    const input = {
+      originalName: 'Source.xlsx',
+      mimeType:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      category: 'maintenance',
+      buffer: binary,
+    };
+    const first = f.repository.files.add('P-ARCHIVE', {
+      ...input,
+      versionCode: 'MV1',
+    });
+    const second = f.repository.files.add('P-ARCHIVE', {
+      ...input,
+      versionCode: 'MV2',
+    });
+    assert.notEqual(
+      path.dirname(first.relativePath),
+      path.dirname(second.relativePath),
+    );
+    assert.deepEqual(
+      f.repository.files.read('P-ARCHIVE', second.id).buffer,
+      binary,
+    );
+    assert.throws(
+      () =>
+        f.repository.files.add('P-ARCHIVE', { ...input, versionCode: 'MV99' }),
+      /version/,
+    );
+    assert.ok(
+      f.repository.files.add('P-ARCHIVE', { ...input, versionCode: 'V1' }).id,
+    );
+  } finally {
+    f.close();
+  }
+});

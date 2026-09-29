@@ -806,6 +806,13 @@ export const openWorkspaceRepository = (databasePath) => {
               throw new WorkspaceValidationError(
                 'New maintenance archive must include all current BOQ rows',
               );
+            if (
+              (added.versionCode ?? 'MV1') !==
+              (document.maintenanceBoq.versionCode ?? 'MV1')
+            )
+              throw new WorkspaceValidationError(
+                'Maintenance archive version must match current draft',
+              );
             if (added.client !== document.project.client)
               throw new WorkspaceValidationError(
                 'Maintenance archive client must match project',

@@ -1,4 +1,10 @@
 'use client';
+import { ServiceQuoteImport } from './service-quote-import';
+import {
+  maintenanceVersionCode,
+  selectMaintenanceVersion,
+  createMaintenanceVersion,
+} from './versions';
 import { MaintenanceSummary } from './maintenance-summary';
 import { exportTimestamp } from '../../lib/file-names';
 import { useState, useRef, useEffect } from 'react';
@@ -35,6 +41,7 @@ import { MaintenanceBulkDialog } from './maintenance-bulk-dialog';
 export function MaintenanceView({
   projectId,
   canApply,
+  onSave,
   value: storedValue,
   onChange,
   records,
@@ -43,6 +50,7 @@ export function MaintenanceView({
 }: {
   projectId: string;
   canApply?: () => boolean;
+  onSave: () => Promise<boolean>;
   value: MaintenanceWorkspace;
   onChange: React.Dispatch<React.SetStateAction<MaintenanceWorkspace>>;
   records: MaintenancePriceRecord[];
@@ -50,6 +58,7 @@ export function MaintenanceView({
   announce: (s: string) => void;
 }) {
   const value = maintenanceGridDraft(storedValue);
+  const versionCode = maintenanceVersionCode(value);
   let summary: ReturnType<typeof calculateComponentMaintenance> | undefined;
   let calculationError = '';
   try {
@@ -121,6 +130,7 @@ export function MaintenanceView({
       await archiveProjectFile(projectId, blob, {
         originalName: fileName,
         category: 'maintenance',
+        versionCode: a.versionCode ?? 'MV1',
       });
       const url = URL.createObjectURL(blob),
         link = document.createElement('a');
@@ -137,6 +147,53 @@ export function MaintenanceView({
       <section className="wb-panel overflow-hidden">
         <div className="wb-toolbar justify-between border-b">
           <h2 className="text-sm font-semibold text-primary">BOQ 维保配置</h2>
+          <div className="flex items-center gap-2">
+            <select
+              aria-label="Maintenance version"
+              disabled={busy}
+              value={versionCode}
+              onChange={(event) => {
+                if (canApply && !canApply()) return;
+                onChange(selectMaintenanceVersion(value, event.target.value));
+                setPreview([]);
+              }}
+            >
+              {[
+                versionCode,
+                ...(value.versions ?? []).map((version) => version.code),
+              ]
+                .sort((a, b) => Number(a.slice(2)) - Number(b.slice(2)))
+                .map((code) => (
+                  <option key={code}>{code}</option>
+                ))}
+            </select>
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() =>
+                attempt(() => {
+                  if (canApply && !canApply()) return;
+                  onChange(createMaintenanceVersion(value, true));
+                  setPreview([]);
+                })
+              }
+            >
+              复制新版本
+            </Button>
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() =>
+                attempt(() => {
+                  if (canApply && !canApply()) return;
+                  onChange(createMaintenanceVersion(value, false));
+                  setPreview([]);
+                })
+              }
+            >
+              新建空白版本
+            </Button>
+          </div>
           <label className="flex items-center gap-2 text-xs">
             开始年份
             <Input
@@ -380,6 +437,25 @@ export function MaintenanceView({
           </fieldset>
         </details>
       </section>
+      <ServiceQuoteImport
+        key={`${projectId}-${versionCode}`}
+        projectId={projectId}
+        versionCode={versionCode}
+        onSave={onSave}
+        canApply={canApply}
+        onBusy={setBusy}
+        announce={announce}
+        onImport={(rows, startYear) => {
+          if (canApply && !canApply()) throw new Error('项目正在切换');
+          onChange({
+            ...value,
+            versionCode,
+            startYear,
+            boq: appendBoq(value.boq, rows),
+          });
+          announce('已导入当前维保版本，原 Excel 已保存至版本文件夹');
+        }}
+      />
       {/* One grid keeps equipment inputs aligned; reference context remains beside each row. */}
       <section className="wb-panel overflow-hidden">
         <div className="wb-toolbar justify-between border-b">
@@ -420,6 +496,7 @@ export function MaintenanceView({
             <TableHeader>
               <TableRow>
                 <TableHead>归档日期</TableHead>
+                <TableHead>版本</TableHead>
                 <TableHead>客户</TableHead>
                 <TableHead>维保期限</TableHead>
                 <TableHead className="text-right">报价 SGD</TableHead>
@@ -433,6 +510,7 @@ export function MaintenanceView({
                     {a.createdAt.slice(0, 10)}
                     {a.deletedAt ? ' · 已删除' : ' · 已锁定'}
                   </TableCell>
+                  <TableCell>{a.versionCode ?? 'MV1'}</TableCell>
                   <TableCell>{a.client}</TableCell>
                   <TableCell className="financial-numeral">
                     {a.pricingMode === 'components'

@@ -1227,11 +1227,25 @@ export const makeProjectFileStore = (db, databasePath) => {
         }
         if (
           versionCode &&
-          !workspace.costVersions.some(
-            (version) => version.code === versionCode,
-          )
+          !(category === 'maintenance'
+            ? [
+                workspace.maintenanceBoq?.versionCode ?? 'MV1',
+                ...(workspace.maintenanceBoq?.versions ?? []).map(
+                  (version) => version.code,
+                ),
+              ].includes(versionCode) ||
+              workspace.costVersions.some(
+                (version) => version.code === versionCode,
+              )
+            : workspace.costVersions.some(
+                (version) => version.code === versionCode,
+              ))
         )
-          fail('The selected cost version does not exist.');
+          fail(
+            category === 'maintenance'
+              ? 'The selected maintenance version does not exist.'
+              : 'The selected cost version does not exist.',
+          );
         let nodeName = '';
         if (category === 'workflow') {
           if (!nodeCode) fail('Workflow files require a nodeCode.');

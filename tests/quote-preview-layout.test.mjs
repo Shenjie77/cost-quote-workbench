@@ -263,7 +263,12 @@ test('pricing occupies one full-width section with the input grid before the det
     nodes
       .filter((node) => node.type === SectionHeading)
       .map((node) => node.props.title),
-    ['Pricing Parameters', 'Quote Assumptions', 'Quotation History'],
+    [
+      'Pricing Parameters',
+      'Maintenance',
+      'Quote Assumptions',
+      'Quotation History',
+    ],
   );
   const heading = children.find((node) => node.type === SectionHeading);
   assert.ok(

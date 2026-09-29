@@ -2440,6 +2440,7 @@ function ProjectSessionApp({
   else if (activeView === 'maintenance')
     content = (
       <MaintenanceView
+        onSave={saveNow}
         projectId={exportProject.id}
         canApply={() =>
           isReady && !switchingRef.current && !versionTransitionRef.current

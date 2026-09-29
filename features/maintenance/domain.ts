@@ -1,3 +1,4 @@
+import type { MaintenanceVersion } from './versions.ts';
 import { calculateComponentMaintenance } from './component-pricing.ts';
 /** BOQ quantities and independently selected maintenance price references. */
 import { roundMoney } from '../cost/domain.ts';
@@ -35,6 +36,7 @@ export type MaintenanceQuoteLine = {
   quote: number;
 };
 export type MaintenanceArchive = {
+  versionCode?: string;
   deletedAt?: string;
   pricingMode?: 'components';
   startYear?: number;
@@ -47,6 +49,8 @@ export type MaintenanceArchive = {
   quote: number;
 };
 export type MaintenanceWorkspace = {
+  versionCode?: string;
+  versions?: MaintenanceVersion[];
   pricingMode?: 'components';
   startYear?: number;
   coverageMonths: number;
@@ -156,6 +160,7 @@ export function archiveMaintenance(
     data.archives.some(
       (a) =>
         !a.deletedAt &&
+        (a.versionCode ?? 'MV1') === (data.versionCode ?? 'MV1') &&
         a.client === client &&
         a.coverageMonths === data.coverageMonths &&
         a.startYear === data.startYear &&
@@ -175,6 +180,7 @@ export function archiveMaintenance(
           ? { pricingMode: data.pricingMode, startYear: data.startYear }
           : {}),
         client,
+        ...(data.versionCode ? { versionCode: data.versionCode } : {}),
         coverageMonths: data.coverageMonths,
         ...result,
       },
@@ -182,6 +188,13 @@ export function archiveMaintenance(
   };
 }
 export function assertMaintenanceWorkspace(data: MaintenanceWorkspace) {
+  const codes = [
+    data.versionCode ?? 'MV1',
+    ...(data.versions ?? []).map((version) => version.code),
+  ];
+  if (new Set(codes).size !== codes.length)
+    throw new TypeError('Duplicate maintenance version codes');
+
   if (new Set(data.archives.map((a) => a.id)).size !== data.archives.length)
     throw new TypeError('Duplicate maintenance archive IDs');
   for (const a of data.archives) {
