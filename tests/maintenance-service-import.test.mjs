@@ -235,3 +235,44 @@ test('deleting a maintenance version switches draft, preserves history and never
   assert.equal(createMaintenanceVersion(deleted).versionCode, 'MV3');
   assert.deepEqual(deleted.archives, first.archives);
 });
+
+test('manual platform merge preserves CT/SPMS money and evidence while requiring a new quantity', async () => {
+  const { mergeServiceQuoteItems } =
+    await import('../features/maintenance/import-service-quote.ts');
+  const preview = await inspectServiceQuote(await fixture(), 'Platform.xlsx');
+  const original = structuredClone(preview.parts);
+  const ct = original
+    .filter((part) => part.service === 'CT')
+    .map((part) => part.row);
+  assert.throws(
+    () => mergeServiceQuoteItems(original, ct, 'Platform A', 0),
+    /数量/,
+  );
+  assert.throws(() => mergeServiceQuoteItems(original, ct, '', 2), /名称/);
+  const merged = mergeServiceQuoteItems(original, ct, 'Platform A', 3);
+  assert.deepEqual(original, preview.parts);
+  assert.ok(
+    merged.parts
+      .filter((part) => part.service === 'SPMS')
+      .every((part) => part.model === 'Router A'),
+  );
+  const spms = original
+    .filter((part) => part.service === 'SPMS')
+    .map((part) => part.row);
+  const combined = mergeServiceQuoteItems(merged.parts, spms, 'Platform A', 2);
+  const rows = serviceQuoteLines(
+    preview,
+    combined.parts,
+    3,
+    { [combined.key]: combined.quantity },
+    true,
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].ct, 22.5);
+  assert.equal(rows[0].spms, 22.5);
+  assert.equal(rows[0].quantity, 2);
+  assert.deepEqual(
+    combined.parts.map(({ model: _model, ...part }) => part),
+    original.map(({ model: _model, ...part }) => part),
+  );
+});

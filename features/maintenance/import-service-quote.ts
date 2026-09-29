@@ -294,3 +294,30 @@ export function serviceQuoteLines(
     };
   });
 }
+
+/** Reassign selected source rows to a platform without changing service types, amounts, or evidence. */
+export function mergeServiceQuoteItems(
+  parts: ServiceQuotePart[],
+  selectedRows: number[],
+  model: string,
+  quantity: number,
+): { parts: ServiceQuotePart[]; key: string; quantity: number } {
+  const name = model.trim();
+  if (!name || name.length > 500)
+    throw new Error('请填写平台名称（最多 500 字）');
+  if (!Number.isInteger(quantity) || quantity <= 0 || quantity > 1e6)
+    throw new Error('请填写合并后的实际平台数量（正整数）');
+  const selected = new Set(selectedRows);
+  if (
+    selected.size < 2 ||
+    [...selected].some((row) => !parts.some((part) => part.row === row))
+  )
+    throw new Error('请选择至少两个有效明细进行合并');
+  return {
+    parts: parts.map((part) =>
+      selected.has(part.row) ? { ...part, model: name } : part,
+    ),
+    key: name.normalize('NFKC').toLowerCase(),
+    quantity,
+  };
+}
