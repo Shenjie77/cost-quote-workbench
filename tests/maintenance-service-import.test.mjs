@@ -460,3 +460,53 @@ test('platform member remarks use original quantities and grouped annual prices,
   assert.match(lines[0].remark, /CT: Router A, qty: 2, u\/p: 22\.50/);
   assert.equal(lines[0].quantity, 1);
 });
+
+test('trailing totals in any column, merged cells and decorated labels never become price-validation details', async () => {
+  for (const label of [
+    'Total (SGD)',
+    'TOTAL AMOUNT OF CUSTOMER PRICE (SGD)',
+    'Grand Total including tax',
+    'Sub-total:',
+    'Ｔｏｔａｌ：',
+    '\u200bTotal\u00a0(SGD)',
+  ]) {
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(await fixture());
+    const sheet = book.worksheets[0];
+    const footer = sheet.addRow(['', '', '', 999, null, 9999, 9999, label]);
+    sheet.mergeCells(footer.number, 8, footer.number, 10);
+    const preview = await inspectServiceQuote(
+      new Uint8Array(await book.xlsx.writeBuffer()),
+      'Footer.xlsx',
+    );
+    assert.equal(preview.parts.length, 12, label);
+    assert.ok(
+      preview.parts.every((part) => !part.issue),
+      label,
+    );
+    const lines = serviceQuoteLines(
+      preview,
+      preview.parts,
+      3,
+      { 'router a': 2 },
+      true,
+    );
+    assert.equal(lines[0].ct, 22.5);
+    assert.equal(lines[0].spms, 22.5);
+  }
+});
+
+test('a genuine equipment-code detail is retained when a separate cell says Total', async () => {
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(await fixture());
+  const sheet = book.worksheets[0];
+  sheet.getCell('A5').value = '0000000001';
+  sheet.getCell('C5').value = 'service, Total Router, annual';
+  sheet.getCell('H5').value = 'Total';
+  const preview = await inspectServiceQuote(
+    new Uint8Array(await book.xlsx.writeBuffer()),
+    'Device.xlsx',
+  );
+  assert.equal(preview.parts.length, 12);
+  assert.equal(preview.parts[0].model, 'Total Router');
+});

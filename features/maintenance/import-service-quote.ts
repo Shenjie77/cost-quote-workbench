@@ -197,13 +197,26 @@ export async function inspectServiceQuote(
     };
     const node = text(row, 'node'),
       info = text(row, 'nodeinfo');
-    // Aggregate rows can carry quantities and amounts; ignore them before inheriting context or validating prices.
-    const totalLabel =
-      /^(?:(?:grand\s*|sub[\s-]*)?total(?:\s+(?:row|amount|price))?|合计|总计|小计)\s*[:：]?$/i;
-    if (
-      [node, info, text(row, 'model')].some((label) => totalLabel.test(label))
-    )
-      continue;
+    // Real exports place footer labels in arbitrary/merged cells and may append currency or tax text.
+    // Inspect the whole row, but never discard an identified numeric equipment-code detail merely
+    // because another cell contains a word such as “Total”. NFKC also handles full-width labels.
+    const isEquipmentDetail =
+      /^\d+$/.test(node) && Boolean(modelFromNodeInfo(info));
+    let isTotal = false;
+    sheet.getRow(row).eachCell((entry) => {
+      const label = String(importCellValue(entry.value))
+        .normalize('NFKC')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .trim()
+        .replace(/\s+/g, ' ');
+      if (
+        /^(?:(?:grand|sub|overall|net|quotation|quote)[\s-]*)?total(?=$|[\s:：(（\-–—/])|^(?:总计|合计|小计)(?=$|[\s:：(（])/i.test(
+          label,
+        )
+      )
+        isTotal = true;
+    });
+    if (isTotal && !isEquipmentDetail) continue;
     const quantity = number(cell(row, 'quantity'));
     // A-column subquotation headings define the parent service, regardless of order or row number.
     // Reset inherited context even for repeated or unrecognized sections to prevent cross-section leakage.
