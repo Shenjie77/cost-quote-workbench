@@ -10,7 +10,7 @@ Choose the cost sheets to include; Cost Statement always remains selected.
 Master Data → Project Tags manages labels centrally; Project List → Edit supports multiple selections, with tag filtering and header search.
 See [combined export](docs/excel-export.md#combined-internal-quotation-and-simple-cost-workbook).
 
-Current release: [v0.10.0 · Saved cost views, MD table entry and account summaries](docs/releases/v0.10.0.md).
+Current release: [v0.11.0 · Offline calculation drafts and site-based subcontract worksheets](docs/releases/v0.11.0.md).
 
 The product UI is English-first with compact Chinese helper labels. It runs on
 the company computer and is designed to give both the user and an internal
