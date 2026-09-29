@@ -333,3 +333,27 @@ test('total rows with quantities are ignored and variable comma-delimited descri
   assert.equal(rows[0].ct, 22.5);
   assert.equal(rows[0].spms, 22.5);
 });
+
+test('subquotation type is inherited from concatenated and adjacent heading values; rounded unit prices tolerate bounded differences', async () => {
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(await fixture());
+  const sheet = book.worksheets[0];
+  sheet.getCell('A2').value = 'SubQuotationNameSPMS';
+  sheet.getCell('A15').value = 'Sub Quotation Name';
+  sheet.getCell('B15').value = 'CT';
+  sheet.getCell('D5').value = 9;
+  sheet.getCell('E5').value = 70.34;
+  sheet.getCell('F5').value = 633.04;
+  sheet.getCell('G5').value = 633.04;
+  const inspect = async () =>
+    inspectServiceQuote(
+      new Uint8Array(await book.xlsx.writeBuffer()),
+      'Rounded.xlsx',
+    );
+  const preview = await inspect();
+  assert.equal(preview.parts[0].service, 'SPMS');
+  assert.equal(preview.parts[6].service, 'CT');
+  assert.equal(preview.parts[0].issue, undefined);
+  sheet.getCell('F5').value = 632;
+  assert.match((await inspect()).parts[0].issue, /舍入范围/);
+});

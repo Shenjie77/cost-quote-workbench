@@ -280,88 +280,7 @@ export function ServiceQuoteImport({
               已核对折扣／金额差异，采用 Customer 实际报价
             </label>
           )}
-          <Table className="min-w-[1000px] text-xs">
-            <TableHeader>
-              <TableRow>
-                {[
-                  'Row',
-                  'Node / Item',
-                  'Node Info',
-                  'Model',
-                  'Service',
-                  'Qty',
-                  'LPB U/P',
-                  'LPB Total',
-                  'Customer',
-                  'Diff %',
-                  'Check',
-                ].map((label) => (
-                  <TableHead key={label}>{label}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {parts.map((part, index) => (
-                <TableRow key={part.row}>
-                  <TableCell>{part.row}</TableCell>
-                  <TableCell>{part.node}</TableCell>
-                  <TableCell className="max-w-48 whitespace-pre-wrap">
-                    {part.nodeInfo}
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      aria-label={`Model source row ${part.row}`}
-                      value={part.model}
-                      onChange={(event) =>
-                        setParts((current) =>
-                          current.map((row, i) =>
-                            i === index
-                              ? { ...row, model: event.target.value }
-                              : row,
-                          ),
-                        )
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <select
-                      aria-label={`Service source row ${part.row}`}
-                      value={part.service ?? ''}
-                      disabled={preview?.parts[index]?.service != null}
-                      onChange={(event) =>
-                        setParts((current) =>
-                          current.map((row, i) =>
-                            i === index
-                              ? {
-                                  ...row,
-                                  service: event.target.value as 'CT' | 'SPMS',
-                                }
-                              : row,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="">请选择</option>
-                      <option>CT</option>
-                      <option>SPMS</option>
-                    </select>
-                  </TableCell>
-                  <TableCell>{part.quantity}</TableCell>
-                  <TableCell>{part.unitPrice?.toFixed(2) ?? '—'}</TableCell>
-                  <TableCell>{part.lpb?.toFixed(2) ?? '—'}</TableCell>
-                  <TableCell>{part.customer?.toFixed(2) ?? '—'}</TableCell>
-                  <TableCell>
-                    {part.lpb && part.customer !== null
-                      ? ((1 - part.customer / part.lpb) * 100).toFixed(2)
-                      : '—'}
-                  </TableCell>
-                  <TableCell className="whitespace-normal text-destructive">
-                    {part.issue}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+
           <fieldset className="space-y-2 rounded border p-3">
             <legend className="px-1 text-xs font-medium">
               合并识别条目 / 平台维保
@@ -556,6 +475,105 @@ export function ServiceQuoteImport({
               })}
             </TableBody>
           </Table>
+          <details className="rounded border p-3">
+            <summary className="cursor-pointer text-xs font-medium">
+              原始明细与校验（{parts.length} 行，
+              {
+                parts.filter(
+                  (part) => part.issue || !part.service || !part.model.trim(),
+                ).length
+              }{' '}
+              项待处理）
+            </summary>
+            <p className="py-2 text-xs text-muted-foreground">
+              CT/SPMS 自动继承 Subquotation 分类。LPB
+              核对允许显示单价舍入造成的差额；以表中总额核对 Customer 实际报价。
+            </p>
+            <Table className="min-w-[1000px] text-xs">
+              <TableHeader>
+                <TableRow>
+                  {[
+                    'Row',
+                    'Node / Item',
+                    'Node Info',
+                    'Model',
+                    'Service',
+                    'Qty',
+                    'LPB U/P',
+                    'LPB Total',
+                    'Customer',
+                    'Diff %',
+                    'Check',
+                  ].map((label) => (
+                    <TableHead key={label}>{label}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {parts.map((part, index) => (
+                  <TableRow key={part.row}>
+                    <TableCell>{part.row}</TableCell>
+                    <TableCell>{part.node}</TableCell>
+                    <TableCell className="max-w-48 whitespace-pre-wrap">
+                      {part.nodeInfo}
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        aria-label={`Model source row ${part.row}`}
+                        value={part.model}
+                        onChange={(event) =>
+                          setParts((current) =>
+                            current.map((row, i) =>
+                              i === index
+                                ? { ...row, model: event.target.value }
+                                : row,
+                            ),
+                          )
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <select
+                        aria-label={`Service source row ${part.row}`}
+                        value={part.service ?? ''}
+                        disabled={preview?.parts[index]?.service != null}
+                        onChange={(event) =>
+                          setParts((current) =>
+                            current.map((row, i) =>
+                              i === index
+                                ? {
+                                    ...row,
+                                    service: event.target.value as
+                                      | 'CT'
+                                      | 'SPMS',
+                                  }
+                                : row,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="">请选择</option>
+                        <option>CT</option>
+                        <option>SPMS</option>
+                      </select>
+                    </TableCell>
+                    <TableCell>{part.quantity}</TableCell>
+                    <TableCell>{part.unitPrice?.toFixed(2) ?? '—'}</TableCell>
+                    <TableCell>{part.lpb?.toFixed(2) ?? '—'}</TableCell>
+                    <TableCell>{part.customer?.toFixed(2) ?? '—'}</TableCell>
+                    <TableCell>
+                      {part.lpb && part.customer !== null
+                        ? ((1 - part.customer / part.lpb) * 100).toFixed(2)
+                        : '—'}
+                    </TableCell>
+                    <TableCell className="whitespace-normal text-destructive">
+                      {part.issue}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </details>
           <p className="text-xs text-muted-foreground">
             年度单台价格向上取整到两位小数；由此产生的分差不会改写原
             Excel。确认导入将追加到当前版本。Node

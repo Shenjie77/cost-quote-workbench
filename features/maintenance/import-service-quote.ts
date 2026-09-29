@@ -170,8 +170,14 @@ export async function inspectServiceQuote(
     const quantity = number(cell(row, 'quantity'));
     // A-column subquotation headings define the parent service, regardless of order or row number.
     // Reset inherited context even for repeated or unrecognized sections to prevent cross-section leakage.
-    if (/sub[\s-]*quotation/i.test(node)) {
-      service = serviceOf(node);
+    if (/sub[\s_\-–—]*quotation/i.test(node)) {
+      // Exporters may concatenate the heading and type, or put its value in the adjacent metadata cell.
+      const heading = node.replace(
+        /sub[\s_\-–—]*quotation[\s_\-–—]*(?:name)?/i,
+        ' ',
+      );
+      service =
+        serviceOf(heading) ?? serviceOf(text(row, 'model')) ?? serviceOf(info);
       year = undefined;
       model = '';
       continue;
@@ -206,8 +212,9 @@ export async function inspectServiceQuote(
     const issue =
       unitPrice === null || lpb === null || customer === null
         ? '缺少单价或总金额，不能按 0 导入'
-        : computed !== null && Math.abs(computed - lpb) > 0.011
-          ? 'LPB 单价 × 数量与 LPB 总额不一致'
+        : computed !== null &&
+            Math.abs(computed - lpb) > quantity * 0.01 + 0.005 + 1e-8
+          ? 'LPB 单价 × 数量与 LPB 总额不一致（超出两位小数舍入范围）'
           : undefined;
     parts.push({
       row,
