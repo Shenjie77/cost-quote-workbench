@@ -507,6 +507,38 @@ export const openWorkspaceRepository = (databasePath) => {
           );
         }
         const previous = current ? JSON.parse(current.payload_json) : null;
+        // Cleanup tombstones are irreversible and must refer to drafts actually removed by this save.
+        const beforeMaintenance = previous?.maintenanceBoq;
+        const afterMaintenance = document.maintenanceBoq;
+        const previousDeleted = beforeMaintenance?.deletedVersionCodes ?? [];
+        const nextDeleted = afterMaintenance?.deletedVersionCodes ?? [];
+        const beforeCodes = beforeMaintenance
+          ? [
+              beforeMaintenance.versionCode ?? 'MV1',
+              ...(beforeMaintenance.versions ?? []).map((v) => v.code),
+            ]
+          : [];
+        const afterCodes = afterMaintenance
+          ? [
+              afterMaintenance.versionCode ?? 'MV1',
+              ...(afterMaintenance.versions ?? []).map((v) => v.code),
+            ]
+          : [];
+        if (
+          previousDeleted.some((code) => !nextDeleted.includes(code)) ||
+          nextDeleted.some(
+            (code) =>
+              !previousDeleted.includes(code) &&
+              (!beforeCodes.includes(code) || afterCodes.includes(code)),
+          ) ||
+          beforeCodes.some(
+            (code) => !afterCodes.includes(code) && !nextDeleted.includes(code),
+          )
+        )
+          throw new WorkspaceValidationError(
+            'Maintenance version deletion must preserve cleanup history and remove an existing draft.',
+          );
+
         if (!previous && document.workflowHold)
           throw new WorkspaceValidationError(
             'Project monitoring can only be paused through hold_project.',
@@ -1043,8 +1075,20 @@ export const openWorkspaceRepository = (databasePath) => {
             { inTransaction: true },
           );
         }
-        if (ownsTransaction) db.exec('COMMIT');
-        return mapWorkspace(selectWorkspace.get(projectId));
+        let maintenanceCleanupWarning;
+        if (ownsTransaction) {
+          db.exec('COMMIT');
+          // Filesystem cleanup follows the durable snapshot; failures are retried on archive access or save.
+          try {
+            files.cleanupMaintenanceVersions(projectId);
+          } catch (error) {
+            maintenanceCleanupWarning = `维保版本已保存，但文件夹清理未完成：${error.message}。请关闭占用文件后刷新文件列表重试。`;
+          }
+        }
+        return {
+          ...mapWorkspace(selectWorkspace.get(projectId)),
+          ...(maintenanceCleanupWarning ? { maintenanceCleanupWarning } : {}),
+        };
       } catch (error) {
         if (ownsTransaction) db.exec('ROLLBACK');
         rollbackProjectArchive?.();

@@ -1233,3 +1233,63 @@ test('maintenance evidence uses independent version folders and rejects unknown 
     f.close();
   }
 });
+
+test('saving maintenance version deletion purges its files and folder but preserves other versions and rejects stale writes', async () => {
+  const { createMaintenanceVersion, deleteMaintenanceVersion } =
+    await import('../features/maintenance/versions.ts');
+  const f = fixture();
+  try {
+    let saved = create(f.repository);
+    saved.workspace.maintenanceBoq = createMaintenanceVersion({
+      coverageMonths: 12,
+      boq: [],
+      archives: [],
+    });
+    saved = f.repository.save('P-ARCHIVE', saved.workspace, saved.revision);
+    const input = {
+      originalName: 'Source.xlsx',
+      mimeType: 'application/octet-stream',
+      category: 'maintenance',
+      buffer: binary,
+    };
+    const first = f.repository.files.add('P-ARCHIVE', {
+      ...input,
+      versionCode: 'MV1',
+    });
+    const second = f.repository.files.add('P-ARCHIVE', {
+      ...input,
+      versionCode: 'MV2',
+    });
+    const root = f.repository.files.list('P-ARCHIVE').projectPath;
+    const folder = path.join(root, path.dirname(second.relativePath));
+    writeFileSync(path.join(folder, 'manually-added.txt'), 'version evidence');
+    saved.workspace.maintenanceBoq = deleteMaintenanceVersion(
+      saved.workspace.maintenanceBoq,
+      'MV2',
+    );
+    assert.throws(() =>
+      f.repository.save('P-ARCHIVE', saved.workspace, saved.revision - 1),
+    );
+    assert.ok(existsSync(folder));
+    const deleted = f.repository.save(
+      'P-ARCHIVE',
+      saved.workspace,
+      saved.revision,
+    );
+    assert.equal(existsSync(folder), false);
+    assert.deepEqual(
+      f.repository.files.read('P-ARCHIVE', first.id).buffer,
+      binary,
+    );
+    assert.throws(() => f.repository.files.read('P-ARCHIVE', second.id));
+    assert.equal(f.repository.files.list('P-ARCHIVE').files.length, 1);
+    const revived = structuredClone(deleted.workspace);
+    revived.maintenanceBoq.deletedVersionCodes = [];
+    assert.throws(
+      () => f.repository.save('P-ARCHIVE', revived, deleted.revision),
+      /cleanup history/,
+    );
+  } finally {
+    f.close();
+  }
+});

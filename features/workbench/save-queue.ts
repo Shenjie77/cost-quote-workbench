@@ -12,11 +12,17 @@ export function createSaveQueue<T>(options: {
   ) => Promise<{
     revision: number;
     updatedAt: string;
+    maintenanceCleanupWarning?: string;
     workspace?: T;
   }>;
   onSaving: () => void;
   onSaved: (
-    record: { revision: number; updatedAt: string; workspace?: T },
+    record: {
+      revision: number;
+      updatedAt: string;
+      workspace?: T;
+      maintenanceCleanupWarning?: string;
+    },
     document: T,
   ) => void;
   onError: (error: unknown) => void;

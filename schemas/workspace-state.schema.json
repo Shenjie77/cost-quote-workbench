@@ -2402,6 +2402,16 @@
           "items": {
             "$ref": "#/$defs/maintenanceVersion"
           }
+        },
+        "deletedVersionCodes": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 10000,
+          "items": {
+            "type": "string",
+            "pattern": "^MV[1-9][0-9]*$",
+            "maxLength": 20
+          }
         }
       }
     },

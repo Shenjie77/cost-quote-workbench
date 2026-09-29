@@ -109,7 +109,9 @@ export function useLocalWorkspace({
               phase: 'saved',
               revision: saved.revision,
               savedAt: saved.updatedAt,
-              message: `Saved locally · R${saved.revision} / 已保存`,
+              message:
+                saved.maintenanceCleanupWarning ??
+                `Saved locally · R${saved.revision} / 已保存`,
             });
             // Merge server-derived metadata without replacing newer editor inputs.
             if (saved.workspace)

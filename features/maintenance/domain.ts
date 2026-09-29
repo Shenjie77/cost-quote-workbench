@@ -49,6 +49,7 @@ export type MaintenanceArchive = {
   quote: number;
 };
 export type MaintenanceWorkspace = {
+  deletedVersionCodes?: string[];
   versionCode?: string;
   versions?: MaintenanceVersion[];
   pricingMode?: 'components';
@@ -192,6 +193,8 @@ export function assertMaintenanceWorkspace(data: MaintenanceWorkspace) {
     data.versionCode ?? 'MV1',
     ...(data.versions ?? []).map((version) => version.code),
   ];
+  if ((data.deletedVersionCodes ?? []).some((code) => codes.includes(code)))
+    throw new TypeError('Deleted maintenance version cannot be active');
   if (new Set(codes).size !== codes.length)
     throw new TypeError('Duplicate maintenance version codes');
 

@@ -122,6 +122,7 @@ export type PersistenceStatus = {
 };
 
 export type WorkspaceRecord = {
+  maintenanceCleanupWarning?: string;
   revision: number;
   updatedAt: string;
   workspace: WorkbenchWorkspace;

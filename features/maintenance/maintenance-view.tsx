@@ -4,6 +4,7 @@ import {
   maintenanceVersionCode,
   selectMaintenanceVersion,
   createMaintenanceVersion,
+  deleteMaintenanceVersion,
 } from './versions';
 import { MaintenanceSummary } from './maintenance-summary';
 import { exportTimestamp } from '../../lib/file-names';
@@ -127,11 +128,12 @@ export function MaintenanceView({
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
       const fileName = `Maintenance_${exportTimestamp()}.xlsx`;
-      await archiveProjectFile(projectId, blob, {
-        originalName: fileName,
-        category: 'maintenance',
-        versionCode: a.versionCode ?? 'MV1',
-      });
+      if (!(value.deletedVersionCodes ?? []).includes(a.versionCode ?? 'MV1'))
+        await archiveProjectFile(projectId, blob, {
+          originalName: fileName,
+          category: 'maintenance',
+          versionCode: a.versionCode ?? 'MV1',
+        });
       const url = URL.createObjectURL(blob),
         link = document.createElement('a');
       link.href = url;
@@ -146,7 +148,9 @@ export function MaintenanceView({
     <div className="wb-page-stack">
       <section className="wb-panel overflow-hidden">
         <div className="wb-toolbar justify-between border-b">
-          <h2 className="text-sm font-semibold text-primary">BOQ 维保配置</h2>
+          <h2 className="text-sm font-semibold text-primary">
+            设备明细 · BOQ 维保配置
+          </h2>
           <div className="flex items-center gap-2">
             <select
               aria-label="Maintenance version"
@@ -192,6 +196,41 @@ export function MaintenanceView({
               }
             >
               新建空白版本
+            </Button>
+            <Button
+              variant="outline"
+              disabled={busy || !value.versions?.length}
+              title={
+                !value.versions?.length
+                  ? '至少保留一个维保版本'
+                  : '删除当前版本及其文件夹'
+              }
+              onClick={async () => {
+                if (busy || (canApply && !canApply())) return;
+                if (
+                  !window.confirm(
+                    `删除 ${versionCode}？保存后将永久删除该版本的上传文件及文件夹，无法恢复。归档金额快照和 Master Data 历史参考保留。`,
+                  )
+                )
+                  return;
+                setBusy(true);
+                try {
+                  if (!(await onSave()))
+                    throw new Error('请先保存当前维保版本');
+                  if (!mounted.current || (canApply && !canApply())) return;
+                  onChange((current) =>
+                    deleteMaintenanceVersion(current, versionCode),
+                  );
+                  setPreview([]);
+                  announce('版本已移除；保存成功后同步清理文件及文件夹。');
+                } catch (error) {
+                  announce(String(error));
+                } finally {
+                  if (mounted.current) setBusy(false);
+                }
+              }}
+            >
+              删除版本
             </Button>
           </div>
           <label className="flex items-center gap-2 text-xs">
@@ -259,6 +298,24 @@ export function MaintenanceView({
           = Yearly × Duration（年）。各项可留空；History
           仅供价格对比。拖动列边界调整列宽，行末底边调整行高，也可聚焦后使用方向键。
         </p>
+        <MaintenanceGrid
+          rows={value.boq}
+          totals={
+            new Map(
+              summary?.lines.map((line) => [line.boq.id, line.quote]) ?? [],
+            )
+          }
+          records={records}
+          onPatch={update}
+          disabled={busy}
+          onDelete={(id) => {
+            if (busy || (canApply && !canApply())) return;
+            onChange({
+              ...value,
+              boq: value.boq.filter((row) => row.id !== id),
+            });
+          }}
+        />
         <details className="bg-muted/10 px-3 py-2">
           <summary className="cursor-pointer text-xs font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring">
             从产品 BOQ Excel 导入设备
@@ -456,33 +513,6 @@ export function MaintenanceView({
           announce('已导入当前维保版本，原 Excel 已保存至版本文件夹');
         }}
       />
-      {/* One grid keeps equipment inputs aligned; reference context remains beside each row. */}
-      <section className="wb-panel overflow-hidden">
-        <div className="wb-toolbar justify-between border-b">
-          <h2 className="text-sm font-semibold text-primary">设备明细</h2>
-          <span className="text-xs text-muted-foreground">
-            {value.boq.length} 条设备记录
-          </span>
-        </div>
-        <MaintenanceGrid
-          rows={value.boq}
-          totals={
-            new Map(
-              summary?.lines.map((line) => [line.boq.id, line.quote]) ?? [],
-            )
-          }
-          records={records}
-          onPatch={update}
-          disabled={busy}
-          onDelete={(id) => {
-            if (busy || (canApply && !canApply())) return;
-            onChange({
-              ...value,
-              boq: value.boq.filter((row) => row.id !== id),
-            });
-          }}
-        />
-      </section>
 
       {value.archives.length > 0 && (
         <section className="wb-panel overflow-hidden">

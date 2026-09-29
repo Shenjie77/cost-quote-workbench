@@ -49,6 +49,7 @@ export function createMaintenanceVersion(
     throw new Error('Maximum 100 maintenance versions');
   const numbers = [
     maintenanceVersionCode(data),
+    ...(data.deletedVersionCodes ?? []),
     ...(data.versions ?? []).map((version) => version.code),
   ].map((code) => Number(code.slice(2)));
   return {
@@ -56,5 +57,26 @@ export function createMaintenanceVersion(
     versionCode: `MV${Math.max(...numbers) + 1}`,
     boq: copy ? structuredClone(data.boq) : [],
     versions: [...(data.versions ?? []), snapshot(data)],
+  };
+}
+
+/** Delete a draft, retain immutable history, and record a durable folder-cleanup tombstone. */
+export function deleteMaintenanceVersion(
+  data: MaintenanceWorkspace,
+  code: string,
+): MaintenanceWorkspace {
+  if (!data.versions?.length) throw new Error('至少保留一个维保版本');
+  const selected =
+    maintenanceVersionCode(data) === code
+      ? selectMaintenanceVersion(data, data.versions[0].code)
+      : data;
+  if (!selected.versions?.some((version) => version.code === code))
+    throw new Error('Maintenance version not found');
+  return {
+    ...selected,
+    versions: selected.versions.filter((version) => version.code !== code),
+    deletedVersionCodes: [
+      ...new Set([...(selected.deletedVersionCodes ?? []), code]),
+    ],
   };
 }

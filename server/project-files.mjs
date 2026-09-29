@@ -899,6 +899,56 @@ export const makeProjectFileStore = (db, databasePath) => {
   };
   const store = {
     getSettings,
+    /** Retry committed version deletions; only canonical MV folders and owned file records are removed. */
+    cleanupMaintenanceVersions(id) {
+      const snapshot = db
+        .prepare(
+          'SELECT payload_json FROM workspace_snapshots WHERE project_id = ?',
+        )
+        .get(id);
+      const maintenance = snapshot
+        ? JSON.parse(snapshot.payload_json).maintenanceBoq
+        : null;
+      const codes = maintenance?.deletedVersionCodes ?? [];
+      for (const code of codes) {
+        if (!/^MV[1-9][0-9]*$/.test(code))
+          fail('Invalid maintenance version cleanup code.');
+        if (
+          code === (maintenance.versionCode ?? 'MV1') ||
+          maintenance.versions?.some((v) => v.code === code)
+        )
+          fail('Cannot remove an active maintenance version.');
+        const archive = mapping(id);
+        if (!archive) continue;
+        const folder = path.join('quotation', safeSegment(code));
+        const foreign = db
+          .prepare(
+            'SELECT category, version_code, relative_path FROM project_files WHERE project_id = ?',
+          )
+          .all(id)
+          .some(
+            (file) =>
+              file.relative_path.startsWith(folder + path.sep) &&
+              (file.category !== 'maintenance' || file.version_code !== code),
+          );
+        if (foreign)
+          fail(
+            'Maintenance folder contains files belonging to another category.',
+          );
+        const files = db
+          .prepare(
+            "SELECT id FROM project_files WHERE project_id = ? AND category = 'maintenance' AND version_code = ?",
+          )
+          .all(id, code);
+        for (const file of files) store.remove(id, file.id);
+        const relative = path.join(archive.project_folder, folder);
+        const target = within(archive.root_path, relative);
+        if (existsSync(target)) {
+          checkedDirectory(archive.root_path, relative);
+          rmSync(target, { recursive: true });
+        }
+      }
+    },
     /** Resolve only the saved root; callers cannot ask the API to open arbitrary paths. */
     rootFolder() {
       const root = getSettings().rootPath;
@@ -1081,6 +1131,7 @@ export const makeProjectFileStore = (db, databasePath) => {
     ensureProjectInTransaction: (id) => ensureInTransaction(id, true),
     list(id, filters = {}) {
       project(id, true);
+      store.cleanupMaintenanceVersions(id);
       let archive = mapping(id);
       if (!archive) {
         ensureProject(id);

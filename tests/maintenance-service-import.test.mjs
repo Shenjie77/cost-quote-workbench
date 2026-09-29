@@ -217,3 +217,21 @@ test('subquotation hierarchy works in either order and descriptions cannot overr
     assert.equal(preview.parts[6].service, order[1]);
   }
 });
+
+test('deleting a maintenance version switches draft, preserves history and never reuses its code', async () => {
+  const { deleteMaintenanceVersion } =
+    await import('../features/maintenance/versions.ts');
+  const first = {
+    coverageMonths: 12,
+    archives: [],
+    boq: [newMaintenanceLine()],
+  };
+  assert.throws(() => deleteMaintenanceVersion(first, 'MV1'), /保留/);
+  const second = createMaintenanceVersion(first);
+  const deleted = deleteMaintenanceVersion(second, 'MV2');
+  assert.equal(deleted.versionCode, 'MV1');
+  assert.deepEqual(deleted.deletedVersionCodes, ['MV2']);
+  assert.equal(deleted.versions.length, 0);
+  assert.equal(createMaintenanceVersion(deleted).versionCode, 'MV3');
+  assert.deepEqual(deleted.archives, first.archives);
+});
