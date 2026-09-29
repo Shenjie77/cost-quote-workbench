@@ -11,6 +11,7 @@ export function QuoteNumberInput({
   max = 1e12,
   decimals = 4,
   percentage = false,
+  money = false,
   disabled,
   onCommit,
   commitUnchanged = false,
@@ -24,6 +25,7 @@ export function QuoteNumberInput({
   decimals?: number;
   /** Percentages are typed manually and displayed with two decimals without rounding saved calculations. */
   percentage?: boolean;
+  money?: boolean;
   disabled: boolean;
   onCommit: (value: number) => void;
   /** Explicitly typing an existing percentage/price can still lock that allocation. */
@@ -62,6 +64,7 @@ export function QuoteNumberInput({
   return (
     <div>
       <Input
+        money={money}
         id={id}
         aria-label={label}
         aria-invalid={invalid}

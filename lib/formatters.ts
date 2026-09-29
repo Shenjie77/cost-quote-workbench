@@ -8,14 +8,10 @@
 
 import { roundMoney } from '@/features/cost/domain';
 
-const sgdNumber = new Intl.NumberFormat('en-SG', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-  useGrouping: true,
-});
+import { formatMoney } from './money';
 
 /** Formats a finite value as an English-first SGD amount. */
 export function formatSgd(value: number): string {
   const safeValue = Number.isFinite(value) ? value : 0;
-  return `S$ ${sgdNumber.format(roundMoney(safeValue))}`;
+  return `S$ ${formatMoney(roundMoney(safeValue))}`;
 }

@@ -1,4 +1,5 @@
 'use client';
+import { formatMoney } from '@/lib/money';
 import { ServiceQuoteImport } from './service-quote-import';
 import {
   maintenanceVersionCode,
@@ -264,7 +265,7 @@ export function MaintenanceView({
               onClick={() =>
                 attempt(() =>
                   announce(
-                    `维保总价 SGD ${calculateMaintenance(value, records).quote.toFixed(2)}`,
+                    `维保总价 SGD ${formatMoney(calculateMaintenance(value, records).quote)}`,
                   ),
                 )
               }
@@ -548,7 +549,7 @@ export function MaintenanceView({
                       : `${a.coverageMonths} 月（旧归档）`}
                   </TableCell>
                   <TableCell className="financial-numeral text-right">
-                    {a.quote.toFixed(2)}
+                    {formatMoney(a.quote)}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button

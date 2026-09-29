@@ -1,3 +1,4 @@
+import { formatMoney } from '../../lib/money.ts';
 /** Read hierarchical service exports without treating component quantities as equipment counts. */
 import { importCellValue, workbookHash } from '../cost/import-workbook.ts';
 import { roundMoney } from '../cost/domain.ts';
@@ -9,6 +10,7 @@ export type ServiceQuotePart = {
   node: string;
   nodeInfo: string;
   originalModel?: string;
+  originalQuantity?: number;
   service: ServiceKind | null;
   model: string;
   year?: number;
@@ -351,16 +353,10 @@ export function serviceQuoteLines(
       ct: roundMoney(group.ct / years / quantity),
       spms: roundMoney(group.spms / years / quantity),
       source: `${preview.fileName.slice(0, 100)} / ${preview.sheet.slice(0, 50)} / rows ${group.rows[0]}-${group.rows.at(-1)} / SHA256 ${preview.sha256}`,
-      description: [
-        ...new Set(
-          parts
-            .filter(
-              (part) => group.rows.includes(part.row) && part.originalModel,
-            )
-            .map((part) => `${part.service}: ${part.originalModel}`),
-        ),
-      ].join('\n'),
-      remark: 'Customer price; annual per-node prices rounded upward to cents',
+      remark: groupMemberRemarks(
+        parts.filter((part) => group.rows.includes(part.row)),
+        years,
+      ),
     };
   });
 }
@@ -371,6 +367,7 @@ export function mergeServiceQuoteItems(
   selectedRows: number[],
   model: string,
   quantity: number,
+  nodeCounts: Record<string, number> = inferredNodeCounts(parts),
 ): { parts: ServiceQuotePart[]; key: string; quantity: number } {
   const name = model.trim();
   if (!name || name.length > 500)
@@ -391,6 +388,9 @@ export function mergeServiceQuoteItems(
         ? {
             ...part,
             originalModel: part.originalModel ?? part.model,
+            originalQuantity:
+              part.originalQuantity ??
+              nodeCounts[part.model.trim().normalize('NFKC').toLowerCase()],
             model: name,
           }
         : part,
@@ -398,4 +398,41 @@ export function mergeServiceQuoteItems(
     key: name.normalize('NFKC').toLowerCase(),
     quantity,
   };
+}
+
+/** Preserve original member quantities and annual customer unit prices, independently of platform quantity. */
+export function groupMemberRemarks(
+  parts: ServiceQuotePart[],
+  years: number,
+): string {
+  const members = new Map<
+    string,
+    {
+      name: string;
+      service: ServiceKind | null;
+      quantity?: number;
+      total: number;
+    }
+  >();
+  for (const part of parts) {
+    if (!part.originalModel) continue;
+    const key = `${part.service}:${part.originalModel.normalize('NFKC').toLowerCase()}`;
+    const member = members.get(key) ?? {
+      name: part.originalModel,
+      service: part.service,
+      quantity: part.originalQuantity,
+      total: 0,
+    };
+    member.total += part.customer ?? 0;
+    members.set(key, member);
+  }
+  const remark = [...members.values()]
+    .map(
+      (member) =>
+        `${member.service}: ${member.name}, qty: ${member.quantity ?? '待确认'}, u/p: ${member.quantity && years > 0 ? formatMoney(roundMoney(member.total / years / member.quantity)) : '待确认'}`,
+    )
+    .join('\n');
+  if (remark.length > 10000)
+    throw new Error('组合备注超过 10000 字，请拆分为较小的组合');
+  return remark;
 }

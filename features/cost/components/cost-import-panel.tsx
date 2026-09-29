@@ -1,4 +1,5 @@
 'use client';
+import { formatMoney } from '@/lib/money';
 /** Reusable workbook-column mapping; no changes are applied until preview succeeds. */
 import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
@@ -350,12 +351,12 @@ export function CostImportPanel({
         <div className="space-y-2">
           <p>
             {preview.rows.length} 行 · 成本{' '}
-            {preview.rows
-              .reduce(
+            {formatMoney(
+              preview.rows.reduce(
                 (sum, row) => sum + row.years.reduce((a, y) => a + y.cost, 0),
                 0,
-              )
-              .toFixed(2)}
+              ),
+            )}
           </p>
           <div className="max-h-52 overflow-auto">
             {preview.rows.map((row) => (

@@ -1,4 +1,5 @@
 'use client';
+import { Table } from '@/components/ui/table';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -276,7 +277,7 @@ export function SsrView({
             添加条款
           </Button>
           <div className="wb-table-scroll rounded-lg border">
-            <table className="w-full text-sm">
+            <Table className="w-full text-sm">
               <thead>
                 <tr>
                   {[
@@ -393,7 +394,7 @@ export function SsrView({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         </section>
       )}

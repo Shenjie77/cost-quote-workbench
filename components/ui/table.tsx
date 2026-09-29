@@ -2,14 +2,20 @@
 
 import * as React from 'react';
 
+import { attachColumnResizing } from '@/lib/table-column-widths';
 import { cn } from '@/lib/utils';
 
 /** Wrap semantic data in a keyboard-scrollable grid without changing row behavior. */
 function Table({
   className,
   containerClassName,
+  ref,
   ...props
 }: React.ComponentProps<'table'> & { containerClassName?: string }) {
+  const tableRef = React.useRef<HTMLTableElement | null>(null);
+  React.useEffect(() => {
+    if (tableRef.current) return attachColumnResizing(tableRef.current);
+  }, [props.children]);
   return (
     <div
       data-slot="table-container"
@@ -22,6 +28,11 @@ function Table({
       aria-label={props['aria-label'] || 'Scrollable data table'}
     >
       <table
+        ref={(node) => {
+          tableRef.current = node;
+          if (typeof ref === 'function') ref(node);
+          else if (ref) ref.current = node;
+        }}
         data-slot="table"
         className={cn('w-full caption-bottom text-[13px]', className)}
         {...props}

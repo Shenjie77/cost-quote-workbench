@@ -16,6 +16,7 @@ export function MaintenancePriceInput({
     [invalid, setInvalid] = useState(false);
   return (
     <Input
+      money
       aria-label={label}
       aria-invalid={invalid}
       type="text"

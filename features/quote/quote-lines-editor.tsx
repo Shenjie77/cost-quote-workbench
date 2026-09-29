@@ -591,6 +591,7 @@ export function QuoteLinesEditor({
                 </TableCell>
                 <TableCell>
                   <QuoteNumberInput
+                    money
                     key={`price-${line.unitPrice}`}
                     label={`Line ${index + 1} unit price`}
                     value={line.unitPrice}

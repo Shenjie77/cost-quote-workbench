@@ -408,7 +408,7 @@ test('independent line prices are shared by editor and preview with current cost
   assert.equal(writes(), 0);
 });
 
-test('preview preserves four-decimal unit rates and flags unresolved draft prices outside the customer document', () => {
+test('preview displays two-decimal unit rates without changing stored precision and flags unresolved draft prices outside the customer document', () => {
   const { props } = fixture({
     manualTargetPrice: 1000,
     manualLines: [
@@ -436,7 +436,8 @@ test('preview preserves four-decimal unit rates and flags unresolved draft price
   assert.match(renderToStaticMarkup(alert), /Draft has unresolved pricing/);
   const article = nodes.find((node) => node.type === 'article');
   const html = renderToStaticMarkup(article);
-  assert.match(html, /S\$ 373\.332/);
+  assert.match(html, /S\$ 373\.33/);
+  assert.equal(props.pricing.manualLines[0].unitPrice, 373.332);
   assert.match(html, /S\$ 933\.33/);
   assert.doesNotMatch(html, /373\.34|Draft has unresolved pricing/);
 });

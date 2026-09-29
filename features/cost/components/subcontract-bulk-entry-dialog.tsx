@@ -1,3 +1,5 @@
+import { Table } from '@/components/ui/table';
+import { formatMoney } from '@/lib/money';
 /** Review pasted subcontract BOQs locally before appending to the selected project or site. */
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -32,11 +34,7 @@ type Props = SubcontractBulkBasis & {
 };
 const selectClass =
   'h-8 min-w-0 w-full rounded-md border border-border bg-white px-2 text-xs disabled:opacity-50';
-const money = (value: number) =>
-  value.toLocaleString('en-SG', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const money = formatMoney;
 const mappingLabels: [SubcontractBulkColumn, string][] = [
   ['unmapped', 'Choose field…'],
   ['ignore', 'Ignore column'],
@@ -266,7 +264,7 @@ export function SubcontractBulkEntryForm({
               </span>
             </div>
             <div className="max-h-72 overflow-auto rounded-md border">
-              <table className="w-full min-w-[650px] text-xs">
+              <Table className="w-full min-w-[650px] text-xs">
                 <thead className="sticky top-0 bg-muted">
                   <tr>
                     <th className="p-2 text-left">Row / Item</th>
@@ -324,7 +322,7 @@ export function SubcontractBulkEntryForm({
                       </tr>
                     ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
             {pageCount > 1 && (
               <div className="flex items-center justify-end gap-2 text-xs">

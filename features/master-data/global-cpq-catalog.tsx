@@ -106,6 +106,7 @@ export function GlobalCpqCatalog({
                 ))}
                 <TableCell>
                   <Input
+                    money
                     className="financial-numeral h-8 min-w-24 text-xs"
                     type="number"
                     min={0.01}

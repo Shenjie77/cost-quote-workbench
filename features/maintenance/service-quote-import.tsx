@@ -1,4 +1,5 @@
 'use client';
+import { formatMoney } from '@/lib/money';
 /** Upload source evidence first, then require explicit confirmation before changing maintenance prices. */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -198,7 +199,7 @@ export function ServiceQuoteImport({
         Math.abs(part.lpb - part.customer) > 0.011,
     );
   const total = (key: 'lpb' | 'customer' | 'computed') =>
-    parts.reduce((sum, part) => sum + (part[key] ?? 0), 0).toFixed(2);
+    formatMoney(parts.reduce((sum, part) => sum + (part[key] ?? 0), 0));
   return (
     <>
       <input
@@ -336,7 +337,7 @@ export function ServiceQuoteImport({
             <p className="text-xs text-muted-foreground">
               在下方设备名前勾选，再点击 Group。所选设备的 CT、SPMS
               分别汇总；组名作为 Model 导入，原始成员写入
-              Desc.，平台数量必须重新确认。
+              Remark，平台数量必须重新确认。
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -379,6 +380,7 @@ export function ServiceQuoteImport({
                           mergeRows,
                           platformName,
                           Number(platformQuantity),
+                          counts,
                         );
                         setMergeUndo((current) => [
                           ...current,
@@ -497,9 +499,9 @@ export function ServiceQuoteImport({
                         </details>
                       )}
                     </TableCell>
-                    <TableCell>{valid ? ct.toFixed(2) : '—'}</TableCell>
-                    <TableCell>{valid ? spms.toFixed(2) : '—'}</TableCell>
-                    <TableCell>{valid ? unit.toFixed(2) : '—'}</TableCell>
+                    <TableCell>{valid ? formatMoney(ct) : '—'}</TableCell>
+                    <TableCell>{valid ? formatMoney(spms) : '—'}</TableCell>
+                    <TableCell>{valid ? formatMoney(unit) : '—'}</TableCell>
                     <TableCell>
                       <Input
                         aria-label={`Node quantity ${group.model}`}
@@ -513,10 +515,10 @@ export function ServiceQuoteImport({
                         }
                       />
                     </TableCell>
-                    <TableCell>{valid ? yearly.toFixed(2) : '—'}</TableCell>
+                    <TableCell>{valid ? formatMoney(yearly) : '—'}</TableCell>
                     <TableCell>{duration}</TableCell>
                     <TableCell>
-                      {valid ? roundMoney(yearly * duration).toFixed(2) : '—'}
+                      {valid ? formatMoney(roundMoney(yearly * duration)) : '—'}
                     </TableCell>
                   </TableRow>
                 );
@@ -606,9 +608,9 @@ export function ServiceQuoteImport({
                       </select>
                     </TableCell>
                     <TableCell>{part.quantity}</TableCell>
-                    <TableCell>{part.unitPrice?.toFixed(2) ?? '—'}</TableCell>
-                    <TableCell>{part.lpb?.toFixed(2) ?? '—'}</TableCell>
-                    <TableCell>{part.customer?.toFixed(2) ?? '—'}</TableCell>
+                    <TableCell>{formatMoney(part.unitPrice) ?? '—'}</TableCell>
+                    <TableCell>{formatMoney(part.lpb) ?? '—'}</TableCell>
+                    <TableCell>{formatMoney(part.customer) ?? '—'}</TableCell>
                     <TableCell>
                       {part.lpb && part.customer !== null
                         ? ((1 - part.customer / part.lpb) * 100).toFixed(2)

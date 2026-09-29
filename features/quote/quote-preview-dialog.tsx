@@ -31,7 +31,7 @@ import {
 
 const unitPriceFormat = new Intl.NumberFormat('en-SG', {
   minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
+  maximumFractionDigits: 2,
 });
 
 /** Preserve the supported four-decimal selling rate instead of rounding it upward to cents. */

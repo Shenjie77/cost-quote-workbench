@@ -149,6 +149,9 @@ function EditCell({
 }) {
   return (
     <Input
+      money={
+        type === 'number' && /price|cost|amount|manday rate/i.test(ariaLabel)
+      }
       className={`${denseInput} ${type === 'number' ? 'financial-numeral text-right' : ''}`}
       type={type}
       value={value}

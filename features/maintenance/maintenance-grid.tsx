@@ -1,4 +1,5 @@
 'use client';
+import { formatMoney } from '@/lib/money';
 /** Dense equipment grid: source prices stay editable, calculated fields and history remain read-only. */
 import { useState, type PointerEvent } from 'react';
 import { Trash2 } from 'lucide-react';
@@ -53,11 +54,7 @@ const columnTitles = [
   'Actions / 操作',
 ];
 const defaultWidths = [180, 220, 90, 90, 100, 65, 110, 65, 120, 90, 180, 42];
-const money = (amount: number) =>
-  amount.toLocaleString('en-SG', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const money = formatMoney;
 
 /** Allow temporary empty numeric drafts; committing an empty optional value stores zero. */
 function NumberCell({
@@ -97,6 +94,7 @@ function NumberCell({
   };
   return (
     <Input
+      money={!integer}
       aria-label={label}
       aria-invalid={error}
       title={
@@ -299,8 +297,8 @@ export function MaintenanceGrid({
   onDelete: (id: string) => void;
   disabled: boolean;
 }) {
-  const [widths, setWidths] = useState(defaultWidths),
-    [heights, setHeights] = useState<Record<string, number>>({});
+  const widths = defaultWidths;
+  const [heights, setHeights] = useState<Record<string, number>>({});
   return (
     <Table
       aria-label="Maintenance equipment grid"
@@ -321,16 +319,6 @@ export function MaintenanceGrid({
               className="relative h-8 px-2 text-xs"
             >
               {label}
-              <ResizeHandle
-                label={`Resize ${label || 'actions'} column`}
-                axis="x"
-                value={widths[index]}
-                onChange={(width) =>
-                  setWidths((current) =>
-                    current.map((value, i) => (i === index ? width : value)),
-                  )
-                }
-              />
             </TableHead>
           ))}
         </TableRow>

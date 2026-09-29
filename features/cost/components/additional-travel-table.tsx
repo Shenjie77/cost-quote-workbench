@@ -313,6 +313,7 @@ export function AdditionalTravelTable({
                   <TableCell>
                     <div className="relative">
                       <Input
+                        money
                         aria-label={'Base unit rate for ' + row.id}
                         type="number"
                         className={inputClass + ' pl-8 text-right'}

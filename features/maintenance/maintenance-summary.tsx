@@ -1,3 +1,4 @@
+import { formatMoney } from '@/lib/money';
 /** Shared compact summary table used by maintenance entry and quotation review. */
 import {
   Table,
@@ -50,7 +51,7 @@ export function MaintenanceSummary({
         <TableBody>
           <TableRow>
             <TableCell className="financial-numeral font-semibold">
-              {result.quote.toFixed(2)}
+              {formatMoney(result.quote)}
             </TableCell>
             <TableCell>
               {result.annual.length
@@ -59,12 +60,12 @@ export function MaintenanceSummary({
             </TableCell>
             {result.annual.map((item) => (
               <TableCell key={item.year} className="financial-numeral">
-                {item.total.toFixed(2)}
+                {formatMoney(item.total)}
               </TableCell>
             ))}
             {serviceQuote !== undefined && (
               <TableCell className="financial-numeral font-semibold">
-                {(serviceQuote + result.quote).toFixed(2)}
+                {formatMoney(serviceQuote + result.quote)}
               </TableCell>
             )}
           </TableRow>
@@ -99,13 +100,13 @@ export function MaintenanceSummary({
                   <TableCell className="max-w-72 whitespace-pre-wrap">
                     {row.description}
                   </TableCell>
-                  <TableCell>{row.ct?.toFixed(2)}</TableCell>
-                  <TableCell>{row.spms?.toFixed(2)}</TableCell>
-                  <TableCell>{unit.toFixed(2)}</TableCell>
+                  <TableCell>{formatMoney(row.ct)}</TableCell>
+                  <TableCell>{formatMoney(row.spms)}</TableCell>
+                  <TableCell>{formatMoney(unit)}</TableCell>
                   <TableCell>{row.quantity}</TableCell>
-                  <TableCell>{(unit * row.quantity).toFixed(2)}</TableCell>
+                  <TableCell>{formatMoney(unit * row.quantity)}</TableCell>
                   <TableCell>{row.durationYears}</TableCell>
-                  <TableCell>{line.quote.toFixed(2)}</TableCell>
+                  <TableCell>{formatMoney(line.quote)}</TableCell>
                 </TableRow>
               );
             })}

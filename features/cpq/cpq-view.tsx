@@ -1,4 +1,5 @@
 'use client';
+import { formatMoney } from '@/lib/money';
 /** Human-selected catalog mapping, deterministic allocation and local archive. */
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -26,11 +27,7 @@ import {
 } from './domain';
 import { downloadCpqArchive } from './export-workbook';
 
-const money = (n: number) =>
-  n.toLocaleString('en-SG', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const money = formatMoney;
 export function CpqView({
   projectId,
   value,
@@ -459,6 +456,7 @@ export function CpqView({
             <label className="block space-y-1 text-xs font-medium">
               Target cost / 目标成本
               <Input
+                money
                 type="number"
                 step="0.01"
                 min="0"

@@ -1,4 +1,5 @@
 'use client';
+import { formatMoney } from '@/lib/money';
 /** Preview and atomically append clipboard rows using the same annual-price rules as the grid. */
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -71,9 +72,9 @@ export function MaintenanceBulkDialog({
           <div className="max-h-40 overflow-auto text-xs">
             {preview.rows.map((row, index) => (
               <p key={row.id}>
-                {index + 1}. {row.model || '—'} · CT {row.ct?.toFixed(2)} + SPMS{' '}
-                {row.spms?.toFixed(2)} · {row.quantity} × {row.durationYears}{' '}
-                years
+                {index + 1}. {row.model || '—'} · CT {formatMoney(row.ct)} +
+                SPMS {formatMoney(row.spms)} · {row.quantity} ×{' '}
+                {row.durationYears} years
               </p>
             ))}
           </div>

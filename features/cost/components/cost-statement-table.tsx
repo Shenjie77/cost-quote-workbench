@@ -226,6 +226,7 @@ export function CostStatementTable({
                           </span>
                         )}
                         <Input
+                          money
                           aria-label={`${row.en} cost in SGD`}
                           type="number"
                           disabled={readOnly}

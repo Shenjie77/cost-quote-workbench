@@ -194,8 +194,8 @@ test('subcontract reference prices keep unpriced values distinct from zero and h
     markup.match(
       new RegExp(`<input[^>]*aria-label="${code} unit price"[^>]*>`),
     )?.[0];
-  assert.match(priceInput('ROUTER'), /value="200"/);
-  assert.match(priceInput('FREE'), /value="0"/);
+  assert.match(priceInput('ROUTER'), /value="200\.00"/);
+  assert.match(priceInput('FREE'), /value="0\.00"/);
   assert.match(priceInput('OLD'), /value=""/);
   assert.match(priceInput('UNPRICED'), /value=""/);
   assert.match(markup, /Unit Price \/ 参考单价/);

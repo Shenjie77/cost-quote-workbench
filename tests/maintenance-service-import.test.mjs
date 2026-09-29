@@ -273,10 +273,20 @@ test('manual platform merge preserves CT/SPMS money and evidence while requiring
   assert.equal(rows[0].quantity, 2);
   assert.deepEqual(
     combined.parts.map(
-      ({ model: _model, originalModel: _originalModel, ...part }) => part,
+      ({
+        model: _model,
+        originalModel: _originalModel,
+        originalQuantity: _originalQuantity,
+        ...part
+      }) => part,
     ),
     original.map(
-      ({ model: _model, originalModel: _originalModel, ...part }) => part,
+      ({
+        model: _model,
+        originalModel: _originalModel,
+        originalQuantity: _originalQuantity,
+        ...part
+      }) => part,
     ),
   );
 });
@@ -327,9 +337,9 @@ test('total rows with quantities are ignored and variable comma-delimited descri
     { platform: 2 },
     true,
   );
-  assert.match(rows[0].description, /SPMS: Device A/);
-  assert.match(rows[0].description, /SPMS: Device B/);
-  assert.match(rows[0].description, /CT: Router A/);
+  assert.match(rows[0].remark, /SPMS: Device A/);
+  assert.match(rows[0].remark, /SPMS: Device B/);
+  assert.match(rows[0].remark, /CT: Router A/);
   assert.equal(rows[0].ct, 22.5);
   assert.equal(rows[0].spms, 22.5);
 });
@@ -425,4 +435,28 @@ test('real Excel outline parents classify named CT and full-name SPMS in either 
     assert.equal(preview.parts[4].service, null);
     assert.equal(preview.parts[4].year, undefined);
   }
+});
+
+test('platform member remarks use original quantities and grouped annual prices, leaving description free', async () => {
+  const { mergeServiceQuoteItems } =
+    await import('../features/maintenance/import-service-quote.ts');
+  const preview = await inspectServiceQuote(await fixture(), 'Members.xlsx');
+  const merged = mergeServiceQuoteItems(
+    preview.parts,
+    preview.parts.map((part) => part.row),
+    'Platform',
+    1,
+    { 'router a': 2 },
+  );
+  const lines = serviceQuoteLines(
+    preview,
+    merged.parts,
+    3,
+    { platform: 1 },
+    true,
+  );
+  assert.equal(lines[0].description, undefined);
+  assert.match(lines[0].remark, /SPMS: Router A, qty: 2, u\/p: 22\.50/);
+  assert.match(lines[0].remark, /CT: Router A, qty: 2, u\/p: 22\.50/);
+  assert.equal(lines[0].quantity, 1);
 });

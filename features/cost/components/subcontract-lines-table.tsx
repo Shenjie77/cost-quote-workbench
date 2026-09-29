@@ -1,3 +1,4 @@
+import { formatMoney } from '@/lib/money';
 /** Compact quantity entry with deliberate, cancellable item-detail editing. */
 import { useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
@@ -29,11 +30,7 @@ import {
 
 type ItemLine = SubcontractCostLine | SubcontractSiteLine;
 const wholeUnits = (unit: string) => unit.trim().toLowerCase() === 'pcs';
-const money = (amount: number) =>
-  amount.toLocaleString('en-SG', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const money = formatMoney;
 const cellInput =
   'h-8 rounded-md border-border/70 bg-white px-2 text-xs shadow-none';
 const yearLabel = (years: (number | null)[], index: number) =>

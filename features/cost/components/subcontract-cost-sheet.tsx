@@ -1,3 +1,4 @@
+import { formatMoney } from '@/lib/money';
 /** Version-owned subcontract BOQs with focused quantity entry and staged catalogue selection. */
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -55,11 +56,7 @@ export {
 
 const zeroYears = () => [0, 0, 0, 0, 0];
 const id = () => globalThis.crypto.randomUUID();
-const money = (amount: number) =>
-  amount.toLocaleString('en-SG', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const money = formatMoney;
 const yearLabel = (years: (number | null)[], index: number) =>
   `${YEAR_BUCKETS[index]}${years[index] ? ` · ${years[index]}` : ''}`;
 const selectClass =

@@ -1,3 +1,5 @@
+import { Table } from '@/components/ui/table';
+import { formatMoney } from '@/lib/money';
 /** Review a local table before appending a new manual personnel batch. */
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -53,11 +55,7 @@ export type PersonnelBulkEntryDialogProps = {
   onConfirm: (rows: CostInputRow[], basisFingerprint: string) => boolean;
   announce: (message: string) => void;
 };
-const money = (value: number) =>
-  value.toLocaleString('en-SG', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const money = formatMoney;
 const quantity = (value: number | null) =>
   value === null
     ? 'Invalid'
@@ -499,7 +497,7 @@ export function PersonnelBulkEntryForm({
             </div>
             {!!preview.entries.length && (
               <div className="max-h-80 overflow-auto border border-border">
-                <table className="w-full min-w-[840px] text-xs">
+                <Table className="w-full min-w-[840px] text-xs">
                   <thead className="sticky top-0 z-10 bg-muted">
                     <tr>
                       {[
@@ -610,7 +608,7 @@ export function PersonnelBulkEntryForm({
                         </tr>
                       ))}
                   </tbody>
-                </table>
+                </Table>
               </div>
             )}
             {pageCount > 1 && (

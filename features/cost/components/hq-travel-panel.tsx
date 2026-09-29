@@ -145,6 +145,7 @@ export function HQTravelPanel({
                   {key !== 'trips' && <span className="ml-1 text-xs">SGD</span>}
                 </span>
                 <Input
+                  money={key !== 'trips'}
                   aria-label={ariaLabel}
                   type="number"
                   min={0}

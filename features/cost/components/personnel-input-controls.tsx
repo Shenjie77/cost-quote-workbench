@@ -1,3 +1,4 @@
+import { formatMoney } from '@/lib/money';
 /** Compact spreadsheet-style personnel entry. Mutations patch the latest raw inputs. */
 import { ArrowDown, ArrowUp, GripVertical, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -86,11 +87,7 @@ export type PersonnelInputPatch =
     };
 const number = (value: number) =>
   value.toLocaleString('en-SG', { maximumFractionDigits: 4 });
-const money = (value: number) =>
-  value.toLocaleString('en-SG', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const money = formatMoney;
 const gridInput =
   'h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-2 py-0 text-xs shadow-none focus-visible:bg-white focus-visible:ring-1';
 const gridSelect =
