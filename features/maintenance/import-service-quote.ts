@@ -154,10 +154,45 @@ export async function inspectServiceQuote(
   const parts: ServiceQuotePart[] = [],
     years = new Set<number>(),
     issues: string[] = [];
+  // Excel outline levels encode ancestry independently of labels, visible/collapsed state, and row numbers.
+  const populatedRows: number[] = [];
+  for (let row = header + 1; row <= sheet.rowCount; row++)
+    if (sheet.getRow(row).hasValues) populatedRows.push(row);
+  const outlined = populatedRows.some(
+    (row) => (sheet.getRow(row).outlineLevel ?? 0) > 0,
+  );
+  const nextLevels = new Map(
+    populatedRows.map((row, index) => [
+      row,
+      index + 1 < populatedRows.length
+        ? (sheet.getRow(populatedRows[index + 1]).outlineLevel ?? 0)
+        : -1,
+    ]),
+  );
+  const ancestors: {
+    level: number;
+    service: ServiceKind | null;
+    year?: number;
+    model: string;
+  }[] = [];
   let service: ServiceKind | null = null,
     year: number | undefined,
     model = '';
   for (let row = header + 1; row <= sheet.rowCount; row++) {
+    if (!sheet.getRow(row).hasValues) continue;
+    const level = sheet.getRow(row).outlineLevel ?? 0;
+    const hasChildren = outlined && (nextLevels.get(row) ?? -1) > level;
+    if (outlined) {
+      while (ancestors.length && ancestors.at(-1)!.level >= level)
+        ancestors.pop();
+      const parent = ancestors.at(-1);
+      service = parent?.service ?? null;
+      year = parent?.year;
+      model = parent?.model ?? '';
+    }
+    const rememberParent = () => {
+      if (hasChildren) ancestors.push({ level, service, year, model });
+    };
     const node = text(row, 'node'),
       info = text(row, 'nodeinfo');
     // Aggregate rows can carry quantities and amounts; ignore them before inheriting context or validating prices.
@@ -180,26 +215,38 @@ export async function inspectServiceQuote(
         serviceOf(heading) ?? serviceOf(text(row, 'model')) ?? serviceOf(info);
       year = undefined;
       model = '';
+      rememberParent();
       continue;
     }
     if (/^quotation\b/i.test(node)) {
       service = null;
       year = undefined;
       model = '';
+      rememberParent();
       continue;
     }
+    // Real exports use named outline parents (e.g. CT Router-2027), not literal placeholder headings.
+    // Numeric item codes never set a service or a year, even when prices are missing.
+    const isHeading =
+      hasChildren ||
+      (quantity === null &&
+        (!/^\d+$/.test(node) || /^(19|20)\d{2}$/.test(node)));
+    if (isHeading) {
+      const namedService = serviceOf(node);
+      if (namedService) service = namedService;
+    }
     // Years belong to A-column phase/item headings, never to equipment descriptions or leaf item codes.
-    const yearMatch =
-      quantity === null ? node.match(/\b(20\d{2}|19\d{2})\b/) : null;
+    const yearMatch = isHeading ? node.match(/\b(20\d{2}|19\d{2})\b/) : null;
     if (yearMatch) {
       year = Number(yearMatch[1]);
       years.add(year);
     }
     const explicit = modelFromNodeInfo(info);
     const modelColumn = text(row, 'model');
-    if (quantity === null) {
+    if (hasChildren || quantity === null) {
       if (explicit) model = explicit;
       else if (modelColumn && modelColumn !== '/') model = modelColumn;
+      rememberParent();
       continue;
     }
     // Parent totals have no unit price and are not counted again. Empty price rows remain visible as errors.

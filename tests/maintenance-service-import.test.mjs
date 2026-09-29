@@ -357,3 +357,72 @@ test('subquotation type is inherited from concatenated and adjacent heading valu
   sheet.getCell('F5').value = 632;
   assert.match((await inspect()).parts[0].issue, /舍入范围/);
 });
+
+test('real Excel outline parents classify named CT and full-name SPMS in either order without leaking into sibling groups', async () => {
+  for (const order of [
+    ['CT', 'SPMS'],
+    ['SPMS', 'CT'],
+  ]) {
+    const book = new ExcelJS.Workbook(),
+      sheet = book.addWorksheet('Actual');
+    sheet.addRow([
+      'node',
+      'model',
+      'node info',
+      'quantity',
+      'LPB Unit Price (SGD)',
+      'total amount of LPB price (SGD)',
+      'total amount of customer price (SGD)',
+    ]);
+    for (const service of order) {
+      const parent = sheet.addRow([
+        service === 'CT'
+          ? 'CT XXXXXXX-2027'
+          : 'xxx spare parts management service xxx',
+      ]);
+      parent.outlineLevel = 0;
+      const phase = sheet.addRow(['Phase-2027', '', '', 2, null, 100, 100]);
+      phase.outlineLevel = 1;
+      for (const code of ['0000000000', '0000000001']) {
+        const row = sheet.addRow([
+          code,
+          '',
+          'any service, Platform Device, any terms',
+          2,
+          25,
+          50,
+          50,
+        ]);
+        row.outlineLevel = 2;
+        row.hidden = true;
+      }
+    }
+    sheet.addRow(['Unclassified sibling']);
+    const unknown = sheet.addRow([
+      '0000000002',
+      '',
+      'other, Unknown, terms',
+      1,
+      10,
+      10,
+      10,
+    ]);
+    unknown.outlineLevel = 1;
+    const preview = await inspectServiceQuote(
+      new Uint8Array(await book.xlsx.writeBuffer()),
+      'Real.xlsx',
+    );
+    assert.equal(preview.parts.length, 5);
+    assert.deepEqual(
+      preview.parts.slice(0, 4).map((part) => part.service),
+      [order[0], order[0], order[1], order[1]],
+    );
+    assert.ok(
+      preview.parts
+        .slice(0, 4)
+        .every((part) => part.year === 2027 && !part.issue),
+    );
+    assert.equal(preview.parts[4].service, null);
+    assert.equal(preview.parts[4].year, undefined);
+  }
+});
