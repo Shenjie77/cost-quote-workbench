@@ -22,3 +22,11 @@ Site-type costing has an Overview, a tab for each site type, and Shared / One-of
 Use **Item details** to change metadata or remove items. Keep the worksheet's headers and item identifiers intact. Invalid formulas, negative or nonnumeric inputs, fractional `pcs` quantities, and incomplete item rows cannot be applied. A locked cost version cannot accept changes.
 
 If catalog items, applied inputs or annual rate factors change outside the worksheet, its basis becomes stale. Download a backup if needed, then use **Reload from costs** to replace that draft from current inputs. This intentionally replaces its formulas. Drafts are scoped to project, cost version and site identity; copying a cost version starts worksheets from the copied numeric inputs.
+
+## Missing `rxjs` in an offline installation
+
+Univer declares RxJS as a peer dependency. The platform explicitly pins `rxjs` to `7.8.2` so installation does not depend on automatically installing peers. Transfer the updated `package.json` and lockfile together with a complete matching dependency installation. An existing offline `node_modules` directory is not updated by copying source files alone.
+
+If Vite reports `Failed to resolve import "rxjs"` under `node_modules/.vite/deps`, stop the platform and check `node -p "require.resolve('rxjs')"` and `npm ls rxjs`. If resolution fails, restore the complete `node_modules/rxjs` directory and its `tslib` dependency from a prepared dependency bundle. If resolution succeeds, clear only `node_modules/.vite` and restart to rebuild the dependency cache; then hard-refresh the browser. Do not delete the whole `node_modules` folder on an offline machine without a complete replacement ready.
+
+For a connected machine or an internal npm mirror containing the package, `npm install --save-exact rxjs@7.8.2` installs the missing dependency. `npm ci --offline` only works when the npm cache already contains all required packages and metadata; source code or a lockfile alone is insufficient.
