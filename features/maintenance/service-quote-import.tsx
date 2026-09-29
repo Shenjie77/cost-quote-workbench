@@ -21,6 +21,7 @@ import {
 import { ProjectFileDropzone } from '../projects/project-files-panel';
 import {
   archiveProjectFile,
+  deleteProjectFile,
   listProjectFiles,
   openArchiveFolder,
   projectFileDownloadUrl,
@@ -73,6 +74,7 @@ export function ServiceQuoteImport({
   const [mergeUndo, setMergeUndo] = useState<
     { parts: ServiceQuotePart[]; counts: Record<string, number> }[]
   >([]);
+  const previewFileId = useRef<string | null>(null);
   const picker = useRef<HTMLInputElement>(null),
     mounted = useRef(true),
     uploading = useRef(false);
@@ -117,12 +119,13 @@ export function ServiceQuoteImport({
     try {
       if (!(await onSave())) throw new Error('请先保存当前维保版本');
       if (!mounted.current || (canApply && !canApply())) return;
-      await archiveProjectFile(projectId, file, {
+      const archived = await archiveProjectFile(projectId, file, {
         category: 'maintenance',
         versionCode,
         requestId: crypto.randomUUID(),
       });
       if (!mounted.current) return;
+      previewFileId.current = archived.id;
       await refresh();
       const parsed = await inspectServiceQuote(
         new Uint8Array(await file.arrayBuffer()),
@@ -142,6 +145,41 @@ export function ServiceQuoteImport({
       setYearsConfirmed(false);
       setDiscountConfirmed(false);
       setOpen(true);
+    } catch (error) {
+      if (mounted.current) setError(String(error));
+    } finally {
+      uploading.current = false;
+      if (mounted.current) {
+        setBusy(false);
+        onBusy(false);
+      }
+    }
+  };
+  /** Remove only the selected source document; imported equipment and prices remain unchanged. */
+  const removeFile = async (file: ProjectFileRecord) => {
+    if (uploading.current || (canApply && !canApply())) return;
+    if (
+      !window.confirm(
+        `永久删除文件“${file.originalName}”？归档文件将从磁盘移除，无法恢复；已导入的设备和报价数据保留。`,
+      )
+    )
+      return;
+    uploading.current = true;
+    setBusy(true);
+    onBusy(true);
+    setError('');
+    try {
+      await deleteProjectFile(projectId, file.id);
+      if (!mounted.current) return;
+      setFiles((current) => current.filter((item) => item.id !== file.id));
+      if (previewFileId.current === file.id) {
+        previewFileId.current = null;
+        setPreview(null);
+        setParts([]);
+        setOpen(false);
+      }
+      await refresh();
+      if (mounted.current) announce(`已删除文件：${file.originalName}`);
     } catch (error) {
       if (mounted.current) setError(String(error));
     } finally {
@@ -217,6 +255,16 @@ export function ServiceQuoteImport({
               }
             >
               文件夹
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive"
+              disabled={busy}
+              aria-label={`删除文件 ${file.originalName}`}
+              onClick={() => void removeFile(file)}
+            >
+              删除
             </Button>
           </div>
         ))}
