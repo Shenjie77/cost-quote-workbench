@@ -1,3 +1,4 @@
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { SubcontractSpreadsheetEntry } from './subcontract-spreadsheet-entry';
 import { formatMoney } from '@/lib/money';
 /** Version-owned subcontract BOQs with focused quantity entry and staged catalogue selection. */
@@ -60,8 +61,6 @@ const id = () => globalThis.crypto.randomUUID();
 const money = formatMoney;
 const yearLabel = (years: (number | null)[], index: number) =>
   `${YEAR_BUCKETS[index]}${years[index] ? ` · ${years[index]}` : ''}`;
-const selectClass =
-  'h-8 min-w-0 rounded-md border border-input bg-background px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20';
 
 /** Catalogue values are copied once; future catalogue edits cannot reprice a BOQ. */
 export function copySubcontractCatalogLine(
@@ -203,7 +202,9 @@ export function SubcontractCostSheet({
   announce: (message: string) => void;
 }) {
   const locked = !!lockedReason;
-  const [page, setPage] = useState<'overview' | 'site' | 'shared'>('overview');
+  const [page, setPage] = useState<'overview' | 'site' | 'shared'>(() =>
+    value.mode === 'project' ? 'shared' : 'overview',
+  );
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [catalogTarget, setCatalogTarget] = useState<SubcontractTarget | null>(
     null,
@@ -229,7 +230,6 @@ export function SubcontractCostSheet({
     name: string;
   } | null>(null);
   const [projectYear, setProjectYear] = useState<number | 'all'>(0);
-  const [sharedExpanded, setSharedExpanded] = useState(true);
   const [query, setQuery] = useState('');
   const [refreshedCatalog, setRefreshedCatalog] = useState<{
     source: SubcontractItem[];
@@ -263,7 +263,6 @@ export function SubcontractCostSheet({
       ? value.siteTypes.flatMap((site) => site.lines)
       : []),
   ].filter((line) => line.unitPrice === null).length;
-  const showProjectLines = value.mode === 'project' || sharedExpanded;
   const change = (next: SubcontractCost) => {
     if (!locked) onChange(next);
   };
@@ -389,34 +388,6 @@ export function SubcontractCostSheet({
             </p>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-4">
-            <label className="space-y-1 text-xs font-medium text-muted-foreground">
-              <span className="block">Cost Model</span>
-              <select
-                aria-label="Subcontract cost model"
-                className={selectClass}
-                value={value.mode}
-                disabled={locked}
-                onChange={(event) => {
-                  try {
-                    change(
-                      changeSubcontractMode(
-                        value,
-                        event.target.value as SubcontractCost['mode'],
-                      ),
-                    );
-                  } catch (error) {
-                    announce(
-                      error instanceof Error
-                        ? error.message
-                        : 'Unable to switch cost model.',
-                    );
-                  }
-                }}
-              >
-                <option value="project">Project Total</option>
-                <option value="site-types">Site Types</option>
-              </select>
-            </label>
             <div className="border-l pl-4 text-right">
               <p className="text-xs font-medium text-muted-foreground">
                 {unpriced ? 'Priced Subtotal' : 'Total'} · SGD
@@ -440,7 +411,7 @@ export function SubcontractCostSheet({
           ))}
         </div>
       </div>
-      {value.mode === 'site-types' && (
+      {
         <nav
           aria-label="Subcontract worksheets"
           className="flex flex-wrap items-center gap-1 border-b border-border pb-2"
@@ -453,7 +424,7 @@ export function SubcontractCostSheet({
           >
             Overview
           </Button>
-          {value.siteTypes.map((site) => (
+          {(value.mode === 'site-types' ? value.siteTypes : []).map((site) => (
             <Button
               key={site.id}
               size="sm"
@@ -496,8 +467,8 @@ export function SubcontractCostSheet({
             New site type
           </Button>
         </nav>
-      )}
-      {(value.mode === 'project' || page === 'overview') && (
+      }
+      {page === 'overview' && (
         <SubcontractRateAssumptions
           settings={value.rateSettings}
           actualYears={actualYears}
@@ -522,127 +493,111 @@ export function SubcontractCostSheet({
           className="wb-panel min-w-0 overflow-hidden"
           aria-label="Site configuration"
         >
-          <div className="wb-toolbar border-b border-border">
-            <h3 className="mr-auto text-sm font-semibold">
-              {selectedSite?.name || 'Site type'}
-            </h3>
-            {selectedSite && (
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={locked}
-                  aria-label="Rename site type"
-                  title="Rename site type"
-                  onClick={() => {
-                    if (!locked)
-                      setRenameDraft({
-                        id: selectedSite.id,
-                        name: selectedSite.name,
-                      });
-                  }}
-                >
-                  <Pencil className="size-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={locked}
-                  aria-label="Duplicate configuration"
-                  title="Duplicate BOQ; enter new deployment counts"
-                  onClick={() => {
-                    if (locked) return;
-                    const duplicate =
-                      duplicateSubcontractSiteType(selectedSite);
-                    change({
-                      ...value,
-                      siteTypes: [...value.siteTypes, duplicate],
-                    });
-                    setSelectedSiteId(duplicate.id);
-                    setPage('site');
-                    announce(
-                      'Site configuration copied. Enter annual site counts for the new site type.',
-                    );
-                  }}
-                >
-                  <Copy className="size-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={locked}
-                  className="text-muted-foreground hover:text-destructive"
-                  aria-label="Delete site type"
-                  title="Delete site type"
-                  onClick={() => {
-                    if (
-                      locked ||
-                      !window.confirm(
-                        `Delete ${selectedSite.name} and its ${selectedSite.lines.length} BOQ item(s)?`,
-                      )
-                    )
-                      return;
-                    change({
-                      ...value,
-                      siteTypes: value.siteTypes.filter(
-                        (site) => site.id !== selectedSite.id,
-                      ),
-                    });
-                    setSelectedSiteId(null);
-                  }}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </>
-            )}
-          </div>
           {selectedSite ? (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3">
-                <div>
-                  <h3 className="text-sm font-semibold">
-                    BOQ per Site{' '}
-                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                      {selectedSite.lines.length} items
-                    </span>
-                  </h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Unit price × quantity per site
-                  </p>
-                </div>
-                <AddLineActions
-                  locked={locked}
-                  onCatalog={() =>
-                    openCatalog({ kind: 'site', id: selectedSite.id })
-                  }
-                  onBulk={() => {
-                    void openBulk({ kind: 'site', id: selectedSite.id });
-                  }}
-                />
-              </div>
-              {workspaceKey && (
-                <SubcontractSpreadsheetEntry
-                  draftId={`${workspaceKey}:site:${selectedSite.id}`}
-                  name={selectedSite.name}
-                  lines={selectedSite.lines}
-                  factors={rateFactors}
-                  locked={locked}
-                  announce={announce}
-                  onReplace={(lines) =>
-                    updateSite({
-                      ...selectedSite,
-                      lines: lines as SubcontractSiteLine[],
-                    })
-                  }
-                />
-              )}
+              <SubcontractSpreadsheetEntry
+                key={`${workspaceKey}:site:${selectedSite.id}`}
+                draftId={`${workspaceKey}:site:${selectedSite.id}`}
+                name={selectedSite.name}
+                titleActions={
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={locked}
+                      aria-label="Rename site type"
+                      title="Rename site type"
+                      onClick={() => {
+                        if (!locked)
+                          setRenameDraft({
+                            id: selectedSite.id,
+                            name: selectedSite.name,
+                          });
+                      }}
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={locked}
+                      aria-label="Duplicate configuration"
+                      title="Duplicate BOQ; enter new deployment counts"
+                      onClick={() => {
+                        if (locked) return;
+                        const duplicate =
+                          duplicateSubcontractSiteType(selectedSite);
+                        change({
+                          ...value,
+                          siteTypes: [...value.siteTypes, duplicate],
+                        });
+                        setSelectedSiteId(duplicate.id);
+                        setPage('site');
+                        announce(
+                          'Site configuration copied. Enter annual site counts for the new site type.',
+                        );
+                      }}
+                    >
+                      <Copy className="size-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={locked}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label="Delete site type"
+                      title="Delete site type"
+                      onClick={() => {
+                        if (
+                          locked ||
+                          !window.confirm(
+                            `Delete ${selectedSite.name} and its ${selectedSite.lines.length} BOQ item(s)?`,
+                          )
+                        )
+                          return;
+                        change({
+                          ...value,
+                          siteTypes: value.siteTypes.filter(
+                            (site) => site.id !== selectedSite.id,
+                          ),
+                        });
+                        setSelectedSiteId(null);
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </>
+                }
+                itemActions={
+                  <AddLineActions
+                    locked={locked}
+                    onCatalog={() =>
+                      openCatalog({ kind: 'site', id: selectedSite.id })
+                    }
+                    onBulk={() => {
+                      void openBulk({ kind: 'site', id: selectedSite.id });
+                    }}
+                  />
+                }
+                lines={selectedSite.lines}
+                factors={rateFactors}
+                locked={locked}
+                announce={announce}
+                onReplace={(lines) =>
+                  updateSite({
+                    ...selectedSite,
+                    lines: lines as SubcontractSiteLine[],
+                  })
+                }
+              />
               <details className="border-t">
                 <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
                   Item details
                 </summary>
+
                 <SubcontractLinesTable
                   lines={selectedSite.lines}
                   actualYears={actualYears}
@@ -747,7 +702,7 @@ export function SubcontractCostSheet({
           )}
         </section>
       )}
-      {value.mode === 'site-types' && page === 'overview' && (
+      {page === 'overview' && (
         <section className="wb-panel min-w-0 overflow-hidden">
           <h3 className="px-3 py-2.5 text-xs font-medium">
             All site types · Annual breakdown{' '}
@@ -846,102 +801,57 @@ export function SubcontractCostSheet({
           </Table>
         </section>
       )}
-      {(value.mode === 'project' || page === 'shared') && (
+      {page === 'shared' && (
         <section className="wb-panel min-w-0 overflow-hidden">
-          {value.mode === 'site-types' ? (
-            <button
-              type="button"
-              className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-muted/20"
-              aria-expanded={sharedExpanded}
-              aria-controls="subcontract-project-boq"
-              onClick={() => setSharedExpanded(!sharedExpanded)}
+          <SubcontractSpreadsheetEntry
+            draftId={`${workspaceKey}:project`}
+            name="Shared / One-off Project Costs"
+            itemActions={
+              <AddLineActions
+                locked={locked}
+                onCatalog={() => openCatalog({ kind: 'project' })}
+                onBulk={() => {
+                  void openBulk({ kind: 'project' });
+                }}
+              />
+            }
+            lines={value.lines}
+            project
+            factors={rateFactors}
+            locked={locked}
+            announce={announce}
+            onReplace={(lines) =>
+              change({ ...value, lines: lines as SubcontractCostLine[] })
+            }
+          />
+          <details className="border-t">
+            <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
+              Item details
+            </summary>
+            <Tabs
+              value={String(projectYear)}
+              onValueChange={(value) =>
+                setProjectYear(value === 'all' ? 'all' : Number(value))
+              }
+              className="gap-0"
             >
-              <div>
-                <h3 className="text-xs font-semibold">
-                  Shared / One-off Project Costs{' '}
-                  <span className="ml-1 font-normal text-muted-foreground">
-                    {value.lines.length} items
-                  </span>
-                </h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Project quantities added once, alongside site costs.
-                </p>
+              <div className="overflow-x-auto border-b px-2 py-1">
+                <TabsList variant="line" aria-label="Item details year">
+                  {zeroYears().map((_, index) => (
+                    <TabsTrigger
+                      key={index}
+                      value={String(index)}
+                      className="min-h-7 px-2.5 text-xs"
+                    >
+                      {yearLabel(actualYears, index)}
+                    </TabsTrigger>
+                  ))}
+                  <TabsTrigger value="all" className="min-h-7 px-2.5 text-xs">
+                    All years
+                  </TabsTrigger>
+                </TabsList>
               </div>
-              <span className="shrink-0 text-xs font-medium tabular-nums">
-                {money(projectTotal)}{' '}
-                <span className="ml-2 text-muted-foreground">
-                  {sharedExpanded ? '−' : '+'}
-                </span>
-              </span>
-            </button>
-          ) : (
-            <div className="px-3 pt-3">
-              <h3 className="text-sm font-semibold">
-                Project BOQ{' '}
-                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                  {value.lines.length} items
-                </span>
-              </h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Add items, then enter quantities for each year.
-              </p>
-            </div>
-          )}
-          {showProjectLines && (
-            <div id="subcontract-project-boq">
-              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3">
-                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  Quantity year
-                  <select
-                    aria-label="Project BOQ quantity year"
-                    className={selectClass}
-                    value={projectYear}
-                    onChange={(event) =>
-                      setProjectYear(
-                        event.target.value === 'all'
-                          ? 'all'
-                          : Number(event.target.value),
-                      )
-                    }
-                  >
-                    {zeroYears().map((_, index) => (
-                      <option key={index} value={index}>
-                        {yearLabel(actualYears, index)}
-                      </option>
-                    ))}
-                    <option value="all">All years</option>
-                  </select>
-                </label>
-                <AddLineActions
-                  locked={locked}
-                  onCatalog={() => openCatalog({ kind: 'project' })}
-                  onBulk={() => {
-                    void openBulk({ kind: 'project' });
-                  }}
-                />
-              </div>
-              {workspaceKey && (
-                <SubcontractSpreadsheetEntry
-                  draftId={`${workspaceKey}:project`}
-                  name={
-                    value.mode === 'project'
-                      ? 'Project BOQ'
-                      : 'Shared project costs'
-                  }
-                  lines={value.lines}
-                  project
-                  factors={rateFactors}
-                  locked={locked}
-                  announce={announce}
-                  onReplace={(lines) =>
-                    change({ ...value, lines: lines as SubcontractCostLine[] })
-                  }
-                />
-              )}
-              <details className="border-t">
-                <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
-                  Item details
-                </summary>
+              <TabsContent value={String(projectYear)}>
                 <SubcontractLinesTable
                   lines={value.lines}
                   actualYears={actualYears}
@@ -967,19 +877,19 @@ export function SubcontractCostSheet({
                   }
                   announce={announce}
                 />
-              </details>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2 text-xs">
-                <span className="text-muted-foreground">
-                  {projectYear === 'all'
-                    ? 'BOQ total'
-                    : `${yearLabel(actualYears, projectYear)} subtotal · SGD ${money(roundMoney(summary.lines.reduce((sum, line) => sum + line.years[projectYear], 0)))}`}
-                </span>
-                <span className="font-medium tabular-nums">
-                  All years · SGD {money(projectTotal)}
-                </span>
-              </div>
-            </div>
-          )}
+              </TabsContent>
+            </Tabs>
+          </details>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2 text-xs">
+            <span className="text-muted-foreground">
+              {projectYear === 'all'
+                ? 'BOQ total'
+                : `${yearLabel(actualYears, projectYear)} subtotal · SGD ${money(roundMoney(summary.lines.reduce((sum, line) => sum + line.years[projectYear], 0)))}`}
+            </span>
+            <span className="font-medium tabular-nums">
+              All years · SGD {money(projectTotal)}
+            </span>
+          </div>
         </section>
       )}
       {catalogTarget && (

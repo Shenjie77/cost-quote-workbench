@@ -1,5 +1,11 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import type { CalculationDocument } from './workbook';
 import { loadCalculation, saveCalculation } from './workbook';
 import type { UniverHandle } from './univer-runtime';
@@ -14,6 +20,9 @@ export function CalculationEditor({
   readOnly = false,
   onApply,
   onDirtyChange,
+  onClose,
+  headerActions,
+  titleActions,
   title = 'Calculation draft',
   pageLayout = false,
   backToWorkbench = false,
@@ -26,6 +35,9 @@ export function CalculationEditor({
   backToWorkbench?: boolean;
   onApply?: (document: CalculationDocument) => string | Promise<string>;
   onDirtyChange?: (dirty: boolean) => void;
+  onClose?: () => void;
+  headerActions?: ReactNode;
+  titleActions?: ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const editor = useRef<UniverHandle | null>(null);
@@ -211,7 +223,7 @@ export function CalculationEditor({
   }, [readOnly, ready]);
 
   const save = async (apply = false) => {
-    if (!editor.current || applying.current) return;
+    if (!editor.current || applying.current) return false;
     applying.current = true;
     setBusy(true);
     setError('');
@@ -222,7 +234,7 @@ export function CalculationEditor({
       latest.current = document;
       keepRecovery(document);
       await persist(document, true);
-      if (failure.current) return;
+      if (failure.current) return false;
       if (apply && callbacks.current.onApply && !callbacks.current.readOnly) {
         const basis = await callbacks.current.onApply(document);
         latest.current = { ...document, basis };
@@ -230,8 +242,10 @@ export function CalculationEditor({
         callbacks.current.onDirtyChange?.(false);
         if (!failure.current) setStatus('Applied to cost inputs');
       }
+      return !failure.current;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to calculate.');
+      return false;
     } finally {
       applying.current = false;
       setBusy(false);
@@ -295,16 +309,8 @@ export function CalculationEditor({
     initial.current = initialDocument;
     setGeneration((value) => value + 1);
   };
-  const actions = (
-    <div
-      className="flex items-center gap-2 whitespace-nowrap"
-      aria-label="Draft actions"
-    >
-      {pageLayout && (
-        <output className="hidden text-xs text-muted-foreground md:block">
-          {status}
-        </output>
-      )}
+  const utilityActions = (
+    <>
       <Button
         size="sm"
         className={pageLayout ? 'h-7' : undefined}
@@ -332,6 +338,31 @@ export function CalculationEditor({
       >
         Save draft
       </Button>
+    </>
+  );
+  const actions = (
+    <div
+      className="flex items-center gap-2 whitespace-nowrap"
+      aria-label="Draft actions"
+    >
+      {headerActions}
+      {pageLayout && (
+        <output className="hidden text-xs text-muted-foreground md:block">
+          {status}
+        </output>
+      )}
+      {onClose ? (
+        <details className="relative">
+          <summary className="cursor-pointer rounded border px-2.5 py-1.5 text-xs">
+            More
+          </summary>
+          <div className="absolute right-0 top-full z-50 mt-1 flex min-w-44 flex-col gap-1 rounded-md border bg-white p-2 shadow-md">
+            {utilityActions}
+          </div>
+        </details>
+      ) : (
+        utilityActions
+      )}
       {backToWorkbench && (
         <Link
           href="/"
@@ -339,6 +370,18 @@ export function CalculationEditor({
         >
           Back to workbench
         </Link>
+      )}
+      {onClose && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={async () => {
+            if (!ready || (await save())) onClose();
+          }}
+        >
+          Done
+        </Button>
       )}
       {onApply && (
         <Button
@@ -373,6 +416,7 @@ export function CalculationEditor({
             ) : (
               <h2 className="text-sm font-semibold">{title}</h2>
             )}
+            {titleActions}
             <output className="text-xs text-muted-foreground">{status}</output>
           </div>
           {actions}

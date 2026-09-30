@@ -65,6 +65,8 @@ const {
 } = await import('../features/cost/components/subcontract-cost-sheet.tsx');
 const { emptySubcontractCost } =
   await import('../features/cost/subcontract-domain.ts');
+const { SubcontractSpreadsheetEntry } =
+  await import('../features/cost/components/subcontract-spreadsheet-entry.tsx');
 hooks.deregister();
 
 const noop = () => {};
@@ -126,14 +128,14 @@ const sheetProps = (value, extra = {}) => ({
   announce: noop,
   ...extra,
 });
-const inputMarkup = (html, label) =>
-  html.match(new RegExp(`<input[^>]*aria-label="${label}"[^>]*>`))?.[0];
 
 test('new subcontract editor defaults to annual project BOQ without deploying empty site types', () => {
   const value = emptySubcontractCost();
   const html = render(SubcontractCostSheet, sheetProps(value));
-  assert.match(html, /value="project" selected/);
-  assert.match(html, /Project BOQ/);
+  assert.doesNotMatch(html, /Project Total|Project BOQ|Subcontract cost model/);
+  assert.match(html, /Shared \/ One-off Project Costs/);
+  assert.match(html, /Overview/);
+  assert.match(html, /New site type/);
   assert.match(html, /Y1 · 2026/);
   assert.match(html, /Y5 · 2030/);
   assert.doesNotMatch(
@@ -171,9 +173,9 @@ test('saved line prices and legacy amounts remain included despite newer catalog
       legacyRows,
     }),
   );
-  assert.match(inputMarkup(html, 'ROUTER unit price'), /value="200"/);
-  assert.match(inputMarkup(html, 'FREE unit price'), /value="0"/);
-  assert.match(inputMarkup(html, 'UNPRICED unit price'), /value=""/);
+  assert.match(html, /aria-label="ROUTER unit price"[^>]*>200\.00<\/td>/);
+  assert.match(html, /aria-label="FREE unit price"[^>]*>0\.00<\/td>/);
+  assert.match(html, /aria-label="UNPRICED unit price"[^>]*>Not priced<\/td>/);
   assert.match(html, /Not priced/);
   assert.match(html, /Priced Subtotal/);
   assert.match(html, /900.00/);
@@ -276,7 +278,7 @@ test('quantity controls accept metres, reject fractional pieces, preserve blank 
   assert.equal(errors.length, 2);
 });
 
-test('inline draft price changes preserve quantities and saved unit', () => {
+test('item details display prices and quantities without inline inputs', () => {
   const changes = [],
     errors = [];
   const item = line({
@@ -293,16 +295,15 @@ test('inline draft price changes preserve quantities and saved unit', () => {
     announce: (message) => errors.push(message),
   };
   const nodes = walk(SubcontractLinesTable(props));
-  const price = nodes.find(
-    (node) =>
-      node.type === SubcontractNumberInput &&
-      node.props.label === 'CABLE unit price',
+  assert.equal(
+    nodes.some((node) => node.type === SubcontractNumberInput),
+    false,
   );
-  SubcontractNumberInput(price.props).props.onChange({
-    target: { value: '80' },
-  });
-  assert.equal(changes[0].unitPrice, 80);
-  assert.equal(changes[0].unit, 'm');
+  const html = render(SubcontractLinesTable, props);
+  assert.doesNotMatch(html, /<input|<select/);
+  assert.match(html, /aria-label="CABLE unit price"[^>]*>200\.00<\/td>/);
+  assert.match(html, /aria-label="CABLE Y1 quantity"[^>]*>2\.5<\/span>/);
+  assert.equal(changes.length, 0);
   assert.equal(item.unitPrice, 200);
 });
 
@@ -346,7 +347,7 @@ test('locked cost remains readable while inputs and legacy removal stay disabled
   assert.match(html, /Legacy package/);
   for (const input of html.match(/<input[^>]*>/g) || [])
     assert.match(input, /disabled/, input);
-  assert.match(html.match(/<select[^>]*>/)?.[0] || '', /disabled/);
+  assert.doesNotMatch(html, /Subcontract cost model/);
   const removed = [];
   const tree = LegacySubcontractCosts({
     rows: legacyRows,
@@ -463,4 +464,69 @@ test('last site BOQ deletion clears deployments atomically and leaves other site
   const retained = removeSubcontractSiteLine(populated, original.lines[0].id);
   assert.equal(retained.lines.length, 1);
   assert.deepEqual(retained.sites, populated.sites);
+});
+
+test('subcontract worksheet starts as a native preview and locked versions cannot activate it', () => {
+  const props = {
+    draftId: 'test:site',
+    name: 'Small Site',
+    lines: [
+      {
+        id: 'line',
+        code: 'SC-1',
+        description: 'Install',
+        unit: 'pcs',
+        currency: 'SGD',
+        bu: 'Network',
+        unitPrice: 120,
+        quantityPerSite: 3,
+      },
+    ],
+    factors: [1, 1, 1, 1, 1],
+    locked: false,
+    onReplace: noop,
+    announce: noop,
+  };
+  const html = renderToStaticMarkup(
+    React.createElement(SubcontractSpreadsheetEntry, props),
+  );
+  assert.match(html, /Small Site cost preview/);
+  assert.match(html, /Edit worksheet/);
+  assert.match(html, /120.00/);
+  assert.doesNotMatch(html, /univer-workbench|Apply to costs|Loading draft/);
+  const locked = renderToStaticMarkup(
+    React.createElement(SubcontractSpreadsheetEntry, {
+      ...props,
+      locked: true,
+    }),
+  );
+  assert.match(locked, /<button[^>]*disabled[^>]*>Edit worksheet<\/button>/);
+});
+
+test('shared item details use year tabs and calculate the selected and all-year totals', () => {
+  const item = line({ unitPrice: 50, quantities: [1, 2, 0, 0, 0] });
+  const html = render(
+    SubcontractCostSheet,
+    sheetProps({ mode: 'project', lines: [item], siteTypes: [] }),
+  );
+  assert.match(html, /aria-label="Item details year"/);
+  assert.match(html, /role="tab"/);
+  assert.doesNotMatch(html, /Shared cost quantity year/);
+  const props = {
+    lines: [item],
+    project: true,
+    actualYears,
+    rateFactors: [1, 1.1, 1, 1, 1],
+    onChange: noop,
+    onDelete: noop,
+    announce: noop,
+  };
+  const selected = render(SubcontractLinesTable, { ...props, yearIndex: 1 });
+  assert.match(selected, /aria-label="ROUTER Y2 quantity"[^>]*>2<\/span>/);
+  assert.match(selected, /110\.00/);
+  assert.doesNotMatch(selected, /<input|<select/);
+  const all = render(SubcontractLinesTable, { ...props, yearIndex: 'all' });
+  assert.match(all, /160\.00/);
+  for (const year of ['Y1', 'Y2', 'Y3', 'Y4', 'Y5'])
+    assert.match(all, new RegExp(`aria-label="ROUTER ${year} quantity"`));
 });

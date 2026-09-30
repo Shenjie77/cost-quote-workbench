@@ -81,7 +81,7 @@ const tableProps = (line, extra = {}) => ({
   ...extra,
 });
 
-test('focused annual table presents five columns and changes only the selected year', () => {
+test('focused annual details display the selected year without inline editing', () => {
   const original = item();
   const changes = [];
   const props = tableProps(original, {
@@ -89,7 +89,7 @@ test('focused annual table presents five columns and changes only the selected y
     onChange: (line) => changes.push(line),
   });
   const html = render(SubcontractLinesTable, props);
-  assert.equal((html.match(/data-slot="table-head"/g) || []).length, 5);
+  assert.equal((html.match(/data-slot="table-head"/g) || []).length, 8);
   assert.match(html, /Y3 Qty/);
   assert.match(html, /600.00/);
   assert.doesNotMatch(
@@ -102,33 +102,27 @@ test('focused annual table presents five columns and changes only the selected y
     html,
     /aria-label="ROUTER unit"|aria-label="ROUTER item"/,
   );
-  const field = walk(SubcontractLinesTable(props)).find(
-    (node) =>
-      node.type === SubcontractNumberInput &&
-      node.props.label === 'ROUTER Y3 quantity',
-  );
-  SubcontractNumberInput(field.props).props.onChange({
-    target: { value: '9' },
-  });
-  assert.deepEqual(changes[0].quantities, [1, 2, 9, 4, 5]);
+  assert.doesNotMatch(html, /<input/);
+  assert.deepEqual(changes, []);
   assert.deepEqual(original.quantities, [1, 2, 3, 4, 5]);
 });
 
-test('all-year view shows five quantity allocations and site mode keeps per-site input', () => {
+test('all-year view shows five quantity allocations and site mode shows per-site quantities', () => {
   const html = render(
     SubcontractLinesTable,
     tableProps(item(), { yearIndex: 'all' }),
   );
   assert.equal((html.match(/ROUTER Y[1-5] quantity/g) || []).length, 5);
   assert.match(html, /3,000.00/);
-  assert.match(html, /sm:sticky sm:left-0/);
+  assert.equal((html.match(/<col style=/g) || []).length, 12);
+  assert.doesNotMatch(html, /<input/);
   const site = item({ unit: 'm', quantityPerSite: 2.5 });
   delete site.quantities;
   const siteHtml = render(
     SubcontractLinesTable,
     tableProps(site, { project: false }),
   );
-  assert.equal((siteHtml.match(/data-slot="table-head"/g) || []).length, 5);
+  assert.equal((siteHtml.match(/data-slot="table-head"/g) || []).length, 8);
   assert.match(siteHtml, /Qty \/ Site/);
   assert.match(siteHtml, /500.00/);
   assert.doesNotMatch(siteHtml, /Y1 Qty|Y1 Cost/);

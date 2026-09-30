@@ -12,14 +12,15 @@ This integration uses the core spreadsheet preset only. Cloud collaboration, AI 
 
 ## Subcontract worksheets
 
-Site-type costing has an Overview, a tab for each site type, and Shared / One-off Project Costs. The Overview displays applied annual totals. Each site has a separate persistent formula draft; shared costs use a separate draft with annual quantity columns.
+Subcontract costing uses one interface: Overview, a tab for each site type, and Shared / One-off Project Costs. The former Project Total model selector is removed; existing project-mode inputs are shown in Shared without changing their stored values. Adding a site type enables site-based calculation while preserving those shared inputs. The Overview displays applied annual totals. Each site has a separate persistent formula draft; shared costs use a separate draft with annual quantity columns.
 
-1. Add catalog items using the existing controls.
-2. Open the site's worksheet. Edit Unit price and Quantity / site (or annual quantities for shared costs); formulas may refer to extra working columns or worksheets.
+1. Use the common worksheet toolbar: Add from Catalog, Bulk Entry and Edit worksheet. During editing, Done and Apply to costs share that toolbar; More contains Download backup, Reload from costs and Save draft.
+2. The default view is a regular table of applied cost inputs, so the page scrolls normally. Choose **Edit worksheet** to load the site's saved formula draft. Edit Unit price and Quantity / site (or annual quantities for shared costs); formulas may refer to extra working columns or worksheets.
 3. Choose **Apply to costs** to calculate, validate and copy the numeric prices and quantities to the cost inputs. Autosaving a formula draft does not apply it to costs.
-4. The platform's existing annual uplift, site counts and rounding rules calculate official totals. The worksheet Base amount is before annual uplift.
+4. Choose **Done** to finish the current cell edit, save the draft and close the embedded editor. If saving fails, the editor stays open. Done does not apply the draft to costs.
+5. The platform's existing annual uplift, site counts and rounding rules calculate official totals. The worksheet Base amount is before annual uplift.
 
-Use **Item details** to change metadata or remove items. Keep the worksheet's headers and item identifiers intact. Invalid formulas, negative or nonnumeric inputs, fractional `pcs` quantities, and incomplete item rows cannot be applied. A locked cost version cannot accept changes.
+Use **Item details** to change metadata or remove items. The compact details table displays values without inline inputs. Drag a header’s right edge to resize its column (or focus the separator and use arrow keys); widths are remembered locally for each layout. All years uses balanced initial widths with horizontal scrolling. Shared-cost year tabs switch between Y1–Y5 and All years; use **Edit worksheet** to change quantities or prices. Keep the worksheet's headers and item identifiers intact. Invalid formulas, negative or nonnumeric inputs, fractional `pcs` quantities, and incomplete item rows cannot be applied. A locked cost version cannot accept changes.
 
 If catalog items, applied inputs or annual rate factors change outside the worksheet, its basis becomes stale. Download a backup if needed, then use **Reload from costs** to replace that draft from current inputs. This intentionally replaces its formulas. Drafts are scoped to project, cost version and site identity; copying a cost version starts worksheets from the copied numeric inputs.
 

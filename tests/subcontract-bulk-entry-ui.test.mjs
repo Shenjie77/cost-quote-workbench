@@ -72,7 +72,7 @@ const walk = (node) =>
   Array.isArray(node)
     ? node.flatMap(walk)
     : React.isValidElement(node)
-      ? [node, ...walk(node.props.children)]
+      ? [node, ...walk(node.props.children), ...walk(node.props.itemActions)]
       : [];
 const content = (node) =>
   Array.isArray(node)
@@ -281,7 +281,8 @@ test('project and site controls have compact Bulk Entry actions and item codes a
   );
   assert.match(table, /<strong[^>]*font-bold[^>]*>SC-NEW<\/strong>/);
   assert.match(table, /55.00/);
-  assert.match(table, /value="25"/);
+  assert.match(table, /25\.00/);
+  assert.doesNotMatch(table, /<input/);
 });
 
 /** Retain local sheet hooks so request cancellation and refresh failures use real production callbacks. */

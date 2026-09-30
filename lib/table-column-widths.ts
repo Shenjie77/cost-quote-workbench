@@ -65,6 +65,7 @@ export function attachColumnResizing(table: HTMLTableElement): () => void {
       Math.min(
         1600,
         col.getBoundingClientRect().width ||
+          Number.parseFloat(col.style.width) ||
           cells.find(({ index }) => index === i)?.cell.getBoundingClientRect()
             .width ||
           100,

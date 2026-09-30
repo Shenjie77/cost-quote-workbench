@@ -476,18 +476,34 @@ export function SubcontractLinesTable({
   const change = (line: ItemLine) => {
     if (!locked) onChange(line);
   };
-  const itemClass = allYears
-    ? 'sm:sticky sm:left-0 z-10 min-w-56 bg-card'
-    : 'w-full min-w-40';
+  const columnWidths = [
+    96,
+    180,
+    90,
+    64,
+    100,
+    ...(allYears ? [104, 104, 104, 104, 104] : [104]),
+    110,
+    80,
+  ];
   return (
     <Table
-      className={allYears ? 'min-w-[1000px] text-xs' : 'min-w-[520px] text-xs'}
+      key={allYears ? 'all-years' : 'single-year'}
+      aria-label="Item details table"
+      className="table-fixed text-xs [&_td]:py-1 [&_td]:whitespace-normal [&_td]:break-words [&_th]:h-8 [&_th]:px-2 [&_th]:pr-3"
+      style={{ width: columnWidths.reduce((sum, width) => sum + width, 0) }}
     >
+      <colgroup>
+        {columnWidths.map((width, index) => (
+          <col key={index} style={{ width }} />
+        ))}
+      </colgroup>
       <TableHeader>
         <TableRow className="bg-muted/35 hover:bg-muted/35">
-          <TableHead className={`${itemClass} ${allYears ? 'bg-muted' : ''}`}>
-            Item
-          </TableHead>
+          <TableHead className="min-w-24">Code</TableHead>
+          <TableHead className="min-w-40">Description</TableHead>
+          <TableHead>BU</TableHead>
+          <TableHead>Unit</TableHead>
           <TableHead className="min-w-24 text-right">Unit Price</TableHead>
           {allYears ? (
             YEAR_BUCKETS.map((bucket, index) => (
@@ -519,48 +535,31 @@ export function SubcontractLinesTable({
           const displayedYears = allYears ? [0, 1, 2, 3, 4] : [selectedYear];
           return (
             <TableRow key={line.id} className="group align-middle">
-              <TableCell className={`${itemClass} whitespace-normal py-3`}>
-                <p className="max-w-xl whitespace-normal break-words text-[12px] font-medium leading-4">
-                  {line.description || 'Untitled item'}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-4 text-muted-foreground">
-                  <strong className="min-w-0 max-w-full break-all font-mono font-bold text-foreground">
-                    {line.code || 'No code'}
-                  </strong>
-                  <span aria-hidden="true">·</span>
-                  <span>{line.bu || 'No BU'}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{line.unit || 'No unit'}</span>
-                </div>
+              <TableCell>
+                <strong className="font-mono font-bold">
+                  {line.code || 'No code'}
+                </strong>
               </TableCell>
-              <TableCell className="px-2">
-                <SubcontractNumberInput
-                  value={line.unitPrice}
-                  label={`${line.code} unit price`}
-                  price
-                  locked={locked}
-                  onChange={(unitPrice) => change({ ...line, unitPrice })}
-                  announce={announce}
-                />
+              <TableCell className="max-w-md whitespace-normal">
+                {line.description || 'Untitled item'}
+              </TableCell>
+              <TableCell>{line.bu || 'No BU'}</TableCell>
+              <TableCell>{line.unit || 'No unit'}</TableCell>
+              <TableCell
+                className="text-right tabular-nums"
+                aria-label={`${line.code} unit price`}
+              >
+                {line.unitPrice === null ? 'Not priced' : money(line.unitPrice)}
               </TableCell>
               {annual ? (
                 displayedYears.map((index) => (
                   <TableCell key={index} className="px-2">
-                    <SubcontractNumberInput
-                      value={line.quantities[index]}
-                      label={`${line.code} ${YEAR_BUCKETS[index]} quantity`}
-                      integer={wholeUnits(line.unit)}
-                      locked={locked}
-                      onChange={(next) =>
-                        change({
-                          ...line,
-                          quantities: line.quantities.map((entry, position) =>
-                            position === index ? (next ?? 0) : entry,
-                          ),
-                        })
-                      }
-                      announce={announce}
-                    />
+                    <span
+                      className="block text-right tabular-nums"
+                      aria-label={`${line.code} ${YEAR_BUCKETS[index]} quantity`}
+                    >
+                      {line.quantities[index]}
+                    </span>
                     {allYears && (
                       <span className="mt-1 block text-right text-xs tabular-nums text-muted-foreground">
                         {line.unitPrice === null
@@ -572,16 +571,12 @@ export function SubcontractLinesTable({
                 ))
               ) : (
                 <TableCell className="px-2">
-                  <SubcontractNumberInput
-                    value={line.quantityPerSite}
-                    label={`${line.code} quantity per site`}
-                    integer={wholeUnits(line.unit)}
-                    locked={locked}
-                    onChange={(next) =>
-                      change({ ...line, quantityPerSite: next ?? 0 })
-                    }
-                    announce={announce}
-                  />
+                  <span
+                    className="block text-right tabular-nums"
+                    aria-label={`${line.code} quantity per site`}
+                  >
+                    {line.quantityPerSite}
+                  </span>
                 </TableCell>
               )}
               <TableCell className="text-right font-semibold tabular-nums">
@@ -626,7 +621,7 @@ export function SubcontractLinesTable({
         {!lines.length && (
           <TableRow>
             <TableCell
-              colSpan={allYears ? 9 : 5}
+              colSpan={allYears ? 12 : 8}
               className="py-8 text-center text-xs text-muted-foreground"
             >
               Add items from Master Data or use Bulk Entry to begin.
