@@ -25,6 +25,8 @@ import {
 import { validateQuoteLines } from './quote-lines.ts';
 import { assertValidQuotePricing } from './export-validation.ts';
 import { isRetiredQuoteAssumption } from './types.ts';
+import { renderTemplateText, templateDate } from './template-text.ts';
+import { customerDocument } from './customer-document.ts';
 
 const MAX_COMPRESSED_BYTES = 10 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 50 * 1024 * 1024;
@@ -525,6 +527,7 @@ function validateGeometry(sheet: Worksheet, input: QuoteWorkbookInput): void {
       (column) => `${column}${mapping.detailRow}`,
     ),
     ...Object.values(mapping.cells),
+    ...(mapping.textCells ?? []).map((cell) => cell.address),
   ];
   for (const address of addresses) {
     const cell = sheet.getCell(address!);
@@ -681,32 +684,23 @@ function moveWorksheetFeatures(
   });
 }
 
-/** Blocks customer output when active commercial terms have no destination cell. */
-function validateCommercialCoverage(input: QuoteWorkbookInput): void {
-  const cells = input.template.excel!.cells;
-  const conditional: Array<[QuoteExcelField, boolean]> = [
-    ['discount', input.pricing.discount !== 0],
-    ['termsAndConditions', Boolean(input.template.termsAndConditions.trim())],
-    [
-      'assumptions',
-      input.assumptions.some((assumption) => assumption.included),
-    ],
-  ];
-  const missing = conditional
-    .filter(([field, required]) => required && !cells[field])
-    .map(([field]) => field);
-  if (missing.length)
-    throw new Error(
-      `Map these active quotation fields before exporting: ${missing.join(', ')}.`,
-    );
-}
-
 /** Supplies only customer-facing metadata and commercial amounts to mapped cells. */
 function quoteFieldValues(
   input: QuoteWorkbookInput,
-): Record<QuoteExcelField, string | number | null> {
+): Record<string, string | number | null> {
   return {
-    quoteNumber: input.quoteNumber,
+    date: templateDate(input),
+    companyName: input.template.excel?.variables?.companyName ?? '',
+    companyAddress: input.template.excel?.variables?.companyAddress ?? '',
+    documentStatus: input.documentStatus ?? 'Final',
+    maintenancePrice: input.template.excel?.regions?.length
+      ? customerDocument(input).maintenanceAmount
+      : 0,
+    quoteNumber:
+      input.documentStatus === 'Draft' &&
+      !input.quoteNumber.startsWith('DRAFT-')
+        ? `DRAFT-${input.quoteNumber}`
+        : input.quoteNumber,
     client: input.project.client,
     project: input.project.name,
     costVersion: input.costVersion,
@@ -721,11 +715,15 @@ function quoteFieldValues(
       .join('\n'),
     servicePrice: input.pricing.listPrice,
     discount: input.pricing.discount,
-    quoteBeforeTax: input.pricing.quoteBeforeTax,
+    quoteBeforeTax: input.template.excel?.regions?.length
+      ? customerDocument(input).total
+      : input.pricing.quoteBeforeTax,
     // Existing tax mappings are deliberately cleared; both legacy total mappings receive the same final amount.
     gstPercent: null,
     gstAmount: null,
-    quoteAfterTax: input.pricing.quoteBeforeTax,
+    quoteAfterTax: input.template.excel?.regions?.length
+      ? customerDocument(input).total
+      : input.pricing.quoteBeforeTax,
   };
 }
 
@@ -744,6 +742,258 @@ function quoteLines(input: QuoteWorkbookInput): QuoteLine[] {
   const errors = validateQuoteLines(lines, input.pricing.listPrice);
   if (errors.length) throw new Error(errors.join(' '));
   return lines;
+}
+
+type RegionEdit = { start: number; end: number; count: number };
+
+/** Replace an original row interval, preserving qualified references and quoted text. */
+function regionFormula(
+  formula: string,
+  sourceSheet: string,
+  changedSheet: string,
+  edit: RegionEdit,
+): string {
+  const delta = edit.count - (edit.end - edit.start + 1);
+  if (!delta) return formula;
+  // A one-row aggregate still means the whole repeated detail interval.
+  if (edit.start === edit.end && edit.count > 0) {
+    formula = formula.replace(
+      /"(?:[^"]|"")*"|\b(SUM|AVERAGE|COUNT|COUNTA|MIN|MAX)\s*\(\s*((?:('(?:[^']|'')+'|[A-Z_\u0080-\uFFFF][A-Z0-9_.\u0080-\uFFFF]*)!)?)(\$?[A-Z]{1,3}\$?[1-9]\d*)\s*\)/gi,
+      (match, fn, qualified, name, address) =>
+        fn &&
+        parseReference(address).row === edit.start &&
+        sheetNameOf(name, sourceSheet).toLowerCase() ===
+          changedSheet.toLowerCase()
+          ? `${fn}(${qualified}${address}:${address})`
+          : match,
+    );
+  }
+  const token =
+    /"(?:[^"]|"")*"|(?<![A-Z0-9_.])(?:(('(?:[^']|'')+'|[A-Z_\u0080-\uFFFF][A-Z0-9_.\u0080-\uFFFF]*)!))?(\$?[A-Z]{1,3}\$?[1-9]\d{0,6})(?::(\$?[A-Z]{1,3}\$?[1-9]\d{0,6}))?(?![A-Z0-9_.(])/gi;
+  return formula.replace(token, (match, qualified, name, start, end) => {
+    if (
+      match.startsWith('"') ||
+      !start ||
+      sheetNameOf(name, sourceSheet).toLowerCase() !==
+        changedSheet.toLowerCase()
+    )
+      return match;
+    const a = parseReference(start).row,
+      b = parseReference(end ?? start).row;
+    if (!edit.count && a >= edit.start && b <= edit.end) return '0';
+    if (
+      edit.count &&
+      ((a >= edit.start && a <= edit.end && (!end || a !== edit.start)) ||
+        (end && b >= edit.start && b <= edit.end && b !== edit.end))
+    )
+      throw new Error(
+        'A formula refers to individual sample items in a resized module. Use SUM over the full sample detail range for module totals.',
+      );
+    const shift = (address: string, isEnd: boolean) => {
+      const row = parseReference(address).row;
+      return withRow(
+        address,
+        row < edit.start
+          ? row
+          : row > edit.end
+            ? row + delta
+            : isEnd
+              ? edit.start + edit.count - 1
+              : edit.start,
+      );
+    };
+    return `${qualified ?? ''}${shift(start, false)}${end ? `:${shift(end, true)}` : ''}`;
+  });
+}
+
+async function fillModuleRegions(
+  workbook: Workbook,
+  sheet: Worksheet,
+  input: QuoteWorkbookInput,
+) {
+  quoteLines(input);
+  const mapping = input.template.excel!;
+  const document = customerDocument(input);
+  if (
+    document.maintenance.length &&
+    !mapping.regions!.some((r) => r.source === 'maintenance')
+  )
+    throw new Error(
+      'Map the maintenance module before exporting a quotation with maintenance.',
+    );
+  const edits: RegionEdit[] = [];
+  // Bottom-up edits keep original coordinates valid for every remaining module.
+  for (const region of [...mapping.regions!].sort(
+    (a, b) => b.startRow - a.startRow,
+  )) {
+    const lines =
+      region.source === 'service'
+        ? document.service
+        : region.source === 'maintenance'
+          ? document.maintenance
+          : [];
+    const edit: RegionEdit = lines.length
+      ? {
+          start: region.detailRow,
+          end: region.detailEndRow,
+          count: lines.length,
+        }
+      : { start: region.startRow, end: region.endRow, count: 0 };
+    const delta = edit.count - (edit.end - edit.start + 1);
+    if (sheet.rowCount + delta > MAX_EXCEL_ROW)
+      throw new Error('Quotation rows exceed the worksheet limit.');
+    // Reject features with their own range semantics in the replaced area instead of silently damaging them.
+    const overlaps = (range: string) => {
+      const refs = [...range.matchAll(/\$?[A-Z]{1,3}\$?([1-9]\d*)/g)].map((m) =>
+        Number(m[1]),
+      );
+      return (
+        refs.length > 0 &&
+        Math.min(...refs) <= edit.end &&
+        Math.max(...refs) >= edit.start
+      );
+    };
+    const validations = (
+      sheet as unknown as {
+        dataValidations: { model: Record<string, unknown> };
+      }
+    ).dataValidations.model;
+    if (
+      sheet.getTables().length ||
+      Object.keys(validations).some(overlaps) ||
+      (sheet as WorksheetFeatures).conditionalFormattings.some((f) =>
+        overlaps(f.ref),
+      )
+    )
+      throw new Error(
+        'Use plain styled cells in dynamic module regions; remove Excel Tables, validation and conditional formatting from those rows.',
+      );
+    for (const image of sheet.getImages())
+      if (
+        [image.range.tl, image.range.br].some(
+          (a) => a && a.nativeRow >= edit.start - 1 && a.nativeRow < edit.end,
+        )
+      )
+        throw new Error('Place template pictures outside dynamic module rows.');
+    const rows = (sheet.model as unknown as { rows: RowModel[] }).rows.map(
+      (r) => snapshotRow(sheet.getRow(r.number)),
+    );
+    const originalRowCount = sheet.rowCount;
+    const pattern = snapshotRow(sheet.getRow(region.detailRow));
+    const merges = [...sheet.model.merges];
+    for (const range of merges) {
+      const [a, b = a] = range.split(':');
+      const top = parseReference(a).row,
+        bottom = parseReference(b).row;
+      if (top <= edit.end && bottom >= edit.start && top !== bottom)
+        throw new Error(
+          'Dynamic detail rows cannot intersect vertical merged cells.',
+        );
+    }
+    // Mapped detail cells must be writable masters in the row copied as the pattern.
+    for (const column of Object.values(mapping.columns)) {
+      const cell = sheet.getCell(`${column}${region.detailRow}`);
+      if (cell.isMerged && cell.master.address !== cell.address)
+        throw new Error(
+          `Map the merged-cell master ${cell.master.address} instead of ${cell.address}.`,
+        );
+    }
+    merges.forEach((range) => sheet.unMergeCells(range));
+    for (const old of rows) {
+      const row = sheet.getRow(old.number);
+      row.values = [];
+      (row as Row & { style: Partial<Style> }).style = {};
+      delete (row as { height?: number }).height;
+      row.hidden = false;
+      row.outlineLevel = 0;
+    }
+    for (const old of rows) {
+      if (old.number >= edit.start && old.number <= edit.end) continue;
+      const target = old.number > edit.end ? old.number + delta : old.number;
+      restoreRow(sheet, old, target, edit.end, 0);
+      for (const saved of old.cells)
+        if (
+          saved.value &&
+          typeof saved.value === 'object' &&
+          'formula' in saved.value
+        )
+          sheet.getCell(target, saved.column).value = {
+            formula: regionFormula(
+              String(saved.value.formula),
+              sheet.name,
+              sheet.name,
+              edit,
+            ),
+          };
+    }
+    for (const [index, line] of lines.entries()) {
+      const target = edit.start + index;
+      restoreRow(sheet, pattern, target, edit.end, 0);
+      // Clear sample wording/formulas; all business values come from the selected module.
+      sheet.getRow(target).eachCell((cell) => {
+        cell.value = null;
+      });
+      const values = { ...line, number: index + 1 };
+      for (const [field, column] of Object.entries(mapping.columns))
+        sheet.getCell(`${column}${target}`).value =
+          values[field as keyof typeof values];
+    }
+    if (delta < 0) sheet.spliceRows(originalRowCount + delta + 1, -delta);
+    for (const range of merges) {
+      const [a, b = a] = range.split(':');
+      const top = parseReference(a).row;
+      if (top >= edit.start && top <= edit.end) {
+        if (top === region.detailRow)
+          for (let i = 0; i < lines.length; i++)
+            sheet.mergeCells(
+              `${withRow(a, edit.start + i)}:${withRow(b, edit.start + i)}`,
+            );
+      } else
+        sheet.mergeCells(regionFormula(range, sheet.name, sheet.name, edit));
+    }
+    workbook.eachSheet((target) => {
+      if (target === sheet) return;
+      target.eachRow((row) =>
+        row.eachCell((cell) => {
+          if (cell.formula)
+            cell.value = {
+              formula: regionFormula(
+                cell.formula,
+                target.name,
+                sheet.name,
+                edit,
+              ),
+            };
+        }),
+      );
+    });
+    moveWorksheetFeatures(workbook, sheet, edit.end, delta);
+    edits.push(edit);
+  }
+  const targetAddress = (original: string) =>
+    edits.reduce(
+      (address, edit) => regionFormula(address, sheet.name, sheet.name, edit),
+      original,
+    );
+  const values = quoteFieldValues(input);
+  for (const [field, address] of Object.entries(mapping.cells)) {
+    const target = targetAddress(address!);
+    if (target === '0') continue;
+    const cell = sheet.getCell(target);
+    if (cell.isMerged && cell.master.address !== cell.address)
+      throw new Error(`Map the merged-cell master for ${address}.`);
+    cell.value = values[field];
+  }
+  for (const text of mapping.textCells ?? []) {
+    const target = targetAddress(text.address);
+    if (target === '0') continue;
+    const cell = sheet.getCell(target);
+    if (cell.isMerged && cell.master.address !== cell.address)
+      throw new Error(`Map the merged-cell master for ${text.address}.`);
+    cell.value = renderTemplateText(text.content, values);
+  }
+  workbook.calcProperties.fullCalcOnLoad = true;
+  return workbook.xlsx.writeBuffer();
 }
 
 /** Fills a new XLSX copy, repeats detail formatting, and keeps the original asset unchanged. */
@@ -773,8 +1023,8 @@ export async function fillQuoteExcelTemplate(
     })),
   );
   if (errors.length) throw new Error(errors.join(' '));
-  validateCommercialCoverage(input);
   const sheet = workbook.getWorksheet(mapping.sheetName)!;
+  if (mapping.regions?.length) return fillModuleRegions(workbook, sheet, input);
   validateGeometry(sheet, input);
   const lines = quoteLines(input);
   const addedRows = lines.length - 1;
@@ -878,6 +1128,16 @@ export async function fillQuoteExcelTemplate(
     // Null clears a mapped legacy tax value or formula without touching unmapped customer content.
     cell.value = values[field as QuoteExcelField];
   });
+  for (const cell of mapping.textCells ?? []) {
+    const address = moveFormula(
+      cell.address,
+      sheet.name,
+      sheet.name,
+      mapping.detailRow,
+      addedRows,
+    );
+    sheet.getCell(address).value = renderTemplateText(cell.content, values);
+  }
   workbook.calcProperties.fullCalcOnLoad = true;
   return workbook.xlsx.writeBuffer();
 }

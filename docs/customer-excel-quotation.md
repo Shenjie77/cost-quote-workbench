@@ -4,10 +4,16 @@
 
 ## 配置一次，后续复用
 
+新版支持在 **Dynamic quotation modules** 分别映射 Service、Maintenance、Optional 的模块起止行和明细起止行。系统保留模板标题层级，按实际明细数量增减行；没有内容时删除整个模块。Book2 格式可使用 **Use Book2 example mapping** 后检查位置。当前报价模型尚无 Optional 分类，因此映射的 Optional 模块会整段移除。
+
+在 **Cell content and placeholders** 可以配置 `B12` → `Date of quotation: {date}`、`B4` → `{companyName}` 等内容，并保存公司名称、地址和日期格式。所有这些占位符均为可选，由用户自行决定输出哪些内容；只包含金额占位符的单元格保持数值类型。每次生成都从原始模板重新开始，配置保存一次即可复用。
+
+动态模块内不支持表格对象、纵向合并、图片锚点、数据验证或条件格式。模块合计请使用覆盖完整样例明细的 SUM 范围，不要逐个引用样例明细单元格。以下单一样板行设置仍兼容旧模板。
+
 1. 打开 **Master Data → Quote Templates**，新建客户模板，并设置客户完整名称。
 2. 在 **Customer Excel layout** 上传 `.xlsx`，选择报价工作表。
 3. 指定一条完整报价明细的样板行，以及描述、金额、数量、单位和单价所在列。描述与金额必须配置；其他明细列可以省略。
-4. 配置报价编号、客户、项目、Quote Total（报价总额）、有效期和付款条款共六个必填单元格。地址均填写原模板的位置，例如 `B5`，不是扩展后的行号。存在整单折扣、T&C 或已选假设时，也要配置对应单元格，避免导出遗漏已确认的商业内容。
+4. 在 **Cell content and placeholders** 点击 **Add cell content**，填写原模板单元格地址和内容，例如 `B12` / `Date of quotation: {date}`。报价编号、客户、项目、总额、有效期、付款条款、折扣、T&C 和假设均不强制映射；未映射的单元格保持原内容。旧字段位置打开后会转换为同一列表中的 `{字段}`，可修改或删除。
 5. 点击 **Test with sample rows**，用三条虚构明细检查 Excel 的格式、公式和打印效果。此操作不会新增项目文件或报价历史。
 6. 点击 **Apply mapping**，系统先试填并验证实际模板结构，再应用配置；最后点击 **Save this tab** 保存全局模板。
 
@@ -32,7 +38,7 @@
 
 ## 旧模板与税字段兼容
 
-新配置界面只提供一个 **Quote Total**。旧模板的 `quoteBeforeTax` 和 `quoteAfterTax` 总额映射仍可使用，两者都填写同一份最终报价。已保存的 `gstPercent`、`gstAmount` 映射格会被清空，包括其旧公式和值；格子格式和原始模板资产不变。
+新配置界面统一使用单元格地址和 `{字段}` 内容映射。旧模板的 `quoteBeforeTax` 和 `quoteAfterTax` 总额映射仍可使用，两者都填写同一份最终报价。已保存的 `gstPercent`、`gstAmount` 映射格会被清空，包括其旧公式和值；格子格式和原始模板资产不变。
 
 系统不对客户工作簿做文字搜索删除。未映射的税字样、静态说明、公式和其他客户内容保持原样，需要改变这些文字时应修改模板原件后重新上传。新报价不再计算或显示 GST/税；历史报价及兼容字段保留原数据，不追溯改写已出具记录。旧系统税假设不再进入新客户输出，用户自己的条款按原文保留。
 
@@ -51,3 +57,10 @@
 审查发现并修复了商业字段可能漏写、极高行号导致不必要内存分配、模板切换时晚到上传响应、旧 CLI 模板历史快照记录不准确等问题。
 
 Lint 对 Node 自带测试注册函数作了窄范围配置：只认可 `node` 类型包的 `test` 调用由测试运行器管理，不关闭其他异步调用检查。此行为依据 [Node 测试运行器说明](https://nodejs.org/api/test.html) 和 [已知安全调用配置](https://typescript-eslint.io/rules/no-floating-promises/#allowforknownsafecalls)。
+# Standard customer quotation and export readiness
+
+`Generate XLSX` opens an export dialog instead of silently disabling the entry point. Input errors are listed in the dialog. Valid drafts can be exported before cost confirmation; their filename and worksheet visibly say DRAFT. Final output still requires a confirmed cost version and the applicable quotation decision.
+
+The standard customer layout follows the Book2 schedule: recipient, project, quotation number/date/revision, professional services, maintenance when present, subtotals, service discount, total, assumptions and T&C. Maintenance uses device quantity × annual unit price × years; its customer row shows the annual fleet price and the duration in years, with device quantity included in the description. Empty maintenance and unconfigured optional items are omitted. No sample supplier name, logo, optional prices or other placeholder content is invented.
+
+Completed downloads are archived with the project and recorded in quotation history. Customer history stores the combined customer total and the maintenance line snapshot separately from the existing service pricing/GP fields. When the selected project template includes an uploaded workbook, `Generate XLSX` automatically uses its saved mappings. Module mappings include maintenance and the combined total; legacy single-row mappings retain service-only output.

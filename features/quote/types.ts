@@ -69,6 +69,10 @@ export function isRetiredQuoteAssumption(row: {
 export type QuoteHistoryStatus = 'Draft' | 'Final';
 
 export type QuoteHistoryRecord = {
+  /** Customer document total includes the separately priced maintenance schedule. */
+  customerQuoteAmount?: number;
+  maintenanceLineSnapshots?: QuoteLine[];
+  outputLayout?: 'customer';
   id: string;
   quoteNumber: string;
   generatedAt: string;

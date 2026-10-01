@@ -1270,6 +1270,19 @@
           "items": {
             "$ref": "#/$defs/quoteLine"
           }
+        },
+        "customerQuoteAmount": {
+          "$ref": "#/$defs/money"
+        },
+        "maintenanceLineSnapshots": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/quoteLine"
+          }
+        },
+        "outputLayout": {
+          "enum": ["customer"]
         }
       }
     },
@@ -2745,28 +2758,83 @@
               "type": "string",
               "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
             }
-          },
-          "required": [
-            "quoteNumber",
-            "client",
-            "project",
-            "validityDays",
-            "paymentTerms"
-          ],
-          "anyOf": [
-            {
-              "properties": {
-                "quoteBeforeTax": {}
+          }
+        },
+        "textCells": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["address", "content"],
+            "properties": {
+              "address": {
+                "type": "string",
+                "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
               },
-              "required": ["quoteBeforeTax"]
-            },
-            {
-              "properties": {
-                "quoteAfterTax": {}
-              },
-              "required": ["quoteAfterTax"]
+              "content": {
+                "type": "string",
+                "maxLength": 10000
+              }
             }
-          ]
+          }
+        },
+        "dateFormat": {
+          "enum": ["dd-mmm-yyyy", "yyyy-mm-dd", "dd/mm/yyyy"]
+        },
+        "variables": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "companyName": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "companyAddress": {
+              "type": "string",
+              "maxLength": 4000
+            }
+          }
+        },
+        "regions": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source",
+              "startRow",
+              "endRow",
+              "detailRow",
+              "detailEndRow"
+            ],
+            "properties": {
+              "source": {
+                "enum": ["service", "maintenance", "optional"]
+              },
+              "startRow": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000
+              },
+              "endRow": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000
+              },
+              "detailRow": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000
+              },
+              "detailEndRow": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000
+              }
+            }
+          }
         }
       }
     },

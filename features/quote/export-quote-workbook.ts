@@ -10,8 +10,13 @@ import type { QuoteLine, QuoteLineMode } from './excel-template-types.ts';
 import { validateQuoteLines } from './quote-lines.ts';
 import { assertValidQuotePricing } from './export-validation.ts';
 import { isRetiredQuoteAssumption } from './types.ts';
+import type { MaintenanceWorkspace } from '../maintenance/domain.ts';
 
 export type QuoteWorkbookInput = {
+  layout?: 'customer';
+  documentStatus?: 'Draft' | 'Final';
+  issuedAt?: string;
+  maintenance?: MaintenanceWorkspace;
   project: CostExportSnapshot['project'];
   quoteNumber: string;
   costVersion: string;
@@ -49,6 +54,11 @@ export const buildQuoteWorkbookBuffer = async (
   if (input.lines) {
     const errors = validateQuoteLines(input.lines, input.pricing.listPrice);
     if (errors.length) throw new Error(errors.join(' '));
+  }
+  if (input.layout === 'customer') {
+    return (await import('./customer-workbook.ts')).buildCustomerWorkbook(
+      input,
+    );
   }
   if (input.template.excel) {
     const { fillQuoteExcelTemplate } = await import('./fill-excel-template.ts');
@@ -217,7 +227,7 @@ export const downloadQuoteWorkbook = async (input: QuoteWorkbookInput) => {
   const blob = new Blob([bytes], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const fileName = `Quotation_${readableFileStem(input.project.name)}_${exportTimestamp()}.xlsx`;
+  const fileName = `Quotation_${input.documentStatus === 'Draft' ? 'DRAFT_' : ''}${readableFileStem(input.project.name)}_${exportTimestamp()}.xlsx`;
   const { archiveProjectFile } = await import('../projects/project-files.ts');
   await archiveProjectFile(input.project.id, blob, {
     originalName: fileName,

@@ -65,6 +65,8 @@ const loader = registerHooks({
 const { QuoteDescriptionDialog } =
   await import('../features/quote/quote-description-dialog.tsx');
 const { QuoteView } = await import('../features/quote/quote-view.tsx');
+const { QuoteExportDialog } =
+  await import('../features/quote/quote-export-dialog.tsx');
 const { QuotePreviewDialog } =
   await import('../features/quote/quote-preview-dialog.tsx');
 const { ManualHistoryForm } =
@@ -558,4 +560,42 @@ test('full description popup preserves newlines and cancellation never writes', 
   props.editable = false;
   assert.equal(input(), undefined);
   assert.ok(textOf(render()).includes(props.value));
+});
+
+test('export entry opens requirements for draft costs and final output stays gated', () => {
+  const { props } = fixture();
+  props.versionState = 'Draft';
+  const view = harness(QuoteView, props);
+  let nodes = walk(view());
+  const entry = nodes.find(
+    (node) =>
+      node.props.title ===
+      'Choose draft or final output and review export requirements',
+  );
+  assert.equal(entry.props.disabled, false);
+  entry.props.onClick();
+  nodes = walk(view());
+  const dialog = nodes.find((node) => node.type === QuoteExportDialog);
+  assert.equal(dialog.props.open, true);
+  assert.equal(dialog.props.finalErrors.length, 1);
+  const actions = () => walk(QuoteExportDialog(dialog.props));
+  assert.equal(
+    actions().find(
+      (node) => textOf(node) === 'Export Draft XLSX' && node.props.onClick,
+    ).props.disabled,
+    false,
+  );
+  assert.equal(
+    actions().find(
+      (node) => textOf(node) === 'Export Final XLSX' && node.props.onClick,
+    ).props.disabled,
+    true,
+  );
+  dialog.props.errors.push('Fix invalid unit price');
+  assert.equal(
+    actions().find(
+      (node) => textOf(node) === 'Export Draft XLSX' && node.props.onClick,
+    ).props.disabled,
+    true,
+  );
 });

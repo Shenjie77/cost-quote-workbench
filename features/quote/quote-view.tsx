@@ -1,3 +1,5 @@
+import { QuoteExportDialog } from './quote-export-dialog';
+import { customerDocument } from './customer-document';
 import {
   calculateComponentMaintenance,
   maintenanceGridDraft,
@@ -142,6 +144,8 @@ export function QuoteView({
   announce: (message: string) => void;
 }) {
   const [showManualHistory, setShowManualHistory] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const customerExportInFlight = useRef(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isApplyingRates, setIsApplyingRates] = useState(false);
   const applyingRates = useRef(false);
@@ -213,6 +217,33 @@ export function QuoteView({
       ? ['Included assumption text is required / 已包含假设的正文不可为空']
       : []),
   ];
+  const finalOutputErrors = [
+    ...(versionState !== 'Confirmed'
+      ? [
+          'Open Cost Workspace and confirm the current cost version before final export.',
+        ]
+      : []),
+    ...(decisionError ? [decisionError] : []),
+  ];
+  let customerPreview: ReturnType<typeof customerDocument> | undefined;
+  if (template && result.valid) {
+    try {
+      customerPreview = customerDocument({
+        project,
+        quoteNumber: '',
+        costVersion: activeVersion,
+        template,
+        assumptions: effectiveQuoteAssumptions,
+        pricing: result,
+        lines,
+        maintenance,
+      });
+    } catch (error) {
+      outputErrors.push(
+        error instanceof Error ? error.message : 'Check maintenance inputs.',
+      );
+    }
+  }
   /** Export the internal calculation workbook without requiring a customer template or recording a customer issue. */
   const exportCombined = async (
     selectedSheets: readonly SimpleCostSheetId[],
@@ -292,10 +323,19 @@ export function QuoteView({
   };
 
   /** Generates one real XLSX file and records the exact commercial snapshot. */
-  const generateDraft = async () => {
-    if (!template || isExporting || exportInProgress || applyingRates.current)
+  const generateDraft = async (
+    documentStatus: QuoteHistoryStatus,
+    layout: 'customer' | 'template' = template?.excel ? 'template' : 'customer',
+  ) => {
+    if (
+      !template ||
+      customerExportInFlight.current ||
+      isExporting ||
+      exportInProgress ||
+      applyingRates.current
+    )
       return;
-    if (decisionError) {
+    if (documentStatus === 'Final' && decisionError) {
       announce(decisionError);
       return;
     }
@@ -305,23 +345,30 @@ export function QuoteView({
       );
       return;
     }
-    if (versionState !== 'Confirmed') {
+    if (documentStatus === 'Final' && versionState !== 'Confirmed') {
       announce(
         'Confirm the selected cost version before generating a customer quotation. / 生成客户报价前请先确认当前成本版本。',
       );
       return;
     }
+    customerExportInFlight.current = true;
     setIsExporting(true);
     onExportStateChange(true);
     const timestamp = new Date();
     const profitShareMasterDataRevision = pricing.profitShareMasterDataRevision;
-    const quoteNumber = `QT-${project.id.replace(/^PRJ-/, '')}-${activeVersion}-${timestamp
+    const quoteNumber = `${documentStatus === 'Draft' ? 'DRAFT-' : ''}QT-${project.id.replace(/^PRJ-/, '')}-${activeVersion}-${timestamp
       .toISOString()
       .replace(/[-:TZ.]/g, '')
       .slice(0, 14)}`;
     // Freeze commercial content before asynchronous workbook loading/archive work.
     // A same-project edit during export must not change the recorded output history.
     const exportInput = structuredClone({
+      ...(layout === 'customer' ? { layout: 'customer' as const } : {}),
+      documentStatus,
+      issuedAt: timestamp.toISOString(),
+      ...(layout === 'customer' || template.excel?.regions?.length
+        ? { maintenance }
+        : {}),
       project,
       quoteNumber,
       costVersion: activeVersion,
@@ -333,6 +380,7 @@ export function QuoteView({
       lineMode: pricing.lineMode ?? 'single',
     });
     try {
+      const document = customerDocument(exportInput);
       const exported = await downloadQuoteWorkbook(exportInput);
       const history: QuoteHistoryRecord = {
         id: newId('quote-history'),
@@ -340,7 +388,14 @@ export function QuoteView({
         generatedAt: timestamp.toISOString(),
         costVersion: activeVersion,
         templateId: template.id,
-        status: 'Draft',
+        status: documentStatus,
+        ...(layout === 'customer' || template.excel?.regions?.length
+          ? {
+              outputLayout: 'customer' as const,
+              customerQuoteAmount: document.total,
+              maintenanceLineSnapshots: document.maintenance,
+            }
+          : {}),
         costAmount: result.cost,
         quoteBeforeTax: result.quoteBeforeTax,
         gstAmount: result.gstAmount,
@@ -361,6 +416,7 @@ export function QuoteView({
       // Parent keeps the project fixed during export. Its state setter survives
       // navigation away from this view, so every completed output keeps history.
       setQuoteHistory((records) => [history, ...records]);
+      if (mounted.current) setShowExport(false);
       announce(
         `Exported ${exported.fileName} and recorded quotation history. / 已导出报价并记录历史。`,
       );
@@ -369,6 +425,7 @@ export function QuoteView({
         `Quote export failed: ${error instanceof Error ? error.message : 'Unknown error'} / 报价导出失败。`,
       );
     } finally {
+      customerExportInFlight.current = false;
       onExportStateChange(false);
       if (mounted.current) setIsExporting(false);
     }
@@ -379,6 +436,21 @@ export function QuoteView({
 
   return (
     <div className="wb-page-stack gap-3">
+      <QuoteExportDialog
+        open={showExport}
+        onOpenChange={setShowExport}
+        errors={outputErrors}
+        finalErrors={finalOutputErrors}
+        busy={isExporting || exportInProgress || isApplyingRates}
+        onExport={generateDraft}
+        templateLayout={
+          template?.excel
+            ? template.excel.regions?.length
+              ? 'regions'
+              : 'rows'
+            : undefined
+        }
+      />
       <ContextBand
         {...projectContext}
         proposalNumber={proposalNumber}
@@ -412,6 +484,8 @@ export function QuoteView({
                 pricing={result}
                 lines={lines}
                 assumptions={effectiveQuoteAssumptions}
+                maintenanceLines={customerPreview?.maintenance}
+                maintenanceAmount={customerPreview?.maintenanceAmount}
               />
               <Button
                 variant="outline"
@@ -428,20 +502,9 @@ export function QuoteView({
                 <span className="text-xs opacity-60">保存定价</span>
               </Button>
               <Button
-                onClick={generateDraft}
-                disabled={
-                  !template ||
-                  isExporting ||
-                  isApplyingRates ||
-                  exportInProgress ||
-                  versionState !== 'Confirmed' ||
-                  outputErrors.length > 0
-                }
-                title={
-                  versionState === 'Confirmed'
-                    ? 'Generate customer quotation workbook'
-                    : 'Confirm the current cost version first / 请先确认当前成本版本'
-                }
+                onClick={() => setShowExport(true)}
+                disabled={isExporting || isApplyingRates || exportInProgress}
+                title="Choose draft or final output and review export requirements"
               >
                 {isExporting ? <Download /> : <FileCheck2 />}
                 {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
@@ -856,7 +919,9 @@ export function QuoteView({
                       {formatSgd(record.costAmount)}
                     </TableCell>
                     <TableCell className="financial-numeral text-right">
-                      {formatSgd(record.quoteBeforeTax)}
+                      {formatSgd(
+                        record.customerQuoteAmount ?? record.quoteBeforeTax,
+                      )}
                     </TableCell>
                     <TableCell className="financial-numeral text-right">
                       {record.grossMarginPercent.toFixed(2)}%

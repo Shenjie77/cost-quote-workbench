@@ -8,7 +8,14 @@ import {
 } from '../features/master-data/bulk-import-model.ts';
 import { GLOBAL_MASTER_DATA_TABS } from '../features/master-data/global-types.ts';
 import { validateGlobalMasterDataRows } from '../server/global-master-data.mjs';
-import { requiredQuoteExcelFields } from '../features/quote/excel-template-mapping.ts';
+const requiredQuoteExcelFields = [
+  'quoteNumber',
+  'client',
+  'project',
+  'quoteBeforeTax',
+  'validityDays',
+  'paymentTerms',
+];
 
 /** Minimal meaningful input for each independent catalog. */
 const samples = {
@@ -255,7 +262,7 @@ test('quotes retain local Excel mappings and legacy text while validating saved 
   assert.deepEqual(cleared.items[0].defaultAssumptionIds, []);
 });
 
-test('saved quote template mappings require one total and accept either legacy total address without tax cells', () => {
+test('saved quote template mappings allow omitted totals and accept legacy total addresses', () => {
   const template = imported('quote-templates').items[0];
   const cells = Object.fromEntries(
     requiredQuoteExcelFields.map((key, index) => [key, `B${index + 1}`]),
@@ -285,12 +292,10 @@ test('saved quote template mappings require one total and accept either legacy t
     );
     assert.deepEqual(updated.items[0].excel.cells, mappedCells);
   }
-  assert.throws(
-    () =>
-      validateGlobalMasterDataRows('quote-templates', [
-        { ...template, excel: { ...excel, cells: commonCells } },
-      ]),
-    /quoteBeforeTax|quoteAfterTax/,
+  assert.doesNotThrow(() =>
+    validateGlobalMasterDataRows('quote-templates', [
+      { ...template, excel: { ...excel, cells: commonCells } },
+    ]),
   );
 });
 

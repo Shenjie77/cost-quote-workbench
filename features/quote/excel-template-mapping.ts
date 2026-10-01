@@ -1,3 +1,4 @@
+import { fixedTokens, quoteTokens, referencedTokens } from './template-text.ts';
 /** Shared validation for original-workbook coordinates used by the editor and exporter. */
 import type {
   QuoteExcelAsset,
@@ -8,16 +9,6 @@ import type {
 
 /** Bound row expansion and parsing work for local workbook templates. */
 export const MAX_QUOTE_TEMPLATE_ROW = 20_000;
-
-/** Quotations must identify the recipient and show complete prices and basic commercial terms. */
-export const requiredQuoteExcelFields: ReadonlyArray<QuoteExcelField> = [
-  'quoteNumber',
-  'client',
-  'project',
-  'quoteBeforeTax',
-  'validityDays',
-  'paymentTerms',
-];
 
 /** Supported output fields are explicit so workbook mappings cannot expose internal data. */
 const fields = new Set<QuoteExcelField>([
@@ -117,15 +108,6 @@ export function validateQuoteExcelMapping(
     errors.push('Metadata cell mappings must be an object.');
   else {
     const used = new Set<string>();
-    for (const field of requiredQuoteExcelFields)
-      // An existing after-total coordinate remains a supported destination for the unified quote total.
-      if (
-        !mapping.cells[field] &&
-        !(field === 'quoteBeforeTax' && mapping.cells.quoteAfterTax)
-      )
-        errors.push(
-          `The ${field === 'quoteBeforeTax' ? 'Quote Total' : field} cell is required for complete quotation output.`,
-        );
     for (const [field, address] of Object.entries(mapping.cells)) {
       if (!fields.has(field as QuoteExcelField))
         errors.push(`Unsupported quotation field: ${field}.`);
@@ -139,7 +121,10 @@ export function validateQuoteExcelMapping(
         errors.push(
           `The ${field} cell must be an address from A1 to XFD${MAX_QUOTE_TEMPLATE_ROW}.`,
         );
-      else if (Number(match[2]) === mapping.detailRow)
+      else if (
+        !mapping.regions?.length &&
+        Number(match[2]) === mapping.detailRow
+      )
         errors.push(
           `The ${field} cell cannot be on the repeatable detail row.`,
         );
@@ -149,6 +134,111 @@ export function validateQuoteExcelMapping(
         used.add(address);
       }
     }
+  }
+  const addressValid = (value: string) => {
+    const match = /^([A-Z]{1,3})([1-9]\d*)$/.exec(value);
+    return Boolean(
+      match &&
+      validColumn(match[1]) &&
+      Number(match[2]) <= MAX_QUOTE_TEMPLATE_ROW,
+    );
+  };
+  const allowed = new Set<string>([...quoteTokens, ...fixedTokens]);
+  if (
+    mapping.dateFormat &&
+    !['dd-mmm-yyyy', 'yyyy-mm-dd', 'dd/mm/yyyy'].includes(mapping.dateFormat)
+  )
+    errors.push('Select a supported date format.');
+  for (const [key, value] of Object.entries(mapping.variables ?? {})) {
+    if (
+      !fixedTokens.includes(key as (typeof fixedTokens)[number]) ||
+      typeof value !== 'string' ||
+      value.length > 4000
+    )
+      errors.push(`Invalid fixed template value: ${key}.`);
+  }
+  const occupied = new Set(Object.values(mapping.cells ?? {}));
+  if (
+    mapping.textCells &&
+    (!Array.isArray(mapping.textCells) || mapping.textCells.length > 100)
+  )
+    errors.push('Use at most 100 text cells.');
+  else
+    for (const cell of mapping.textCells ?? []) {
+      if (
+        !cell ||
+        typeof cell.address !== 'string' ||
+        !addressValid(cell.address)
+      ) {
+        errors.push('Text cells require a valid original cell address.');
+        continue;
+      }
+      if (occupied.has(cell.address))
+        errors.push(`Cell ${cell.address} is assigned more than once.`);
+      occupied.add(cell.address);
+      if (
+        !mapping.regions?.length &&
+        Number(cell.address.match(/\d+$/)?.[0]) === mapping.detailRow
+      )
+        errors.push(
+          `Text cell ${cell.address} cannot be on the repeatable detail row.`,
+        );
+      if (typeof cell.content !== 'string' || cell.content.length > 10000) {
+        errors.push(`Invalid content for ${cell.address}.`);
+        continue;
+      }
+      if (/[{}]/.test(cell.content.replace(/\{[^{}]+\}/g, '')))
+        errors.push(`Unmatched braces in ${cell.address}.`);
+      for (const token of referencedTokens(cell.content))
+        if (!allowed.has(token))
+          errors.push(`Unknown placeholder: {${token}}.`);
+    }
+  const regions = mapping.regions ?? [];
+  if (
+    !Array.isArray(regions) ||
+    regions.length > 3 ||
+    regions.some((region) => !isRecord(region))
+  )
+    errors.push('Use at most one region per quotation module.');
+  else {
+    const sources = new Set<string>();
+    const sorted = [...regions].sort((a, b) => a.startRow - b.startRow);
+    for (const [index, region] of sorted.entries()) {
+      if (
+        !['service', 'maintenance', 'optional'].includes(region.source) ||
+        sources.has(region.source)
+      )
+        errors.push('Each quotation module can be mapped only once.');
+      sources.add(region.source);
+      if (
+        ![
+          region.startRow,
+          region.endRow,
+          region.detailRow,
+          region.detailEndRow,
+        ].every(
+          (value) =>
+            Number.isInteger(value) &&
+            value >= 1 &&
+            value <= MAX_QUOTE_TEMPLATE_ROW,
+        ) ||
+        region.startRow > region.detailRow ||
+        region.detailRow > region.detailEndRow ||
+        region.detailEndRow > region.endRow
+      )
+        errors.push(
+          'Region rows must satisfy start ≤ first detail ≤ last detail ≤ end.',
+        );
+      if (index && sorted[index - 1].endRow >= region.startRow)
+        errors.push('Quotation regions cannot overlap.');
+      for (const address of occupied) {
+        const row = Number(address?.match(/\d+$/)?.[0]);
+        if (row >= region.detailRow && row <= region.detailEndRow)
+          errors.push(`Map ${address} outside repeated detail rows.`);
+      }
+    }
+    if (regions.length && !sources.has('service'))
+      errors.push('Map the professional service module.');
   }
   return errors;
 }

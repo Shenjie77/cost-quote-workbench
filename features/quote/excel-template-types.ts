@@ -17,6 +17,16 @@ export type QuoteExcelField =
   | 'gstAmount'
   | 'quoteAfterTax';
 
+/** Original template rows owned by one customer-facing quotation module. */
+export type QuoteExcelRegion = {
+  source: 'service' | 'maintenance' | 'optional';
+  startRow: number;
+  endRow: number;
+  detailRow: number;
+  /** Inclusive last sample detail row. Rows below it (e.g. subtotals) remain. */
+  detailEndRow: number;
+};
+
 /** Columns written for each output line; description and amount are required. */
 export type QuoteExcelColumns = {
   description: string;
@@ -29,6 +39,12 @@ export type QuoteExcelColumns = {
 
 /** Content-addressed local asset plus a single repeatable detail-row mapping. */
 export type QuoteExcelTemplate = {
+  /** Replacement text at original cell coordinates; a lone token preserves its numeric type. */
+  textCells?: { address: string; content: string }[];
+  dateFormat?: 'dd-mmm-yyyy' | 'yyyy-mm-dd' | 'dd/mm/yyyy';
+  /** Fixed values such as companyName/address are local to this reusable template. */
+  variables?: Record<string, string>;
+  regions?: QuoteExcelRegion[];
   assetId: string;
   fileName: string;
   sheetName: string;

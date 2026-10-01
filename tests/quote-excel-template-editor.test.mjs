@@ -105,17 +105,22 @@ const mapping = (overrides = {}) => ({
   cells: { ...requiredCells, ...overrides.cells },
 });
 
-/** Fill only the mandatory coordinates after upload; optional mappings remain untouched. */
+function normalized(value) {
+  const copy = structuredClone(value);
+  const textCells = [...(copy.textCells ?? [])];
+  const cells = {};
+  for (const [field, address] of Object.entries(copy.cells)) {
+    if (field === 'gstPercent' || field === 'gstAmount') cells[field] = address;
+    else textCells.push({ address, content: '{' + field + '}' });
+  }
+  return { ...copy, cells, textCells };
+}
 function populateRequired(editor) {
-  for (const [label, field] of [
-    ['Quote number', 'quoteNumber'],
-    ['Client', 'client'],
-    ['Project', 'project'],
-    ['Quote Total', 'quoteBeforeTax'],
-    ['Validity days', 'validityDays'],
-    ['Payment terms', 'paymentTerms'],
-  ])
-    editor.change(`${label} cell`, requiredCells[field]);
+  Object.entries(requiredCells).forEach(([field, address], index) => {
+    editor.button('Add cell content').props.onClick();
+    editor.change('Text cell ' + (index + 1) + ' address', address);
+    editor.change('Text cell ' + (index + 1) + ' content', '{' + field + '}');
+  });
 }
 const response = (data, status = 200) =>
   new Response(
@@ -257,12 +262,7 @@ test('mapping rejects conflicting writes, malformed addresses and out-of-workboo
   for (const field of Object.keys(requiredCells)) {
     const missing = mapping();
     delete missing.cells[field];
-    assert.match(
-      validateQuoteExcelMapping(missing).join(' '),
-      new RegExp(
-        `${field === 'quoteBeforeTax' ? 'Quote Total' : field} cell is required`,
-      ),
-    );
+    assert.deepEqual(validateQuoteExcelMapping(missing), []);
   }
 });
 
@@ -304,14 +304,16 @@ test('uploads stage mapping; Apply validates and canonicalizes while Reset and R
   editor.change('Amount column *', ' f ');
   editor.change('Quantity column', 'd');
   populateRequired(editor);
-  editor.change('Client cell', ' b8 ');
+  editor.change('Text cell 2 address', ' b8 ');
   await editor.button('Apply mapping').props.onClick();
   assert.deepEqual(
     changes[0],
-    mapping({
-      columns: { description: 'B', amount: 'F', quantity: 'D' },
-      cells: { client: 'B8' },
-    }),
+    normalized(
+      mapping({
+        columns: { description: 'B', amount: 'F', quantity: 'D' },
+        cells: { client: 'B8' },
+      }),
+    ),
   );
   editor.button('Reset mapping').props.onClick();
   assert.equal(
@@ -553,7 +555,7 @@ test('sample export uses three synthetic rows and downloads without applying map
     input.pricing.listPrice,
   );
   assert.match(input.quoteNumber, /SAMPLE/);
-  assert.deepEqual(input.template.excel, mapping());
+  assert.deepEqual(input.template.excel, normalized(mapping()));
   assert.equal(downloads.length, 1);
   assert.equal(downloads[0].fileName, 'SAMPLE_Customer.xlsx');
   assert.equal(changes.length, 0);
@@ -572,7 +574,7 @@ test('sample export uses three synthetic rows and downloads without applying map
 });
 
 /** The editor exposes one current total while preserving old hidden mappings for safe output cleanup. */
-test('mapping UI presents one Quote Total and edits legacy total coordinates without exposing tax fields', async (t) => {
+test('legacy mappings become editable placeholders without exposing tax fields', async (t) => {
   const saved = mapping({
     cells: { gstPercent: 'D21', gstAmount: 'F21', quoteAfterTax: 'F22' },
   });
@@ -589,20 +591,88 @@ test('mapping UI presents one Quote Total and edits legacy total coordinates wit
   await settle();
   t.after(() => editor.unmount());
   assert.deepEqual(validateQuoteExcelMapping(saved), []);
-  assert.equal(editor.input('Quote Total cell').props.value, 'F22');
+  const totalIndex =
+    normalized(saved).textCells.findIndex(
+      (c) => c.content === '{quoteAfterTax}',
+    ) + 1;
+  assert.equal(
+    editor.input(`Text cell ${totalIndex} address`).props.value,
+    'F22',
+  );
   const labels = elements(editor.render())
     .map((node) => node.props['aria-label'])
     .filter(Boolean);
   assert.equal(
     labels.filter((label) => label === 'Quote Total cell').length,
-    1,
+    0,
   );
   assert.ok(labels.every((label) => !/GST|tax/i.test(label)));
-  editor.change('Quote Total cell', ' f24 ');
+  editor.change(`Text cell ${totalIndex} address`, ' f24 ');
   await editor.button('Apply mapping').props.onClick();
-  assert.equal(changes[0].cells.quoteAfterTax, 'F24');
+  assert.equal(
+    changes[0].textCells.find((c) => c.content === '{quoteAfterTax}').address,
+    'F24',
+  );
   assert.equal(changes[0].cells.quoteBeforeTax, undefined);
   assert.equal(changes[0].cells.gstAmount, 'F21');
   assert.equal(changes[0].cells.gstPercent, 'D21');
   assert.deepEqual(saved, before);
+});
+
+test('module coordinates and composed cell text survive Apply and reopening the saved mapping', async (t) => {
+  const changes = [];
+  t.mock.method(globalThis, 'fetch', async () => response(asset()));
+  const editor = harness({
+    templateId: 'mapped',
+    onChange: (value) => changes.push(value),
+  });
+  t.after(() => editor.unmount());
+  editor.upload(new File(['fixture'], 'Book2.xlsx'));
+  await settle();
+  editor.button('Use Book2 example mapping').props.onClick();
+  editor.change('companyName', 'Example Supplier');
+  editor.change('Quotation date format', 'dd-mmm-yyyy');
+  assert.equal(changes.length, 0);
+  await editor.button('Apply mapping').props.onClick();
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].regions.length, 3);
+  const dateIndex = changes[0].textCells.findIndex(
+    (cell) => cell.address === 'B12',
+  );
+  assert.equal(
+    changes[0].textCells[dateIndex].content,
+    'Date of quotation: {date}',
+  );
+  const reopened = harness({
+    templateId: 'mapped',
+    value: structuredClone(changes[0]),
+    onChange: (value) => changes.push(value),
+  });
+  t.after(() => reopened.unmount());
+  reopened.render();
+  await settle();
+  assert.equal(reopened.input('companyName').props.value, 'Example Supplier');
+  assert.equal(
+    reopened.input(`Text cell ${dateIndex + 1} content`).props.value,
+    'Date of quotation: {date}',
+  );
+  assert.equal(reopened.input('Module 1 First detail').props.value, 17);
+  assert.equal(changes.length, 1);
+});
+
+test('users can apply an uploaded template with no metadata placeholders', async (t) => {
+  const changes = [];
+  t.mock.method(globalThis, 'fetch', async () => response(asset()));
+  const editor = harness({
+    templateId: 'optional-fields',
+    onChange: (next) => changes.push(next),
+  });
+  t.after(() => editor.unmount());
+  editor.upload(new File(['fixture'], 'Customer.xlsx'));
+  await settle();
+  assert.doesNotMatch(textOf(editor.render()), /Quote fields and totals/);
+  await editor.button('Apply mapping').props.onClick();
+  assert.equal(changes.length, 1);
+  assert.deepEqual(changes[0].cells, {});
+  assert.equal(changes[0].textCells?.length ?? 0, 0);
 });

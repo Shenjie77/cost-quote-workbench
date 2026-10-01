@@ -417,14 +417,11 @@ test('upload inventory rejects unreadable archives, unsupported formulas and los
   await assert.rejects(() => inspectQuoteExcelWorkbook(chartBytes), /charts/);
 });
 
-test('customer export cannot silently omit identities, totals, discounts or active terms', async () => {
+test('customer export lets users omit metadata and commercial placeholders', async () => {
   const bytes = await fixture();
   const emptyMapping = input();
   emptyMapping.template.excel.cells = {};
-  await assert.rejects(
-    () => fillQuoteExcelTemplate(bytes, emptyMapping),
-    /quoteNumber|Quotation number|Quote number/i,
-  );
+  await assert.doesNotReject(() => fillQuoteExcelTemplate(bytes, emptyMapping));
   for (const [field, configure] of [
     [
       'discount',
@@ -450,9 +447,9 @@ test('customer export cannot silently omit identities, totals, discounts or acti
   ]) {
     const source = input();
     configure(source);
-    await assert.rejects(
+    await assert.doesNotReject(
       () => fillQuoteExcelTemplate(bytes, source),
-      new RegExp(field),
+      field,
     );
   }
 });

@@ -206,7 +206,11 @@ test('target GP plus share at 100 percent blocks quotation generation', () => {
     pricing: { ...pricing, targetGrossMargin: 80 },
   });
   assert.match(markup, /role="alert"/);
-  assert.match(markup, /<button[^>]*disabled[^>]*>[^]*?Generate XLSX/);
+  const exportButton = markup.match(
+    /<button[^>]*title="Choose draft or final output[^>]*>/,
+  )?.[0];
+  assert.ok(exportButton);
+  assert.doesNotMatch(exportButton, / disabled(?:=|\s|>)/);
   assert.doesNotMatch(markup, /NaN|Infinity/);
 });
 

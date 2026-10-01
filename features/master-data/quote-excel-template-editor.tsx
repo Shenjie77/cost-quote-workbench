@@ -1,5 +1,7 @@
 'use client';
 
+import { book2ExampleMapping } from '@/features/quote/book2-example-mapping';
+
 import { useEffect, useRef, useState } from 'react';
 import {
   Download,
@@ -18,13 +20,11 @@ import {
 } from '@/features/quote/excel-template-client';
 import {
   MAX_QUOTE_TEMPLATE_ROW,
-  requiredQuoteExcelFields,
   validateQuoteExcelMapping,
 } from '@/features/quote/excel-template-mapping';
 import type {
   QuoteExcelAsset,
   QuoteExcelColumns,
-  QuoteExcelField,
   QuoteExcelTemplate,
 } from '@/features/quote/excel-template-types';
 
@@ -48,23 +48,6 @@ const columnLabels: Array<[keyof QuoteExcelColumns, string]> = [
   ['unitPrice', 'Unit price column'],
 ];
 
-/** Quotation metadata and totals target cells in the original workbook before details expand. */
-const cellLabels: Array<[QuoteExcelField, string]> = [
-  ['quoteNumber', 'Quote number'],
-  ['client', 'Client'],
-  ['project', 'Project'],
-  ['costVersion', 'Cost version'],
-  ['currency', 'Currency'],
-  ['documentTitle', 'Document title'],
-  ['validityDays', 'Validity days'],
-  ['paymentTerms', 'Payment terms'],
-  ['termsAndConditions', 'Terms & Conditions'],
-  ['assumptions', 'Included assumptions'],
-  ['servicePrice', 'Service price'],
-  ['discount', 'Discount'],
-  ['quoteBeforeTax', 'Quote Total'],
-];
-
 /** Start with one sample detail row; the workbook stays immutable while this mapping is edited. */
 function initialDraft(asset: QuoteExcelAsset): MappingDraft {
   return {
@@ -79,9 +62,24 @@ function initialDraft(asset: QuoteExcelAsset): MappingDraft {
 
 /** Existing mappings are cloned so editing this form cannot mutate published template snapshots. */
 function editableMapping(value?: QuoteExcelTemplate): MappingDraft | undefined {
-  return value
-    ? { ...structuredClone(value), detailRow: String(value.detailRow) }
-    : undefined;
+  if (!value) return undefined;
+  const copy = structuredClone(value);
+  const textCells = [...(copy.textCells ?? [])];
+  const cells: QuoteExcelTemplate['cells'] = {};
+  for (const [field, address] of Object.entries(copy.cells)) {
+    // Preserve legacy tax clearing while exposing all supported mappings as editable placeholders.
+    if (field === 'gstPercent' || field === 'gstAmount') {
+      cells[field] = address;
+    } else if (
+      address &&
+      !textCells.some(
+        (cell) => cell.address.toUpperCase() === address.toUpperCase(),
+      )
+    ) {
+      textCells.push({ address, content: '{' + field + '}' });
+    }
+  }
+  return { ...copy, cells, textCells, detailRow: String(copy.detailRow) };
 }
 
 /** Blank optional fields are omitted; uppercase coordinates are canonical for validation and export. */
@@ -98,7 +96,20 @@ function mappingFromDraft(draft: MappingDraft): QuoteExcelTemplate {
       .map(([key, value]) => [key, value.trim().toUpperCase()])
       .filter(([, value]) => value),
   );
-  return { ...draft, columns, cells, detailRow: Number(draft.detailRow) };
+  return {
+    ...draft,
+    columns,
+    cells,
+    ...(draft.textCells
+      ? {
+          textCells: draft.textCells.map((cell) => ({
+            ...cell,
+            address: cell.address.trim().toUpperCase(),
+          })),
+        }
+      : {}),
+    detailRow: Number(draft.detailRow),
+  };
 }
 
 /** Three synthetic lines exercise row expansion and totals without reading or archiving any project. */
@@ -487,49 +498,258 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               </label>
             ))}
           </div>
-          <details open className="rounded-md border bg-background p-3">
+          <details
+            open
+            className="space-y-3 rounded-md border bg-background p-3"
+          >
             <summary className="cursor-pointer text-xs font-medium">
-              Quote fields and totals
+              Dynamic quotation modules
             </summary>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Map all six required fields (*) to keep the quotation complete.
-              Mapped cells retain their formatting; unmapped cells retain their
-              content or formulas. All addresses belong to the selected
-              worksheet. Also map Discount when used, Terms &amp; Conditions
-              when entered, and Included assumptions when selected.
+            <p className="text-xs text-muted-foreground">
+              Use original row numbers. Rows before/after the sample detail rows
+              are retained as headings/subtotals. Actual items replace all
+              sample detail rows. An empty module removes its entire region,
+              including headings. Put project-wide totals outside module
+              regions.
             </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {cellLabels.map(([field, label]) => {
-                // Edit the existing total coordinate without duplicating old before/after mappings.
-                const mappedField =
-                  field === 'quoteBeforeTax' &&
-                  !Object.hasOwn(draft.cells, field) &&
-                  Object.hasOwn(draft.cells, 'quoteAfterTax')
-                    ? 'quoteAfterTax'
-                    : field;
-                return (
-                  <label key={field} className="block space-y-1 text-xs">
+            {(draft.regions ?? []).map((region, index) => (
+              <div
+                key={index}
+                className="grid gap-2 border-b pb-2 sm:grid-cols-6"
+              >
+                <label className="text-xs">
+                  Module
+                  <select
+                    aria-label={`Module ${index + 1} source`}
+                    className="h-9 w-full border bg-background px-1"
+                    value={region.source}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        regions: draft.regions!.map((r, i) =>
+                          i === index
+                            ? {
+                                ...r,
+                                source: e.target.value as typeof r.source,
+                              }
+                            : r,
+                        ),
+                      })
+                    }
+                  >
+                    <option value="service">Professional Service</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="optional">Optional (empty)</option>
+                  </select>
+                </label>
+                {(
+                  [
+                    ['startRow', 'Region start'],
+                    ['detailRow', 'First detail'],
+                    ['detailEndRow', 'Last detail'],
+                    ['endRow', 'Region end'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="text-xs">
                     {label}
-                    {requiredQuoteExcelFields.includes(field) ? ' *' : ''}
                     <Input
-                      aria-label={`${label} cell`}
-                      placeholder="e.g. B4"
-                      maxLength={10}
-                      value={draft.cells[mappedField] || ''}
-                      onChange={(event) =>
+                      aria-label={`Module ${index + 1} ${label}`}
+                      type="number"
+                      min={1}
+                      max={20000}
+                      value={region[key] || ''}
+                      onChange={(e) =>
                         setDraft({
                           ...draft,
-                          cells: {
-                            ...draft.cells,
-                            [mappedField]: event.target.value,
-                          },
+                          regions: draft.regions!.map((r, i) =>
+                            i === index
+                              ? { ...r, [key]: Number(e.target.value) }
+                              : r,
+                          ),
                         })
                       }
                     />
                   </label>
-                );
-              })}
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      regions: draft.regions!.filter((_, i) => i !== index),
+                    })
+                  }
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={(draft.regions?.length ?? 0) >= 3}
+                onClick={() =>
+                  setDraft({
+                    ...draft,
+                    regions: [
+                      ...(draft.regions ?? []),
+                      {
+                        source: !draft.regions?.length
+                          ? 'service'
+                          : draft.regions.length === 1
+                            ? 'maintenance'
+                            : 'optional',
+                        startRow: 0,
+                        endRow: 0,
+                        detailRow: 0,
+                        detailEndRow: 0,
+                      },
+                    ],
+                  })
+                }
+              >
+                Add module region
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setDraft(
+                    editableMapping(
+                      book2ExampleMapping(mappingFromDraft(draft)),
+                    ),
+                  )
+                }
+              >
+                Use Book2 example mapping
+              </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Optional items are not configured in the current pricing model;
+              its mapped region is removed. The Book2 example stages coordinates
+              only—review them before applying.
+            </p>
+          </details>
+          <details
+            open
+            className="space-y-3 rounded-md border bg-background p-3"
+          >
+            <summary className="cursor-pointer text-xs font-medium">
+              Cell content and placeholders
+            </summary>
+            <p className="text-xs text-muted-foreground">
+              Combine fixed text and fields, e.g. Date of quotation: {'{date}'},
+              Quotation for {'{project}'}. A lone amount token stays numeric.
+              Add only the cells you want to fill. All placeholders are
+              optional; unmapped cells retain their existing content or
+              formulas.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Fields:{' '}
+              {
+                '{date} {quoteNumber} {client} {project} {costVersion} {currency} {documentTitle} {companyName} {companyAddress} {quoteBeforeTax} {quoteAfterTax} {servicePrice} {maintenancePrice} {discount} {validityDays} {paymentTerms} {termsAndConditions} {assumptions} {documentStatus}'
+              }
+            </p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <label className="text-xs">
+                Date format
+                <select
+                  aria-label="Quotation date format"
+                  className="h-9 w-full border bg-background px-2"
+                  value={draft.dateFormat ?? 'dd-mmm-yyyy'}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      dateFormat: e.target
+                        .value as QuoteExcelTemplate['dateFormat'],
+                    })
+                  }
+                >
+                  <option value="dd-mmm-yyyy">30-Sep-2026</option>
+                  <option value="yyyy-mm-dd">2026-09-30</option>
+                  <option value="dd/mm/yyyy">30/09/2026</option>
+                </select>
+              </label>
+              {(['companyName', 'companyAddress'] as const).map((key) => (
+                <label key={key} className="text-xs">
+                  {key === 'companyName' ? 'Company name' : 'Company address'}
+                  <Input
+                    aria-label={key}
+                    value={draft.variables?.[key] ?? ''}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        variables: {
+                          ...draft.variables,
+                          [key]: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            {(draft.textCells ?? []).map((cell, index) => (
+              <div key={index} className="flex gap-2">
+                <Input
+                  aria-label={`Text cell ${index + 1} address`}
+                  className="w-24 shrink-0"
+                  placeholder="B12"
+                  value={cell.address}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      textCells: draft.textCells!.map((c, i) =>
+                        i === index ? { ...c, address: e.target.value } : c,
+                      ),
+                    })
+                  }
+                />
+                <Input
+                  aria-label={`Text cell ${index + 1} content`}
+                  placeholder="Date of quotation: {date}"
+                  value={cell.content}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      textCells: draft.textCells!.map((c, i) =>
+                        i === index ? { ...c, content: e.target.value } : c,
+                      ),
+                    })
+                  }
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={`Remove text cell ${index + 1}`}
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      textCells: draft.textCells!.filter((_, i) => i !== index),
+                    })
+                  }
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setDraft({
+                  ...draft,
+                  textCells: [
+                    ...(draft.textCells ?? []),
+                    { address: '', content: '' },
+                  ],
+                })
+              }
+            >
+              Add cell content
+            </Button>
           </details>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={apply} disabled={!asset}>

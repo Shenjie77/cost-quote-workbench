@@ -47,6 +47,8 @@ export function QuotePreviewDialog({
   pricing,
   lines,
   assumptions,
+  maintenanceLines = [],
+  maintenanceAmount = 0,
 }: {
   project: Readonly<CostExportSnapshot['project']>;
   activeVersion: string;
@@ -54,6 +56,8 @@ export function QuotePreviewDialog({
   pricing: Readonly<PricingResult>;
   lines: readonly Readonly<QuoteLine>[];
   assumptions: readonly Readonly<QuoteAssumption>[];
+  maintenanceLines?: readonly Readonly<QuoteLine>[];
+  maintenanceAmount?: number;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -140,6 +144,29 @@ export function QuotePreviewDialog({
                   </TableCell>
                 </TableRow>
               ))}
+              {maintenanceLines.length > 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="font-semibold">
+                    Maintenance Service
+                  </TableCell>
+                </TableRow>
+              )}
+              {maintenanceLines.map((line, index) => (
+                <TableRow key={line.id}>
+                  <TableCell>{index + 1}</TableCell>
+                  <TableCell className="whitespace-pre-wrap">
+                    {line.description}
+                  </TableCell>
+                  <TableCell className="text-right">{line.quantity}</TableCell>
+                  <TableCell>{line.unit}</TableCell>
+                  <TableCell className="text-right">
+                    {formatUnitPrice(line.unitPrice)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatSgd(line.amount)}
+                  </TableCell>
+                </TableRow>
+              ))}
               {!lines.length && (
                 <TableRow>
                   <TableCell
@@ -158,13 +185,21 @@ export function QuotePreviewDialog({
             <dd className="financial-numeral text-right">
               {formatSgd(pricing.listPrice)}
             </dd>
+            {maintenanceLines.length > 0 && (
+              <>
+                <dt>Maintenance</dt>
+                <dd className="financial-numeral text-right">
+                  {formatSgd(maintenanceAmount)}
+                </dd>
+              </>
+            )}
             <dt>Discount</dt>
             <dd className="financial-numeral text-right">
               {formatSgd(pricing.discount)}
             </dd>
             <dt className="font-semibold">Quote Total</dt>
             <dd className="financial-numeral text-right text-base font-bold text-primary">
-              {formatSgd(pricing.quoteBeforeTax)}
+              {formatSgd(pricing.quoteBeforeTax + maintenanceAmount)}
             </dd>
           </dl>
           {/* Preserve selected terms and included assumptions verbatim, including their line breaks. */}
