@@ -294,6 +294,7 @@ test('uploads stage mapping; Apply validates and canonicalizes while Reset and R
   editor.upload(new File(['xlsx-fixture'], 'Customer.xlsx'));
   await settle();
   assert.equal(changes.length, 0);
+  editor.change('Quotation output mode', 'legacy');
   assert.equal(editor.input('Repeatable detail row').props.value, '12');
   assert.equal(editor.input('Description column *').props.value, 'B');
   assert.equal(editor.input('Amount column *').props.value, 'F');
@@ -414,6 +415,7 @@ test('failed replacement retains the current mapping and allows a clean retry', 
   editor.upload(new File(['data'], 'Replacement.xlsx'));
   await settle();
   assert.doesNotMatch(textOf(editor.render()), /Unsupported chart/);
+  editor.change('Quotation output mode', 'legacy');
   populateRequired(editor);
   await editor.button('Apply mapping').props.onClick();
   assert.equal(changes[0].assetId, 'b'.repeat(64));
@@ -629,6 +631,7 @@ test('module coordinates and composed cell text survive Apply and reopening the 
   t.after(() => editor.unmount());
   editor.upload(new File(['fixture'], 'Book2.xlsx'));
   await settle();
+  editor.change('Quotation output mode', 'legacy');
   editor.button('Use Book2 example mapping').props.onClick();
   editor.change('companyName', 'Example Supplier');
   editor.change('Quotation date format', 'dd-mmm-yyyy');
@@ -670,6 +673,7 @@ test('users can apply an uploaded template with no metadata placeholders', async
   t.after(() => editor.unmount());
   editor.upload(new File(['fixture'], 'Customer.xlsx'));
   await settle();
+  editor.change('Quotation output mode', 'legacy');
   assert.doesNotMatch(textOf(editor.render()), /Quote fields and totals/);
   await editor.button('Apply mapping').props.onClick();
   assert.equal(changes.length, 1);
@@ -711,4 +715,57 @@ test('custom template category and inclusion survive saving and guide sample gen
     'Managed support',
   );
   assert.equal(sample.pricing.lineGroups['sample-1'].inclusion, 'optional');
+});
+
+test('structured uploads validate both Optional states and preserve reusable title rules after reopening', async (t) => {
+  const changes = [];
+  t.mock.method(globalThis, 'fetch', async () =>
+    response({
+      ...asset(),
+      sheets: [{ name: 'Quotation', rowCount: 60, columnCount: 7 }],
+    }),
+  );
+  const editor = harness({
+    templateId: 'structured',
+    onChange: (value) => changes.push(value),
+  });
+  t.after(() => editor.unmount());
+  editor.upload(new File(['fixture'], 'Book2.xlsx'));
+  await settle();
+  assert.equal(editor.input('Quotation output mode').props.value, 'body');
+  await editor.button('Apply mapping').props.onClick();
+  assert.equal(changes.length, 0, 'an unconfigured range cannot be applied');
+  editor.button('Use Book2 structured layout').props.onClick();
+  assert.equal(editor.button('Add module region'), undefined);
+  const before = (globalThis[samplesKey] ?? []).length;
+  await editor.button('Apply mapping').props.onClick();
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].regions, undefined);
+  assert.deepEqual(changes[0].body.styles, {
+    chapter: 15,
+    category: 16,
+    detail: 17,
+    subtotal: 25,
+    total: 25,
+  });
+  const samples = globalThis[samplesKey].slice(before);
+  assert.equal(samples.length, 2);
+  assert.equal(samples[0].pricing.lineGroups['sample-3'].inclusion, 'optional');
+  assert.equal(
+    samples[1].pricing.lineGroups['sample-3'].inclusion,
+    'mandatory',
+  );
+  const reopened = harness({
+    templateId: 'structured',
+    value: changes[0],
+    onChange: (value) => changes.push(value),
+  });
+  t.after(() => reopened.unmount());
+  reopened.render();
+  await settle();
+  assert.equal(reopened.input('Quotation output mode').props.value, 'body');
+  assert.ok(reopened.button('Sample without Optional'));
+  const markup = renderToStaticMarkup(reopened.render());
+  assert.match(markup, /Category heading text/);
+  assert.match(markup, /\{category\}/);
 });

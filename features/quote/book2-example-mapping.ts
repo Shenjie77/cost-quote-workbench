@@ -1,3 +1,4 @@
+import { defaultBodyTitles } from './structured-body.ts';
 import type { QuoteExcelTemplate } from './excel-template-types.ts';
 
 /** Stages original Book2 coordinates for review; never edits or uploads a source workbook. */
@@ -6,6 +7,7 @@ export function book2ExampleMapping(
 ): QuoteExcelTemplate {
   return {
     ...base,
+    body: undefined,
     detailRow: 17,
     columns: {
       number: 'B',
@@ -61,5 +63,39 @@ export function book2ExampleMapping(
       { address: 'C40', content: '' },
       { address: 'C41', content: '' },
     ],
+  };
+}
+
+/** One complete body replaces all sample chapters, including their totals and spacer rows. */
+export function book2StructuredMapping(
+  base: QuoteExcelTemplate,
+): QuoteExcelTemplate {
+  const mapping = book2ExampleMapping(base);
+  return {
+    ...mapping,
+    regions: undefined,
+    cells: {},
+    body: {
+      startRow: 15,
+      endRow: 32,
+      styles: {
+        chapter: 15,
+        category: 16,
+        detail: 17,
+        subtotal: 25,
+        total: 25,
+      },
+      numbering: 'hierarchical',
+      categoryOrder: [],
+      titles: { ...defaultBodyTitles },
+    },
+    textCells: mapping.textCells
+      ?.map((cell) =>
+        cell.address === 'B2' ? { ...cell, content: '{documentTitle}' } : cell,
+      )
+      .filter((cell) => {
+        const row = Number(cell.address.match(/\d+$/)?.[0]);
+        return row < 15 || row > 32;
+      }),
   };
 }

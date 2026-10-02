@@ -371,8 +371,8 @@ export function QuoteLinesEditor({
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        Category accepts custom titles. Match the same title and Inclusion in
-        your template regions. Optional items are quoted separately; internal
+        Category accepts custom titles. Structured templates generate matching
+        categories automatically. Optional items are quoted separately; internal
         cost and GP include all service lines.
       </p>
       {/* All internal pricing controls share one grid; customer previews and files omit these internal columns. */}

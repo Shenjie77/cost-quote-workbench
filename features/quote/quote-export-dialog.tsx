@@ -24,7 +24,7 @@ export function QuoteExportDialog({
   finalErrors: string[];
   busy: boolean;
   onExport: (status: 'Draft' | 'Final') => void;
-  templateLayout?: 'regions' | 'rows';
+  templateLayout?: 'body' | 'regions' | 'rows';
 }) {
   return (
     <Dialog
@@ -37,11 +37,13 @@ export function QuoteExportDialog({
         <DialogHeader>
           <DialogTitle>Export customer quotation</DialogTitle>
           <DialogDescription>
-            {templateLayout === 'regions'
-              ? 'Uses your uploaded workbook, saved module regions and cell placeholders. Empty modules are removed automatically.'
-              : templateLayout === 'rows'
-                ? 'Uses your uploaded workbook and saved cell content. This single-row mapping exports professional services; configure module regions to include maintenance.'
-                : 'Standard XLSX with professional services, maintenance, totals, assumptions and commercial terms. Uses the applied template’s wording.'}
+            {templateLayout === 'body'
+              ? 'Uses your workbook styles with generated chapters, category titles, numbering and totals. Empty chapters, including their totals, are removed.'
+              : templateLayout === 'regions'
+                ? 'Uses your uploaded workbook, saved module regions and cell placeholders. Empty modules are removed automatically.'
+                : templateLayout === 'rows'
+                  ? 'Uses your uploaded workbook and saved cell content. This single-row mapping exports professional services; configure module regions to include maintenance.'
+                  : 'Standard XLSX with professional services, maintenance, totals, assumptions and commercial terms. Uses the applied template’s wording.'}
           </DialogDescription>
         </DialogHeader>
         <p className="text-sm">

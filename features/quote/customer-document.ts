@@ -31,7 +31,9 @@ export function customerDocument(input: QuoteWorkbookInput) {
         );
       maintenance.push({
         id: `maintenance:${boq.id}`,
-        description: `${boq.description?.trim() || boq.model}${boq.serviceLevel ? ` — ${boq.serviceLevel}` : ''} (${boq.quantity} units; ${boq.durationYears} years from ${draft.startYear})`,
+        description:
+          boq.description?.trim() ||
+          `${boq.model.trim()} (${boq.quantity} node/NE)`,
         unit: 'per year',
         quantity: boq.durationYears!,
         unitPrice: roundMoney(

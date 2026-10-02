@@ -2834,6 +2834,134 @@
             }
           }
         },
+        "body": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "startRow",
+            "endRow",
+            "styles",
+            "numbering",
+            "categoryOrder",
+            "titles"
+          ],
+          "properties": {
+            "startRow": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20000
+            },
+            "endRow": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20000
+            },
+            "styles": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "chapter",
+                "category",
+                "detail",
+                "subtotal",
+                "total"
+              ],
+              "properties": {
+                "chapter": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20000
+                },
+                "category": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20000
+                },
+                "detail": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20000
+                },
+                "subtotal": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20000
+                },
+                "total": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20000
+                }
+              }
+            },
+            "numbering": {
+              "enum": [
+                "hierarchical",
+                "continuous",
+                "alphabetic"
+              ]
+            },
+            "categoryOrder": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            },
+            "titles": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "mandatory",
+                "optional",
+                "category",
+                "subtotal",
+                "mandatoryTotal",
+                "optionalTotal",
+                "discount"
+              ],
+              "properties": {
+                "mandatory": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "optional": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "category": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "subtotal": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "mandatoryTotal": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "optionalTotal": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "discount": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                }
+              }
+            }
+          }
+        },
         "regions": {
           "type": "array",
           "maxItems": 50,

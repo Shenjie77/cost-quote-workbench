@@ -8,6 +8,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { emptyMaintenance } from '../features/maintenance/domain.ts';
 import { initialQuoteTemplates } from '../features/quote/types.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -226,6 +227,27 @@ test('quotation template entry precedes pricing and customer preview in the real
     onOpenMasterData: noop,
     onExportStateChange: noop,
     exportInProgress: false,
+    maintenance: {
+      ...emptyMaintenance(),
+      startYear: 2026,
+      boq: [
+        {
+          id: 'm',
+          model: 'NE8000',
+          description: '',
+          quantity: 1,
+          durationYears: 2,
+          ct: 30,
+          spms: 10,
+          unitAnnualQuote: 0,
+          serviceLevel: '',
+          site: '',
+          referenceId: '',
+          basis: '',
+          source: 'manual',
+        },
+      ],
+    },
     pricing: { targetGrossMargin: 20, discount: 0, gstPercent: 9 },
     setPricing: trackWrite,
     assumptionLibrary: [],
@@ -258,6 +280,17 @@ test('quotation template entry precedes pricing and customer preview in the real
     /<section[^>]*aria-label="Quotation pricing"[^>]*>[\s\S]*?<\/section>/,
   )?.[0];
   assert.ok(pricingPanel);
+  assert.doesNotMatch(pricingPanel, /Maintenance quotation groups|NE8000/);
+  const maintenancePanel = markup.match(
+    /<section[^>]*>[^]*?Maintenance quotation groups[^]*?<\/section>/,
+  )?.[0];
+  assert.ok(maintenancePanel);
+  assert.match(markup, /NE8000 \(1 node\/NE\)/);
+  assert.doesNotMatch(markup, /2 years from 2026/);
+  assert.ok(
+    markup.indexOf('维保报价') < markup.indexOf('Maintenance quotation groups'),
+  );
+
   assert.match(
     pricingPanel,
     /<button[^>]*aria-label="Client Output Preview 客户预览"[^>]*>[\s\S]*?Preview[\s\S]*?<\/button>/,

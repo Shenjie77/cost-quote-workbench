@@ -391,7 +391,9 @@ export function QuoteView({
       ...(layout === 'customer' ? { layout: 'customer' as const } : {}),
       documentStatus,
       issuedAt: timestamp.toISOString(),
-      ...(layout === 'customer' || template.excel?.regions?.length
+      ...(layout === 'customer' ||
+      template.excel?.body ||
+      template.excel?.regions?.length
         ? { maintenance }
         : {}),
       project,
@@ -414,7 +416,9 @@ export function QuoteView({
         costVersion: activeVersion,
         templateId: template.id,
         status: documentStatus,
-        ...(layout === 'customer' || template.excel?.regions?.length
+        ...(layout === 'customer' ||
+        template.excel?.body ||
+        template.excel?.regions?.length
           ? {
               outputLayout: 'customer' as const,
               customerQuoteAmount: document.total,
@@ -471,9 +475,11 @@ export function QuoteView({
         onExport={generateDraft}
         templateLayout={
           template?.excel
-            ? template.excel.regions?.length
-              ? 'regions'
-              : 'rows'
+            ? template.excel.body
+              ? 'body'
+              : template.excel.regions?.length
+                ? 'regions'
+                : 'rows'
             : undefined
         }
       />
@@ -657,35 +663,6 @@ export function QuoteView({
           </TableBody>
         </Table>
         {/* The detail editor spans the same width as the parameters that determine its prices. */}
-        {customerPreview?.maintenance.length ? (
-          <div className="space-y-2 border p-3">
-            <h3 className="text-sm font-medium">
-              Maintenance quotation groups
-            </h3>
-            {customerPreview.maintenance.map((line) => (
-              <div
-                key={line.id}
-                className="flex flex-wrap items-center justify-between gap-2 text-xs"
-              >
-                <span>{line.description}</span>
-                <QuoteGroupFields
-                  label={line.description}
-                  disabled={exportInProgress}
-                  value={groupFor(line, pricing.lineGroups)}
-                  categories={Object.values(pricing.lineGroups ?? {}).map(
-                    (g) => g.category,
-                  )}
-                  onChange={(group) =>
-                    setPricing((current) => ({
-                      ...current,
-                      lineGroups: { ...current.lineGroups, [line.id]: group },
-                    }))
-                  }
-                />
-              </div>
-            ))}
-          </div>
-        ) : null}
         <QuoteLinesEditor
           key={`${project.id}:${activeVersion}`}
           pricing={pricing}
@@ -743,6 +720,49 @@ export function QuoteView({
       </section>
       <section className="wb-panel overflow-hidden">
         <SectionHeading index="02" title="Maintenance" titleZh="维保报价" />
+        {customerPreview?.maintenance.length ? (
+          <div className="overflow-x-auto border-b">
+            <h3 className="px-3 py-2 text-xs font-medium">
+              Maintenance quotation groups
+            </h3>
+            <table className="w-full min-w-[540px] text-xs">
+              <thead className="bg-muted/40 text-left">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Description</th>
+                  <th className="px-2 py-2 font-medium">
+                    Category / Inclusion
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {customerPreview.maintenance.map((line) => (
+                  <tr key={line.id}>
+                    <td className="px-3 py-1">{line.description}</td>
+                    <td className="w-80 px-1">
+                      <QuoteGroupFields
+                        label={line.description}
+                        disabled={exportInProgress}
+                        value={groupFor(line, pricing.lineGroups)}
+                        categories={Object.values(pricing.lineGroups ?? {}).map(
+                          (g) => g.category,
+                        )}
+                        onChange={(group) =>
+                          setPricing((current) => ({
+                            ...current,
+                            lineGroups: {
+                              ...current.lineGroups,
+                              [line.id]: group,
+                            },
+                          }))
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
         <MaintenanceSummary
           value={maintenance ?? emptyMaintenance()}
           serviceQuote={result.quoteBeforeTax}

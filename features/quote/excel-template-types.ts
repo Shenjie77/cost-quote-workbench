@@ -39,8 +39,33 @@ export type QuoteExcelColumns = {
   unitPrice?: string;
 };
 
+/** One replaceable body, with reusable styles independent of category count. */
+export type QuoteBodyLayout = {
+  startRow: number;
+  endRow: number;
+  styles: {
+    chapter: number;
+    category: number;
+    detail: number;
+    subtotal: number;
+    total: number;
+  };
+  numbering: 'hierarchical' | 'continuous' | 'alphabetic';
+  categoryOrder: string[];
+  titles: {
+    mandatory: string;
+    optional: string;
+    category: string;
+    subtotal: string;
+    mandatoryTotal: string;
+    optionalTotal: string;
+    discount: string;
+  };
+};
+
 /** Content-addressed local asset plus a single repeatable detail-row mapping. */
 export type QuoteExcelTemplate = {
+  body?: QuoteBodyLayout;
   /** Replacement text at original cell coordinates; a lone token preserves its numeric type. */
   textCells?: { address: string; content: string }[];
   dateFormat?: 'dd-mmm-yyyy' | 'yyyy-mm-dd' | 'dd/mm/yyyy';

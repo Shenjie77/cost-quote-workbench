@@ -1,3 +1,4 @@
+import { structuredBodyRows } from './structured-body.ts';
 import { regionMatches } from './quotation-groups.ts';
 /** Fills an immutable customer XLSX copy using one repeatable quotation row. */
 
@@ -695,9 +696,10 @@ function quoteFieldValues(
     companyName: input.template.excel?.variables?.companyName ?? '',
     companyAddress: input.template.excel?.variables?.companyAddress ?? '',
     documentStatus: input.documentStatus ?? 'Final',
-    maintenancePrice: input.template.excel?.regions?.length
-      ? customerDocument(input).maintenanceAmount
-      : 0,
+    maintenancePrice:
+      input.template.excel?.body || input.template.excel?.regions?.length
+        ? customerDocument(input).maintenanceAmount
+        : 0,
     quoteNumber:
       input.documentStatus === 'Draft' &&
       !input.quoteNumber.startsWith('DRAFT-')
@@ -717,15 +719,17 @@ function quoteFieldValues(
       .join('\n'),
     servicePrice: input.pricing.listPrice,
     discount: input.pricing.discount,
-    quoteBeforeTax: input.template.excel?.regions?.length
-      ? customerDocument(input).total
-      : input.pricing.quoteBeforeTax,
+    quoteBeforeTax:
+      input.template.excel?.body || input.template.excel?.regions?.length
+        ? customerDocument(input).total
+        : input.pricing.quoteBeforeTax,
     // Existing tax mappings are deliberately cleared; both legacy total mappings receive the same final amount.
     gstPercent: null,
     gstAmount: null,
-    quoteAfterTax: input.template.excel?.regions?.length
-      ? customerDocument(input).total
-      : input.pricing.quoteBeforeTax,
+    quoteAfterTax:
+      input.template.excel?.body || input.template.excel?.regions?.length
+        ? customerDocument(input).total
+        : input.pricing.quoteBeforeTax,
   };
 }
 
@@ -806,6 +810,247 @@ function regionFormula(
     };
     return `${qualified ?? ''}${shift(start, false)}${end ? `:${shift(end, true)}` : ''}`;
   });
+}
+
+/** Rebuild the entire body from semantic rows; no sample heading, number or total survives. */
+async function fillStructuredBody(
+  workbook: Workbook,
+  sheet: Worksheet,
+  input: QuoteWorkbookInput,
+) {
+  quoteLines(input);
+  const mapping = input.template.excel!,
+    body = mapping.body!,
+    values = quoteFieldValues(input);
+  const plan = structuredBodyRows(input, body, values);
+  const edit: RegionEdit = {
+    start: body.startRow,
+    end: body.endRow,
+    count: plan.length,
+  };
+  const delta = plan.length - (body.endRow - body.startRow + 1);
+  if (
+    sheet.rowCount + delta > MAX_EXCEL_ROW ||
+    plan.length * Math.max(1, sheet.columnCount) > MAX_MODEL_CELLS
+  )
+    throw new Error(
+      'The generated quotation body exceeds the supported workbook size.',
+    );
+  const overlaps = (range: string) => {
+    const rows = [...range.matchAll(/\$?[A-Z]{1,3}\$?([1-9]\d*)/g)].map((m) =>
+      Number(m[1]),
+    );
+    return (
+      rows.length &&
+      Math.min(...rows) <= edit.end &&
+      Math.max(...rows) >= edit.start
+    );
+  };
+  const validations = (
+    sheet as unknown as { dataValidations: { model: Record<string, unknown> } }
+  ).dataValidations.model;
+  if (
+    sheet.getTables().length ||
+    Object.keys(validations).some(overlaps) ||
+    (sheet as WorksheetFeatures).conditionalFormattings.some((f) =>
+      overlaps(f.ref),
+    )
+  )
+    throw new Error(
+      'Use plain styled rows for the quotation body; move Excel Tables, validation and conditional formatting outside it.',
+    );
+  for (const image of sheet.getImages()) {
+    const top = image.range.tl.nativeRow,
+      bottom = image.range.br?.nativeRow ?? top;
+    if (top < edit.end && bottom >= edit.start - 1)
+      throw new Error(
+        'Place template pictures outside the generated quotation body.',
+      );
+  }
+  const merges = [...sheet.model.merges];
+  const patterns = Object.fromEntries(
+    Object.entries(body.styles).map(([role, row]) => [
+      role,
+      snapshotRow(sheet.getRow(row)),
+    ]),
+  );
+  for (const range of merges) {
+    const [a, b = a] = range.split(':');
+    if (overlaps(range) && parseReference(a).row !== parseReference(b).row)
+      throw new Error(
+        'Use horizontal merges only inside the generated quotation body.',
+      );
+  }
+  const mappedCells = new Set([
+    ...Object.values(mapping.cells),
+    ...(mapping.textCells ?? []).map((c) => c.address),
+  ]);
+  // A sum over the whole generated body would double-count subtotals. Require an explicit total placeholder instead.
+  const refersToBody = (formula: string, sourceSheet: string) => {
+    const token =
+      /"(?:[^"]|"")*"|(?<![A-Z0-9_.])(?:(('(?:[^']|'')+'|[A-Z_\u0080-\uFFFF][A-Z0-9_.\u0080-\uFFFF]*)!))?(\$?[A-Z]{1,3}\$?[1-9]\d{0,6})(?::(\$?[A-Z]{1,3}\$?[1-9]\d{0,6}))?(?![A-Z0-9_.(])/gi;
+    return [...formula.matchAll(token)].some(
+      (m) =>
+        !m[0].startsWith('"') &&
+        m[3] &&
+        sheetNameOf(m[2], sourceSheet).toLowerCase() ===
+          sheet.name.toLowerCase() &&
+        overlaps(`${m[3]}:${m[4] ?? m[3]}`),
+    );
+  };
+  workbook.eachSheet((target) =>
+    target.eachRow((row) =>
+      row.eachCell((cell) => {
+        if (
+          target === sheet &&
+          ((row.number >= edit.start && row.number <= edit.end) ||
+            mappedCells.has(cell.address))
+        )
+          return;
+        if (cell.formula && refersToBody(cell.formula, target.name))
+          throw new Error(
+            `Formula ${target.name}!${cell.address} refers to the replaced quotation body. Use a total placeholder outside the body instead.`,
+          );
+      }),
+    ),
+  );
+  for (const name of workbook.definedNames.model) {
+    if (name.ranges.some((range) => refersToBody(range, sheet.name)))
+      throw new Error(
+        `Named range ${name.name} refers to the replaced quotation body. Use cell placeholders outside the body instead.`,
+      );
+  }
+  const rows = (sheet.model as unknown as { rows: RowModel[] }).rows.map((r) =>
+    snapshotRow(sheet.getRow(r.number)),
+  );
+  const originalRowCount = sheet.rowCount;
+  merges.forEach((range) => sheet.unMergeCells(range));
+  for (const old of rows) {
+    const row = sheet.getRow(old.number);
+    row.values = [];
+    (row as Row & { style: Partial<Style> }).style = {};
+    delete (row as { height?: number }).height;
+    row.hidden = false;
+    row.outlineLevel = 0;
+  }
+  for (const old of rows) {
+    if (old.number >= edit.start && old.number <= edit.end) continue;
+    const target = old.number > edit.end ? old.number + delta : old.number;
+    // Values/formulas are restored explicitly after structural movement.
+    restoreRow(
+      sheet,
+      { ...old, cells: old.cells.map((c) => ({ ...c, value: null })) },
+      target,
+      edit.end,
+      0,
+    );
+    for (const saved of old.cells) {
+      const address = sheet.getCell(old.number, saved.column).address;
+      const value = saved.value;
+      sheet.getCell(target, saved.column).value = mappedCells.has(address)
+        ? null
+        : value && typeof value === 'object' && 'formula' in value
+          ? {
+              formula: regionFormula(
+                String(value.formula),
+                sheet.name,
+                sheet.name,
+                edit,
+              ),
+            }
+          : value;
+    }
+  }
+  if (delta < 0) sheet.spliceRows(originalRowCount + delta + 1, -delta);
+  for (const range of merges)
+    if (!overlaps(range))
+      sheet.mergeCells(regionFormula(range, sheet.name, sheet.name, edit));
+  for (const [index, row] of plan.entries()) {
+    const target = edit.start + index,
+      pattern = patterns[row.role];
+    restoreRow(
+      sheet,
+      {
+        ...pattern,
+        hidden: false,
+        cells: pattern.cells.map((c) => ({
+          ...c,
+          value: null,
+          note: undefined,
+        })),
+      },
+      target,
+      edit.end,
+      0,
+    );
+    for (const range of merges) {
+      const [a, b = a] = range.split(':');
+      if (parseReference(a).row === pattern.number)
+        sheet.mergeCells(`${withRow(a, target)}:${withRow(b, target)}`);
+    }
+    const description = sheet.getCell(
+      `${mapping.columns.description}${target}`,
+    ).master;
+    const number = mapping.columns.number
+      ? sheet.getCell(`${mapping.columns.number}${target}`).master
+      : undefined;
+    if (row.line) {
+      const addresses = Object.values(mapping.columns).map(
+        (col) => sheet.getCell(`${col}${target}`).master.address,
+      );
+      if (new Set(addresses).size !== addresses.length)
+        throw new Error(
+          'Detail fields cannot share a merged cell. Check the detail style row and column mappings.',
+        );
+      for (const [field, col] of Object.entries(mapping.columns))
+        sheet.getCell(`${col}${target}`).master.value =
+          { ...row.line, number: row.number }[field as keyof QuoteLine] ??
+          row.number;
+    } else {
+      description.value =
+        (!number || number.address === description.address) && row.number
+          ? `${row.number} ${row.description}`
+          : row.description;
+      if (number && number.address !== description.address && row.number)
+        number.value = row.number;
+    }
+    if (row.amount !== undefined) {
+      const amount = sheet.getCell(`${mapping.columns.amount}${target}`).master;
+      if (amount.address === description.address)
+        throw new Error(
+          'Amount and description must use separate cells in subtotal and total styles.',
+        );
+      const amountAddress = (index: number) =>
+        sheet.getCell(`${mapping.columns.amount}${edit.start + index}`).master
+          .address;
+      const formula = row.sum
+        ? `ROUND(SUM(${row.sum.map(amountAddress).join(',')})${row.subtract === undefined ? '' : `-${amountAddress(row.subtract)}`},2)`
+        : undefined;
+      amount.value = formula ? { formula, result: row.amount } : row.amount;
+    }
+  }
+  workbook.eachSheet((target) => {
+    if (target === sheet) return;
+    target.eachRow((row) =>
+      row.eachCell((cell) => {
+        if (cell.formula)
+          cell.value = {
+            formula: regionFormula(cell.formula, target.name, sheet.name, edit),
+          };
+      }),
+    );
+  });
+  moveWorksheetFeatures(workbook, sheet, edit.end, delta);
+  for (const [field, address] of Object.entries(mapping.cells))
+    sheet.getCell(
+      regionFormula(address!, sheet.name, sheet.name, edit),
+    ).master.value = values[field];
+  for (const cell of mapping.textCells ?? [])
+    sheet.getCell(
+      regionFormula(cell.address, sheet.name, sheet.name, edit),
+    ).master.value = renderTemplateText(cell.content, values);
+  workbook.calcProperties.fullCalcOnLoad = true;
+  return workbook.xlsx.writeBuffer();
 }
 
 async function fillModuleRegions(
@@ -1027,6 +1272,7 @@ export async function fillQuoteExcelTemplate(
   );
   if (errors.length) throw new Error(errors.join(' '));
   const sheet = workbook.getWorksheet(mapping.sheetName)!;
+  if (mapping.body) return fillStructuredBody(workbook, sheet, input);
   if (mapping.regions?.length) return fillModuleRegions(workbook, sheet, input);
   if (
     customerDocument(input).allLines.some(

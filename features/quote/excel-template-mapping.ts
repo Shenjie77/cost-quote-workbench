@@ -123,6 +123,7 @@ export function validateQuoteExcelMapping(
           `The ${field} cell must be an address from A1 to XFD${MAX_QUOTE_TEMPLATE_ROW}.`,
         );
       else if (
+        !mapping.body &&
         !mapping.regions?.length &&
         Number(match[2]) === mapping.detailRow
       )
@@ -178,6 +179,7 @@ export function validateQuoteExcelMapping(
         errors.push(`Cell ${cell.address} is assigned more than once.`);
       occupied.add(cell.address);
       if (
+        !mapping.body &&
         !mapping.regions?.length &&
         Number(cell.address.match(/\d+$/)?.[0]) === mapping.detailRow
       )
@@ -194,6 +196,95 @@ export function validateQuoteExcelMapping(
         if (!allowed.has(token))
           errors.push(`Unknown placeholder: {${token}}.`);
     }
+  if (mapping.body !== undefined) {
+    const body = mapping.body;
+    if (!isRecord(body) || !isRecord(body.styles) || !isRecord(body.titles)) {
+      errors.push(
+        'Configure the structured quotation body, row styles and titles.',
+      );
+    } else {
+      const rowValid = (value: unknown) =>
+        Number.isInteger(value) &&
+        Number(value) >= 1 &&
+        Number(value) <= MAX_QUOTE_TEMPLATE_ROW;
+      if (
+        !rowValid(body.startRow) ||
+        !rowValid(body.endRow) ||
+        body.endRow < body.startRow
+      )
+        errors.push(
+          'Body start/end must be valid original rows, with start ≤ end.',
+        );
+      for (const role of [
+        'chapter',
+        'category',
+        'detail',
+        'subtotal',
+        'total',
+      ] as const)
+        if (
+          !rowValid(body.styles[role]) ||
+          body.styles[role] < body.startRow ||
+          body.styles[role] > body.endRow
+        )
+          errors.push(
+            `The ${role} style row must be inside the quotation body.`,
+          );
+      if (
+        !['hierarchical', 'continuous', 'alphabetic'].includes(body.numbering)
+      )
+        errors.push('Select a supported numbering rule.');
+      if (
+        !Array.isArray(body.categoryOrder) ||
+        body.categoryOrder.length > 100 ||
+        body.categoryOrder.some(
+          (v) => typeof v !== 'string' || !v.trim() || v.length > 120,
+        ) ||
+        new Set(body.categoryOrder.map(categoryKey)).size !==
+          body.categoryOrder.length
+      )
+        errors.push(
+          'Category order must contain unique category titles (up to 100).',
+        );
+      for (const key of [
+        'mandatory',
+        'optional',
+        'category',
+        'subtotal',
+        'mandatoryTotal',
+        'optionalTotal',
+        'discount',
+      ] as const) {
+        const title = body.titles[key];
+        if (typeof title !== 'string' || !title.trim() || title.length > 1000)
+          errors.push(`Enter a ${key} title (1–1000 characters).`);
+        else {
+          if (/[{}]/.test(title.replace(/\{[^{}]+\}/g, '')))
+            errors.push(`Unmatched braces in ${key} title.`);
+          for (const token of referencedTokens(title))
+            if (
+              !allowed.has(token) &&
+              !['category', 'chapterNumber'].includes(token)
+            )
+              errors.push(`Unknown title placeholder: {${token}}.`);
+        }
+      }
+      for (const address of occupied) {
+        const row = Number(address?.match(/\d+$/)?.[0]);
+        if (row >= body.startRow && row <= body.endRow)
+          errors.push(
+            `Cell ${address} is inside the generated body; configure its title or total in Body rules instead.`,
+          );
+      }
+      const sourceSheet = sheets?.find((s) => s.name === mapping.sheetName);
+      if (sourceSheet && body.endRow > sourceSheet.rowCount)
+        errors.push('The body extends beyond the original worksheet.');
+    }
+    if (mapping.regions?.length)
+      errors.push(
+        'Use either structured body or legacy module regions, not both.',
+      );
+  }
   const regions = mapping.regions ?? [];
   if (
     !Array.isArray(regions) ||

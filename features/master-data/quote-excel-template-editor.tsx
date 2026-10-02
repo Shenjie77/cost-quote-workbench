@@ -1,8 +1,17 @@
 'use client';
 
-import { book2ExampleMapping } from '@/features/quote/book2-example-mapping';
+import {
+  book2ExampleMapping,
+  book2StructuredMapping,
+} from '@/features/quote/book2-example-mapping';
+
+import {
+  QuoteBodyLayoutEditor,
+  emptyBodyLayout,
+} from './quote-body-layout-editor';
 
 import { useEffect, useRef, useState } from 'react';
+import { contentKey } from '@/features/cpq/domain';
 import {
   Download,
   FileSpreadsheet,
@@ -55,6 +64,7 @@ function initialDraft(asset: QuoteExcelAsset): MappingDraft {
     fileName: asset.fileName,
     sheetName: asset.sheets[0]?.name || '',
     detailRow: '12',
+    body: emptyBodyLayout(),
     columns: { description: 'B', amount: 'F' },
     cells: {},
   };
@@ -96,8 +106,11 @@ function mappingFromDraft(draft: MappingDraft): QuoteExcelTemplate {
       .map(([key, value]) => [key, value.trim().toUpperCase()])
       .filter(([, value]) => value),
   );
+  const { body, regions, ...base } = draft;
   return {
-    ...draft,
+    ...base,
+    ...(body ? { body } : {}),
+    ...(regions ? { regions } : {}),
     columns,
     cells,
     ...(draft.textCells
@@ -113,7 +126,10 @@ function mappingFromDraft(draft: MappingDraft): QuoteExcelTemplate {
 }
 
 /** Three synthetic lines exercise row expansion and totals without reading or archiving any project. */
-async function sampleWorkbook(mapping: QuoteExcelTemplate) {
+async function sampleWorkbook(
+  mapping: QuoteExcelTemplate,
+  includeOptional = true,
+) {
   const [
     { buildQuoteWorkbookBuffer },
     { calculatePricing, initialPricingSettings },
@@ -146,6 +162,26 @@ async function sampleWorkbook(mapping: QuoteExcelTemplate) {
     pricing: calculatePricing(1200, {
       ...initialPricingSettings,
       targetGrossMargin: 20,
+      ...(mapping.body
+        ? {
+            lineGroups: {
+              'sample-1': {
+                category: 'Professional Service',
+                inclusion: 'mandatory' as const,
+              },
+              'sample-2': {
+                category: 'Custom category',
+                inclusion: 'mandatory' as const,
+              },
+              'sample-3': {
+                category: 'Professional Service',
+                inclusion: includeOptional
+                  ? ('optional' as const)
+                  : ('mandatory' as const),
+              },
+            },
+          }
+        : {}),
       ...(mapping.regions?.length
         ? {
             lineGroups: Object.fromEntries(
@@ -312,6 +348,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
     try {
       // Building without a download catches merge and formula conflicts while leaving the source untouched.
       await sampleWorkbook(mapping);
+      if (mapping.body) await sampleWorkbook(mapping, false);
       if (!alive.current || token !== request.current) return;
       onChange(mapping);
       setNotice(
@@ -333,7 +370,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
   }
 
   /** Download the original or a synthetic fill; neither path creates project archive/history records. */
-  async function downloadWorkbook(sample = false) {
+  async function downloadWorkbook(sample = false, includeOptional = true) {
     if (!draft || inFlight.current) return;
     const mapping = mappingFromDraft(draft);
     if (sample) {
@@ -350,7 +387,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
     setError('');
     try {
       const bytes = sample
-        ? await sampleWorkbook(mapping)
+        ? await sampleWorkbook(mapping, includeOptional)
         : await loadQuoteExcelTemplate(mapping.assetId);
       if (!alive.current || token !== request.current) return;
       const url = URL.createObjectURL(
@@ -360,7 +397,9 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
       );
       const link = document.createElement('a');
       link.href = url;
-      link.download = sample ? `SAMPLE_${mapping.fileName}` : mapping.fileName;
+      link.download = sample
+        ? `SAMPLE_${mapping.body ? (includeOptional ? 'WITH_OPTIONAL_' : 'WITHOUT_OPTIONAL_') : ''}${mapping.fileName}`
+        : mapping.fileName;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       if (sample)
@@ -396,7 +435,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
   }
 
   const changed =
-    draft && JSON.stringify(mappingFromDraft(draft)) !== JSON.stringify(value);
+    draft && contentKey(mappingFromDraft(draft)) !== contentKey(value);
   return (
     <section
       className="space-y-3 rounded-md border bg-muted/10 p-3"
@@ -471,25 +510,68 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               </select>
             </label>
             <label className="block space-y-1 text-xs">
+              Output mode
+              <select
+                aria-label="Quotation output mode"
+                className="h-9 w-full rounded-md border bg-background px-2"
+                value={draft.body ? 'body' : 'legacy'}
+                onChange={(event) => {
+                  if (event.target.value === 'body') {
+                    setDraft({
+                      ...draft,
+                      body: emptyBodyLayout(),
+                      regions: undefined,
+                    });
+                    setNotice(
+                      'Set the full body range, including all old headings and totals. Move cell placeholders outside that range.',
+                    );
+                  } else setDraft({ ...draft, body: undefined });
+                }}
+              >
+                <option value="body">Structured body (Recommended)</option>
+                <option value="legacy">Legacy rows / regions</option>
+              </select>
+            </label>
+          </div>
+          {draft.body ? (
+            <>
+              <QuoteBodyLayoutEditor
+                value={draft.body}
+                onChange={(body) => setDraft({ ...draft, body })}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setDraft(
+                    editableMapping(
+                      book2StructuredMapping(mappingFromDraft(draft)),
+                    ),
+                  )
+                }
+              >
+                Use Book2 structured layout
+              </Button>
+            </>
+          ) : (
+            <label className="block max-w-xs space-y-1 text-xs">
               Repeatable detail row *
               <Input
                 aria-label="Repeatable detail row"
                 type="number"
                 min={1}
                 max={MAX_QUOTE_TEMPLATE_ROW}
-                step={1}
                 value={draft.detailRow}
                 onChange={(event) =>
                   setDraft({ ...draft, detailRow: event.target.value })
                 }
               />
             </label>
-          </div>
+          )}
           <p className="text-xs leading-5 text-muted-foreground">
-            Use coordinates from the original workbook. One detail row is copied
-            for each quote line; totals and terms below it move down
-            automatically. Use the top-left cell of merged ranges. The detail
-            row can merge horizontally, but cannot belong to a vertical merge.
+            Use original workbook coordinates. Content below the generated rows
+            moves automatically. Column mappings apply to detail rows; style
+            rows supply formatting only.
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {columnLabels.map(([field, label]) => (
@@ -519,191 +601,197 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               </label>
             ))}
           </div>
-          <details
-            open
-            className="space-y-3 rounded-md border bg-background p-3"
-          >
-            <summary className="cursor-pointer text-xs font-medium">
-              Dynamic quotation modules
-            </summary>
-            <p className="text-xs text-muted-foreground">
-              Use original row numbers. Rows before/after the sample detail rows
-              are retained as headings/subtotals. Actual items replace all
-              sample detail rows. An empty module removes its entire region,
-              including headings. Put project-wide totals outside module
-              regions.
-            </p>
-            {(draft.regions ?? []).map((region, index) => (
-              <div
-                key={index}
-                className="grid gap-2 border-b pb-2 sm:grid-cols-6"
+          {!draft.body && (
+            <>
+              <details
+                open
+                className="space-y-3 rounded-md border bg-background p-3"
               >
-                <label className="text-xs">
-                  Module
-                  <select
-                    aria-label={`Module ${index + 1} source`}
-                    className="h-9 w-full border bg-background px-1"
-                    value={region.source}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        regions: draft.regions!.map((r, i) =>
-                          i === index
-                            ? {
-                                ...r,
-                                source: e.target.value as typeof r.source,
-                              }
-                            : r,
-                        ),
-                      })
-                    }
+                <summary className="cursor-pointer text-xs font-medium">
+                  Dynamic quotation modules
+                </summary>
+                <p className="text-xs text-muted-foreground">
+                  Use original row numbers. Rows before/after the sample detail
+                  rows are retained as headings/subtotals. Actual items replace
+                  all sample detail rows. An empty module removes its entire
+                  region, including headings. Put project-wide totals outside
+                  module regions.
+                </p>
+                {(draft.regions ?? []).map((region, index) => (
+                  <div
+                    key={index}
+                    className="grid gap-2 border-b pb-2 sm:grid-cols-6"
                   >
-                    <option value="service">Professional Service</option>
-                    <option value="maintenance">Maintenance</option>
-                    <option value="optional">All Optional categories</option>
-                    <option value="category">Custom category</option>
-                  </select>
-                </label>
-                {region.source === 'category' && (
-                  <label className="text-xs">
-                    Category title
-                    <Input
-                      aria-label={`Module ${index + 1} category`}
-                      placeholder="Same category as quotation lines"
-                      maxLength={120}
-                      value={region.category ?? ''}
-                      onChange={(e) =>
+                    <label className="text-xs">
+                      Module
+                      <select
+                        aria-label={`Module ${index + 1} source`}
+                        className="h-9 w-full border bg-background px-1"
+                        value={region.source}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            regions: draft.regions!.map((r, i) =>
+                              i === index
+                                ? {
+                                    ...r,
+                                    source: e.target.value as typeof r.source,
+                                  }
+                                : r,
+                            ),
+                          })
+                        }
+                      >
+                        <option value="service">Professional Service</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="optional">
+                          All Optional categories
+                        </option>
+                        <option value="category">Custom category</option>
+                      </select>
+                    </label>
+                    {region.source === 'category' && (
+                      <label className="text-xs">
+                        Category title
+                        <Input
+                          aria-label={`Module ${index + 1} category`}
+                          placeholder="Same category as quotation lines"
+                          maxLength={120}
+                          value={region.category ?? ''}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              regions: draft.regions!.map((r, i) =>
+                                i === index
+                                  ? { ...r, category: e.target.value }
+                                  : r,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                    )}
+                    {region.source !== 'optional' && (
+                      <label className="text-xs">
+                        Inclusion
+                        <select
+                          aria-label={`Module ${index + 1} inclusion`}
+                          className="h-9 w-full border bg-background px-1"
+                          value={region.inclusion ?? 'mandatory'}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              regions: draft.regions!.map((r, i) =>
+                                i === index
+                                  ? {
+                                      ...r,
+                                      inclusion: e.target.value as
+                                        | 'mandatory'
+                                        | 'optional',
+                                    }
+                                  : r,
+                              ),
+                            })
+                          }
+                        >
+                          <option value="mandatory">Mandatory</option>
+                          <option value="optional">Optional</option>
+                        </select>
+                      </label>
+                    )}
+                    {(
+                      [
+                        ['startRow', 'Region start'],
+                        ['detailRow', 'First detail'],
+                        ['detailEndRow', 'Last detail'],
+                        ['endRow', 'Region end'],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <label key={key} className="text-xs">
+                        {label}
+                        <Input
+                          aria-label={`Module ${index + 1} ${label}`}
+                          type="number"
+                          min={1}
+                          max={20000}
+                          value={region[key] || ''}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              regions: draft.regions!.map((r, i) =>
+                                i === index
+                                  ? { ...r, [key]: Number(e.target.value) }
+                                  : r,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
                         setDraft({
                           ...draft,
-                          regions: draft.regions!.map((r, i) =>
-                            i === index
-                              ? { ...r, category: e.target.value }
-                              : r,
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                )}
-                {region.source !== 'optional' && (
-                  <label className="text-xs">
-                    Inclusion
-                    <select
-                      aria-label={`Module ${index + 1} inclusion`}
-                      className="h-9 w-full border bg-background px-1"
-                      value={region.inclusion ?? 'mandatory'}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          regions: draft.regions!.map((r, i) =>
-                            i === index
-                              ? {
-                                  ...r,
-                                  inclusion: e.target.value as
-                                    | 'mandatory'
-                                    | 'optional',
-                                }
-                              : r,
-                          ),
+                          regions: draft.regions!.filter((_, i) => i !== index),
                         })
                       }
                     >
-                      <option value="mandatory">Mandatory</option>
-                      <option value="optional">Optional</option>
-                    </select>
-                  </label>
-                )}
-                {(
-                  [
-                    ['startRow', 'Region start'],
-                    ['detailRow', 'First detail'],
-                    ['detailEndRow', 'Last detail'],
-                    ['endRow', 'Region end'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label key={key} className="text-xs">
-                    {label}
-                    <Input
-                      aria-label={`Module ${index + 1} ${label}`}
-                      type="number"
-                      min={1}
-                      max={20000}
-                      value={region[key] || ''}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          regions: draft.regions!.map((r, i) =>
-                            i === index
-                              ? { ...r, [key]: Number(e.target.value) }
-                              : r,
-                          ),
-                        })
-                      }
-                    />
-                  </label>
+                      Remove
+                    </Button>
+                  </div>
                 ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setDraft({
-                      ...draft,
-                      regions: draft.regions!.filter((_, i) => i !== index),
-                    })
-                  }
-                >
-                  Remove
-                </Button>
-              </div>
-            ))}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={(draft.regions?.length ?? 0) >= 50}
-                onClick={() =>
-                  setDraft({
-                    ...draft,
-                    regions: [
-                      ...(draft.regions ?? []),
-                      {
-                        source: !draft.regions?.length
-                          ? 'service'
-                          : draft.regions.length === 1
-                            ? 'maintenance'
-                            : 'category',
-                        startRow: 0,
-                        endRow: 0,
-                        detailRow: 0,
-                        detailEndRow: 0,
-                      },
-                    ],
-                  })
-                }
-              >
-                Add module region
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  setDraft(
-                    editableMapping(
-                      book2ExampleMapping(mappingFromDraft(draft)),
-                    ),
-                  )
-                }
-              >
-                Use Book2 example mapping
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Match category titles to quotation lines (case-insensitive). Each
-              Category / Inclusion group must map to exactly one region. Empty
-              groups are removed. The Book2 example stages coordinates only;
-              review them before applying.
-            </p>
-          </details>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={(draft.regions?.length ?? 0) >= 50}
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        regions: [
+                          ...(draft.regions ?? []),
+                          {
+                            source: !draft.regions?.length
+                              ? 'service'
+                              : draft.regions.length === 1
+                                ? 'maintenance'
+                                : 'category',
+                            startRow: 0,
+                            endRow: 0,
+                            detailRow: 0,
+                            detailEndRow: 0,
+                          },
+                        ],
+                      })
+                    }
+                  >
+                    Add module region
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setDraft(
+                        editableMapping(
+                          book2ExampleMapping(mappingFromDraft(draft)),
+                        ),
+                      )
+                    }
+                  >
+                    Use Book2 example mapping
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Match category titles to quotation lines (case-insensitive).
+                  Each Category / Inclusion group must map to exactly one
+                  region. Empty groups are removed. The Book2 example stages
+                  coordinates only; review them before applying.
+                </p>
+              </details>
+            </>
+          )}
           <details
             open
             className="space-y-3 rounded-md border bg-background p-3"
@@ -833,8 +921,19 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               disabled={!asset}
               onClick={() => void downloadWorkbook(true)}
             >
-              <Download /> Test with sample rows
+              <Download />{' '}
+              {draft.body ? 'Sample with Optional' : 'Test with sample rows'}
             </Button>
+            {draft.body && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!asset}
+                onClick={() => void downloadWorkbook(true, false)}
+              >
+                <Download /> Sample without Optional
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"

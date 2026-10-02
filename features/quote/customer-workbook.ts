@@ -1,12 +1,10 @@
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
-import type { QuoteLine } from './excel-template-types.ts';
-import { customerDocument } from './customer-document.ts';
+import { structuredBodyRows, defaultBodyTitles } from './structured-body.ts';
 
 /** Book2-style customer schedule. Internal cost/GP/CPQ fields never enter this workbook. */
 export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
   const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
-  const document = customerDocument(input);
   workbook.creator = 'Cost & Quote Workbench';
   workbook.calcProperties.fullCalcOnLoad = true;
   const sheet = workbook.addWorksheet('Quotation', {
@@ -75,26 +73,38 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
   });
   header.height = 30;
   let row = 12;
-  text(row++, `1  Mandatory items for ${input.project.name}`, true);
-  const group = (title: string, lines: QuoteLine[]) => {
-    if (!lines.length) return { cell: null, amount: 0 };
-    text(row++, title, true);
-    const first = row;
-    for (const [index, line] of lines.entries()) {
-      const values = [
-        String(index + 1),
+  const plan = structuredBodyRows(
+    input,
+    {
+      startRow: 12,
+      endRow: 12,
+      styles: {
+        chapter: 12,
+        category: 12,
+        detail: 12,
+        subtotal: 12,
+        total: 12,
+      },
+      numbering: 'hierarchical',
+      categoryOrder: [],
+      titles: defaultBodyTitles,
+    },
+    { project: input.project.name },
+  );
+  for (const entry of plan) {
+    if (entry.role === 'chapter' || entry.role === 'category') {
+      text(row, `${entry.number} ${entry.description}`, true);
+    } else if (entry.line) {
+      const line = entry.line;
+      [
+        entry.number,
         line.description,
         line.unit,
         line.unitPrice,
         line.quantity,
-      ];
-      values.forEach((value, column) => {
+      ].forEach((value, column) => {
         sheet.getCell(row, column + 2).value = value;
       });
-      sheet.getCell(row, 7).value = {
-        formula: `ROUND(E${row}*F${row},2)`,
-        result: line.amount,
-      };
       sheet.getCell(row, 3).alignment = { wrapText: true, vertical: 'top' };
       sheet.getRow(row).height = Math.max(
         26,
@@ -106,63 +116,28 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
       sheet.getCell(row, 6).numFmt = Number.isInteger(line.quantity)
         ? '#,##0'
         : '#,##0.####';
-      sheet.getCell(row, 7).numFmt = money;
-      row++;
+      sheet.getCell(row, 7).value = {
+        formula: `ROUND(E${row}*F${row},2)`,
+        result: line.amount,
+      };
+    } else {
+      sheet.getCell(row, 3).value = entry.description;
+      sheet.getRow(row).font = {
+        name: 'Arial',
+        size: entry.role === 'total' ? 11 : 10,
+        bold: true,
+      };
+      sheet.getCell(row, 7).value = entry.sum
+        ? {
+            formula: `ROUND(SUM(${entry.sum.map((index) => `G${12 + index}`).join(',')})${entry.subtract === undefined ? '' : `-G${12 + entry.subtract}`},2)`,
+            result: entry.amount,
+          }
+        : entry.amount;
     }
-    const amount = lines.reduce((sum, line) => sum + line.amount, 0);
-    sheet.getCell(row, 3).value =
-      `${title.replace(/^\d+\.\d+\s+/, '')} subtotal`;
-    sheet.getCell(row, 7).value = {
-      formula: `ROUND(SUM(G${first}:G${row - 1}),2)`,
-      result: amount,
-    };
     sheet.getCell(row, 7).numFmt = money;
-    sheet.getRow(row).font = { name: 'Arial', size: 10, bold: true };
-    const cell = `G${row}`;
-    row += 2;
-    return { cell, amount };
-  };
-  const mandatory = document.sections
-    .filter((s) => s.inclusion === 'mandatory')
-    .map((section, index) =>
-      group(`1.${index + 1} ${section.category}`, section.lines),
-    );
-  const discountRow = row++;
-  sheet.getCell(discountRow, 3).value = 'Service discount';
-  sheet.getCell(discountRow, 7).value = input.pricing.discount;
-  sheet.getCell(discountRow, 7).numFmt = money;
-  sheet.getCell(row, 3).value = 'Total price for mandatory items';
-  sheet.getCell(row, 7).value = {
-    formula: `ROUND(${
-      mandatory
-        .map((section) => section.cell)
-        .filter(Boolean)
-        .join('+') || '0'
-    }-G${discountRow},2)`,
-    result: document.total,
-  };
-  sheet.getCell(row, 7).numFmt = money;
-  sheet.getRow(row).font = { name: 'Arial', size: 11, bold: true };
-  row += 2;
-  const optionalSections = document.sections.filter(
-    (s) => s.inclusion === 'optional',
-  );
-  if (optionalSections.length) {
-    text(row++, '2 Optional items (excluded from mandatory total)', true);
-    const optional = optionalSections.map((section, index) =>
-      group(`2.${index + 1} ${section.category}`, section.lines),
-    );
-    sheet.getCell(row, 3).value = 'Total price for optional items';
-    sheet.getCell(row, 7).value = {
-      formula: `SUM(${optional
-        .map((s) => s.cell)
-        .filter(Boolean)
-        .join(',')})`,
-      result: document.optionalAmount,
-    };
-    sheet.getCell(row, 7).numFmt = money;
-    row += 2;
+    row++;
   }
+  row++;
   const paragraphs = (title: string, values: string[]) => {
     text(row++, title, true);
     for (const value of values)
