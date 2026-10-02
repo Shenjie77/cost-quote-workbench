@@ -27,7 +27,7 @@ export type QuoteTemplate = {
   paymentTerms: string;
   /** Legacy translation; current editors and customer outputs use paymentTerms. */
   paymentTermsZh?: string;
-  /** Free-form client T&C, preserved verbatim; no mandatory translation. */
+  /** Client T&C text with optional public-field placeholders; no mandatory translation. */
   termsAndConditions: string;
   /** Suggested library rows copied when the user applies this template. */
   defaultAssumptionIds: string[];
@@ -69,6 +69,7 @@ export function isRetiredQuoteAssumption(row: {
 export type QuoteHistoryStatus = 'Draft' | 'Final';
 
 export type QuoteHistoryRecord = {
+  quotationProjectName?: string;
   /** Customer document total includes the separately priced maintenance schedule. */
   customerQuoteAmount?: number;
   customerOptionalAmount?: number;

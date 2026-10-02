@@ -147,6 +147,7 @@
       "additionalProperties": false,
       "required": ["targetGrossMargin", "discount", "gstPercent"],
       "properties": {
+        "quotationProjectName": { "type": "string", "maxLength": 500 },
         "targetGrossMargin": {
           "type": "number",
           "minimum": 0,
@@ -1226,6 +1227,7 @@
         "note"
       ],
       "properties": {
+        "quotationProjectName": { "type": "string", "maxLength": 500 },
         "id": {
           "$ref": "#/$defs/identifier"
         },
@@ -2846,6 +2848,7 @@
             "titles"
           ],
           "properties": {
+            "showSubtotals": { "type": "boolean" },
             "startRow": {
               "type": "integer",
               "minimum": 1,
@@ -2895,11 +2898,7 @@
               }
             },
             "numbering": {
-              "enum": [
-                "hierarchical",
-                "continuous",
-                "alphabetic"
-              ]
+              "enum": ["hierarchical", "continuous", "alphabetic"]
             },
             "categoryOrder": {
               "type": "array",

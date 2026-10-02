@@ -1,3 +1,5 @@
+import { quotationProjectName, renderTemplateText } from './template-text';
+import { quoteFieldValues } from './document-fields';
 import { groupedLines, quotationSections } from './quotation-groups';
 /** Read-only customer quotation content, opened on demand without changing the draft. */
 import { Fragment, useState } from 'react';
@@ -61,6 +63,7 @@ export function QuotePreviewDialog({
   maintenanceAmount?: number;
 }) {
   const [open, setOpen] = useState(false);
+  const customerName = quotationProjectName({ project, pricing });
   const sections = quotationSections(
     groupedLines([...lines, ...maintenanceLines], pricing.lineGroups),
   );
@@ -68,6 +71,33 @@ export function QuotePreviewDialog({
     .filter((s) => s.inclusion === 'optional')
     .flatMap((s) => s.lines)
     .reduce((sum, l) => sum + l.amount, 0);
+
+  let renderedTerms = template?.termsAndConditions ?? '',
+    termsError = '';
+  if (template)
+    try {
+      const values = quoteFieldValues({
+        project,
+        pricing,
+        template,
+        quoteNumber: `QT-${project.id.replace(/^PRJ-/, '')}-${activeVersion}`,
+        costVersion: activeVersion,
+        assumptions: [...assumptions],
+        lines: [...lines],
+      });
+      // Maintenance preview rows are already priced, so use their shown amounts here.
+      values.maintenancePrice = maintenanceAmount;
+      values.optionalPrice = optionalAmount;
+      values.quoteBeforeTax = values.quoteAfterTax =
+        pricing.quoteBeforeTax + maintenanceAmount - optionalAmount;
+      delete values.termsAndConditions;
+      renderedTerms = String(
+        renderTemplateText(template.termsAndConditions, values) ?? '',
+      );
+    } catch (error) {
+      termsError =
+        error instanceof Error ? error.message : 'Check T&C placeholders.';
+    }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -86,6 +116,11 @@ export function QuotePreviewDialog({
             selected customer template.
           </DialogDescription>
         </DialogHeader>
+        {termsError && (
+          <p role="alert" className="text-xs text-destructive">
+            {termsError}
+          </p>
+        )}
         {!pricing.valid && (
           <p
             role="alert"
@@ -114,7 +149,7 @@ export function QuotePreviewDialog({
               Prepared for
             </p>
             <p className="mt-1 text-sm font-semibold">{project.client}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{project.name}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{customerName}</p>
           </div>
           {/* Line amounts share the same calculated source as the customer workbook. */}
           <Table
@@ -216,7 +251,7 @@ export function QuotePreviewDialog({
               <div className="border-t pt-2">
                 <p className="font-semibold">Terms &amp; Conditions</p>
                 <p className="whitespace-pre-wrap break-words">
-                  {template.termsAndConditions}
+                  {renderedTerms}
                 </p>
               </div>
             )}

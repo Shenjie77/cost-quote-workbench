@@ -1,3 +1,4 @@
+import type { SavedQuoteLayout } from './layout-presets.ts';
 /** Binary templates remain in the local API database, separate from project JSON. */
 import type { QuoteExcelAsset } from './excel-template-types.ts';
 
@@ -62,4 +63,24 @@ export async function loadQuoteExcelTemplate(
   const response = await fetch(`${assetEndpoint(assetId)}/content`);
   await assertResponse(response);
   return new Uint8Array(await response.arrayBuffer());
+}
+
+export async function loadSavedQuoteLayouts(): Promise<SavedQuoteLayout[]> {
+  const response = await fetch(`${ENDPOINT}/layouts`);
+  await assertResponse(response);
+  return ((await response.json()) as { data: SavedQuoteLayout[] }).data;
+}
+export async function saveQuoteLayout(input: {
+  name: string;
+  mapping: SavedQuoteLayout['mapping'];
+  id?: string;
+  expectedRevision?: number;
+}): Promise<SavedQuoteLayout> {
+  const response = await fetch(`${ENDPOINT}/layouts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  await assertResponse(response);
+  return ((await response.json()) as { data: SavedQuoteLayout }).data;
 }

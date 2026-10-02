@@ -1,3 +1,5 @@
+import { quotationProjectName } from './template-text';
+import { quoteFieldValues } from './document-fields';
 import { QuoteGroupFields } from './quote-group-fields';
 import { groupFor } from './quotation-groups';
 import { QuoteExportDialog } from './quote-export-dialog';
@@ -192,8 +194,12 @@ export function QuoteView({
   const effectiveAssumptionLibrary = assumptionLibrary.filter(
     (row) => !isRetiredQuoteAssumption(row),
   );
+  const customerProject = {
+    ...project,
+    name: quotationProjectName({ project, pricing: result }),
+  };
   const lines = buildQuoteLines(
-    costSnapshot,
+    { ...costSnapshot, project: customerProject },
     pricing.lineMode,
     result.listPrice,
     result.allocatedManualLines ?? pricing.manualLines,
@@ -236,6 +242,17 @@ export function QuoteView({
   let customerPreview: ReturnType<typeof customerDocument> | undefined;
   if (template && result.valid) {
     try {
+      quoteFieldValues({
+        project,
+        quoteNumber: 'PREVIEW',
+        costVersion: activeVersion,
+        template,
+        assumptions: effectiveQuoteAssumptions,
+        pricing: result,
+        lines,
+        maintenance,
+        layout: 'customer',
+      });
       customerPreview = customerDocument({
         project,
         quoteNumber: '',
@@ -436,7 +453,13 @@ export function QuoteView({
           profitShareMasterDataRevision,
         ),
         note: `Generated ${exported.fileName}`,
-        templateSnapshot: exportInput.template,
+        quotationProjectName: quotationProjectName(exportInput),
+        templateSnapshot: {
+          ...exportInput.template,
+          termsAndConditions: String(
+            quoteFieldValues(exportInput).termsAndConditions ?? '',
+          ),
+        },
         assumptionSnapshots: structuredClone(
           exportInput.assumptions.filter((row) => row.included),
         ),
@@ -501,6 +524,28 @@ export function QuoteView({
         onManage={() => onOpenMasterData('quote-templates')}
         busy={exportInProgress}
       />
+      <div className="wb-panel flex flex-wrap items-center gap-2 px-3 py-2">
+        <label htmlFor="quotation-project-name" className="text-xs font-medium">
+          Quotation project name
+        </label>
+        <input
+          id="quotation-project-name"
+          className="h-8 min-w-48 flex-1 border-0 bg-transparent px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+          maxLength={500}
+          value={pricing.quotationProjectName ?? ''}
+          placeholder={project.name}
+          disabled={exportInProgress}
+          onChange={(event) =>
+            setPricing((current) => ({
+              ...current,
+              quotationProjectName: event.target.value,
+            }))
+          }
+        />
+        <span className="text-xs text-muted-foreground">
+          Customer documents only · blank uses the project name
+        </span>
+      </div>
       <section className="wb-panel min-w-0" aria-label="Quotation pricing">
         <SectionHeading
           index="01"
@@ -939,6 +984,9 @@ export function QuoteView({
                           </summary>
                           <div className="space-y-2 whitespace-pre-wrap py-2">
                             <p>{record.templateSnapshot.name}</p>
+                            {record.quotationProjectName && (
+                              <p>Project: {record.quotationProjectName}</p>
+                            )}
                             <p>
                               Validity: {record.templateSnapshot.validityDays}{' '}
                               days

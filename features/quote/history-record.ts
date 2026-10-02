@@ -1,3 +1,5 @@
+import { quoteFieldValues } from './document-fields.ts';
+import { quotationProjectName } from './template-text.ts';
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
 import type { QuoteHistoryRecord, QuoteProfitShareSnapshot } from './types.ts';
 import type { PricingResult } from './domain.ts';
@@ -39,13 +41,26 @@ export function quoteHistoryRecord(
       input.profitShareMasterDataRevision,
     ),
     note: `${note} Export ${artifact.path} SHA256 ${artifact.sha256}`,
-    templateSnapshot: structuredClone(input.template),
+    quotationProjectName: quotationProjectName(input),
+    templateSnapshot: {
+      ...structuredClone(input.template),
+      termsAndConditions: String(
+        quoteFieldValues(input).termsAndConditions ?? '',
+      ),
+    },
     assumptionSnapshots: structuredClone(
       input.assumptions.filter((a) => a.included),
     ),
     ...(input.lines
       ? {
-          lineSnapshots: structuredClone(input.lines),
+          lineSnapshots: structuredClone(
+            input.lines.map((line) =>
+              line.id === 'service:project' &&
+              (!input.lineMode || input.lineMode === 'single')
+                ? { ...line, description: quotationProjectName(input) }
+                : line,
+            ),
+          ),
           lineMode: input.lineMode ?? 'single',
         }
       : {}),

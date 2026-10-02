@@ -384,6 +384,13 @@ export function QuoteTemplatesView({
             />
             <label htmlFor="template-tc" className="block text-xs">
               Terms & Conditions
+              <span className="mt-1 block text-muted-foreground">
+                Supports{' '}
+                {
+                  '{project} {client} {date} {quoteNumber} {currency} {validityDays} {paymentTerms} {companyName} {companyAddress} {quoteBeforeTax} {maintenancePrice} {optionalPrice}'
+                }
+                . Project uses the quotation project name.
+              </span>
               <Textarea
                 id="template-tc"
                 className="mt-1 min-h-40 text-xs"

@@ -1,5 +1,11 @@
 'use client';
 
+import { QuoteLayoutLibrary } from './quote-layout-library';
+import {
+  applySavedLayout,
+  reusableLayout,
+} from '@/features/quote/layout-presets';
+
 import {
   book2ExampleMapping,
   book2StructuredMapping,
@@ -74,6 +80,8 @@ function initialDraft(asset: QuoteExcelAsset): MappingDraft {
 function editableMapping(value?: QuoteExcelTemplate): MappingDraft | undefined {
   if (!value) return undefined;
   const copy = structuredClone(value);
+  if (copy.body?.titles.subtotal === '{category} subtotal')
+    copy.body.titles.subtotal = '{category} Subtotal';
   const textCells = [...(copy.textCells ?? [])];
   const cells: QuoteExcelTemplate['cells'] = {};
   for (const [field, address] of Object.entries(copy.cells)) {
@@ -312,9 +320,19 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
       const result = await uploadQuoteExcelTemplate(file);
       if (!alive.current || token !== request.current) return;
       setAsset(result);
-      setDraft(initialDraft(result));
+      setDraft(
+        draft
+          ? editableMapping(
+              applySavedLayout(
+                reusableLayout(mappingFromDraft(draft)),
+                result,
+                draft.sheetName,
+              ),
+            )
+          : initialDraft(result),
+      );
       setNotice(
-        'Workbook uploaded locally. Check its original coordinates, then apply the mapping.',
+        'Workbook uploaded locally. Existing layout settings are retained; check the original coordinates and apply the mapping.',
       );
     } catch (failure) {
       if (alive.current && token === request.current)
@@ -487,6 +505,26 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               <Download /> Download original
             </Button>
           </div>
+          {asset && (
+            <QuoteLayoutLibrary
+              mapping={mappingFromDraft(draft)}
+              disabled={busy}
+              onApply={(layout) =>
+                setDraft(
+                  editableMapping(
+                    applySavedLayout(layout, asset, draft.sheetName),
+                  ),
+                )
+              }
+              validate={async () => {
+                const mapping = mappingFromDraft(draft),
+                  errors = validateQuoteExcelMapping(mapping, asset.sheets);
+                if (errors.length) throw new Error(errors.join(' '));
+                await sampleWorkbook(mapping);
+                await sampleWorkbook(mapping, false);
+              }}
+            />
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1 text-xs">
               Worksheet

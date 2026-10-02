@@ -415,8 +415,11 @@ test('failed replacement retains the current mapping and allows a clean retry', 
   editor.upload(new File(['data'], 'Replacement.xlsx'));
   await settle();
   assert.doesNotMatch(textOf(editor.render()), /Unsupported chart/);
-  editor.change('Quotation output mode', 'legacy');
-  populateRequired(editor);
+  assert.equal(
+    editor.input('Text cell 1 address').props.value,
+    'B2',
+    'replacement retains existing placeholders',
+  );
   await editor.button('Apply mapping').props.onClick();
   assert.equal(changes[0].assetId, 'b'.repeat(64));
   assert.equal(saved.assetId, 'a'.repeat(64));

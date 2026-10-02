@@ -17,7 +17,7 @@ const titleLabels: Record<keyof QuoteBodyLayout['titles'], string> = {
   mandatory: 'Mandatory chapter',
   optional: 'Optional chapter',
   category: 'Category heading',
-  subtotal: 'Category subtotal',
+  subtotal: 'Category Subtotal',
   mandatoryTotal: 'Mandatory total',
   optionalTotal: 'Optional total',
   discount: 'Discount',
@@ -97,6 +97,21 @@ export function QuoteBodyLayoutEditor({
                 </td>
               </tr>
             ))}
+            <tr>
+              <th className="px-2 font-normal">Category Subtotals</th>
+              <td className="px-2">
+                <label className="flex h-8 items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={value.showSubtotals !== false}
+                    onChange={(e) =>
+                      onChange({ ...value, showSubtotals: e.target.checked })
+                    }
+                  />
+                  Include category Subtotals
+                </label>
+              </td>
+            </tr>
             <tr>
               <th className="px-2 font-normal">Item numbering</th>
               <td>

@@ -27,7 +27,8 @@ import {
 import { validateQuoteLines } from './quote-lines.ts';
 import { assertValidQuotePricing } from './export-validation.ts';
 import { isRetiredQuoteAssumption } from './types.ts';
-import { renderTemplateText, templateDate } from './template-text.ts';
+import { renderTemplateText, quotationProjectName } from './template-text.ts';
+import { quoteFieldValues } from './document-fields.ts';
 import { customerDocument } from './customer-document.ts';
 
 const MAX_COMPRESSED_BYTES = 10 * 1024 * 1024;
@@ -687,58 +688,17 @@ function moveWorksheetFeatures(
 }
 
 /** Supplies only customer-facing metadata and commercial amounts to mapped cells. */
-function quoteFieldValues(
-  input: QuoteWorkbookInput,
-): Record<string, string | number | null> {
-  return {
-    date: templateDate(input),
-    optionalPrice: customerDocument(input).optionalAmount,
-    companyName: input.template.excel?.variables?.companyName ?? '',
-    companyAddress: input.template.excel?.variables?.companyAddress ?? '',
-    documentStatus: input.documentStatus ?? 'Final',
-    maintenancePrice:
-      input.template.excel?.body || input.template.excel?.regions?.length
-        ? customerDocument(input).maintenanceAmount
-        : 0,
-    quoteNumber:
-      input.documentStatus === 'Draft' &&
-      !input.quoteNumber.startsWith('DRAFT-')
-        ? `DRAFT-${input.quoteNumber}`
-        : input.quoteNumber,
-    client: input.project.client,
-    project: input.project.name,
-    costVersion: input.costVersion,
-    currency: input.project.currency,
-    documentTitle: input.template.documentTitle,
-    validityDays: input.template.validityDays,
-    paymentTerms: input.template.paymentTerms,
-    termsAndConditions: input.template.termsAndConditions,
-    assumptions: input.assumptions
-      .filter((assumption) => assumption.included)
-      .map((assumption) => assumption.text)
-      .join('\n'),
-    servicePrice: input.pricing.listPrice,
-    discount: input.pricing.discount,
-    quoteBeforeTax:
-      input.template.excel?.body || input.template.excel?.regions?.length
-        ? customerDocument(input).total
-        : input.pricing.quoteBeforeTax,
-    // Existing tax mappings are deliberately cleared; both legacy total mappings receive the same final amount.
-    gstPercent: null,
-    gstAmount: null,
-    quoteAfterTax:
-      input.template.excel?.body || input.template.excel?.regions?.length
-        ? customerDocument(input).total
-        : input.pricing.quoteBeforeTax,
-  };
-}
-
 /** Validates immutable customer lines and their exact reconciliation to the service price. */
 function quoteLines(input: QuoteWorkbookInput): QuoteLine[] {
-  const lines = input.lines ?? [
+  const lines = input.lines?.map((line) =>
+    line.id === 'service:project' &&
+    (!input.lineMode || input.lineMode === 'single')
+      ? { ...line, description: quotationProjectName(input) }
+      : line,
+  ) ?? [
     {
       id: 'service',
-      description: input.project.name,
+      description: quotationProjectName(input),
       quantity: 1,
       unit: 'lot',
       unitPrice: input.pricing.listPrice,

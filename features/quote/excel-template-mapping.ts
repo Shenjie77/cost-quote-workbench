@@ -198,6 +198,12 @@ export function validateQuoteExcelMapping(
     }
   if (mapping.body !== undefined) {
     const body = mapping.body;
+    if (
+      body &&
+      body.showSubtotals !== undefined &&
+      typeof body.showSubtotals !== 'boolean'
+    )
+      errors.push('Show Subtotals must be a boolean.');
     if (!isRecord(body) || !isRecord(body.styles) || !isRecord(body.titles)) {
       errors.push(
         'Configure the structured quotation body, row styles and titles.',

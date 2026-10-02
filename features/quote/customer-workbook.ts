@@ -1,3 +1,4 @@
+import { quoteFieldValues } from './document-fields.ts';
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
 import { structuredBodyRows, defaultBodyTitles } from './structured-body.ts';
 
@@ -5,6 +6,7 @@ import { structuredBodyRows, defaultBodyTitles } from './structured-body.ts';
 export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
   const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
+  const values = quoteFieldValues({ ...input, layout: 'customer' });
   workbook.creator = 'Cost & Quote Workbench';
   workbook.calcProperties.fullCalcOnLoad = true;
   const sheet = workbook.addWorksheet('Quotation', {
@@ -41,7 +43,7 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
   if (input.documentStatus === 'Draft')
     text(3, 'DRAFT — For review only; not a final quotation', true);
   text(5, `To: ${input.project.client}`, true);
-  text(7, `Quotation for ${input.project.name}`, true);
+  text(7, `Quotation for ${values.project}`, true);
   text(8, `Quotation No.: ${input.quoteNumber}`);
   text(
     9,
@@ -76,6 +78,7 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
   const plan = structuredBodyRows(
     input,
     {
+      showSubtotals: input.template.excel?.body?.showSubtotals,
       startRow: 12,
       endRow: 12,
       styles: {
@@ -89,7 +92,7 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
       categoryOrder: [],
       titles: defaultBodyTitles,
     },
-    { project: input.project.name },
+    values,
   );
   for (const entry of plan) {
     if (entry.role === 'chapter' || entry.role === 'category') {
@@ -157,7 +160,7 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
     [
       `Validity: ${input.template.validityDays} days`,
       `Payment terms: ${input.template.paymentTerms}`,
-      input.template.termsAndConditions,
+      String(values.termsAndConditions ?? ''),
     ].filter(Boolean),
   );
   sheet.eachRow((r) =>

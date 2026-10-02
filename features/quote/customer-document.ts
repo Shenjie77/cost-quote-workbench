@@ -1,3 +1,4 @@
+import { quotationProjectName } from './template-text.ts';
 import { groupedLines, quotationSections } from './quotation-groups.ts';
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
 import type { QuoteLine } from './excel-template-types.ts';
@@ -9,10 +10,15 @@ import { roundMoney } from '../cost/domain.ts';
 
 /** One customer-visible schedule shared by output validation and the archived snapshot. */
 export function customerDocument(input: QuoteWorkbookInput) {
-  const service = input.lines ?? [
+  const service = input.lines?.map((line) =>
+    line.id === 'service:project' &&
+    (!input.lineMode || input.lineMode === 'single')
+      ? { ...line, description: quotationProjectName(input) }
+      : line,
+  ) ?? [
     {
       id: 'service',
-      description: input.project.name,
+      description: quotationProjectName(input),
       quantity: 1,
       unit: 'per lot',
       unitPrice: input.pricing.listPrice,

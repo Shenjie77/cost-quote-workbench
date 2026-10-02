@@ -1,3 +1,5 @@
+import { quoteFieldValues } from './document-fields.ts';
+import { quotationProjectName } from './template-text.ts';
 import { unmergeWorkbook } from '../../lib/unmerged-workbook.ts';
 import { readableFileStem, exportTimestamp } from '../../lib/file-names.ts';
 /** Client quotation XLSX exporter used by the Pricing & Quote page. */
@@ -38,6 +40,12 @@ export const buildQuoteWorkbookBuffer = async (
 ) => {
   // Freeze output content before loading either the workbook library or local assets.
   input = structuredClone(input);
+  input.lines = input.lines?.map((line) =>
+    line.id === 'service:project' &&
+    (!input.lineMode || input.lineMode === 'single')
+      ? { ...line, description: quotationProjectName(input) }
+      : line,
+  );
   // Retire only the old system clause; customer-authored terms and saved snapshots remain untouched.
   input.assumptions = input.assumptions.filter(
     (row) => !isRetiredQuoteAssumption(row),
@@ -90,7 +98,7 @@ export const buildQuoteWorkbookBuffer = async (
   const metadata = [
     ['Quotation No.', input.quoteNumber],
     ['Client', input.project.client],
-    ['Project', input.project.name],
+    ['Project', quotationProjectName(input)],
     ['Cost Version', input.costVersion],
     ['Currency', input.project.currency],
   ];
@@ -139,7 +147,10 @@ export const buildQuoteWorkbookBuffer = async (
     `Validity: ${input.template.validityDays} days`,
     `Payment terms: ${input.template.paymentTerms}`,
     ...(input.template.termsAndConditions
-      ? ['Terms & Conditions', input.template.termsAndConditions]
+      ? [
+          'Terms & Conditions',
+          String(quoteFieldValues(input).termsAndConditions ?? ''),
+        ]
       : []),
     'Quotation Assumptions',
     ...input.assumptions
@@ -227,7 +238,7 @@ export const downloadQuoteWorkbook = async (input: QuoteWorkbookInput) => {
   const blob = new Blob([bytes], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const fileName = `Quotation_${input.documentStatus === 'Draft' ? 'DRAFT_' : ''}${readableFileStem(input.project.name)}_${exportTimestamp()}.xlsx`;
+  const fileName = `Quotation_${input.documentStatus === 'Draft' ? 'DRAFT_' : ''}${readableFileStem(quotationProjectName(input))}_${exportTimestamp()}.xlsx`;
   const { archiveProjectFile } = await import('../projects/project-files.ts');
   await archiveProjectFile(input.project.id, blob, {
     originalName: fileName,

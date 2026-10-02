@@ -41,6 +41,8 @@ export type QuoteExcelColumns = {
 
 /** One replaceable body, with reusable styles independent of category count. */
 export type QuoteBodyLayout = {
+  /** Omitted preserves existing templates with category subtotals. */
+  showSubtotals?: boolean;
   startRow: number;
   endRow: number;
   styles: {

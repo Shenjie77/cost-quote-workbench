@@ -20,6 +20,8 @@ import {
 } from './profit-share.ts';
 
 export type PricingSettings = {
+  /** Customer-facing project title; blank uses the internal project name. */
+  quotationProjectName?: string;
   lineGroups?: QuoteLineGroups;
   /** Target sales GP after BU profit share, as a percentage from 0 through 95. */
   targetGrossMargin: number;
@@ -82,6 +84,12 @@ export const calculatePricing = (
     ...basis.errors,
     ...validateLineGroups(settings.lineGroups),
   ];
+  if (
+    settings.quotationProjectName !== undefined &&
+    (typeof settings.quotationProjectName !== 'string' ||
+      settings.quotationProjectName.length > 500)
+  )
+    errors.push('Quotation project name must be at most 500 characters.');
   const manualPricing = settings.lineMode === 'manual';
   const gpManualPricing = manualPricing && settings.manualPricingBasis === 'gp';
   const independentLinePricing =
@@ -232,6 +240,9 @@ export const calculatePricing = (
       'Calculated quote exceeds the supported range. / 报价计算结果超出范围。',
     );
   return {
+    ...(typeof settings.quotationProjectName === 'string'
+      ? { quotationProjectName: settings.quotationProjectName.trim() }
+      : {}),
     ...(settings.lineGroups
       ? { lineGroups: structuredClone(settings.lineGroups) }
       : {}),

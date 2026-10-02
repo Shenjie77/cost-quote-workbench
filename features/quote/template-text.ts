@@ -91,3 +91,10 @@ export function hasTemplateField(
     )
   );
 }
+
+/** Internal project labels never need to be renamed to prepare a customer document. */
+export function quotationProjectName(
+  input: Pick<QuoteWorkbookInput, 'project' | 'pricing'>,
+): string {
+  return input.pricing.quotationProjectName?.trim() || input.project.name;
+}

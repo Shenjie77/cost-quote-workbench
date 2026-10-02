@@ -9,7 +9,7 @@ export const defaultBodyTitles: QuoteBodyLayout['titles'] = {
   mandatory: 'Mandatory items for {project}',
   optional: 'Optional items (excluded from mandatory total)',
   category: '{category}',
-  subtotal: '{category} subtotal',
+  subtotal: '{category} Subtotal',
   mandatoryTotal: 'Total price for mandatory items',
   optionalTotal: 'Total price for optional items',
   discount: 'Service discount',
@@ -90,15 +90,22 @@ export function structuredBodyRows(
                 : `${sectionNo}.${i + 1}`,
         });
       }
-      subtotals.push(rows.length);
-      rows.push({
-        role: 'subtotal',
-        description: text(layout.titles.subtotal, section.category),
-        sum: details,
-        amount: roundMoney(
-          section.lines.reduce((total, line) => total + line.amount, 0),
-        ),
-      });
+      if (layout.showSubtotals !== false) {
+        subtotals.push(rows.length);
+        rows.push({
+          role: 'subtotal',
+          description: text(
+            layout.titles.subtotal === '{category} subtotal'
+              ? '{category} Subtotal'
+              : layout.titles.subtotal,
+            section.category,
+          ),
+          sum: details,
+          amount: roundMoney(
+            section.lines.reduce((total, line) => total + line.amount, 0),
+          ),
+        });
+      } else subtotals.push(...details);
     }
     let discount: number | undefined;
     if (inclusion === 'mandatory' && input.pricing.discount) {

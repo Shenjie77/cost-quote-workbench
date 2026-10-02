@@ -1,3 +1,4 @@
+import { makeQuoteLayoutStore } from './quote-layouts.mjs';
 /** Immutable workbook assets share the local SQLite backup with template mappings. */
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
@@ -23,20 +24,23 @@ function validFileName(value) {
 }
 
 /** Reads a bounded binary request even when Content-Length is absent or incorrect. */
-async function readTemplateBody(request) {
+async function readTemplateBody(request, limit = MAX_QUOTE_TEMPLATE_BYTES) {
   const length = request.headers['content-length'];
+  const sizeError =
+    limit === MAX_QUOTE_TEMPLATE_BYTES
+      ? 'Excel template must be 10 MiB or smaller.'
+      : 'Layout configuration must be 128 KiB or smaller.';
   if (
     length !== undefined &&
-    (!/^\d+$/.test(String(length)) || Number(length) > MAX_QUOTE_TEMPLATE_BYTES)
+    (!/^\d+$/.test(String(length)) || Number(length) > limit)
   )
-    throw new RangeError('Excel template must be 10 MiB or smaller.');
+    throw new RangeError(sizeError);
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
     const bytes = Buffer.from(chunk);
     size += bytes.length;
-    if (size > MAX_QUOTE_TEMPLATE_BYTES)
-      throw new RangeError('Excel template must be 10 MiB or smaller.');
+    if (size > limit) throw new RangeError(sizeError);
     chunks.push(bytes);
   }
   return Buffer.concat(chunks, size);
@@ -71,6 +75,7 @@ export function openQuoteTemplateStore(databasePath) {
   };
 
   return {
+    layouts: makeQuoteLayoutStore(db),
     /** Validates before storing and deduplicates repeat uploads without overwriting the source. */
     async upload(fileName, bytes) {
       validFileName(fileName);
@@ -130,6 +135,32 @@ export async function routeQuoteTemplateAssets({
       url.searchParams.getAll(key).length !== 1
     )
       throw new TypeError(`Invalid Excel template query parameter: ${key}`);
+  }
+  if (suffix === '/layouts') {
+    let data;
+    if (request.method === 'GET') data = store.layouts.list();
+    else if (request.method === 'POST') {
+      const bytes = await readTemplateBody(request, 128 * 1024);
+      let input;
+      try {
+        input = JSON.parse(bytes.toString('utf8'));
+      } catch {
+        throw new TypeError('Layout configuration must be valid JSON.');
+      }
+      data = store.layouts.save(input);
+    } else
+      throw new ProjectFileError(
+        'Invalid layout request.',
+        405,
+        'METHOD_NOT_ALLOWED',
+      );
+    respond(200, {
+      apiVersion: API_VERSION,
+      kind: 'QuoteLayoutPresets',
+      ok: true,
+      data,
+    });
+    return true;
   }
   if (!suffix && request.method === 'POST') {
     const fileName = validFileName(url.searchParams.get('fileName'));
