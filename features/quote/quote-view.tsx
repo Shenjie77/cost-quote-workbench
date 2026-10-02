@@ -55,6 +55,7 @@ import type {
 import { Textarea } from '@/components/ui/textarea';
 import { AssumptionPicker } from './assumption-picker';
 import { QuoteTemplatePicker } from './template-picker';
+import { loadQuoteTemplateCatalog } from './template-catalog';
 import {
   applicableTemplates,
   matchesClient,
@@ -104,6 +105,7 @@ export function QuoteView({
   setPricing,
   assumptionLibrary,
   quoteTemplates,
+  onCaptureTemplate,
   selectedQuoteTemplateId,
   setSelectedQuoteTemplateId,
   quoteAssumptions,
@@ -137,6 +139,10 @@ export function QuoteView({
   setPricing: React.Dispatch<React.SetStateAction<PricingSettings>>;
   assumptionLibrary: AssumptionDefinition[];
   quoteTemplates: QuoteTemplate[];
+  onCaptureTemplate?: (
+    template: QuoteTemplate,
+    assumptions: AssumptionDefinition[],
+  ) => void;
   selectedQuoteTemplateId: string;
   setSelectedQuoteTemplateId: React.Dispatch<React.SetStateAction<string>>;
   quoteAssumptions: QuoteAssumption[];
@@ -298,14 +304,31 @@ export function QuoteView({
     }
   };
   /** Explicit selection applies eligible defaults once, retaining all local changes. */
-  const applyTemplate = (id: string) => {
-    const chosen = choices.find((item) => item.id === id);
-    if (!chosen) return;
+  const applyTemplate = (
+    id: string,
+    savedTemplate?: QuoteTemplate,
+    savedAssumptions?: AssumptionDefinition[],
+  ) => {
+    if (isExporting || exportInProgress) return;
+    const chosen = onCaptureTemplate
+      ? savedTemplate
+      : choices.find((item) => item.id === id);
+    if (
+      !chosen ||
+      chosen.id !== id ||
+      !chosen.active ||
+      !matchesClient(chosen.clientPattern, project.client)
+    )
+      return;
+    const library = (savedAssumptions ?? effectiveAssumptionLibrary).filter(
+      (row) => !isRetiredQuoteAssumption(row),
+    );
+    onCaptureTemplate?.(chosen, library);
     setSelectedQuoteTemplateId(id);
     setQuoteAssumptions((rows) =>
       referenceAssumptions(
         rows,
-        effectiveAssumptionLibrary,
+        library,
         chosen.defaultAssumptionIds,
         project.client,
       ),
@@ -465,6 +488,7 @@ export function QuoteView({
       <QuoteTemplatePicker
         key={project.id}
         templates={quoteTemplates}
+        loadCatalog={onCaptureTemplate ? loadQuoteTemplateCatalog : undefined}
         client={project.client}
         selectedId={selectedQuoteTemplateId}
         onApply={applyTemplate}

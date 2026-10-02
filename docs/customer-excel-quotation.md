@@ -17,7 +17,7 @@
 5. 点击 **Test with sample rows**，用三条虚构明细检查 Excel 的格式、公式和打印效果。此操作不会新增项目文件或报价历史。
 6. 点击 **Apply mapping**，系统先试填并验证实际模板结构，再应用配置；最后点击 **Save this tab** 保存全局模板。
 
-现有项目保留自己的模板快照。需要采用新配置时，按既有“应用主数据”流程将报价模板应用到项目，再在 Pricing & Quote 选择模板。历史报价保存原模板引用与明细快照，不随全局模板修改而变化。
+现有项目保留已应用的模板快照。Pricing & Quote 的模板列表在进入页面时读取最新已保存的 Master Data；新增或修改模板后，先保存 Master Data 页签，再返回报价页或点击 **Refresh templates**。下拉列表仅显示 Active 已启用且 Customer 为当前客户或 `*` 的模板。选择后点击 **Apply Template**，才会将该模板（包括 Excel 映射）和相关默认假设引用保存到当前项目；加载、刷新或仅切换候选项不会覆盖已应用模板。历史报价保存原模板引用与明细快照，不随全局模板修改而变化。
 
 Optional 单独列示，不计入 Mandatory 报价总额；内部成本与 GP 仍按全部服务明细计算。整单服务折扣仅从 Mandatory 服务金额扣减，不能超过该金额。`{quoteBeforeTax}` / `{quoteAfterTax}` 在模块模板中表示 Mandatory 总额，`{optionalPrice}` 表示 Optional 合计。未配置动态区域的旧模板不能输出自定义分类或 Optional 项，需先添加区域映射。
 

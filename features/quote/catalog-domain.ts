@@ -81,3 +81,18 @@ export function copyQuoteCatalog(
     })),
   };
 }
+
+/** Capture only explicitly applied references; unrelated project snapshots remain unchanged. */
+export function captureQuoteReferences<T extends { id: string }>(
+  current: T[],
+  selected: T[],
+): T[] {
+  const replacements = new Map(
+    selected.map((item) => [item.id, structuredClone(item)]),
+  );
+  const existing = new Set(current.map((item) => item.id));
+  return [
+    ...current.map((item) => replacements.get(item.id) ?? item),
+    ...[...replacements.values()].filter((item) => !existing.has(item.id)),
+  ];
+}

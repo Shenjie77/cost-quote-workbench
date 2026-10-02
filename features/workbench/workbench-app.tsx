@@ -4,6 +4,7 @@
  */
 
 'use client';
+import { captureQuoteReferences } from '@/features/quote/catalog-domain';
 import { CalculationDraftPage } from '@/features/calculation/calculation-draft-page';
 import { ContextBand } from '@/features/projects/project-context-band';
 
@@ -2576,6 +2577,19 @@ function ProjectSessionApp({
         setPricing={setPricing}
         assumptionLibrary={assumptionLibrary}
         quoteTemplates={quoteTemplates}
+        onCaptureTemplate={(chosen, library) => {
+          setQuoteTemplates((current) =>
+            captureQuoteReferences(current, [chosen]),
+          );
+          setAssumptionLibrary((current) =>
+            captureQuoteReferences(
+              current,
+              library.filter((row) =>
+                chosen.defaultAssumptionIds.includes(row.id),
+              ),
+            ),
+          );
+        }}
         selectedQuoteTemplateId={selectedQuoteTemplateId}
         setSelectedQuoteTemplateId={setSelectedQuoteTemplateId}
         quoteAssumptions={quoteAssumptions}
