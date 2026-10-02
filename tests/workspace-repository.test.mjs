@@ -528,3 +528,28 @@ test('bundled UI defaults satisfy the durable workspace contract', () => {
     repository.close();
   }
 });
+
+test('quotation groups persist with custom titles and inclusion; blank category is rejected', () => {
+  const repository = openWorkspaceRepository(':memory:');
+  try {
+    const workspace = makeWorkspace();
+    workspace.pricing = { targetGrossMargin: 50, discount: 0, gstPercent: 0 };
+    workspace.pricing.lineGroups = {
+      service: { category: 'Implementation services', inclusion: 'mandatory' },
+      'maintenance:m1': { category: 'Extended support', inclusion: 'optional' },
+    };
+    const saved = repository.save(workspace.project.id, workspace, null);
+    assert.deepEqual(
+      repository.get(workspace.project.id).workspace.pricing.lineGroups,
+      workspace.pricing.lineGroups,
+    );
+    const invalid = structuredClone(saved.workspace);
+    invalid.pricing.lineGroups.service.category = '  ';
+    assert.throws(
+      () => repository.save(workspace.project.id, invalid, saved.revision),
+      /category/i,
+    );
+  } finally {
+    repository.close();
+  }
+});

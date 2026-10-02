@@ -34,6 +34,7 @@ type PreparedImport = {
   fileName: string;
 };
 type Props = {
+  onOpenEntry?: () => void;
   tab: GlobalMasterDataTab;
   items: Item[];
   related?: RelatedCatalogs;
@@ -75,6 +76,7 @@ function describeInput(values: Item): string {
 
 /** Per-tab import stages validated changes in the existing draft; the normal Save/Publish action persists them. */
 export function BulkImportControls({
+  onOpenEntry,
   tab,
   items,
   related,
@@ -285,14 +287,30 @@ export function BulkImportControls({
         size="sm"
         variant="outline"
         disabled={disabled || busy}
-        onClick={() => changeOpen(true)}
-        aria-label={`Bulk import ${label}`}
+        onClick={() => (onOpenEntry ? onOpenEntry() : changeOpen(true))}
+        aria-label={`${onOpenEntry ? 'Bulk entry' : 'Bulk import'} ${label}`}
       >
         <Upload />{' '}
         <span>
-          <span className="hidden sm:inline">Bulk </span>Import
+          {onOpenEntry ? (
+            'Bulk Entry'
+          ) : (
+            <>
+              <span className="hidden sm:inline">Bulk </span>Import
+            </>
+          )}
         </span>
       </Button>
+      {onOpenEntry && (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={disabled || busy}
+          onClick={() => changeOpen(true)}
+        >
+          Import XLSX
+        </Button>
+      )}
       {!open && error && (
         <span role="alert" className="basis-full text-xs text-destructive">
           {error}

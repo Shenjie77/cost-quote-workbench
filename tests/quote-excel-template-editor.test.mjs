@@ -676,3 +676,39 @@ test('users can apply an uploaded template with no metadata placeholders', async
   assert.deepEqual(changes[0].cells, {});
   assert.equal(changes[0].textCells?.length ?? 0, 0);
 });
+
+test('custom template category and inclusion survive saving and guide sample generation', async (t) => {
+  const changes = [];
+  t.mock.method(globalThis, 'fetch', async () => response(asset()));
+  const saved = mapping({
+    regions: [
+      {
+        source: 'category',
+        category: 'Deployment',
+        inclusion: 'optional',
+        startRow: 10,
+        detailRow: 12,
+        detailEndRow: 12,
+        endRow: 14,
+      },
+    ],
+  });
+  const editor = harness({
+    templateId: 'custom-group',
+    value: saved,
+    onChange: (value) => changes.push(value),
+  });
+  t.after(() => editor.unmount());
+  editor.render();
+  await settle();
+  editor.change('Module 1 category', 'Managed support');
+  await editor.button('Apply mapping').props.onClick();
+  assert.equal(changes[0].regions[0].category, 'Managed support');
+  assert.equal(changes[0].regions[0].inclusion, 'optional');
+  const sample = globalThis[samplesKey].at(-1);
+  assert.equal(
+    sample.pricing.lineGroups['sample-1'].category,
+    'Managed support',
+  );
+  assert.equal(sample.pricing.lineGroups['sample-1'].inclusion, 'optional');
+});

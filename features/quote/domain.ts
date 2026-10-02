@@ -1,3 +1,7 @@
+import {
+  validateLineGroups,
+  type QuoteLineGroups,
+} from './quotation-groups.ts';
 import { resolveQuoteCostBindings } from './scope-allocation.ts';
 import type { QuoteCostSource } from './quote-lines.ts';
 /** Shared pricing rules used by the quote page and project portfolio. */
@@ -16,6 +20,7 @@ import {
 } from './profit-share.ts';
 
 export type PricingSettings = {
+  lineGroups?: QuoteLineGroups;
   /** Target sales GP after BU profit share, as a percentage from 0 through 95. */
   targetGrossMargin: number;
   /** Commercial discount deducted after the target-margin list price. */
@@ -73,7 +78,10 @@ export const calculatePricing = (
       ? roundMoney(totalCost)
       : 0;
   const basis = profitShareBasis(cost, settings.profitShareRates, allocation);
-  const errors: string[] = [...basis.errors];
+  const errors: string[] = [
+    ...basis.errors,
+    ...validateLineGroups(settings.lineGroups),
+  ];
   const manualPricing = settings.lineMode === 'manual';
   const gpManualPricing = manualPricing && settings.manualPricingBasis === 'gp';
   const independentLinePricing =
@@ -224,6 +232,9 @@ export const calculatePricing = (
       'Calculated quote exceeds the supported range. / 报价计算结果超出范围。',
     );
   return {
+    ...(settings.lineGroups
+      ? { lineGroups: structuredClone(settings.lineGroups) }
+      : {}),
     ...(effectiveLines ? { allocatedManualLines: effectiveLines } : {}),
     cost,
     listPrice,

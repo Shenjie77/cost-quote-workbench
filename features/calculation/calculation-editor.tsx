@@ -1,6 +1,8 @@
 'use client';
 import {
   type ReactNode,
+  type RefObject,
+  useImperativeHandle,
   useCallback,
   useEffect,
   useRef,
@@ -12,6 +14,11 @@ import type { UniverHandle } from './univer-runtime';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
+
+export type CalculationCommands = {
+  read: () => Promise<CalculationDocument>;
+  focusCell: (sheet: string, row?: number, column?: number) => void;
+};
 
 /** A durable draft, separate from approved cost data. Recovery survives a failed API save. */
 export function CalculationEditor({
@@ -26,9 +33,17 @@ export function CalculationEditor({
   title = 'Calculation draft',
   pageLayout = false,
   backToWorkbench = false,
+  commandsRef,
+  fixedHeaders,
+  initialSheet,
+  onReady,
 }: {
   draftId: string;
   initialDocument: CalculationDocument;
+  commandsRef?: RefObject<CalculationCommands | null>;
+  fixedHeaders?: string[];
+  initialSheet?: string;
+  onReady?: () => void;
   readOnly?: boolean;
   title?: string;
   pageLayout?: boolean;
@@ -52,10 +67,24 @@ export function CalculationEditor({
   const applying = useRef(false);
   const loaded = useRef(false);
   const suppressCapture = useRef(false);
-  const callbacks = useRef({ onApply, onDirtyChange, readOnly });
+  const callbacks = useRef({
+    onApply,
+    onDirtyChange,
+    readOnly,
+    fixedHeaders,
+    initialSheet,
+    onReady,
+  });
   useEffect(() => {
-    callbacks.current = { onApply, onDirtyChange, readOnly };
-  }, [onApply, onDirtyChange, readOnly]);
+    callbacks.current = {
+      onApply,
+      onDirtyChange,
+      readOnly,
+      fixedHeaders,
+      initialSheet,
+      onReady,
+    };
+  }, [onApply, onDirtyChange, readOnly, fixedHeaders, initialSheet, onReady]);
   const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null);
   const [status, setStatus] = useState('Loading draft…');
   const [error, setError] = useState('');
@@ -175,9 +204,15 @@ export function CalculationEditor({
           pageLayout ? setToolbarHost : undefined,
         );
         editor.current = handle;
+        if (callbacks.current.fixedHeaders)
+          await handle.protectHeaders(callbacks.current.fixedHeaders);
+        if (cancelled) return;
+        if (callbacks.current.initialSheet)
+          handle.focusCell(callbacks.current.initialSheet, 2, 1);
         loaded.current = true;
         handle.setReadOnly(callbacks.current.readOnly);
         setReady(true);
+        callbacks.current.onReady?.();
         setStatus(
           failure.current
             ? 'Recovery conflict'
@@ -251,6 +286,17 @@ export function CalculationEditor({
       setBusy(false);
     }
   };
+  useImperativeHandle(commandsRef, () => ({
+    read: async () => {
+      if (!editor.current || !ready || applying.current)
+        throw new Error('Wait for the workbook to finish loading or saving.');
+      if (!(await save()))
+        throw new Error('Save the draft successfully before importing.');
+      return structuredClone(latest.current);
+    },
+    focusCell: (sheet, row, column) =>
+      editor.current?.focusCell(sheet, row, column),
+  }));
   const backup = () => {
     const document = editor.current
       ? { ...latest.current, workbook: editor.current.snapshot() }

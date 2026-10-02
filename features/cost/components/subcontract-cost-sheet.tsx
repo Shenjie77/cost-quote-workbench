@@ -40,11 +40,11 @@ import {
   type SubcontractSiteType,
 } from '../subcontract-domain';
 import { SubcontractRateAssumptions } from './subcontract-rate-assumptions';
-import { SubcontractBulkEntryDialog } from './subcontract-bulk-entry-dialog';
 import {
-  appendSubcontractBulkLines,
-  subcontractBulkBasisFingerprint,
-} from '../subcontract-bulk-entry';
+  SubcontractBulkEntryPage,
+  subcontractEntryContext,
+} from '@/features/bulk-entry/subcontract-entry';
+import { appendSubcontractBulkLines } from '../subcontract-bulk-entry';
 import { SubcontractCatalogPicker } from './subcontract-catalog-picker';
 import {
   SubcontractLinesTable,
@@ -952,32 +952,35 @@ export function SubcontractCostSheet({
       )}
       {bulkRequest &&
         (bulkRequest.catalog ? (
-          <SubcontractBulkEntryDialog
+          <SubcontractBulkEntryPage
+            workspaceKey={workspaceKey ?? 'subcontract'}
             value={value}
             target={bulkRequest.target}
             catalog={bulkRequest.catalog}
             actualYears={actualYears}
-            defaultYear={typeof projectYear === 'number' ? projectYear : 0}
             locked={locked}
-            announce={announce}
             onClose={closeBulk}
-            onConfirm={(lines, fingerprint) => {
-              const basis = {
-                value,
-                target: bulkRequest.target,
-                actualYears,
-                catalog: bulkRequest.catalog!,
-              };
+            onConfirm={(batch, fingerprint) => {
               if (
                 locked ||
-                fingerprint !== subcontractBulkBasisFingerprint(basis)
+                fingerprint !==
+                  subcontractEntryContext(
+                    value,
+                    bulkRequest.catalog!,
+                    actualYears,
+                  )
               )
                 return false;
-              change(
-                appendSubcontractBulkLines(value, lines, bulkRequest.target),
-              );
+              let next = value;
+              for (const entry of batch)
+                next = appendSubcontractBulkLines(
+                  next,
+                  entry.lines,
+                  entry.target,
+                );
+              change(next);
               announce(
-                `${lines.length} subcontract item(s) added to the selected BOQ.`,
+                `${batch.reduce((sum, b) => sum + b.lines.length, 0)} subcontract items added.`,
               );
               return true;
             }}

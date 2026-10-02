@@ -1,3 +1,5 @@
+import { QuoteGroupFields } from './quote-group-fields';
+import { groupFor } from './quotation-groups';
 /** Internal line pricing grid; customer workbooks receive only commercial line fields. */
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
@@ -368,6 +370,11 @@ export function QuoteLinesEditor({
           {allocationError || lineErrors[0]}
         </p>
       )}
+      <p className="text-xs text-muted-foreground">
+        Category accepts custom titles. Match the same title and Inclusion in
+        your template regions. Optional items are quoted separately; internal
+        cost and GP include all service lines.
+      </p>
       {/* All internal pricing controls share one grid; customer previews and files omit these internal columns. */}
       <Table
         containerClassName="max-h-[360px]"
@@ -378,6 +385,7 @@ export function QuoteLinesEditor({
           <TableRow>
             <TableHead className="w-10">#</TableHead>
             <TableHead>Description</TableHead>
+            <TableHead>Category / Inclusion</TableHead>
             <TableHead className="w-20 text-right">Quantity</TableHead>
             <TableHead className="w-16">Unit</TableHead>
             <TableHead className="w-28 text-right">Cost</TableHead>
@@ -453,6 +461,22 @@ export function QuoteLinesEditor({
                       }
                     />
                   </div>
+                </TableCell>
+                <TableCell>
+                  <QuoteGroupFields
+                    label={`Line ${index + 1}`}
+                    disabled={disabled}
+                    value={groupFor(line, pricing.lineGroups)}
+                    categories={Object.values(pricing.lineGroups ?? {}).map(
+                      (g) => g.category,
+                    )}
+                    onChange={(group) =>
+                      setPricing((current) => ({
+                        ...current,
+                        lineGroups: { ...current.lineGroups, [line.id]: group },
+                      }))
+                    }
+                  />
                 </TableCell>
                 <TableCell className="financial-numeral text-right">
                   {editable ? (

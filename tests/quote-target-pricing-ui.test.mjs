@@ -1067,3 +1067,41 @@ test('every Scope exposes independent Risk share before selection, defaulting to
   view.button('Reset Risk to Weight').props.onClick();
   assert.equal(view.label('Risk percentage Delivery').props.value, '70.00');
 });
+
+test('category and inclusion controls save grouping without changing line pricing', () => {
+  const initial = {
+    targetGrossMargin: 50,
+    discount: 0,
+    gstPercent: 0,
+    lineMode: 'single',
+  };
+  const view = quotationHarness(QuoteLinesEditor, initial);
+  const field = () =>
+    view.find(
+      (node) =>
+        node.props.label === 'Line 1' &&
+        node.props.value?.category !== undefined,
+    );
+  assert.equal(field().props.value.category, 'Professional Service');
+  const before = view.result.quoteBeforeTax;
+  field().props.onChange({
+    category: 'Managed support',
+    inclusion: 'optional',
+  });
+  assert.equal(view.pricing.lineMode, 'single');
+  assert.equal(view.result.quoteBeforeTax, before);
+  assert.deepEqual(field().props.value, {
+    category: 'Managed support',
+    inclusion: 'optional',
+  });
+  const reopened = quotationHarness(
+    QuoteLinesEditor,
+    structuredClone(view.pricing),
+  );
+  assert.equal(
+    reopened.find(
+      (node) => node.props.label === 'Line 1' && node.props.value?.category,
+    ).props.value.category,
+    'Managed support',
+  );
+});

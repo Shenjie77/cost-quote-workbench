@@ -1,3 +1,4 @@
+import { categoryKey } from './quotation-groups.ts';
 import { fixedTokens, quoteTokens, referencedTokens } from './template-text.ts';
 /** Shared validation for original-workbook coordinates used by the editor and exporter. */
 import type {
@@ -196,20 +197,65 @@ export function validateQuoteExcelMapping(
   const regions = mapping.regions ?? [];
   if (
     !Array.isArray(regions) ||
-    regions.length > 3 ||
+    regions.length > 50 ||
     regions.some((region) => !isRecord(region))
   )
-    errors.push('Use at most one region per quotation module.');
+    errors.push('Use at most 50 quotation regions.');
   else {
+    if (
+      regions.some((r) => r.source === 'optional') &&
+      regions.some((r) => r.source !== 'optional' && r.inclusion === 'optional')
+    )
+      errors.push(
+        'Use either All Optional categories or separate Optional category regions, not both.',
+      );
     const sources = new Set<string>();
     const sorted = [...regions].sort((a, b) => a.startRow - b.startRow);
     for (const [index, region] of sorted.entries()) {
       if (
-        !['service', 'maintenance', 'optional'].includes(region.source) ||
-        sources.has(region.source)
+        !['service', 'maintenance', 'optional', 'category'].includes(
+          region.source,
+        ) ||
+        sources.has(
+          region.source === 'optional'
+            ? 'all-optional'
+            : categoryKey(
+                region.source === 'category'
+                  ? (region.category ?? '')
+                  : region.source === 'service'
+                    ? 'Professional Service'
+                    : 'Maintenance',
+              ) +
+                ':' +
+                (region.inclusion ?? 'mandatory'),
+        )
       )
         errors.push('Each quotation module can be mapped only once.');
-      sources.add(region.source);
+      sources.add(
+        region.source === 'optional'
+          ? 'all-optional'
+          : categoryKey(
+              region.source === 'category'
+                ? (region.category ?? '')
+                : region.source === 'service'
+                  ? 'Professional Service'
+                  : 'Maintenance',
+            ) +
+              ':' +
+              (region.inclusion ?? 'mandatory'),
+      );
+      if (
+        region.source === 'category' &&
+        (typeof region.category !== 'string' ||
+          !region.category.trim() ||
+          region.category.length > 120)
+      )
+        errors.push('Enter a category title (1–120 characters).');
+      if (
+        region.inclusion !== undefined &&
+        !['mandatory', 'optional'].includes(region.inclusion)
+      )
+        errors.push('Choose Mandatory or Optional.');
       if (
         ![
           region.startRow,
@@ -237,8 +283,6 @@ export function validateQuoteExcelMapping(
           errors.push(`Map ${address} outside repeated detail rows.`);
       }
     }
-    if (regions.length && !sources.has('service'))
-      errors.push('Map the professional service module.');
   }
   return errors;
 }

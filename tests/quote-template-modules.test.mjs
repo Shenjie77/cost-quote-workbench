@@ -200,7 +200,7 @@ test('missing maintenance mapping and ambiguous sample-row formulas fail before 
   );
   await assert.rejects(
     () => fillQuoteExcelTemplate(bytes, input),
-    /Map the maintenance module/,
+    /Map each quotation group.*maintenance/,
   );
   const fixture2 = await fixture();
   const book = new ExcelJS.Workbook();
@@ -228,4 +228,101 @@ test('text tokens keep numeric zero, clear blanks, and use the Singapore quotati
   assert.equal(templateDate(input), '01-Oct-2026');
   input.template.excel.dateFormat = 'yyyy-mm-dd';
   assert.equal(templateDate(input), '2026-10-01');
+});
+
+test('custom category and inclusion route each line once; Optional stays out of Mandatory total', async () => {
+  const { bytes, input } = await fixture(3, false);
+  input.pricing.lineGroups = {
+    s0: { category: 'Implementation', inclusion: 'mandatory' },
+    s1: { category: 'implementation', inclusion: 'optional' },
+    s2: { category: 'Training', inclusion: 'mandatory' },
+  };
+  const regions = input.template.excel.regions;
+  Object.assign(regions[0], {
+    source: 'category',
+    category: 'Implementation',
+    inclusion: 'mandatory',
+  });
+  Object.assign(regions[1], {
+    source: 'category',
+    category: 'Training',
+    inclusion: 'mandatory',
+  });
+  Object.assign(regions[2], {
+    source: 'category',
+    category: 'Implementation',
+    inclusion: 'optional',
+  });
+  input.template.excel.textCells.push({
+    address: 'B34',
+    content: 'Options: {optionalPrice}',
+  });
+  assert.deepEqual(validateQuoteExcelMapping(input.template.excel), []);
+  const { customerDocument } =
+    await import('../features/quote/customer-document.ts');
+  const doc = customerDocument(input);
+  assert.equal(doc.total, 200);
+  assert.equal(doc.optionalAmount, 100);
+  assert.deepEqual(
+    doc.sections.map((s) => [s.category, s.inclusion]),
+    [
+      ['Implementation', 'mandatory'],
+      ['Training', 'mandatory'],
+      ['implementation', 'optional'],
+    ],
+  );
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await fillQuoteExcelTemplate(bytes, input));
+  const sheet = workbook.getWorksheet('Quote');
+  const descriptions = [];
+  sheet.eachRow((row) => {
+    const v = row.getCell(3).value;
+    if (typeof v === 'string' && v.startsWith('Service ')) descriptions.push(v);
+  });
+  assert.deepEqual(descriptions, ['Service 1', 'Service 3', 'Service 2']);
+  assert.ok(JSON.stringify(sheet.getSheetValues()).includes('Options: 100'));
+  input.template.excel.regions[2].category = 'Missing group';
+  await assert.rejects(
+    () => fillQuoteExcelTemplate(bytes, input),
+    /Map each quotation group/,
+  );
+});
+
+test('group settings validate before saving prices and do not change internal GP calculation', () => {
+  const settings = { targetGrossMargin: 20, discount: 0, gstPercent: 0 };
+  const before = calculatePricing(100, settings);
+  const after = calculatePricing(100, {
+    ...settings,
+    lineGroups: { x: { category: 'Custom support', inclusion: 'optional' } },
+  });
+  assert.equal(after.quoteBeforeTax, before.quoteBeforeTax);
+  assert.equal(after.grossMarginPercent, before.grossMarginPercent);
+  assert.equal(after.lineGroups.x.category, 'Custom support');
+  assert.equal(
+    calculatePricing(100, {
+      ...settings,
+      lineGroups: { x: { category: '', inclusion: 'mandatory' } },
+    }).valid,
+    false,
+  );
+});
+
+test('template regions accept more than three custom groups and reject ambiguous optional mappings', () => {
+  const map = mapping();
+  map.regions = Array.from({ length: 5 }, (_, i) => ({
+    source: 'category',
+    category: `Category ${i + 1}`,
+    inclusion: 'mandatory',
+    startRow: 40 + i * 5,
+    detailRow: 41 + i * 5,
+    detailEndRow: 42 + i * 5,
+    endRow: 43 + i * 5,
+  }));
+  assert.deepEqual(validateQuoteExcelMapping(map), []);
+  map.regions[1].category = 'Category 1';
+  assert.match(validateQuoteExcelMapping(map).join(' '), /only once/);
+  map.regions[1].category = 'Category 2';
+  map.regions[1].inclusion = 'optional';
+  map.regions[0].source = 'optional';
+  assert.match(validateQuoteExcelMapping(map).join(' '), /not both/);
 });

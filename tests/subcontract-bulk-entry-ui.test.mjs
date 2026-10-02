@@ -58,8 +58,10 @@ const hooks = registerHooks({
     };
   },
 });
-const { SubcontractBulkEntryForm, SubcontractBulkEntryDialog } =
+const { SubcontractBulkEntryForm } =
   await import('../features/cost/components/subcontract-bulk-entry-dialog.tsx');
+const { SubcontractBulkEntryPage } =
+  await import('../features/bulk-entry/subcontract-entry.tsx');
 const { SubcontractCostSheet } =
   await import('../features/cost/components/subcontract-cost-sheet.tsx');
 const { SubcontractLinesTable } =
@@ -348,7 +350,7 @@ function sheetHarness(extra = {}) {
     },
     dialog() {
       return walk(this.render()).find(
-        (node) => node.type === SubcontractBulkEntryDialog,
+        (node) => node.type === SubcontractBulkEntryPage,
       );
     },
     button(label) {

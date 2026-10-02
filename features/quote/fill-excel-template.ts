@@ -1,3 +1,4 @@
+import { regionMatches } from './quotation-groups.ts';
 /** Fills an immutable customer XLSX copy using one repeatable quotation row. */
 
 import type {
@@ -690,6 +691,7 @@ function quoteFieldValues(
 ): Record<string, string | number | null> {
   return {
     date: templateDate(input),
+    optionalPrice: customerDocument(input).optionalAmount,
     companyName: input.template.excel?.variables?.companyName ?? '',
     companyAddress: input.template.excel?.variables?.companyAddress ?? '',
     documentStatus: input.documentStatus ?? 'Final',
@@ -814,24 +816,25 @@ async function fillModuleRegions(
   quoteLines(input);
   const mapping = input.template.excel!;
   const document = customerDocument(input);
-  if (
-    document.maintenance.length &&
-    !mapping.regions!.some((r) => r.source === 'maintenance')
-  )
-    throw new Error(
-      'Map the maintenance module before exporting a quotation with maintenance.',
-    );
+  for (const line of document.allLines) {
+    const matches = mapping.regions!.filter((r) => regionMatches(r, line));
+    if (matches.length !== 1)
+      throw new Error(
+        'Map each quotation group exactly once before exporting: ' +
+          line.category +
+          ' / ' +
+          line.inclusion +
+          (line.id.startsWith('maintenance:') ? ' (maintenance)' : ''),
+      );
+  }
   const edits: RegionEdit[] = [];
   // Bottom-up edits keep original coordinates valid for every remaining module.
   for (const region of [...mapping.regions!].sort(
     (a, b) => b.startRow - a.startRow,
   )) {
-    const lines =
-      region.source === 'service'
-        ? document.service
-        : region.source === 'maintenance'
-          ? document.maintenance
-          : [];
+    const lines = document.allLines.filter((line) =>
+      regionMatches(region, line),
+    );
     const edit: RegionEdit = lines.length
       ? {
           start: region.detailRow,
@@ -1025,6 +1028,16 @@ export async function fillQuoteExcelTemplate(
   if (errors.length) throw new Error(errors.join(' '));
   const sheet = workbook.getWorksheet(mapping.sheetName)!;
   if (mapping.regions?.length) return fillModuleRegions(workbook, sheet, input);
+  if (
+    customerDocument(input).allLines.some(
+      (line) =>
+        line.inclusion === 'optional' ||
+        !['Professional Service', 'Maintenance'].includes(line.category ?? ''),
+    )
+  )
+    throw new Error(
+      'Configure dynamic module regions to export custom categories or Optional items.',
+    );
   validateGeometry(sheet, input);
   const lines = quoteLines(input);
   const addedRows = lines.length - 1;

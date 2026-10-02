@@ -1,3 +1,4 @@
+import { validateLineGroups } from '../features/quote/quotation-groups.ts';
 /**
  * Workspace compatibility and integrity boundary. Pure document migrations and
  * validation live here; this module never opens or writes a database.
@@ -403,6 +404,12 @@ export const assertWorkspaceDocument = (workspace, projectId) => {
     );
   if (workspace.maintenanceBoq)
     assertMaintenanceWorkspace(workspace.maintenanceBoq);
+  const groupErrors = validateLineGroups(workspace.pricing?.lineGroups);
+  if (groupErrors.length)
+    throw new WorkspaceValidationError(
+      groupErrors.join(' '),
+      '/pricing/lineGroups',
+    );
   if (workspace.pricing?.profitShareRates !== undefined) {
     const errors = validateProfitShareRates(workspace.pricing.profitShareRates);
     if (errors.length)

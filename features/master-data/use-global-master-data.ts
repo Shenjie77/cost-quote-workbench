@@ -6,6 +6,7 @@ import {
   useState,
   type SetStateAction,
 } from 'react';
+import { bulkImportContextKey } from './bulk-import-model';
 import { contentKey } from '@/features/cpq/domain';
 import {
   getGlobalMasterData,
@@ -141,6 +142,60 @@ export function useGlobalMasterData() {
     },
     [patch],
   );
+  const importItems = useCallback(
+    async (tab: GlobalMasterDataTab, items: Item[], expected: string) => {
+      const state = tabsRef.current[tab];
+      if (
+        !state?.record ||
+        pending.current.has(tab) ||
+        bulkImportContextKey(state.items) !== expected ||
+        state.record.conflicts.length
+      )
+        return false;
+      pending.current.add(tab);
+      patch(tab, { saving: true, error: '' });
+      try {
+        const saved = await updateGlobalMasterData(
+          tab,
+          state.record.revision,
+          globalMasterDataChanges(state.record, items),
+        );
+        let record = saved;
+        let refreshWarning = '';
+        if (saved.items.length < saved.total) {
+          try {
+            record = await getGlobalMasterData(tab);
+          } catch {
+            // The write has committed. Keep its receipt even if the follow-up read fails.
+            record = {
+              ...saved,
+              items: structuredClone(items),
+              total: items.length,
+              nextOffset: null,
+            };
+            refreshWarning =
+              'Import saved. Catalog refresh failed; reload this catalog to refresh its source details.';
+          }
+        }
+        patch(tab, {
+          record,
+          items: structuredClone(record.items),
+          saving: false,
+          error: refreshWarning,
+        });
+        return true;
+      } catch (error) {
+        patch(tab, {
+          saving: false,
+          error: error instanceof Error ? error.message : 'Import failed',
+        });
+        throw error;
+      } finally {
+        pending.current.delete(tab);
+      }
+    },
+    [patch],
+  );
   const dirty = Object.values(tabs).some(
     (state) => state && isGlobalTabDirty(state),
   );
@@ -151,6 +206,6 @@ export function useGlobalMasterData() {
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
-  return { tabs, load, save, setItems, dirty };
+  return { tabs, load, save, setItems, importItems, dirty };
 }
 export type GlobalMasterDataStore = ReturnType<typeof useGlobalMasterData>;

@@ -219,6 +219,25 @@
               }
             }
           }
+        },
+        "lineGroups": {
+          "type": "object",
+          "maxProperties": 2000,
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["category", "inclusion"],
+            "properties": {
+              "category": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "inclusion": {
+                "enum": ["mandatory", "optional"]
+              }
+            }
+          }
         }
       }
     },
@@ -1283,6 +1302,9 @@
         },
         "outputLayout": {
           "enum": ["customer"]
+        },
+        "customerOptionalAmount": {
+          "$ref": "#/$defs/money"
         }
       }
     },
@@ -1451,12 +1473,12 @@
         "ct": {
           "type": "number",
           "minimum": 0,
-          "maximum": 10000000000.0
+          "maximum": 10000000000
         },
         "spms": {
           "type": "number",
           "minimum": 0,
-          "maximum": 10000000000.0
+          "maximum": 10000000000
         },
         "quotedYear": {
           "type": "integer",
@@ -2245,12 +2267,12 @@
         "ct": {
           "type": "number",
           "minimum": 0,
-          "maximum": 10000000000.0
+          "maximum": 10000000000
         },
         "spms": {
           "type": "number",
           "minimum": 0,
-          "maximum": 10000000000.0
+          "maximum": 10000000000
         },
         "durationYears": {
           "type": "number",
@@ -2577,6 +2599,14 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1000000000000
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "inclusion": {
+          "enum": ["mandatory", "optional"]
         }
       }
     },
@@ -2621,6 +2651,14 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1000000000000
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "inclusion": {
+          "enum": ["mandatory", "optional"]
         }
       }
     },
@@ -2798,7 +2836,7 @@
         },
         "regions": {
           "type": "array",
-          "maxItems": 3,
+          "maxItems": 50,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -2811,7 +2849,7 @@
             ],
             "properties": {
               "source": {
-                "enum": ["service", "maintenance", "optional"]
+                "enum": ["service", "maintenance", "optional", "category"]
               },
               "startRow": {
                 "type": "integer",
@@ -2832,6 +2870,14 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 20000
+              },
+              "category": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "inclusion": {
+                "enum": ["mandatory", "optional"]
               }
             }
           }

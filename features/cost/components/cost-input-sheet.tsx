@@ -20,7 +20,7 @@ import {
 } from '../personnel-cost-rows';
 import { CostImportPanel } from './cost-import-panel';
 import { personnelBulkBasisFingerprint } from '../personnel-bulk-entry';
-import { PersonnelBulkEntryDialog } from './personnel-bulk-entry-dialog';
+import { PersonnelBulkEntryPage } from '@/features/bulk-entry/personnel-entry';
 import type { PersonnelTableView } from '../use-personnel-table-view';
 import { PersonnelColumnSettings } from './personnel-column-settings';
 import {
@@ -404,14 +404,13 @@ export function CostInputSheet({
         automatically. Subcontract costs are managed in Subcon.
       </div>
       {showBulkEntry && (
-        <PersonnelBulkEntryDialog
+        <PersonnelBulkEntryPage
+          projectId={projectId ?? 'project'}
+          versionCode={versionCode ?? 'draft'}
           resources={resources}
           rates={rateSettings}
-          defaultMode="mandays"
-          defaultYear={yearIndex === 'all' ? 0 : yearIndex}
           locked={locked}
           onClose={() => setShowBulkEntry(false)}
-          announce={announce}
           onConfirm={(newRows, basis) => {
             if (canEditCost && !canEditCost()) {
               announce(

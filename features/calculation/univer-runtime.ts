@@ -38,6 +38,29 @@ export function mountUniver(
   );
   return {
     snapshot: () => workbook.save(),
+    focusCell(sheetId: string, row = 1, column = 1) {
+      const sheet = workbook.getSheetBySheetId(sheetId);
+      if (sheet) {
+        workbook.setActiveSheet(sheet);
+        sheet.getRange(row - 1, column - 1).activate();
+      }
+    },
+    async protectHeaders(sheetIds: string[]) {
+      for (const id of sheetIds) {
+        const sheet = workbook.getSheetBySheetId(id);
+        if (sheet) {
+          const permission = sheet.getRange('1:1').getRangePermission();
+          const rules = permission.isProtected()
+            ? await permission.listRules({ ignoreCollaborators: true })
+            : [await permission.protect({ name: 'Fixed input headers' })];
+          for (const rule of rules)
+            await rule.setPoint(
+              univerAPI.Enum.RangePermissionPoint.Edit,
+              false,
+            );
+        }
+      }
+    },
     setReadOnly: (value: boolean) => workbook.setEditable(!value),
     async calculate() {
       await workbook.endEditingAsync(true);

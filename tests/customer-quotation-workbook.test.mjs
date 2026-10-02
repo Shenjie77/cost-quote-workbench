@@ -78,7 +78,7 @@ test('customer schedule includes service, annual maintenance, exact totals and a
     'QT-001',
     '2026-09-30',
     'Professional Service',
-    'Maintenance Service',
+    'Maintenance',
     'Site access is provided',
     'Agreed commercial terms',
   ])
@@ -130,4 +130,45 @@ test('invalid maintenance and invalid service pricing cannot produce customer ou
   value.pricing.valid = false;
   value.pricing.errors = ['Unresolved price'];
   await assert.rejects(() => load(value), /Unresolved price/);
+});
+
+test('standard workbook groups custom category titles under Mandatory and Optional', async () => {
+  const source = input();
+  source.pricing.lineGroups = Object.fromEntries(
+    source.lines.map((line, index) => [
+      line.id,
+      {
+        category: index ? 'Training' : 'Implementation',
+        inclusion: index ? 'optional' : 'mandatory',
+      },
+    ]),
+  );
+  const { customerDocument } =
+    await import('../features/quote/customer-document.ts');
+  source.pricing.lineGroups['maintenance:' + source.maintenance.boq[0].id] = {
+    category: 'Training',
+    inclusion: 'optional',
+  };
+  const document = customerDocument(source);
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(await buildQuoteWorkbookBuffer(source));
+  const sheet = book.getWorksheet('Quotation'),
+    rows = [];
+  sheet.eachRow((row) => rows.push(row));
+  const values = JSON.stringify(sheet.getSheetValues());
+  assert.ok(values.includes('Implementation'));
+  assert.ok(values.includes('Training'));
+  assert.ok(values.includes('Optional items (excluded from mandatory total)'));
+  assert.equal(
+    rows
+      .find((row) => row.getCell(3).value === 'Total price for mandatory items')
+      .getCell(7).value.result,
+    document.total,
+  );
+  assert.equal(
+    rows
+      .find((row) => row.getCell(3).value === 'Total price for optional items')
+      .getCell(7).value.result,
+    document.optionalAmount,
+  );
 });

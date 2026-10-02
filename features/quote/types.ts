@@ -71,6 +71,7 @@ export type QuoteHistoryStatus = 'Draft' | 'Final';
 export type QuoteHistoryRecord = {
   /** Customer document total includes the separately priced maintenance schedule. */
   customerQuoteAmount?: number;
+  customerOptionalAmount?: number;
   maintenanceLineSnapshots?: QuoteLine[];
   outputLayout?: 'customer';
   id: string;

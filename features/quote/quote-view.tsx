@@ -1,3 +1,5 @@
+import { QuoteGroupFields } from './quote-group-fields';
+import { groupFor } from './quotation-groups';
 import { QuoteExportDialog } from './quote-export-dialog';
 import { customerDocument } from './customer-document';
 import {
@@ -393,6 +395,7 @@ export function QuoteView({
           ? {
               outputLayout: 'customer' as const,
               customerQuoteAmount: document.total,
+              customerOptionalAmount: document.optionalAmount,
               maintenanceLineSnapshots: document.maintenance,
             }
           : {}),
@@ -410,7 +413,7 @@ export function QuoteView({
         assumptionSnapshots: structuredClone(
           exportInput.assumptions.filter((row) => row.included),
         ),
-        lineSnapshots: exportInput.lines,
+        lineSnapshots: document.service,
         lineMode: exportInput.lineMode,
       };
       // Parent keeps the project fixed during export. Its state setter survives
@@ -630,6 +633,35 @@ export function QuoteView({
           </TableBody>
         </Table>
         {/* The detail editor spans the same width as the parameters that determine its prices. */}
+        {customerPreview?.maintenance.length ? (
+          <div className="space-y-2 border p-3">
+            <h3 className="text-sm font-medium">
+              Maintenance quotation groups
+            </h3>
+            {customerPreview.maintenance.map((line) => (
+              <div
+                key={line.id}
+                className="flex flex-wrap items-center justify-between gap-2 text-xs"
+              >
+                <span>{line.description}</span>
+                <QuoteGroupFields
+                  label={line.description}
+                  disabled={exportInProgress}
+                  value={groupFor(line, pricing.lineGroups)}
+                  categories={Object.values(pricing.lineGroups ?? {}).map(
+                    (g) => g.category,
+                  )}
+                  onChange={(group) =>
+                    setPricing((current) => ({
+                      ...current,
+                      lineGroups: { ...current.lineGroups, [line.id]: group },
+                    }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
         <QuoteLinesEditor
           key={`${project.id}:${activeVersion}`}
           pricing={pricing}

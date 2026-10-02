@@ -1,4 +1,5 @@
 'use client';
+import { MasterDataBulkEntryPage } from '@/features/bulk-entry/master-data-entry';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { ResourceType } from '@/features/cost/domain';
@@ -267,6 +268,7 @@ export function GlobalMasterDataPage({
   announce: (message: string) => void;
   onWorkflowPublished?: () => void;
 }) {
+  const [bulkEntry, setBulkEntry] = useState(false);
   const { load } = store;
   const workflow = activeTab === 'workflow';
   const [publication, setPublication] = useState<{
@@ -454,10 +456,26 @@ export function GlobalMasterDataPage({
           ))}
         </section>
       )}
+      {bulkEntry && (
+        <MasterDataBulkEntryPage
+          store={store}
+          initialTab={activeTab}
+          onClose={() => setBulkEntry(false)}
+          onImported={(tab) => {
+            onTabChange(tab);
+            announce('Master Data imported and saved.');
+          }}
+        />
+      )}
       <div className="min-w-0">
         <MasterDataView
           bulkActions={
             <BulkImportControls
+              onOpenEntry={
+                activeTab !== 'workflow' && activeTab !== 'status'
+                  ? () => setBulkEntry(true)
+                  : undefined
+              }
               key={activeTab}
               tab={activeTab}
               items={state.items}

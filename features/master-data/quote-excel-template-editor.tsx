@@ -146,6 +146,27 @@ async function sampleWorkbook(mapping: QuoteExcelTemplate) {
     pricing: calculatePricing(1200, {
       ...initialPricingSettings,
       targetGrossMargin: 20,
+      ...(mapping.regions?.length
+        ? {
+            lineGroups: Object.fromEntries(
+              ['sample-1', 'sample-2', 'sample-3'].map((id) => [
+                id,
+                {
+                  category:
+                    mapping.regions![0].source === 'category'
+                      ? mapping.regions![0].category!
+                      : mapping.regions![0].source === 'maintenance'
+                        ? 'Maintenance'
+                        : 'Professional Service',
+                  inclusion:
+                    mapping.regions![0].source === 'optional'
+                      ? ('optional' as const)
+                      : (mapping.regions![0].inclusion ?? 'mandatory'),
+                },
+              ]),
+            ),
+          }
+        : {}),
     }),
     lineMode: 'item',
     lines: [
@@ -539,9 +560,59 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                   >
                     <option value="service">Professional Service</option>
                     <option value="maintenance">Maintenance</option>
-                    <option value="optional">Optional (empty)</option>
+                    <option value="optional">All Optional categories</option>
+                    <option value="category">Custom category</option>
                   </select>
                 </label>
+                {region.source === 'category' && (
+                  <label className="text-xs">
+                    Category title
+                    <Input
+                      aria-label={`Module ${index + 1} category`}
+                      placeholder="Same category as quotation lines"
+                      maxLength={120}
+                      value={region.category ?? ''}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          regions: draft.regions!.map((r, i) =>
+                            i === index
+                              ? { ...r, category: e.target.value }
+                              : r,
+                          ),
+                        })
+                      }
+                    />
+                  </label>
+                )}
+                {region.source !== 'optional' && (
+                  <label className="text-xs">
+                    Inclusion
+                    <select
+                      aria-label={`Module ${index + 1} inclusion`}
+                      className="h-9 w-full border bg-background px-1"
+                      value={region.inclusion ?? 'mandatory'}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          regions: draft.regions!.map((r, i) =>
+                            i === index
+                              ? {
+                                  ...r,
+                                  inclusion: e.target.value as
+                                    | 'mandatory'
+                                    | 'optional',
+                                }
+                              : r,
+                          ),
+                        })
+                      }
+                    >
+                      <option value="mandatory">Mandatory</option>
+                      <option value="optional">Optional</option>
+                    </select>
+                  </label>
+                )}
                 {(
                   [
                     ['startRow', 'Region start'],
@@ -589,7 +660,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={(draft.regions?.length ?? 0) >= 3}
+                disabled={(draft.regions?.length ?? 0) >= 50}
                 onClick={() =>
                   setDraft({
                     ...draft,
@@ -600,7 +671,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                           ? 'service'
                           : draft.regions.length === 1
                             ? 'maintenance'
-                            : 'optional',
+                            : 'category',
                         startRow: 0,
                         endRow: 0,
                         detailRow: 0,
@@ -627,9 +698,10 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Optional items are not configured in the current pricing model;
-              its mapped region is removed. The Book2 example stages coordinates
-              only—review them before applying.
+              Match category titles to quotation lines (case-insensitive). Each
+              Category / Inclusion group must map to exactly one region. Empty
+              groups are removed. The Book2 example stages coordinates only;
+              review them before applying.
             </p>
           </details>
           <details
@@ -649,7 +721,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
             <p className="text-xs text-muted-foreground">
               Fields:{' '}
               {
-                '{date} {quoteNumber} {client} {project} {costVersion} {currency} {documentTitle} {companyName} {companyAddress} {quoteBeforeTax} {quoteAfterTax} {servicePrice} {maintenancePrice} {discount} {validityDays} {paymentTerms} {termsAndConditions} {assumptions} {documentStatus}'
+                '{date} {quoteNumber} {client} {project} {costVersion} {currency} {documentTitle} {companyName} {companyAddress} {quoteBeforeTax} {quoteAfterTax} {servicePrice} {maintenancePrice} {optionalPrice} {discount} {validityDays} {paymentTerms} {termsAndConditions} {assumptions} {documentStatus}'
               }
             </p>
             <div className="grid gap-2 sm:grid-cols-3">

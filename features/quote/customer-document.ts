@@ -1,3 +1,4 @@
+import { groupedLines, quotationSections } from './quotation-groups.ts';
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
 import type { QuoteLine } from './excel-template-types.ts';
 import {
@@ -46,5 +47,36 @@ export function customerDocument(input: QuoteWorkbookInput) {
   const total = roundMoney(input.pricing.quoteBeforeTax + maintenanceAmount);
   if (!Number.isFinite(total) || total > 1e12)
     throw new Error('Customer quotation total exceeds the supported range.');
-  return { service, maintenance, maintenanceAmount, total };
+  const groupedService = groupedLines(service, input.pricing.lineGroups);
+  const groupedMaintenance = groupedLines(
+    maintenance,
+    input.pricing.lineGroups,
+  );
+  const allLines = [...groupedService, ...groupedMaintenance];
+  const optionalAmount = roundMoney(
+    allLines
+      .filter((l) => l.inclusion === 'optional')
+      .reduce((sum, l) => sum + l.amount, 0),
+  );
+  const mandatoryService = groupedService
+    .filter((l) => l.inclusion === 'mandatory')
+    .reduce((sum, l) => sum + l.amount, 0);
+  if (input.pricing.discount > roundMoney(mandatoryService))
+    throw new Error(
+      'The service discount exceeds the Mandatory service amount.',
+    );
+  const mandatoryTotal = roundMoney(total - optionalAmount);
+  if (mandatoryTotal < 0)
+    throw new Error(
+      'The service discount exceeds the Mandatory quotation amount.',
+    );
+  return {
+    service: groupedService,
+    maintenance: groupedMaintenance,
+    maintenanceAmount,
+    total: mandatoryTotal,
+    optionalAmount,
+    allLines,
+    sections: quotationSections(allLines),
+  };
 }

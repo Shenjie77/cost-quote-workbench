@@ -4,7 +4,7 @@
 
 ## 配置一次，后续复用
 
-新版支持在 **Dynamic quotation modules** 分别映射 Service、Maintenance、Optional 的模块起止行和明细起止行。系统保留模板标题层级，按实际明细数量增减行；没有内容时删除整个模块。Book2 格式可使用 **Use Book2 example mapping** 后检查位置。当前报价模型尚无 Optional 分类，因此映射的 Optional 模块会整段移除。
+新版支持在 **Dynamic quotation modules** 分别映射 Service、Maintenance、Optional 的模块起止行和明细起止行。系统保留模板标题层级，按实际明细数量增减行；没有内容时删除整个模块。Book2 格式可使用 **Use Book2 example mapping** 后检查位置。报价明细的 **Category / Inclusion** 可填写自定义分类标题并选择 Mandatory 或 Optional；Maintenance BOQ 的分类在 **Maintenance quotation groups** 设置。模板选择 **Custom category**，填写相同分类标题并选择 Inclusion，每组只能匹配一个区域（标题忽略大小写和连续空白）。**All Optional categories** 可汇总所有可选项，不能与单独的 Optional 分类区域混用。最多可配置 50 个区域。
 
 在 **Cell content and placeholders** 可以配置 `B12` → `Date of quotation: {date}`、`B4` → `{companyName}` 等内容，并保存公司名称、地址和日期格式。所有这些占位符均为可选，由用户自行决定输出哪些内容；只包含金额占位符的单元格保持数值类型。每次生成都从原始模板重新开始，配置保存一次即可复用。
 
@@ -18,6 +18,8 @@
 6. 点击 **Apply mapping**，系统先试填并验证实际模板结构，再应用配置；最后点击 **Save this tab** 保存全局模板。
 
 现有项目保留自己的模板快照。需要采用新配置时，按既有“应用主数据”流程将报价模板应用到项目，再在 Pricing & Quote 选择模板。历史报价保存原模板引用与明细快照，不随全局模板修改而变化。
+
+Optional 单独列示，不计入 Mandatory 报价总额；内部成本与 GP 仍按全部服务明细计算。整单服务折扣仅从 Mandatory 服务金额扣减，不能超过该金额。`{quoteBeforeTax}` / `{quoteAfterTax}` 在模块模板中表示 Mandatory 总额，`{optionalPrice}` 表示 Optional 合计。未配置动态区域的旧模板不能输出自定义分类或 Optional 项，需先添加区域映射。
 
 ## 报价明细方式
 
@@ -61,6 +63,6 @@ Lint 对 Node 自带测试注册函数作了窄范围配置：只认可 `node` �
 
 `Generate XLSX` opens an export dialog instead of silently disabling the entry point. Input errors are listed in the dialog. Valid drafts can be exported before cost confirmation; their filename and worksheet visibly say DRAFT. Final output still requires a confirmed cost version and the applicable quotation decision.
 
-The standard customer layout follows the Book2 schedule: recipient, project, quotation number/date/revision, professional services, maintenance when present, subtotals, service discount, total, assumptions and T&C. Maintenance uses device quantity × annual unit price × years; its customer row shows the annual fleet price and the duration in years, with device quantity included in the description. Empty maintenance and unconfigured optional items are omitted. No sample supplier name, logo, optional prices or other placeholder content is invented.
+The standard customer layout follows the Book2 schedule: recipient, project, quotation number/date/revision, professional services, maintenance when present, subtotals, service discount, total, assumptions and T&C. Maintenance uses device quantity × annual unit price × years; its customer row shows the annual fleet price and the duration in years, with device quantity included in the description. Empty groups are omitted. Optional items are grouped separately and excluded from the mandatory total. No sample supplier name, logo, optional prices or other placeholder content is invented.
 
 Completed downloads are archived with the project and recorded in quotation history. Customer history stores the combined customer total and the maintenance line snapshot separately from the existing service pricing/GP fields. When the selected project template includes an uploaded workbook, `Generate XLSX` automatically uses its saved mappings. Module mappings include maintenance and the combined total; legacy single-row mappings retain service-only output.

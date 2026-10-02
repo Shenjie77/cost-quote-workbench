@@ -122,20 +122,47 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
     row += 2;
     return { cell, amount };
   };
-  const service = group('1.1 Professional Service', document.service);
-  const maintenance = group('1.2 Maintenance Service', document.maintenance);
+  const mandatory = document.sections
+    .filter((s) => s.inclusion === 'mandatory')
+    .map((section, index) =>
+      group(`1.${index + 1} ${section.category}`, section.lines),
+    );
   const discountRow = row++;
   sheet.getCell(discountRow, 3).value = 'Service discount';
   sheet.getCell(discountRow, 7).value = input.pricing.discount;
   sheet.getCell(discountRow, 7).numFmt = money;
   sheet.getCell(row, 3).value = 'Total price for mandatory items';
   sheet.getCell(row, 7).value = {
-    formula: `ROUND(${[service.cell, maintenance.cell].filter(Boolean).join('+') || '0'}-G${discountRow},2)`,
+    formula: `ROUND(${
+      mandatory
+        .map((section) => section.cell)
+        .filter(Boolean)
+        .join('+') || '0'
+    }-G${discountRow},2)`,
     result: document.total,
   };
   sheet.getCell(row, 7).numFmt = money;
   sheet.getRow(row).font = { name: 'Arial', size: 11, bold: true };
   row += 2;
+  const optionalSections = document.sections.filter(
+    (s) => s.inclusion === 'optional',
+  );
+  if (optionalSections.length) {
+    text(row++, '2 Optional items (excluded from mandatory total)', true);
+    const optional = optionalSections.map((section, index) =>
+      group(`2.${index + 1} ${section.category}`, section.lines),
+    );
+    sheet.getCell(row, 3).value = 'Total price for optional items';
+    sheet.getCell(row, 7).value = {
+      formula: `SUM(${optional
+        .map((s) => s.cell)
+        .filter(Boolean)
+        .join(',')})`,
+      result: document.optionalAmount,
+    };
+    sheet.getCell(row, 7).numFmt = money;
+    row += 2;
+  }
   const paragraphs = (title: string, values: string[]) => {
     text(row++, title, true);
     for (const value of values)

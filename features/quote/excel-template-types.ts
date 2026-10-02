@@ -19,7 +19,9 @@ export type QuoteExcelField =
 
 /** Original template rows owned by one customer-facing quotation module. */
 export type QuoteExcelRegion = {
-  source: 'service' | 'maintenance' | 'optional';
+  source: 'service' | 'maintenance' | 'optional' | 'category';
+  category?: string;
+  inclusion?: 'mandatory' | 'optional';
   startRow: number;
   endRow: number;
   detailRow: number;
@@ -62,6 +64,8 @@ export type QuoteExcelAsset = {
 
 /** Customer-facing quotation lines never contain internal cost/rate metadata. */
 export type QuoteLine = {
+  category?: string;
+  inclusion?: 'mandatory' | 'optional';
   id: string;
   description: string;
   quantity: number;

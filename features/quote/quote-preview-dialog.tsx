@@ -1,5 +1,6 @@
+import { groupedLines, quotationSections } from './quotation-groups';
 /** Read-only customer quotation content, opened on demand without changing the draft. */
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -60,6 +61,13 @@ export function QuotePreviewDialog({
   maintenanceAmount?: number;
 }) {
   const [open, setOpen] = useState(false);
+  const sections = quotationSections(
+    groupedLines([...lines, ...maintenanceLines], pricing.lineGroups),
+  );
+  const optionalAmount = sections
+    .filter((s) => s.inclusion === 'optional')
+    .flatMap((s) => s.lines)
+    .reduce((sum, l) => sum + l.amount, 0);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -124,50 +132,37 @@ export function QuotePreviewDialog({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {lines.map((line, index) => (
-                <TableRow key={line.id}>
-                  <TableCell className="align-top text-muted-foreground">
-                    {index + 1}
-                  </TableCell>
-                  <TableCell className="min-w-48 whitespace-pre-wrap break-words">
-                    {line.description}
-                  </TableCell>
-                  <TableCell className="financial-numeral text-right align-top">
-                    {line.quantity}
-                  </TableCell>
-                  <TableCell className="align-top">{line.unit}</TableCell>
-                  <TableCell className="financial-numeral text-right align-top">
-                    {formatUnitPrice(line.unitPrice)}
-                  </TableCell>
-                  <TableCell className="financial-numeral text-right align-top">
-                    {formatSgd(line.amount)}
-                  </TableCell>
-                </TableRow>
+              {sections.map((section) => (
+                <Fragment key={section.inclusion + section.category}>
+                  <TableRow>
+                    <TableCell colSpan={6} className="font-semibold">
+                      {section.inclusion === 'optional'
+                        ? 'Optional'
+                        : 'Mandatory'}{' '}
+                      / {section.category}
+                    </TableCell>
+                  </TableRow>
+                  {section.lines.map((line, index) => (
+                    <TableRow key={line.id}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell className="min-w-48 whitespace-pre-wrap break-words">
+                        {line.description}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {line.quantity}
+                      </TableCell>
+                      <TableCell>{line.unit}</TableCell>
+                      <TableCell className="text-right">
+                        {formatUnitPrice(line.unitPrice)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatSgd(line.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </Fragment>
               ))}
-              {maintenanceLines.length > 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="font-semibold">
-                    Maintenance Service
-                  </TableCell>
-                </TableRow>
-              )}
-              {maintenanceLines.map((line, index) => (
-                <TableRow key={line.id}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell className="whitespace-pre-wrap">
-                    {line.description}
-                  </TableCell>
-                  <TableCell className="text-right">{line.quantity}</TableCell>
-                  <TableCell>{line.unit}</TableCell>
-                  <TableCell className="text-right">
-                    {formatUnitPrice(line.unitPrice)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatSgd(line.amount)}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!lines.length && (
+              {!sections.length && (
                 <TableRow>
                   <TableCell
                     colSpan={6}
@@ -197,10 +192,18 @@ export function QuotePreviewDialog({
             <dd className="financial-numeral text-right">
               {formatSgd(pricing.discount)}
             </dd>
-            <dt className="font-semibold">Quote Total</dt>
+            <dt className="font-semibold">Mandatory Quote Total</dt>
             <dd className="financial-numeral text-right text-base font-bold text-primary">
-              {formatSgd(pricing.quoteBeforeTax + maintenanceAmount)}
+              {formatSgd(
+                pricing.quoteBeforeTax + maintenanceAmount - optionalAmount,
+              )}
             </dd>
+            {optionalAmount > 0 && (
+              <>
+                <dt>Optional total (excluded)</dt>
+                <dd className="text-right">{formatSgd(optionalAmount)}</dd>
+              </>
+            )}
           </dl>
           {/* Preserve selected terms and included assumptions verbatim, including their line breaks. */}
           <div className="mt-3 space-y-2 text-xs text-muted-foreground">
