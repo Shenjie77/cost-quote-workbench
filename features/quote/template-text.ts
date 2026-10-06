@@ -19,6 +19,7 @@ export const quoteTokens = [
   'quoteAfterTax',
   'maintenancePrice',
   'optionalPrice',
+  'grandTotal',
   'documentStatus',
 ] as const;
 export const fixedTokens = ['companyName', 'companyAddress'] as const;

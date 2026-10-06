@@ -78,6 +78,9 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
   const plan = structuredBodyRows(
     input,
     {
+      categorySpacing: input.template.excel?.body?.categorySpacing,
+      sectionNames: input.template.excel?.body?.sectionNames,
+      spacing: input.template.excel?.body?.spacing,
       showSubtotals: input.template.excel?.body?.showSubtotals,
       startRow: 12,
       endRow: 12,
@@ -88,13 +91,17 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
         subtotal: 12,
         total: 12,
       },
-      numbering: 'hierarchical',
-      categoryOrder: [],
-      titles: defaultBodyTitles,
+      numbering: input.template.excel?.body?.numbering ?? 'hierarchical',
+      categoryOrder: input.template.excel?.body?.categoryOrder ?? [],
+      titles: input.template.excel?.body?.titles ?? defaultBodyTitles,
     },
     values,
   );
   for (const entry of plan) {
+    if (entry.role === 'blank') {
+      sheet.getRow(row++).height = 12;
+      continue;
+    }
     if (entry.role === 'chapter' || entry.role === 'category') {
       text(row, `${entry.number} ${entry.description}`, true);
     } else if (entry.line) {
@@ -132,7 +139,7 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
       };
       sheet.getCell(row, 7).value = entry.sum
         ? {
-            formula: `ROUND(SUM(${entry.sum.map((index) => `G${12 + index}`).join(',')})${entry.subtract === undefined ? '' : `-G${12 + entry.subtract}`},2)`,
+            formula: `ROUND(SUM(${entry.sum.map((index) => `G${12 + index}`).join(',') || '0'})${entry.subtract === undefined ? '' : `-G${12 + entry.subtract}`},2)`,
             result: entry.amount,
           }
         : entry.amount;

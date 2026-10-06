@@ -147,7 +147,10 @@
       "additionalProperties": false,
       "required": ["targetGrossMargin", "discount", "gstPercent"],
       "properties": {
-        "quotationProjectName": { "type": "string", "maxLength": 500 },
+        "quotationProjectName": {
+          "type": "string",
+          "maxLength": 500
+        },
         "targetGrossMargin": {
           "type": "number",
           "minimum": 0,
@@ -236,6 +239,37 @@
               },
               "inclusion": {
                 "enum": ["mandatory", "optional"]
+              }
+            }
+          }
+        },
+        "discountAllocation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode"],
+          "properties": {
+            "mode": {
+              "enum": ["total", "section", "category"]
+            },
+            "shares": {
+              "type": "array",
+              "maxItems": 2000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["key", "percentage"],
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "percentage": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  }
+                }
               }
             }
           }
@@ -1192,6 +1226,12 @@
       "additionalProperties": false,
       "required": ["id", "text", "textZh", "included"],
       "properties": {
+        "sourceText": {
+          "$ref": "#/$defs/text"
+        },
+        "sourceTextZh": {
+          "$ref": "#/$defs/text"
+        },
         "id": {
           "$ref": "#/$defs/identifier"
         },
@@ -1227,7 +1267,10 @@
         "note"
       ],
       "properties": {
-        "quotationProjectName": { "type": "string", "maxLength": 500 },
+        "quotationProjectName": {
+          "type": "string",
+          "maxLength": 500
+        },
         "id": {
           "$ref": "#/$defs/identifier"
         },
@@ -1307,6 +1350,98 @@
         },
         "customerOptionalAmount": {
           "$ref": "#/$defs/money"
+        },
+        "discountAllocationSnapshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "rows",
+            "errors",
+            "mandatoryGross",
+            "optionalGross",
+            "mandatoryDiscount",
+            "optionalDiscount",
+            "mandatoryNet",
+            "optionalNet"
+          ],
+          "properties": {
+            "mode": {
+              "enum": ["total", "section", "category"]
+            },
+            "errors": {
+              "type": "array",
+              "maxItems": 0,
+              "items": {
+                "type": "string"
+              }
+            },
+            "rows": {
+              "type": "array",
+              "maxItems": 2000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "key",
+                  "inclusion",
+                  "gross",
+                  "percentage",
+                  "fixed",
+                  "discount",
+                  "net"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "inclusion": {
+                    "enum": ["mandatory", "optional"]
+                  },
+                  "category": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "gross": {
+                    "$ref": "#/$defs/money"
+                  },
+                  "percentage": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "fixed": {
+                    "type": "boolean"
+                  },
+                  "discount": {
+                    "$ref": "#/$defs/money"
+                  },
+                  "net": {
+                    "$ref": "#/$defs/money"
+                  }
+                }
+              }
+            },
+            "mandatoryGross": {
+              "$ref": "#/$defs/money"
+            },
+            "optionalGross": {
+              "$ref": "#/$defs/money"
+            },
+            "mandatoryDiscount": {
+              "$ref": "#/$defs/money"
+            },
+            "optionalDiscount": {
+              "$ref": "#/$defs/money"
+            },
+            "mandatoryNet": {
+              "$ref": "#/$defs/money"
+            },
+            "optionalNet": {
+              "$ref": "#/$defs/money"
+            }
+          }
         }
       }
     },
@@ -2219,6 +2354,10 @@
         "source"
       ],
       "properties": {
+        "unit": {
+          "type": "string",
+          "maxLength": 80
+        },
         "id": {
           "type": "string",
           "maxLength": 500
@@ -2848,7 +2987,73 @@
             "titles"
           ],
           "properties": {
-            "showSubtotals": { "type": "boolean" },
+            "categorySpacing": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["category", "rows"],
+                "properties": {
+                  "category": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "rows": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5
+                  }
+                }
+              }
+            },
+            "sectionNames": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["mandatory", "optional"],
+              "properties": {
+                "mandatory": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "optional": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                }
+              }
+            },
+            "spacing": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "chapterHeading": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 5
+                },
+                "category": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 5
+                },
+                "mandatory": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 5
+                },
+                "optional": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 5
+                }
+              }
+            },
+            "showSubtotals": {
+              "type": "boolean"
+            },
             "startRow": {
               "type": "integer",
               "minimum": 1,
@@ -2953,6 +3158,11 @@
                   "maxLength": 1000
                 },
                 "discount": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "grandTotal": {
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 1000

@@ -285,7 +285,7 @@ test('quotation template entry precedes pricing and customer preview in the real
     /<section[^>]*>[^]*?Maintenance quotation groups[^]*?<\/section>/,
   )?.[0];
   assert.ok(maintenancePanel);
-  assert.match(markup, /NE8000 \(1 node\/NE\)/);
+  assert.match(markup, /NE8000 \(1\)/);
   assert.doesNotMatch(markup, /2 years from 2026/);
   assert.ok(
     markup.indexOf('维保报价') < markup.indexOf('Maintenance quotation groups'),
@@ -315,7 +315,7 @@ test('quotation template entry precedes pricing and customer preview in the real
     'Quantity',
     'Unit price',
     'Amount',
-    'Quote Total',
+    'Grand Total',
     'Validity',
     'Payment',
   ])

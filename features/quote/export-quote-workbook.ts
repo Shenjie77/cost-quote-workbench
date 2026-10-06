@@ -19,6 +19,8 @@ export type QuoteWorkbookInput = {
   documentStatus?: 'Draft' | 'Final';
   issuedAt?: string;
   maintenance?: MaintenanceWorkspace;
+  /** Already-priced rows used by the internal preview. */
+  pricedMaintenanceLines?: QuoteLine[];
   project: CostExportSnapshot['project'];
   quoteNumber: string;
   costVersion: string;
@@ -69,6 +71,14 @@ export const buildQuoteWorkbookBuffer = async (
     );
   }
   if (input.template.excel) {
+    if (
+      !input.template.excel.body &&
+      input.pricing.discountAllocation &&
+      input.pricing.discountAllocation.mode !== 'total'
+    )
+      throw new Error(
+        'Section and Category discounts require a Structured layout. Choose the built-in customer layout or configure the template body.',
+      );
     const { fillQuoteExcelTemplate } = await import('./fill-excel-template.ts');
     const source =
       templateBytes ??

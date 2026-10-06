@@ -158,7 +158,7 @@ test('custom titles/order/numbering repeat across categories and Optional remain
   const rows = structuredBodyRows(data, body, { project: 'Campus' });
   assert.deepEqual(
     rows.filter((r) => r.role === 'total').map((r) => r.amount),
-    [300, 100],
+    [300, 100, 300],
   );
   assert.deepEqual(
     rows.filter((r) => r.role === 'chapter').map((r) => r.number),
@@ -188,11 +188,15 @@ test('zero-valued Optional items remain visible and Optional-only chapters start
     lineGroups: data.pricing.lineGroups,
   });
   const sheet = (await output(data)).getWorksheet('Quote');
-  assert.match(allText(sheet), /Total price for optional items/);
+  assert.match(allText(sheet), /Total price for Optional items/);
   const rows = structuredBodyRows(data, data.template.excel.body, {
     project: 'Campus',
   });
-  assert.equal(rows.at(-1).amount, 0);
+  assert.equal(
+    rows.find((r) => r.description === 'Total price for Optional items').amount,
+    0,
+  );
+  assert.equal(rows.at(-1).amount, 100);
   data.pricing.lineGroups.s0.inclusion = 'optional';
   const only = structuredBodyRows(data, data.template.excel.body, {
     project: 'Campus',
@@ -275,13 +279,75 @@ test('maintenance descriptions use explicit text or model and node count without
       },
     ],
   };
+  assert.equal(customerDocument(data).maintenance[0].description, 'NE8000 (2)');
+  data.maintenance.boq[0].unit = 'routers';
   assert.equal(
     customerDocument(data).maintenance[0].description,
-    'NE8000 (2 node/NE)',
+    'NE8000 (2 routers)',
   );
   data.maintenance.boq[0].description = 'Customer router support';
   assert.equal(
     customerDocument(data).maintenance[0].description,
     'Customer router support',
   );
+});
+
+test('custom section names and selected blank rows preserve numbering, shifted footers and exact total references', async () => {
+  const data = input(4, true),
+    body = data.template.excel.body;
+  body.sectionNames = { mandatory: 'Base scope', optional: 'Additional scope' };
+  body.titles.subtotal = '{section} / {category} Subtotal';
+  body.spacing = { chapterHeading: 1, category: 0, mandatory: 2, optional: 1 };
+  body.categorySpacing = [{ category: 'Deployment', rows: 2 }];
+  const plan = structuredBodyRows(data, body, { project: 'Campus' });
+  assert.deepEqual(
+    plan.filter((r) => r.role === 'chapter').map((r) => r.description),
+    [
+      'Base scope items for Campus',
+      'Additional scope items (excluded from mandatory total)',
+    ],
+  );
+  assert.equal(plan.filter((r) => r.role === 'blank').length, 9);
+  assert.deepEqual(
+    plan.filter((r) => r.role === 'detail').map((r) => r.number),
+    ['1.1.1', '1.1.2', '1.2.1', '2.1.1'],
+  );
+  const book = await output(data),
+    sheet = book.getWorksheet('Quote');
+  for (const [i, row] of plan.entries()) {
+    const n = body.startRow + i;
+    if (row.role === 'blank') {
+      assert.equal(sheet.getRow(n).actualCellCount, 0);
+      assert.equal(sheet.getRow(n).height, 12);
+    }
+    if (row.sum) {
+      assert.equal(sheet.getCell(`G${n}`).result, row.amount);
+      assert.equal(
+        sheet.getCell(`G${n}`).formula,
+        `ROUND(SUM(${row.sum.map((index) => `G${body.startRow + index}`).join(',')})${row.subtract === undefined ? '' : `-G${body.startRow + row.subtract}`},2)`,
+      );
+    }
+  }
+  const delta = plan.length - (body.endRow - body.startRow + 1);
+  assert.equal(sheet.getCell(`C${42 + delta}`).value, 'Retained footer');
+  assert.match(allText(sheet), /Total price for Base scope items/);
+  assert.match(allText(sheet), /Additional scope \/ Deployment Subtotal/);
+  data.lines = data.lines.slice(0, 3);
+  data.pricing = calculatePricing(240, {
+    targetGrossMargin: 20,
+    discount: 0,
+    gstPercent: 0,
+  });
+  const without = structuredBodyRows(data, body, { project: 'Campus' });
+  assert.equal(without.filter((row) => row.role === 'chapter').length, 1);
+  assert.doesNotMatch(
+    without.map((row) => row.description).join('\n'),
+    /Additional scope/,
+  );
+  const invalid = structuredClone(data.template.excel);
+  invalid.body.spacing.mandatory = 6;
+  assert.match(validateQuoteExcelMapping(invalid).join(' '), /0 to 5/);
+  invalid.body.spacing.mandatory = 1;
+  invalid.body.categorySpacing.push({ category: ' deployment ', rows: 1 });
+  assert.match(validateQuoteExcelMapping(invalid).join(' '), /unique names/);
 });

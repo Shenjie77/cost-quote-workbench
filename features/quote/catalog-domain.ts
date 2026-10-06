@@ -55,6 +55,8 @@ export function referenceAssumptions(
       textZh: entry.textZh,
       included: true,
       sourceAssumptionId: id,
+      sourceText: entry.text,
+      sourceTextZh: entry.textZh,
     });
     sources.add(id);
     texts.add(textKey(entry));
@@ -95,4 +97,36 @@ export function captureQuoteReferences<T extends { id: string }>(
     ...current.map((item) => replacements.get(item.id) ?? item),
     ...[...replacements.values()].filter((item) => !existing.has(item.id)),
   ];
+}
+
+/** Refresh unchanged references; retain quote-specific edits, inclusion and historical records. */
+export function syncQuoteAssumptions(
+  current: QuoteAssumption[],
+  previous: AssumptionDefinition[],
+  latest: AssumptionDefinition[],
+  client: string,
+): QuoteAssumption[] {
+  return current.map((row) => {
+    const sourceId = row.sourceAssumptionId ?? row.id;
+    const entry = latest.find((item) => item.id === sourceId);
+    const old = previous.find((item) => item.id === sourceId);
+    if (!entry?.active || !matchesClient(entry.clientPattern, client))
+      return row;
+    const baseline = row.sourceText ?? old?.text;
+    const baselineZh = row.sourceTextZh ?? old?.textZh;
+    if (
+      baseline === undefined ||
+      row.text !== baseline ||
+      row.textZh !== (baselineZh ?? '')
+    )
+      return row;
+    return {
+      ...row,
+      sourceAssumptionId: sourceId,
+      text: entry.text,
+      textZh: entry.textZh,
+      sourceText: entry.text,
+      sourceTextZh: entry.textZh,
+    };
+  });
 }

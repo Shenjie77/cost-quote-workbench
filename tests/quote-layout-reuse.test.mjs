@@ -254,7 +254,7 @@ test('disabling category Subtotals removes those rows but keeps discounted and O
     );
     assert.deepEqual(
       plan.filter((row) => row.role === 'total').map((row) => row.amount),
-      [90, 25],
+      [100, 25, 90],
     );
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(

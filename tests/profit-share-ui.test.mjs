@@ -259,7 +259,7 @@ test('legacy manual quotation keeps its saved prices while showing computed whol
   assert.match(preview, /Customer service/);
   assert.match(preview, /S\$ 50\.00/);
   assert.match(preview, /S\$ 100\.00/);
-  assert.match(preview, /Quote Total/);
+  assert.match(preview, /Grand Total/);
   assert.doesNotMatch(
     preview,
     /GST|Before Tax|After Tax|S\$ 9\.00|S\$ 109\.00/,

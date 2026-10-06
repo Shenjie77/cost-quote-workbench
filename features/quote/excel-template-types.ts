@@ -41,6 +41,15 @@ export type QuoteExcelColumns = {
 
 /** One replaceable body, with reusable styles independent of category count. */
 export type QuoteBodyLayout = {
+  categorySpacing?: { category: string; rows: number }[];
+  sectionNames?: { mandatory: string; optional: string };
+  /** Blank rows after headings, categories, or complete chapters (0–5 each). */
+  spacing?: {
+    chapterHeading?: number;
+    category?: number;
+    mandatory?: number;
+    optional?: number;
+  };
   /** Omitted preserves existing templates with category subtotals. */
   showSubtotals?: boolean;
   startRow: number;
@@ -62,6 +71,7 @@ export type QuoteBodyLayout = {
     mandatoryTotal: string;
     optionalTotal: string;
     discount: string;
+    grandTotal?: string;
   };
 };
 

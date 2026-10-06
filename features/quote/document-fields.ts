@@ -13,6 +13,7 @@ export function quoteFieldValues(
   const values: Record<string, string | number | null> = {
     date: templateDate(input),
     optionalPrice: document.optionalAmount,
+    grandTotal: document.total,
     companyName: input.template.excel?.variables?.companyName ?? '',
     companyAddress: input.template.excel?.variables?.companyAddress ?? '',
     documentStatus: input.documentStatus ?? 'Final',

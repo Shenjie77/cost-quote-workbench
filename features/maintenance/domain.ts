@@ -10,6 +10,7 @@ import {
   type MaintenancePriceRecord,
 } from '../master-data/domain.ts';
 export type BoqLine = {
+  unit?: string;
   ct?: number;
   spms?: number;
   durationYears?: number;

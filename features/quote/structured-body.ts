@@ -1,3 +1,4 @@
+import { discountGroupKey } from './discount-allocation.ts';
 import type { QuoteBodyLayout, QuoteLine } from './excel-template-types.ts';
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
 import { customerDocument } from './customer-document.ts';
@@ -6,16 +7,33 @@ import { roundMoney } from '../cost/domain.ts';
 import { renderTemplateText } from './template-text.ts';
 
 export const defaultBodyTitles: QuoteBodyLayout['titles'] = {
-  mandatory: 'Mandatory items for {project}',
-  optional: 'Optional items (excluded from mandatory total)',
+  mandatory: '{section} items for {project}',
+  optional: '{section} items (excluded from mandatory total)',
   category: '{category}',
   subtotal: '{category} Subtotal',
-  mandatoryTotal: 'Total price for mandatory items',
-  optionalTotal: 'Total price for optional items',
-  discount: 'Service discount',
+  mandatoryTotal: 'Total price for {section} items',
+  optionalTotal: 'Total price for {section} items',
+  discount: 'Discount',
+  grandTotal: 'Grand Total',
 };
+/** Upgrade only earlier generated defaults; retain authored heading wording. */
+export function normalizedBodyTitles(
+  titles: QuoteBodyLayout['titles'],
+): QuoteBodyLayout['titles'] {
+  const old = {
+    mandatory: 'Mandatory items for {project}',
+    optional: 'Optional items (excluded from mandatory total)',
+    mandatoryTotal: 'Total price for mandatory items',
+    optionalTotal: 'Total price for optional items',
+    subtotal: '{category} subtotal',
+  };
+  const next = { ...defaultBodyTitles, ...titles };
+  for (const key of Object.keys(old) as (keyof typeof old)[])
+    if (next[key] === old[key]) next[key] = defaultBodyTitles[key];
+  return next;
+}
 export type BodyRow = {
-  role: keyof QuoteBodyLayout['styles'];
+  role: keyof QuoteBodyLayout['styles'] | 'blank';
   description: string;
   number?: string;
   line?: QuoteLine;
@@ -37,6 +55,13 @@ export function structuredBodyRows(
 ): BodyRow[] {
   const document = customerDocument(input),
     rows: BodyRow[] = [];
+  const blank = (count = 0) => {
+    for (let i = 0; i < count; i++)
+      rows.push({ role: 'blank', description: '' });
+  };
+  const titles = normalizedBodyTitles(layout.titles);
+  const allocation = document.allocation;
+  const grandTotals: number[] = [];
   let chapter = 0,
     serial = 0;
   const rank = new Map(
@@ -52,26 +77,31 @@ export function structuredBodyRows(
       );
     if (!sections.length) continue;
     chapter++;
+    const sectionName =
+      layout.sectionNames?.[inclusion] ||
+      (inclusion === 'mandatory' ? 'Mandatory' : 'Optional');
     const text = (pattern: string, category = '') =>
       String(
         renderTemplateText(pattern, {
           ...values,
           category,
+          section: sectionName,
           chapterNumber: chapter,
         }),
       );
     rows.push({
       role: 'chapter',
       number: String(chapter),
-      description: text(layout.titles[inclusion]),
+      description: text(titles[inclusion]),
     });
+    blank(layout.spacing?.chapterHeading);
     const subtotals: number[] = [];
     for (const [index, section] of sections.entries()) {
       const sectionNo = `${chapter}.${index + 1}`;
       rows.push({
         role: 'category',
         number: sectionNo,
-        description: text(layout.titles.category, section.category),
+        description: text(titles.category, section.category),
       });
       const details: number[] = [];
       for (const [i, line] of section.lines.entries()) {
@@ -90,44 +120,108 @@ export function structuredBodyRows(
                 : `${sectionNo}.${i + 1}`,
         });
       }
-      if (layout.showSubtotals !== false) {
+      const categoryDiscount =
+        allocation.mode === 'category'
+          ? (allocation.rows.find(
+              (r) => r.key === discountGroupKey(inclusion, section.category),
+            )?.discount ?? 0)
+          : 0;
+      let categoryDiscountRow: number | undefined;
+      if (categoryDiscount) {
+        categoryDiscountRow = rows.length;
+        rows.push({
+          role: 'subtotal',
+          description: text(titles.discount, section.category),
+          amount: categoryDiscount,
+        });
+      }
+      if (layout.showSubtotals !== false || categoryDiscount) {
         subtotals.push(rows.length);
         rows.push({
           role: 'subtotal',
           description: text(
-            layout.titles.subtotal === '{category} subtotal'
+            titles.subtotal === '{category} subtotal'
               ? '{category} Subtotal'
-              : layout.titles.subtotal,
+              : titles.subtotal,
             section.category,
           ),
           sum: details,
+          subtract: categoryDiscountRow,
           amount: roundMoney(
-            section.lines.reduce((total, line) => total + line.amount, 0),
+            section.lines.reduce((total, line) => total + line.amount, 0) -
+              categoryDiscount,
           ),
         });
       } else subtotals.push(...details);
+      blank(
+        layout.categorySpacing?.find(
+          (rule) =>
+            categoryKey(rule.category) === categoryKey(section.category),
+        )?.rows ?? layout.spacing?.category,
+      );
     }
     let discount: number | undefined;
-    if (inclusion === 'mandatory' && input.pricing.discount) {
+    const sectionDiscount =
+      allocation.mode === 'section'
+        ? (allocation.rows.find((r) => r.key === discountGroupKey(inclusion))
+            ?.discount ?? 0)
+        : 0;
+    if (sectionDiscount) {
       discount = rows.length;
       rows.push({
         role: 'subtotal',
-        description: text(layout.titles.discount),
-        amount: input.pricing.discount,
+        description: text(titles.discount),
+        amount: sectionDiscount,
       });
     }
+    if (inclusion === 'mandatory') grandTotals.push(rows.length);
     rows.push({
       role: 'total',
       description: text(
         inclusion === 'mandatory'
-          ? layout.titles.mandatoryTotal
-          : layout.titles.optionalTotal,
+          ? titles.mandatoryTotal
+          : titles.optionalTotal,
       ),
       sum: subtotals,
       subtract: discount,
       amount:
-        inclusion === 'mandatory' ? document.total : document.optionalAmount,
+        inclusion === 'mandatory'
+          ? allocation.mode === 'total'
+            ? allocation.mandatoryGross
+            : document.total
+          : document.optionalAmount,
+    });
+    blank(layout.spacing?.[inclusion]);
+  }
+  let totalDiscount: number | undefined;
+  if (allocation.mode === 'total' && input.pricing.discount) {
+    totalDiscount = rows.length;
+    rows.push({
+      role: 'subtotal',
+      description: String(
+        renderTemplateText(titles.discount, {
+          ...values,
+          section: layout.sectionNames?.mandatory || 'Mandatory',
+          category: '',
+          chapterNumber: '',
+        }),
+      ),
+      amount: input.pricing.discount,
     });
   }
+  rows.push({
+    role: 'total',
+    description: String(
+      renderTemplateText(titles.grandTotal!, {
+        ...values,
+        section: layout.sectionNames?.mandatory || 'Mandatory',
+        category: '',
+        chapterNumber: '',
+      }),
+    ),
+    sum: grandTotals,
+    subtract: totalDiscount,
+    amount: document.total,
+  });
   return rows;
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { normalizedBodyTitles } from '@/features/quote/structured-body';
+
 import { QuoteLayoutLibrary } from './quote-layout-library';
 import {
   applySavedLayout,
@@ -80,8 +82,7 @@ function initialDraft(asset: QuoteExcelAsset): MappingDraft {
 function editableMapping(value?: QuoteExcelTemplate): MappingDraft | undefined {
   if (!value) return undefined;
   const copy = structuredClone(value);
-  if (copy.body?.titles.subtotal === '{category} subtotal')
-    copy.body.titles.subtotal = '{category} Subtotal';
+  if (copy.body) copy.body.titles = normalizedBodyTitles(copy.body.titles);
   const textCells = [...(copy.textCells ?? [])];
   const cells: QuoteExcelTemplate['cells'] = {};
   for (const [field, address] of Object.entries(copy.cells)) {

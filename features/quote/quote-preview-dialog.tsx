@@ -1,8 +1,15 @@
-import { quotationProjectName, renderTemplateText } from './template-text';
+import {
+  structuredBodyRows,
+  defaultBodyTitles,
+  type BodyRow,
+} from './structured-body';
+import { buildQuotePreviewWorkbook } from './preview-workbook';
+import { readableFileStem, exportTimestamp } from '@/lib/file-names';
+import { quotationProjectName } from './template-text';
 import { quoteFieldValues } from './document-fields';
 import { groupedLines, quotationSections } from './quotation-groups';
 /** Read-only customer quotation content, opened on demand without changing the draft. */
-import { Fragment, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -63,6 +70,9 @@ export function QuotePreviewDialog({
   maintenanceAmount?: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [exporting, setExporting] = useState(false),
+    [exportError, setExportError] = useState('');
+  const exportLock = useRef(false);
   const customerName = quotationProjectName({ project, pricing });
   const sections = quotationSections(
     groupedLines([...lines, ...maintenanceLines], pricing.lineGroups),
@@ -74,9 +84,10 @@ export function QuotePreviewDialog({
 
   let renderedTerms = template?.termsAndConditions ?? '',
     termsError = '';
+  let bodyRows: BodyRow[] = [];
   if (template)
     try {
-      const values = quoteFieldValues({
+      const previewInput = {
         project,
         pricing,
         template,
@@ -84,20 +95,86 @@ export function QuotePreviewDialog({
         costVersion: activeVersion,
         assumptions: [...assumptions],
         lines: [...lines],
-      });
-      // Maintenance preview rows are already priced, so use their shown amounts here.
-      values.maintenancePrice = maintenanceAmount;
-      values.optionalPrice = optionalAmount;
-      values.quoteBeforeTax = values.quoteAfterTax =
-        pricing.quoteBeforeTax + maintenanceAmount - optionalAmount;
-      delete values.termsAndConditions;
-      renderedTerms = String(
-        renderTemplateText(template.termsAndConditions, values) ?? '',
+        pricedMaintenanceLines: [...maintenanceLines],
+        layout: 'customer' as const,
+      };
+      const values = quoteFieldValues(previewInput);
+      renderedTerms = String(values.termsAndConditions ?? '');
+      bodyRows = structuredBodyRows(
+        previewInput,
+        template.excel?.body ?? {
+          startRow: 1,
+          endRow: 1,
+          styles: { chapter: 1, category: 1, detail: 1, subtotal: 1, total: 1 },
+          numbering: 'hierarchical',
+          categoryOrder: [],
+          titles: defaultBodyTitles,
+        },
+        values,
       );
     } catch (error) {
       termsError =
         error instanceof Error ? error.message : 'Check T&C placeholders.';
     }
+
+  const sectionName = (inclusion: 'mandatory' | 'optional') =>
+    template?.excel?.body?.sectionNames?.[inclusion] ||
+    (inclusion === 'mandatory' ? 'Mandatory' : 'Optional');
+  async function exportPreview() {
+    if (exportLock.current || !pricing.valid || termsError || !template) return;
+    exportLock.current = true;
+    setExporting(true);
+    setExportError('');
+    const input = {
+      title: template.documentTitle || 'SERVICE QUOTATION',
+      sectionNames: {
+        mandatory: sectionName('mandatory'),
+        optional: sectionName('optional'),
+      },
+      projectName: customerName,
+      client: project.client,
+      currency: project.currency,
+      quoteNumber: `QT-${project.id.replace(/^PRJ-/, '')}-${activeVersion}`,
+      costVersion: activeVersion,
+      sections: sections.map((section) => ({
+        name: `${sectionName(section.inclusion)} / ${section.category}`,
+        lines: section.lines,
+      })),
+      bodyRows,
+      servicePrice: pricing.listPrice,
+      maintenanceAmount,
+      discount: pricing.discount,
+      optionalAmount,
+      validityDays: template.validityDays || 30,
+      paymentTerms: template.paymentTerms,
+      terms: renderedTerms,
+      assumptions: assumptions
+        .filter((row) => row.included && !isRetiredQuoteAssumption(row))
+        .map((row) => row.text),
+    };
+    try {
+      const bytes = await buildQuotePreviewWorkbook(input);
+      const blob = new Blob([new Uint8Array(bytes)], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob),
+        anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `Preview_${readableFileStem(input.projectName)}_${exportTimestamp()}.xlsx`;
+      try {
+        anchor.click();
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch (error) {
+      setExportError(
+        error instanceof Error ? error.message : 'Unable to export preview.',
+      );
+    } finally {
+      exportLock.current = false;
+      setExporting(false);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -112,8 +189,9 @@ export function QuotePreviewDialog({
         <DialogHeader>
           <DialogTitle>Client Output Preview</DialogTitle>
           <DialogDescription className="text-xs">
-            Review the current quotation content. The generated XLSX uses the
-            selected customer template.
+            Review the current quotation content. Preview XLSX uses this
+            built-in layout; customer exports use the selected customer
+            template.
           </DialogDescription>
         </DialogHeader>
         {termsError && (
@@ -167,36 +245,46 @@ export function QuotePreviewDialog({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sections.map((section) => (
-                <Fragment key={section.inclusion + section.category}>
-                  <TableRow>
-                    <TableCell colSpan={6} className="font-semibold">
-                      {section.inclusion === 'optional'
-                        ? 'Optional'
-                        : 'Mandatory'}{' '}
-                      / {section.category}
+              {bodyRows.map((row, index) =>
+                row.role === 'blank' ? (
+                  <TableRow key={index} aria-hidden="true">
+                    <TableCell colSpan={6} className="h-3 p-0" />
+                  </TableRow>
+                ) : (
+                  <TableRow
+                    key={index}
+                    className={
+                      row.role === 'total'
+                        ? 'bg-accent/50 font-semibold'
+                        : row.role !== 'detail'
+                          ? 'font-medium'
+                          : ''
+                    }
+                  >
+                    <TableCell>{row.number}</TableCell>
+                    <TableCell
+                      colSpan={row.line ? 1 : 4}
+                      className="min-w-48 whitespace-pre-wrap break-words"
+                    >
+                      {row.description}
+                    </TableCell>
+                    {row.line && (
+                      <>
+                        <TableCell className="text-right">
+                          {row.line.quantity}
+                        </TableCell>
+                        <TableCell>{row.line.unit}</TableCell>
+                        <TableCell className="text-right">
+                          {formatUnitPrice(row.line.unitPrice)}
+                        </TableCell>
+                      </>
+                    )}
+                    <TableCell className="text-right">
+                      {row.amount === undefined ? '' : formatSgd(row.amount)}
                     </TableCell>
                   </TableRow>
-                  {section.lines.map((line, index) => (
-                    <TableRow key={line.id}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell className="min-w-48 whitespace-pre-wrap break-words">
-                        {line.description}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {line.quantity}
-                      </TableCell>
-                      <TableCell>{line.unit}</TableCell>
-                      <TableCell className="text-right">
-                        {formatUnitPrice(line.unitPrice)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatSgd(line.amount)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </Fragment>
-              ))}
+                ),
+              )}
               {!sections.length && (
                 <TableRow>
                   <TableCell
@@ -209,37 +297,6 @@ export function QuotePreviewDialog({
               )}
             </TableBody>
           </Table>
-          {/* Show the service price and discount leading to one customer quotation total. */}
-          <dl className="ml-auto mt-3 grid max-w-sm grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 border-y py-3 text-xs">
-            <dt>Service price</dt>
-            <dd className="financial-numeral text-right">
-              {formatSgd(pricing.listPrice)}
-            </dd>
-            {maintenanceLines.length > 0 && (
-              <>
-                <dt>Maintenance</dt>
-                <dd className="financial-numeral text-right">
-                  {formatSgd(maintenanceAmount)}
-                </dd>
-              </>
-            )}
-            <dt>Discount</dt>
-            <dd className="financial-numeral text-right">
-              {formatSgd(pricing.discount)}
-            </dd>
-            <dt className="font-semibold">Mandatory Quote Total</dt>
-            <dd className="financial-numeral text-right text-base font-bold text-primary">
-              {formatSgd(
-                pricing.quoteBeforeTax + maintenanceAmount - optionalAmount,
-              )}
-            </dd>
-            {optionalAmount > 0 && (
-              <>
-                <dt>Optional total (excluded)</dt>
-                <dd className="text-right">{formatSgd(optionalAmount)}</dd>
-              </>
-            )}
-          </dl>
           {/* Preserve selected terms and included assumptions verbatim, including their line breaks. */}
           <div className="mt-3 space-y-2 text-xs text-muted-foreground">
             <p>• Validity: {template?.validityDays || 30} days</p>
@@ -264,7 +321,23 @@ export function QuotePreviewDialog({
               ))}
           </div>
         </article>
-        <DialogFooter className="py-3" showCloseButton />
+        {exportError && (
+          <p role="alert" className="text-xs text-destructive">
+            {exportError}
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Built-in preview layout. Edit content in Quotation project name, Quote
+          Templates (title and T&amp;C), and Quote Assumptions.
+        </p>
+        <DialogFooter className="py-3" showCloseButton>
+          <Button
+            disabled={exporting || !pricing.valid || !!termsError || !template}
+            onClick={exportPreview}
+          >
+            {exporting ? 'Exporting…' : 'Export Preview XLSX'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

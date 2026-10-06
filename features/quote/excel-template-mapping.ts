@@ -209,6 +209,53 @@ export function validateQuoteExcelMapping(
         'Configure the structured quotation body, row styles and titles.',
       );
     } else {
+      if (
+        body.sectionNames !== undefined &&
+        (!isRecord(body.sectionNames) ||
+          ['mandatory', 'optional'].some(
+            (key) =>
+              typeof body.sectionNames?.[key as 'mandatory' | 'optional'] !==
+                'string' ||
+              !body.sectionNames[key as 'mandatory' | 'optional'].trim() ||
+              body.sectionNames[key as 'mandatory' | 'optional'].length > 120,
+          ))
+      )
+        errors.push('Section names must contain 1–120 characters.');
+      if (
+        body.spacing !== undefined &&
+        (!isRecord(body.spacing) ||
+          Object.entries(body.spacing).some(
+            ([key, value]) =>
+              !['chapterHeading', 'category', 'mandatory', 'optional'].includes(
+                key,
+              ) ||
+              !Number.isInteger(value) ||
+              Number(value) < 0 ||
+              Number(value) > 5,
+          ))
+      )
+        errors.push('Blank rows must be whole numbers from 0 to 5.');
+      if (
+        body.categorySpacing !== undefined &&
+        (!Array.isArray(body.categorySpacing) ||
+          body.categorySpacing.length > 100 ||
+          body.categorySpacing.some(
+            (rule) =>
+              !isRecord(rule) ||
+              typeof rule.category !== 'string' ||
+              !rule.category.trim() ||
+              rule.category.length > 120 ||
+              !Number.isInteger(rule.rows) ||
+              rule.rows < 0 ||
+              rule.rows > 5,
+          ) ||
+          new Set(
+            body.categorySpacing.map((rule) => categoryKey(rule.category)),
+          ).size !== body.categorySpacing.length)
+      )
+        errors.push(
+          'Category spacing requires unique names and 0–5 blank rows.',
+        );
       const rowValid = (value: unknown) =>
         Number.isInteger(value) &&
         Number(value) >= 1 &&
@@ -260,8 +307,10 @@ export function validateQuoteExcelMapping(
         'mandatoryTotal',
         'optionalTotal',
         'discount',
+        'grandTotal',
       ] as const) {
         const title = body.titles[key];
+        if (key === 'grandTotal' && title === undefined) continue;
         if (typeof title !== 'string' || !title.trim() || title.length > 1000)
           errors.push(`Enter a ${key} title (1–1000 characters).`);
         else {
@@ -270,7 +319,7 @@ export function validateQuoteExcelMapping(
           for (const token of referencedTokens(title))
             if (
               !allowed.has(token) &&
-              !['category', 'chapterNumber'].includes(token)
+              !['category', 'chapterNumber', 'section'].includes(token)
             )
               errors.push(`Unknown title placeholder: {${token}}.`);
         }

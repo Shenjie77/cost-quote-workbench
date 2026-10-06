@@ -48,6 +48,8 @@ export type AssumptionDefinition = {
 };
 
 export type QuoteAssumption = {
+  sourceText?: string;
+  sourceTextZh?: string;
   id: string;
   text: string;
   textZh: string;
@@ -69,6 +71,9 @@ export function isRetiredQuoteAssumption(row: {
 export type QuoteHistoryStatus = 'Draft' | 'Final';
 
 export type QuoteHistoryRecord = {
+  discountAllocationSnapshot?: ReturnType<
+    typeof import('./discount-allocation.ts').allocateQuotationDiscount
+  >;
   quotationProjectName?: string;
   /** Customer document total includes the separately priced maintenance schedule. */
   customerQuoteAmount?: number;

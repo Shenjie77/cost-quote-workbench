@@ -1,3 +1,4 @@
+import type { DiscountAllocation } from './discount-allocation.ts';
 import {
   validateLineGroups,
   type QuoteLineGroups,
@@ -27,6 +28,7 @@ export type PricingSettings = {
   targetGrossMargin: number;
   /** Commercial discount deducted after the target-margin list price. */
   discount: number;
+  discountAllocation?: DiscountAllocation;
   /** Legacy persisted field retained for compatibility; new quotations ignore it. */
   gstPercent: number;
   /** Project-owned rate snapshot; global catalogue updates are explicitly applied. */
@@ -245,6 +247,9 @@ export const calculatePricing = (
       : {}),
     ...(settings.lineGroups
       ? { lineGroups: structuredClone(settings.lineGroups) }
+      : {}),
+    ...(settings.discountAllocation
+      ? { discountAllocation: structuredClone(settings.discountAllocation) }
       : {}),
     ...(effectiveLines ? { allocatedManualLines: effectiveLines } : {}),
     cost,

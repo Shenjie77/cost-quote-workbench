@@ -1,13 +1,11 @@
+import { DiscountAllocationEditor } from './discount-allocation-editor';
+import { groupedLines } from './quotation-groups';
 import { quotationProjectName } from './template-text';
 import { quoteFieldValues } from './document-fields';
 import { QuoteGroupFields } from './quote-group-fields';
 import { groupFor } from './quotation-groups';
 import { QuoteExportDialog } from './quote-export-dialog';
 import { customerDocument } from './customer-document';
-import {
-  calculateComponentMaintenance,
-  maintenanceGridDraft,
-} from '../maintenance/component-pricing';
 import { MaintenanceSummary } from '../maintenance/maintenance-summary';
 import { emptyMaintenance } from '../maintenance/domain';
 import type { MaintenanceWorkspace } from '../maintenance/domain';
@@ -54,7 +52,6 @@ import type {
   QuoteHistoryStatus,
   QuoteTemplate,
 } from '@/features/quote/types';
-import { Textarea } from '@/components/ui/textarea';
 import { AssumptionPicker } from './assumption-picker';
 import { QuoteTemplatePicker } from './template-picker';
 import { loadQuoteTemplateCatalog } from './template-catalog';
@@ -106,6 +103,8 @@ export function QuoteView({
   pricing,
   setPricing,
   assumptionLibrary,
+  onSyncAssumptions,
+  onMaintenanceUnitChange,
   quoteTemplates,
   onCaptureTemplate,
   selectedQuoteTemplateId,
@@ -139,6 +138,8 @@ export function QuoteView({
   exportInProgress: boolean;
   pricing: PricingSettings;
   setPricing: React.Dispatch<React.SetStateAction<PricingSettings>>;
+  onSyncAssumptions?: (library: AssumptionDefinition[]) => void;
+  onMaintenanceUnitChange?: (id: string, unit: string) => void;
   assumptionLibrary: AssumptionDefinition[];
   quoteTemplates: QuoteTemplate[];
   onCaptureTemplate?: (
@@ -176,18 +177,6 @@ export function QuoteView({
     costAllocation,
     costSnapshot,
   );
-  // Use the same annual maintenance calculation as the detail grid and export.
-  let quoteWithMaintenance: number | undefined;
-  try {
-    if (result.valid)
-      quoteWithMaintenance =
-        result.quoteBeforeTax +
-        calculateComponentMaintenance(
-          maintenanceGridDraft(maintenance ?? emptyMaintenance()),
-        ).quote;
-  } catch {
-    /* Invalid maintenance stays unavailable until its inputs are corrected. */
-  }
   const effectiveQuoteAssumptions = quoteAssumptions.filter(
     (row) => !isRetiredQuoteAssumption(row),
   );
@@ -239,6 +228,31 @@ export function QuoteView({
       : []),
     ...(decisionError ? [decisionError] : []),
   ];
+  let grossDocument: ReturnType<typeof customerDocument> | undefined;
+  try {
+    grossDocument = customerDocument({
+      project,
+      quoteNumber: '',
+      costVersion: activeVersion,
+      template: template ?? {
+        id: '',
+        name: '',
+        clientPattern: '*',
+        documentTitle: '',
+        validityDays: 30,
+        paymentTerms: '',
+        termsAndConditions: '',
+        defaultAssumptionIds: [],
+        active: true,
+      },
+      assumptions: [],
+      lines,
+      maintenance,
+      pricing: { ...result, discount: 0, discountAllocation: undefined },
+    });
+  } catch {
+    /* Invalid maintenance is reported with output validation below. */
+  }
   let customerPreview: ReturnType<typeof customerDocument> | undefined;
   if (template && result.valid) {
     try {
@@ -443,6 +457,7 @@ export function QuoteView({
               maintenanceLineSnapshots: document.maintenance,
             }
           : {}),
+        discountAllocationSnapshot: document.allocation,
         costAmount: result.cost,
         quoteBeforeTax: result.quoteBeforeTax,
         gstAmount: result.gstAmount,
@@ -562,8 +577,8 @@ export function QuoteView({
                 pricing={result}
                 lines={lines}
                 assumptions={effectiveQuoteAssumptions}
-                maintenanceLines={customerPreview?.maintenance}
-                maintenanceAmount={customerPreview?.maintenanceAmount}
+                maintenanceLines={grossDocument?.maintenance}
+                maintenanceAmount={grossDocument?.maintenanceAmount}
               />
               <Button
                 variant="outline"
@@ -660,8 +675,8 @@ export function QuoteView({
               <TableHead className="border-l border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
                 <BiText
                   zhClassName="text-white/70"
-                  en="Quote + Maintenance"
-                  zh="含维保总报价"
+                  en="Grand Total"
+                  zh="折后总报价（不含可选项）"
                 />
               </TableHead>
             </TableRow>
@@ -700,13 +715,22 @@ export function QuoteView({
                 </span>
               </TableCell>
               <TableCell className="financial-numeral border-l bg-accent/60 px-3 text-right font-semibold text-primary">
-                {quoteWithMaintenance === undefined
+                {customerPreview === undefined
                   ? '—'
-                  : formatSgd(quoteWithMaintenance)}
+                  : formatSgd(customerPreview.total)}
               </TableCell>
             </TableRow>
           </TableBody>
         </Table>
+        <DiscountAllocationEditor
+          pricing={pricing}
+          setPricing={setPricing}
+          lines={
+            grossDocument?.allLines ?? groupedLines(lines, pricing.lineGroups)
+          }
+          sectionNames={template?.excel?.body?.sectionNames}
+          disabled={isExporting || exportInProgress || isApplyingRates}
+        />
         {/* The detail editor spans the same width as the parameters that determine its prices. */}
         <QuoteLinesEditor
           key={`${project.id}:${activeVersion}`}
@@ -774,6 +798,7 @@ export function QuoteView({
               <thead className="bg-muted/40 text-left">
                 <tr>
                   <th className="px-3 py-2 font-medium">Description</th>
+                  <th className="w-24 px-2 py-2 font-medium">Equipment unit</th>
                   <th className="px-2 py-2 font-medium">
                     Category / Inclusion
                   </th>
@@ -783,6 +808,25 @@ export function QuoteView({
                 {customerPreview.maintenance.map((line) => (
                   <tr key={line.id}>
                     <td className="px-3 py-1">{line.description}</td>
+                    <td>
+                      <input
+                        className="h-8 w-full border-0 bg-transparent px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                        aria-label={`Equipment unit for ${line.id}`}
+                        maxLength={80}
+                        disabled={exportInProgress || !onMaintenanceUnitChange}
+                        value={
+                          maintenance?.boq.find(
+                            (row) => `maintenance:${row.id}` === line.id,
+                          )?.unit ?? ''
+                        }
+                        onChange={(event) =>
+                          onMaintenanceUnitChange?.(
+                            line.id.slice('maintenance:'.length),
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </td>
                     <td className="w-80 px-1">
                       <QuoteGroupFields
                         label={line.description}
@@ -855,15 +899,17 @@ export function QuoteView({
         <AssumptionPicker
           key={project.id}
           library={effectiveAssumptionLibrary}
+          onSync={onSyncAssumptions}
+          disabled={exportInProgress}
           client={project.client}
           assumptions={effectiveQuoteAssumptions}
           setAssumptions={setQuoteAssumptions}
         />
         <div className="wb-table-scroll">
-          <Table className="min-w-[900px]">
+          <Table className="min-w-[640px] text-xs [&_td]:border [&_td]:p-0 [&_th]:border [&_th]:h-8">
             <TableHeader>
               <TableRow className="bg-muted/60">
-                <TableHead className="w-24">Include</TableHead>
+                <TableHead className="w-28">Include</TableHead>
                 <TableHead>Assumption</TableHead>
                 <TableHead className="w-20 text-center">Action</TableHead>
               </TableRow>
@@ -890,12 +936,19 @@ export function QuoteView({
                     </button>
                     {item.sourceAssumptionId && (
                       <small className="mt-1 block text-muted-foreground">
-                        Library copy / 库引用
+                        {item.sourceText !== undefined &&
+                        (item.text !== item.sourceText ||
+                          item.textZh !== (item.sourceTextZh ?? ''))
+                          ? 'Customized'
+                          : 'Library reference'}
                       </small>
                     )}
                   </TableCell>
                   <TableCell>
-                    <Textarea
+                    <textarea
+                      rows={1}
+                      className="block min-h-8 w-full resize-y border-0 bg-transparent px-2 py-1 text-xs [field-sizing:content] focus-visible:outline-2 focus-visible:outline-ring"
+                      disabled={exportInProgress}
                       aria-label="Quotation assumption text"
                       maxLength={2000}
                       value={item.text}

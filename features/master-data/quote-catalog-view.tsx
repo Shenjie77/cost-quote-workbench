@@ -80,7 +80,7 @@ export function AssumptionLibraryView({
         </Button>
       </div>
       <div className="min-w-0">
-        <Table className="min-w-[1000px]">
+        <Table className="min-w-[1000px] text-xs [&_td]:border [&_td]:p-0 [&_th]:border [&_th]:h-8">
           <TableHeader>
             <TableRow>
               {[
@@ -116,10 +116,11 @@ export function AssumptionLibraryView({
                 )}
                 {(['text', 'textZh'] as const).map((field) => (
                   <TableCell key={field} className="min-w-64 p-0">
-                    <Textarea
+                    <textarea
+                      rows={1}
                       aria-label={`${row.name} ${field}`}
                       maxLength={2000}
-                      className="min-h-16 rounded-none border-0 bg-transparent text-xs shadow-none"
+                      className="block min-h-8 w-full resize-y border-0 bg-transparent px-2 py-1 text-xs [field-sizing:content] focus-visible:outline-2 focus-visible:outline-ring"
                       value={row[field]}
                       onChange={(event) =>
                         update(row.id, { [field]: event.target.value })

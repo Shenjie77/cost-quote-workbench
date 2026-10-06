@@ -334,7 +334,7 @@ test('opening and closing the preview changes only visibility and preserves ever
     'First condition.',
     'Second condition.',
     'Access is provided by the client.',
-    'Quote Total',
+    'Grand Total',
     '250.00',
     '220.00',
     '30.00',
@@ -597,5 +597,62 @@ test('export entry opens requirements for draft costs and final output stays gat
       (node) => textOf(node) === 'Export Draft XLSX' && node.props.onClick,
     ).props.disabled,
     true,
+  );
+});
+
+test('Preview export button downloads one XLSX without writing pricing, archive or history', async (t) => {
+  const { props, writes } = fixture();
+  const preview = walk(harness(QuoteView, props)()).find(
+    (node) => node.type === QuotePreviewDialog,
+  );
+  const render = harness(QuotePreviewDialog, preview.props);
+  const button = () =>
+    walk(render()).find(
+      (node) =>
+        textOf(node) === 'Export Preview XLSX' &&
+        typeof node.props.onClick === 'function',
+    );
+  const clicked = [],
+    blobs = [];
+  const originalDocument = globalThis.document;
+  const previewDocument = {
+    createElement(tag) {
+      assert.equal(tag, 'a');
+      return {
+        click() {
+          clicked.push({ href: this.href, fileName: this.download });
+        },
+      };
+    },
+  };
+  globalThis.document = previewDocument;
+  t.after(() => {
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+  });
+  t.mock.method(URL, 'createObjectURL', (blob) => {
+    blobs.push(blob);
+    return 'blob:preview-test';
+  });
+  t.mock.method(URL, 'revokeObjectURL', () => {});
+  assert.equal(button().props.disabled, false);
+  const action = button().props.onClick;
+  const first = action();
+  await action();
+  await first;
+  assert.equal(clicked.length, 1);
+  assert.match(clicked[0].fileName, /^Preview_.*\.xlsx$/);
+  assert.equal(
+    blobs[0].type,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  );
+  assert.ok(blobs[0].size > 1000);
+  assert.equal(writes(), 0);
+  const { default: ExcelJS } = await import('exceljs');
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(await blobs[0].arrayBuffer());
+  assert.match(
+    JSON.stringify(book.worksheets[0].getSheetValues()),
+    /PREVIEW — Internal review only/,
   );
 });

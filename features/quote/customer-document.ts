@@ -1,3 +1,4 @@
+import { allocateQuotationDiscount } from './discount-allocation.ts';
 import { quotationProjectName } from './template-text.ts';
 import { groupedLines, quotationSections } from './quotation-groups.ts';
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
@@ -25,8 +26,10 @@ export function customerDocument(input: QuoteWorkbookInput) {
       amount: input.pricing.listPrice,
     },
   ];
-  const maintenance: QuoteLine[] = [];
-  if (input.maintenance) {
+  const maintenance: QuoteLine[] = input.pricedMaintenanceLines
+    ? [...input.pricedMaintenanceLines]
+    : [];
+  if (input.maintenance && !input.pricedMaintenanceLines) {
     const draft = maintenanceGridDraft(input.maintenance);
     const calculated = calculateComponentMaintenance(draft);
     for (const { boq, quote } of calculated.lines) {
@@ -39,7 +42,7 @@ export function customerDocument(input: QuoteWorkbookInput) {
         id: `maintenance:${boq.id}`,
         description:
           boq.description?.trim() ||
-          `${boq.model.trim()} (${boq.quantity} node/NE)`,
+          `${boq.model.trim()} (${boq.quantity}${boq.unit?.trim() ? ` ${boq.unit.trim()}` : ''})`,
         unit: 'per year',
         quantity: boq.durationYears!,
         unitPrice: roundMoney(
@@ -61,24 +64,29 @@ export function customerDocument(input: QuoteWorkbookInput) {
     input.pricing.lineGroups,
   );
   const allLines = [...groupedService, ...groupedMaintenance];
-  const optionalAmount = roundMoney(
-    allLines
-      .filter((l) => l.inclusion === 'optional')
-      .reduce((sum, l) => sum + l.amount, 0),
+  const allocation = allocateQuotationDiscount(
+    allLines,
+    input.pricing.discount,
+    input.pricing.discountAllocation,
   );
-  const mandatoryService = groupedService
-    .filter((l) => l.inclusion === 'mandatory')
-    .reduce((sum, l) => sum + l.amount, 0);
-  if (input.pricing.discount > roundMoney(mandatoryService))
+  if (allocation.errors.length) throw new Error(allocation.errors.join(' '));
+  // Historical service-only discounts retain their original validation contract.
+  if (
+    !input.pricing.discountAllocation &&
+    input.pricing.discount >
+      roundMoney(
+        groupedService
+          .filter((l) => l.inclusion === 'mandatory')
+          .reduce((sum, l) => sum + l.amount, 0),
+      )
+  )
     throw new Error(
       'The service discount exceeds the Mandatory service amount.',
     );
-  const mandatoryTotal = roundMoney(total - optionalAmount);
-  if (mandatoryTotal < 0)
-    throw new Error(
-      'The service discount exceeds the Mandatory quotation amount.',
-    );
+  const optionalAmount = allocation.optionalNet;
+  const mandatoryTotal = allocation.mandatoryNet;
   return {
+    allocation,
     service: groupedService,
     maintenance: groupedMaintenance,
     maintenanceAmount,

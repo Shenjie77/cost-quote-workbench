@@ -41,6 +41,11 @@ export function calculateComponentMaintenance(data: MaintenanceWorkspace) {
     throw new TypeError('Invalid maintenance row IDs or row count.');
   const annual = new Map<number, number>();
   const lines: MaintenanceQuoteLine[] = data.boq.map((row) => {
+    if (
+      row.unit !== undefined &&
+      (typeof row.unit !== 'string' || row.unit.length > 80)
+    )
+      throw new TypeError('Equipment unit must be at most 80 characters.');
     const ct = row.ct ?? row.unitAnnualQuote,
       spms = row.spms ?? 0,
       duration = row.durationYears ?? data.coverageMonths / 12;

@@ -97,7 +97,7 @@ test('customer schedule includes service, annual maintenance, exact totals and a
   assert.equal(maintenance.getCell(6).value, 2);
   assert.equal(maintenance.getCell(7).result, 150);
   const total = rows.find(
-    (row) => row.getCell(3).text === 'Total price for mandatory items',
+    (row) => row.getCell(3).text === 'Grand Total',
   );
   assert.equal(total.getCell(7).result, 340);
   assert.equal(sheet.pageSetup.fitToHeight, 0);
@@ -161,13 +161,13 @@ test('standard workbook groups custom category titles under Mandatory and Option
   assert.ok(values.includes('Optional items (excluded from mandatory total)'));
   assert.equal(
     rows
-      .find((row) => row.getCell(3).value === 'Total price for mandatory items')
+      .find((row) => row.getCell(3).value === 'Grand Total')
       .getCell(7).value.result,
     document.total,
   );
   assert.equal(
     rows
-      .find((row) => row.getCell(3).value === 'Total price for optional items')
+      .find((row) => row.getCell(3).value === 'Total price for Optional items')
       .getCell(7).value.result,
     document.optionalAmount,
   );

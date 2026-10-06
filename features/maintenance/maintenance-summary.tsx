@@ -82,6 +82,7 @@ export function MaintenanceSummary({
                 'SPMS',
                 'U/P',
                 'QTY',
+                'Unit',
                 'Yearly',
                 'Dur.',
                 'Total',
@@ -104,6 +105,7 @@ export function MaintenanceSummary({
                   <TableCell>{formatMoney(row.spms)}</TableCell>
                   <TableCell>{formatMoney(unit)}</TableCell>
                   <TableCell>{row.quantity}</TableCell>
+                  <TableCell>{row.unit}</TableCell>
                   <TableCell>{formatMoney(unit * row.quantity)}</TableCell>
                   <TableCell>{row.durationYears}</TableCell>
                   <TableCell>{formatMoney(line.quote)}</TableCell>
@@ -112,7 +114,7 @@ export function MaintenanceSummary({
             })}
             {!result.lines.length && (
               <TableRow>
-                <TableCell colSpan={9}>暂无维保设备</TableCell>
+                <TableCell colSpan={10}>暂无维保设备</TableCell>
               </TableRow>
             )}
           </TableBody>

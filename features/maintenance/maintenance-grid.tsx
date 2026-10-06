@@ -31,6 +31,7 @@ const labels = [
   'SPMS',
   'U/P',
   'QTY',
+  'Unit',
   'Yearly',
   'Dur.',
   'Total',
@@ -46,6 +47,7 @@ const columnTitles = [
   'SPMS',
   'Unit price / 年度单价',
   'Quantity / 数量',
+  'Equipment unit / 设备单位',
   'Yearly price / 每年总价（年度单价 × 数量）',
   'Duration / 维保年数',
   'Total / 总价',
@@ -53,7 +55,9 @@ const columnTitles = [
   'Remark / 备注',
   'Actions / 操作',
 ];
-const defaultWidths = [180, 220, 90, 90, 100, 65, 110, 65, 120, 90, 180, 42];
+const defaultWidths = [
+  180, 220, 90, 90, 100, 65, 85, 110, 65, 120, 90, 180, 42,
+];
 const money = formatMoney;
 
 /** Allow temporary empty numeric drafts; committing an empty optional value stores zero. */
@@ -326,7 +330,7 @@ export function MaintenanceGrid({
       <TableBody>
         {!rows.length ? (
           <TableRow>
-            <TableCell colSpan={12}>
+            <TableCell colSpan={13}>
               <p className="p-4 text-muted-foreground">
                 添加设备或批量粘贴 Excel 数据。History 和 Remark 可留空。
               </p>
@@ -384,6 +388,16 @@ export function MaintenanceGrid({
                   integer
                   disabled={disabled}
                   onCommit={(quantity) => onPatch(row.id, { quantity })}
+                />
+              </TableCell>
+              <TableCell>
+                <input
+                  aria-label={`Equipment unit row ${index + 1}`}
+                  value={row.unit ?? ''}
+                  maxLength={80}
+                  disabled={disabled}
+                  onChange={(e) => onPatch(row.id, { unit: e.target.value })}
+                  className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring"
                 />
               </TableCell>
               <TableCell className="financial-numeral bg-muted/30 text-right">

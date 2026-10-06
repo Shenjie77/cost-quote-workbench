@@ -926,8 +926,25 @@ async function fillStructuredBody(
     if (!overlaps(range))
       sheet.mergeCells(regionFormula(range, sheet.name, sheet.name, edit));
   for (const [index, row] of plan.entries()) {
-    const target = edit.start + index,
-      pattern = patterns[row.role];
+    const target = edit.start + index;
+    if (row.role === 'blank') {
+      restoreRow(
+        sheet,
+        {
+          number: target,
+          height: 12,
+          hidden: false,
+          outlineLevel: 0,
+          style: {},
+          cells: [],
+        },
+        target,
+        edit.end,
+        0,
+      );
+      continue;
+    }
+    const pattern = patterns[row.role];
     restoreRow(
       sheet,
       {
@@ -984,7 +1001,7 @@ async function fillStructuredBody(
         sheet.getCell(`${mapping.columns.amount}${edit.start + index}`).master
           .address;
       const formula = row.sum
-        ? `ROUND(SUM(${row.sum.map(amountAddress).join(',')})${row.subtract === undefined ? '' : `-${amountAddress(row.subtract)}`},2)`
+        ? `ROUND(SUM(${row.sum.map(amountAddress).join(',') || '0'})${row.subtract === undefined ? '' : `-${amountAddress(row.subtract)}`},2)`
         : undefined;
       amount.value = formula ? { formula, result: row.amount } : row.amount;
     }
