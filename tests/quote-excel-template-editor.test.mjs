@@ -767,9 +767,17 @@ test('structured uploads validate both Optional states and preserve reusable tit
   reopened.render();
   await settle();
   assert.equal(reopened.input('Quotation output mode').props.value, 'body');
-  assert.ok(reopened.button('Sample without Optional'));
+  assert.ok(reopened.button('Sample workbook'));
+  assert.equal(reopened.button('Sample without Optional'), undefined);
   const markup = renderToStaticMarkup(reopened.render());
   assert.match(markup, /Category heading text/);
+  assert.match(markup, /Section heading text/);
+  assert.match(markup, /Section total text/);
+  assert.match(markup, /After section block/);
+  assert.doesNotMatch(
+    markup,
+    /After Mandatory section|After Optional section|Mandatory chapter text|Optional chapter text|Mandatory total text|Optional total text/,
+  );
   assert.match(markup, /\{category\}/);
 });
 
@@ -792,6 +800,7 @@ test('structured samples exercise named category spacing in both Optional states
   bodyEditor.props.onChange({
     ...bodyEditor.props.value,
     spacing: { category: 1 },
+    sectionSpacing: [{ section: 'Implementation', rows: 2 }],
     categorySpacing: [
       { category: 'Maintenance', rows: 2 },
       { category: 'Managed support', rows: 0 },
@@ -807,13 +816,26 @@ test('structured samples exercise named category spacing in both Optional states
   for (const sample of samples) {
     assert.equal(
       sample.lines.length,
-      5,
+      6,
       'existing categories are not duplicated',
     );
-    assert.equal(sample.pricing.listPrice, 1700);
+    assert.equal(sample.pricing.listPrice, 1800);
     const rows = structuredBodyRows(sample, sample.template.excel.body, {
       project: 'Sample Project',
     });
+    assert.ok(
+      rows.some(
+        (row) =>
+          row.role === 'chapter' && row.description.includes('Implementation'),
+      ),
+    );
+    const sectionTotal = rows.findIndex(
+      (row) =>
+        row.role === 'total' && row.description.includes('Implementation'),
+    );
+    assert.equal(rows[sectionTotal + 1].role, 'blank');
+    assert.equal(rows[sectionTotal + 2].role, 'blank');
+    assert.notEqual(rows[sectionTotal + 3]?.role, 'blank');
     for (const [category, expected] of [
       ['Maintenance', 2],
       ['Managed support', 0],

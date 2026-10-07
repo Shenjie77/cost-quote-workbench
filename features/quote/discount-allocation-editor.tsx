@@ -154,8 +154,8 @@ export function DiscountAllocationEditor({
       )}
       <p className="px-3 py-2 text-muted-foreground">
         {allocation.mode === 'total'
-          ? 'Deduct once from all sections combined, including Optional.'
-          : 'Blank shares follow prices and split the remaining percentage. Section and Category allocation includes Optional items; all net amounts are included in Grand Total.'}
+          ? 'Deduct once from all sections combined.'
+          : 'Blank shares follow prices and split the remaining percentage. All Section and Category net amounts are included in Grand Total.'}
       </p>
       {allocation.errors.map((error) => (
         <p role="alert" key={error} className="px-3 pb-2 text-destructive">

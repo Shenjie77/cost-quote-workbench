@@ -6,7 +6,10 @@ import { readFileSync } from 'node:fs';
 import { fillQuoteExcelTemplate } from '../features/quote/fill-excel-template.ts';
 import { book2StructuredMapping } from '../features/quote/book2-example-mapping.ts';
 import { validateQuoteExcelMapping } from '../features/quote/excel-template-mapping.ts';
-import { structuredBodyRows } from '../features/quote/structured-body.ts';
+import {
+  structuredBodyRows,
+  editableSectionLayout,
+} from '../features/quote/structured-body.ts';
 import { customerDocument } from '../features/quote/customer-document.ts';
 import { calculatePricing } from '../features/quote/domain.ts';
 import { initialQuoteTemplates } from '../features/quote/types.ts';
@@ -254,6 +257,14 @@ test('structured body schema round-trips and rejects unknown keys', () => {
   });
   const mapping = JSON.parse(JSON.stringify(input().template.excel));
   assert.equal(validate(mapping), true, JSON.stringify(validate.errors));
+  mapping.body.spacing = { section: 1 };
+  mapping.body.sectionSpacing = [{ section: 'Implementation', rows: 2 }];
+  mapping.body.titles.section = '{section}';
+  mapping.body.titles.sectionTotal = '{section} Total';
+  assert.equal(validate(mapping), true, JSON.stringify(validate.errors));
+  mapping.body.sectionSpacing[0].rows = 6;
+  assert.equal(validate(mapping), false);
+  mapping.body.sectionSpacing[0].rows = 2;
   mapping.body.unexpected = true;
   assert.equal(validate(mapping), false);
 });
@@ -454,4 +465,85 @@ test('heading spacing and named category end spacing occupy different positions 
     (r) => r.description === 'Deployment Subtotal',
   );
   assert.notEqual(without[index + 1].role, 'blank');
+});
+
+test('named section rules override old inclusion settings and same-name chapters merge in XLSX', async () => {
+  const data = input(3);
+  data.pricing.lineGroups = {
+    s0: {
+      section: 'Implementation',
+      category: 'Service',
+      inclusion: 'mandatory',
+    },
+    s1: {
+      section: 'Implementation',
+      category: 'Service',
+      inclusion: 'optional',
+    },
+    s2: { section: 'Support', category: 'Maintenance', inclusion: 'optional' },
+  };
+  data.pricing.discountAllocation = { mode: 'section' };
+  const body = data.template.excel.body;
+  body.titles.section = '{section} heading';
+  body.titles.sectionTotal = '{section} Total';
+  body.spacing = { section: 1, mandatory: 5, optional: 5 };
+  body.sectionSpacing = [
+    { section: ' implementation ', rows: 2 },
+    { section: 'Support', rows: 0 },
+  ];
+  assert.deepEqual(validateQuoteExcelMapping(data.template.excel), []);
+  const plan = structuredBodyRows(data, body, {});
+  assert.deepEqual(
+    plan.filter((r) => r.role === 'chapter').map((r) => r.description),
+    ['Implementation heading', 'Support heading'],
+  );
+  for (const [title, blanks, amount] of [
+    ['Implementation Total', 2, 193.33],
+    ['Support Total', 0, 96.67],
+  ]) {
+    const index = plan.findIndex((r) => r.description === title);
+    assert.equal(plan[index].amount, amount);
+    let count = 0;
+    while (plan[index + count + 1]?.role === 'blank') count++;
+    assert.equal(count, blanks);
+  }
+  assert.equal(plan.at(-1).amount, 290);
+  const sheet = (await output(data)).getWorksheet('Quote');
+  for (const title of [
+    'Implementation heading',
+    'Support heading',
+    'Implementation Total',
+    'Support Total',
+  ]) {
+    const index = plan.findIndex((r) => r.description === title);
+    assert.ok(
+      sheet
+        .getRow(body.startRow + index)
+        .values.some((value) => value === title),
+      title,
+    );
+  }
+  body.sectionSpacing.push({ section: 'Implementation', rows: 3 });
+  assert.match(
+    validateQuoteExcelMapping(data.template.excel).join(' '),
+    /Section spacing requires unique names/,
+  );
+});
+
+test('editing old section spacing exposes named exceptions without mutating the saved layout', () => {
+  const body = input().template.excel.body;
+  body.sectionNames = { mandatory: 'Deployment', optional: 'Support' };
+  body.spacing = { chapterHeading: 1, category: 2, mandatory: 1, optional: 3 };
+  const before = structuredClone(body);
+  const editable = editableSectionLayout(body);
+  assert.deepEqual(body, before);
+  assert.deepEqual(editable.spacing, {
+    chapterHeading: 1,
+    category: 2,
+    section: 1,
+  });
+  assert.deepEqual(editable.sectionSpacing, [{ section: 'Support', rows: 3 }]);
+  assert.equal(editable.titles.section, '{section} items for {project}');
+  assert.equal(editable.titles.sectionTotal, 'Total price for {section} items');
+  assert.deepEqual(editableSectionLayout(editable), editable);
 });

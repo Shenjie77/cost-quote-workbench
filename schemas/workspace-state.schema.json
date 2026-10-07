@@ -3045,6 +3045,27 @@
                 }
               }
             },
+            "sectionSpacing": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["section", "rows"],
+                "properties": {
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "rows": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5
+                  }
+                }
+              }
+            },
             "sectionNames": {
               "type": "object",
               "additionalProperties": false,
@@ -3066,6 +3087,11 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
+                "section": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 5
+                },
                 "chapterHeading": {
                   "type": "integer",
                   "minimum": 0,
@@ -3169,6 +3195,16 @@
                 "discount"
               ],
               "properties": {
+                "section": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "sectionTotal": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
                 "mandatory": {
                   "type": "string",
                   "minLength": 1,

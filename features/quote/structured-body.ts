@@ -32,6 +32,44 @@ export function normalizedBodyTitles(
     if (next[key] === old[key]) next[key] = defaultBodyTitles[key];
   return next;
 }
+
+/** Stage legacy settings as visible section rules; archived template snapshots stay immutable. */
+export function editableSectionLayout(
+  layout: QuoteBodyLayout,
+): QuoteBodyLayout {
+  const titles = normalizedBodyTitles(layout.titles);
+  const spacing = layout.spacing ?? {};
+  const sectionSpacing = [...(layout.sectionSpacing ?? [])];
+  const sectionDefault =
+    spacing.section ?? spacing.mandatory ?? spacing.optional ?? 0;
+  if (spacing.section === undefined) {
+    for (const inclusion of ['mandatory', 'optional'] as const) {
+      const rows = spacing[inclusion];
+      const section =
+        layout.sectionNames?.[inclusion] ??
+        (inclusion === 'mandatory' ? 'Mandatory' : 'Optional');
+      if (
+        rows !== undefined &&
+        rows !== sectionDefault &&
+        !sectionSpacing.some(
+          (rule) => categoryKey(rule.section) === categoryKey(section),
+        )
+      )
+        sectionSpacing.push({ section, rows });
+    }
+  }
+  const { mandatory: _mandatory, optional: _optional, ...rest } = spacing;
+  return {
+    ...layout,
+    spacing: { ...rest, section: sectionDefault },
+    sectionSpacing,
+    titles: {
+      ...titles,
+      section: titles.section ?? titles.mandatory,
+      sectionTotal: titles.sectionTotal ?? titles.mandatoryTotal,
+    },
+  };
+}
 export type BodyRow = {
   role: keyof QuoteBodyLayout['styles'] | 'blank';
   description: string;
@@ -106,7 +144,7 @@ export function structuredBodyRows(
     rows.push({
       role: 'chapter',
       number: String(chapter),
-      description: text(titles[inclusion]),
+      description: text(titles.section ?? titles[inclusion]),
     });
     blank(layout.spacing?.chapterHeading);
     const subtotals: number[] = [];
@@ -196,9 +234,10 @@ export function structuredBodyRows(
     rows.push({
       role: 'total',
       description: text(
-        inclusion === 'mandatory'
-          ? titles.mandatoryTotal
-          : titles.optionalTotal,
+        titles.sectionTotal ??
+          (inclusion === 'mandatory'
+            ? titles.mandatoryTotal
+            : titles.optionalTotal),
       ),
       sum: subtotals,
       subtract: discount,
@@ -207,7 +246,13 @@ export function structuredBodyRows(
           sectionDiscount,
       ),
     });
-    blank(layout.spacing?.[inclusion]);
+    blank(
+      layout.sectionSpacing?.find(
+        (rule) => categoryKey(rule.section) === categoryKey(sectionName),
+      )?.rows ??
+        layout.spacing?.section ??
+        layout.spacing?.[inclusion],
+    );
   }
   let totalDiscount: number | undefined;
   if (allocation.mode === 'total' && input.pricing.discount) {

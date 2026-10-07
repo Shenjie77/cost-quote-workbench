@@ -61,17 +61,13 @@ export function customerDocument(input: QuoteWorkbookInput) {
     throw new Error('Customer quotation total exceeds the supported range.');
   const sectionSettings = migrateQuoteSections(input.pricing, input.template);
   const sectionNames = sectionSettings.sectionNames;
-  const groupedService = groupedLines(
-    service,
+  const allLines = groupedLines(
+    [...service, ...maintenance],
     input.pricing.lineGroups,
     sectionNames,
   );
-  const groupedMaintenance = groupedLines(
-    maintenance,
-    input.pricing.lineGroups,
-    sectionNames,
-  );
-  const allLines = [...groupedService, ...groupedMaintenance];
+  const groupedService = allLines.slice(0, service.length);
+  const groupedMaintenance = allLines.slice(service.length);
   const allocation = allocateQuotationDiscount(
     allLines,
     input.pricing.discount,

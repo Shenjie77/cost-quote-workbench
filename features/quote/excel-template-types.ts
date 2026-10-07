@@ -42,10 +42,12 @@ export type QuoteExcelColumns = {
 /** One replaceable body, with reusable styles independent of category count. */
 export type QuoteBodyLayout = {
   categorySpacing?: { category: string; rows: number }[];
+  sectionSpacing?: { section: string; rows: number }[];
   sectionNames?: { mandatory: string; optional: string };
   /** Blank rows after headings, categories, or complete chapters (0–5 each). */
   spacing?: {
     chapterHeading?: number;
+    section?: number;
     category?: number;
     mandatory?: number;
     optional?: number;
@@ -66,6 +68,8 @@ export type QuoteBodyLayout = {
   numbering: 'hierarchical' | 'continuous' | 'alphabetic';
   categoryOrder: string[];
   titles: {
+    section?: string;
+    sectionTotal?: string;
     mandatory: string;
     optional: string;
     category: string;

@@ -373,8 +373,7 @@ export function QuoteLinesEditor({
       <p className="text-xs text-muted-foreground">
         Section and Category accept custom titles for this quotation. Structured
         templates generate matching categories automatically. Grand Total
-        includes all sections and Optional items; internal cost and GP include
-        all service lines.
+        includes all sections; internal cost and GP include all service lines.
       </p>
       {/* All internal pricing controls share one grid; customer previews and files omit these internal columns. */}
       <Table
@@ -386,7 +385,7 @@ export function QuoteLinesEditor({
           <TableRow>
             <TableHead className="w-10">#</TableHead>
             <TableHead>Description</TableHead>
-            <TableHead>Section / Category / Inclusion</TableHead>
+            <TableHead>Section / Category</TableHead>
             <TableHead className="w-20 text-right">Quantity</TableHead>
             <TableHead className="w-16">Unit</TableHead>
             <TableHead className="w-28 text-right">Cost</TableHead>

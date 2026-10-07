@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import ts from 'typescript';
 import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
   buildQuoteLines,
   calculateManualQuoteLines,
@@ -1068,7 +1069,7 @@ test('every Scope exposes independent Risk share before selection, defaulting to
   assert.equal(view.label('Risk percentage Delivery').props.value, '70.00');
 });
 
-test('section, category and inclusion controls persist quote-owned grouping without changing line pricing', () => {
+test('section and category controls preserve quote grouping without exposing legacy inclusion', () => {
   const initial = {
     targetGrossMargin: 50,
     discount: 0,
@@ -1083,6 +1084,12 @@ test('section, category and inclusion controls persist quote-owned grouping with
         node.props.value?.category !== undefined,
     );
   assert.equal(field().props.value.category, 'Professional Service');
+  const markup = renderToStaticMarkup(
+    React.createElement(field().type, field().props),
+  );
+  assert.match(markup, /Line 1 section/);
+  assert.match(markup, /Line 1 category/);
+  assert.doesNotMatch(markup, /Line 1 inclusion|<select/);
   const before = view.result.quoteBeforeTax;
   field().props.onChange({
     category: 'Managed support',

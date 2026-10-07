@@ -7,7 +7,7 @@ In **Master Data → Quote Templates → Customer Excel layout**, upload an XLSX
 3. Map detail columns. Choose hierarchical, continuous or alphabetic numbering; optionally list category order. Categories not listed follow their order in the quotation data.
 4. Edit generated heading patterns, for example `{section} items for {project}`, `{category}` and `{category} Subtotal`.
 5. Add outside-body cell content such as `Date of quotation: {date}`. `{documentTitle}` uses the template's Document title. Footer totals should use `{quoteBeforeTax}` or `{optionalPrice}`, rather than formulas over the replaced body.
-6. Use **Sample with Optional** and **Sample without Optional** to review both cases. **Apply mapping** validates both; **Save this tab** publishes the mapping. In an existing project's Pricing & Quote page, select the updated template and click **Apply Template**.
+6. Use **Sample workbook** to review generated sections, categories and their spacing rules. **Apply mapping** validates the generated output; **Save this tab** publishes the mapping. In an existing project's Pricing & Quote page, select the updated template and click **Apply Template**.
 
 For the supplied Book2 layout, **Use Book2 structured layout** stages body rows **15–32**, chapter row **15**, category row **16**, detail row **17**, and subtotal/total row **25**. Review these coordinates if the original workbook has changed. Save once and reuse the mapping for subsequent quotations.
 
@@ -15,7 +15,7 @@ An empty chapter generates no heading, category, detail or total rows. A zero-pr
 
 The original workbook remains immutable. Rows outside the body, including terms, retain their content and move with body expansion/contraction. Use ordinary styled cells, horizontal merges, and distinct detail field cells. Images belong outside the body. Formulas or named ranges outside the body that reference its old sample coordinates are rejected to avoid incorrect totals.
 
-Maintenance Section / Category / Inclusion is edited in the Pricing & Quote **Maintenance** section. The customer-facing item name uses Description verbatim (trimmed); if blank, it uses `Model (quantity unit)`. Start year is not appended. Duration and annual pricing calculations remain unchanged.
+Maintenance Section / Category is edited in the Pricing & Quote **Maintenance** section. The customer-facing item name uses Description verbatim (trimmed); if blank, it uses `Model (quantity unit)`. Start year is not appended. Duration and annual pricing calculations remain unchanged.
 
 ## Reuse layouts and customer-facing fields
 
@@ -23,13 +23,13 @@ Maintenance Section / Category / Inclusion is edited in the Pricing & Quote **Ma
 - Upload another workbook (for example, with a different logo), choose a saved layout and **Load layout**. Review the target sheet/coordinates, then **Apply mapping** and **Save this tab**. Replacing the current workbook also retains its existing configuration automatically. The workbook itself is separate from the saved layout. **Update layout** changes the selected reusable preset; previously configured customer templates are unchanged until it is loaded into them.
 - In **Pricing & Quote**, **Quotation project name** supplies the customer-facing `{project}` value and the generated single service description. Blank falls back to the internal project name. The internal project record stays unchanged; exported history records the name used.
 - Template T&C supports the same public field placeholders, e.g. `This quotation for {project} is valid for {validityDays} days from {date}.` Company fields use the layout's company variables. Unknown placeholders are reported before export; `{termsAndConditions}` cannot reference itself. Resolved T&C is saved with export history.
-- **Category Subtotals → Include category Subtotals** controls whether each category gets a Subtotal row. The default is enabled. Disabling it preserves Mandatory/Optional totals and the discount; totals sum detail rows directly.
+- **Category Subtotals → Include category Subtotals** controls whether each category gets a Subtotal row. The default is enabled. Disabling it preserves section totals and the discount; totals sum detail rows directly.
 
 ## Chapters, whitespace and internal review
 
-**Section** is now entered beside Category on the quotation page, defaulting to `Mandatory` / `Optional`. Use `{section}` in chapter headings, category headings, Subtotals and totals, for example `Total price for {section}`. Renaming a section affects labels only; Optional amounts remain excluded from the Mandatory total. Existing generated default titles are upgraded to this placeholder; authored title text stays intact.
+**Section** is entered beside Category on the quotation page. Use **Section heading** and **Section total** patterns with `{section}`, for example `Total price for {section}`. A shared pattern applies to every section; there are no separate Mandatory/Optional title controls. Existing template snapshots retain their legacy patterns until the mapping is edited and applied.
 
-Choose 0–5 blank rows after a section heading, each category, or the whole Mandatory/Optional section. **Category spacing override** targets a named category (case-insensitive), overriding the per-category default. Blank rows do not receive numbers or participate in totals. Empty sections and their spacing disappear together. These settings travel with saved layouts.
+Choose 0–5 blank rows after a section heading, each category, or a complete section. **Section spacing exceptions** target the actual Section names from the quote. **Category spacing override** targets a named category (case-insensitive), overriding the per-category default. Blank rows do not receive numbers or participate in totals. Empty sections and their spacing disappear together. These settings travel with saved layouts.
 
 Equipment units are editable per BOQ row in **Maintenance BOQ → Unit** and **Pricing & Quote → Maintenance → Equipment unit**. A blank unit adds no default wording. A supplied description is used as written; the model/quantity/unit fallback applies when description is blank.
 
@@ -39,7 +39,7 @@ Assumptions load from saved Master Data when the quotation page opens or **Refre
 
 ### Quote-owned Sections, Grand Total and discount allocation
 
-Section and Category are entered on Pricing & Quote for each service or maintenance line. Both accept reusable suggestions and custom text. Section controls the first heading level; Category controls the next. Inclusion remains the Mandatory/Optional classification. Groups with the same section name but different inclusion remain separate chapters. Names default to Mandatory/Optional; custom section names are independent of templates. Existing template-owned names and pinned discount keys are copied into the quote when an older project is loaded. Later template changes do not rename its sections. Historical exports remain unchanged.
+Section and Category are entered on Pricing & Quote for each service or maintenance line. Both accept reusable suggestions and custom text. Section controls the first heading level; Category controls the next. The legacy Inclusion selector is removed. Lines with the same Section name share one chapter even if historical inclusion flags differ. Legacy flags remain readable for archived data and old export mappings. Names default to Mandatory/Optional; custom section names are independent of templates. Existing template-owned names and pinned discount keys are copied into the quote when an older project is loaded. Later template changes do not rename its sections. Historical exports remain unchanged.
 
 Every structured body ends with **Grand Total = all sections, including Optional, minus discount exactly once**. A Mandatory section still contains only its own lines. `{grandTotal}` and customer total field mappings use the all-section total; `{optionalPrice}` reports Optional section amounts (before a total-level discount, net of section/category discounts). The title is editable in Generated headings. **Grand Total style row** selects an independent original row for font, fill, borders, alignment, number format and row height. It must be inside Body start/end. Older mappings fall back to Total style row.
 
@@ -54,9 +54,12 @@ Explicit percentages pin shares; blank shares split the remainder in proportion 
 ### Spacing precedence
 
 - **After section heading**: blank rows between a chapter title and its first category.
+- **After section block (default)**: blank rows after each section total. **Section spacing exceptions** replace this count for a named Section, including zero. Old Mandatory/Optional spacing is shown as a common default plus named exceptions when a mapping is opened for editing.
 - **After category block (default)**: blank rows after each category's details/Subtotal.
 - **Category end spacing overrides**: replaces the default for a named category wherever it appears, including an override of zero. It does not add to the default and does not affect heading spacing.
 
 For example, default category spacing 1 plus a Maintenance override 2 means 2 rows after Maintenance and 1 after all other categories.
 
 Leave the exceptions table empty when all categories use the same spacing. Rules match the Category value in Pricing & Quote, not a Section name or a generated heading. Sample downloads include synthetic items for every category named in a spacing rule, so Maintenance and custom-category overrides can be reviewed even when they are absent from the original sample data. Actual quotation exports only include the quotation's own items.
+
+Section and Category rules are independent: one adds rows after a section total, the other after a category block. Samples include each name configured in either rules table. Rules for names absent from an actual quote do not create empty sections or categories.

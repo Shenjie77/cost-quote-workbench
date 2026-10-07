@@ -78,6 +78,7 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
   const plan = structuredBodyRows(
     input,
     {
+      sectionSpacing: input.template.excel?.body?.sectionSpacing,
       categorySpacing: input.template.excel?.body?.categorySpacing,
       sectionNames: input.template.excel?.body?.sectionNames,
       spacing: input.template.excel?.body?.spacing,

@@ -798,9 +798,7 @@ export function QuoteView({
                 <tr>
                   <th className="px-3 py-2 font-medium">Description</th>
                   <th className="w-24 px-2 py-2 font-medium">Equipment unit</th>
-                  <th className="px-2 py-2 font-medium">
-                    Section / Category / Inclusion
-                  </th>
+                  <th className="px-2 py-2 font-medium">Section / Category</th>
                 </tr>
               </thead>
               <tbody className="divide-y">

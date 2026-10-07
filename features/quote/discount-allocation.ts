@@ -1,5 +1,9 @@
 import type { QuoteLine } from './excel-template-types.ts';
-import { categoryKey, groupFor } from './quotation-groups.ts';
+import {
+  categoryKey,
+  groupFor,
+  normalizeSectionMembership,
+} from './quotation-groups.ts';
 import { allocateMoneyByWeights } from './profit-share.ts';
 import { roundMoney } from '../cost/domain.ts';
 
@@ -26,6 +30,7 @@ export function allocateQuotationDiscount(
   discount: number,
   settings?: DiscountAllocation,
 ) {
+  lines = normalizeSectionMembership(lines);
   const mode = settings?.mode ?? 'total';
   const errors: string[] = [];
   if (!Number.isFinite(discount) || discount < 0 || discount > 1e12)

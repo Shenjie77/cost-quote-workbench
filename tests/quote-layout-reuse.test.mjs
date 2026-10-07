@@ -113,6 +113,10 @@ test('saved layouts survive reopen and SQLite backup, retaining configuration wi
   const original = mapping();
   original.variables = { companyName: 'Supplier' };
   original.body.showSubtotals = false;
+  original.body.spacing = { section: 1 };
+  original.body.sectionSpacing = [{ section: 'Implementation', rows: 2 }];
+  original.body.titles.section = '{section}';
+  original.body.titles.sectionTotal = '{section} Total';
   const saved = (
     await call(store, 'POST', {
       name: 'Corporate layout',

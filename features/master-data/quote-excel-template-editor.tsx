@@ -1,6 +1,6 @@
 'use client';
 
-import { normalizedBodyTitles } from '@/features/quote/structured-body';
+import { editableSectionLayout } from '@/features/quote/structured-body';
 import { categoryKey } from '@/features/quote/quotation-groups';
 
 import { QuoteLayoutLibrary } from './quote-layout-library';
@@ -83,7 +83,7 @@ function initialDraft(asset: QuoteExcelAsset): MappingDraft {
 function editableMapping(value?: QuoteExcelTemplate): MappingDraft | undefined {
   if (!value) return undefined;
   const copy = structuredClone(value);
-  if (copy.body) copy.body.titles = normalizedBodyTitles(copy.body.titles);
+  if (copy.body) copy.body = editableSectionLayout(copy.body);
   const textCells = [...(copy.textCells ?? [])];
   const cells: QuoteExcelTemplate['cells'] = {};
   for (const [field, address] of Object.entries(copy.cells)) {
@@ -166,6 +166,26 @@ async function sampleWorkbook(
     unitPrice: 100,
     amount: 100,
   }));
+  const seenSections = new Set([
+    'mandatory',
+    ...(includeOptional ? ['optional'] : []),
+  ]);
+  const spacingSections = (mapping.body?.sectionSpacing ?? [])
+    .map((rule) => rule.section.trim())
+    .filter((section) => {
+      const key = categoryKey(section);
+      if (!key || seenSections.has(key)) return false;
+      seenSections.add(key);
+      return true;
+    });
+  const sectionLines = spacingSections.map((section, index) => ({
+    id: `sample-section-${index + 1}`,
+    description: `Sample ${section} service`,
+    quantity: 1,
+    unit: 'lot',
+    unitPrice: 100,
+    amount: 100,
+  }));
   return buildQuoteWorkbookBuffer({
     project: {
       id: 'SAMPLE',
@@ -188,60 +208,73 @@ async function sampleWorkbook(
       excel: mapping,
     },
     assumptions: [],
-    pricing: calculatePricing(1200 + spacingLines.length * 80, {
-      ...initialPricingSettings,
-      targetGrossMargin: 20,
-      ...(mapping.body
-        ? {
-            lineGroups: {
-              ...Object.fromEntries(
-                spacingLines.map((line, index) => [
-                  line.id,
+    pricing: calculatePricing(
+      1200 + (spacingLines.length + sectionLines.length) * 80,
+      {
+        ...initialPricingSettings,
+        targetGrossMargin: 20,
+        ...(mapping.body
+          ? {
+              lineGroups: {
+                ...Object.fromEntries(
+                  sectionLines.map((line, index) => [
+                    line.id,
+                    {
+                      category: 'Professional Service',
+                      section: spacingSections[index],
+                      inclusion: 'mandatory' as const,
+                    },
+                  ]),
+                ),
+                ...Object.fromEntries(
+                  spacingLines.map((line, index) => [
+                    line.id,
+                    {
+                      category: spacingCategories[index],
+                      inclusion: 'mandatory' as const,
+                    },
+                  ]),
+                ),
+                'sample-1': {
+                  category: 'Professional Service',
+                  inclusion: 'mandatory' as const,
+                },
+                'sample-2': {
+                  category: 'Custom category',
+                  inclusion: 'mandatory' as const,
+                },
+                'sample-3': {
+                  category: 'Professional Service',
+                  inclusion: includeOptional
+                    ? ('optional' as const)
+                    : ('mandatory' as const),
+                },
+              },
+            }
+          : {}),
+        ...(mapping.regions?.length
+          ? {
+              lineGroups: Object.fromEntries(
+                ['sample-1', 'sample-2', 'sample-3'].map((id) => [
+                  id,
                   {
-                    category: spacingCategories[index],
-                    inclusion: 'mandatory' as const,
+                    category:
+                      mapping.regions![0].source === 'category'
+                        ? mapping.regions![0].category!
+                        : mapping.regions![0].source === 'maintenance'
+                          ? 'Maintenance'
+                          : 'Professional Service',
+                    inclusion:
+                      mapping.regions![0].source === 'optional'
+                        ? ('optional' as const)
+                        : (mapping.regions![0].inclusion ?? 'mandatory'),
                   },
                 ]),
               ),
-              'sample-1': {
-                category: 'Professional Service',
-                inclusion: 'mandatory' as const,
-              },
-              'sample-2': {
-                category: 'Custom category',
-                inclusion: 'mandatory' as const,
-              },
-              'sample-3': {
-                category: 'Professional Service',
-                inclusion: includeOptional
-                  ? ('optional' as const)
-                  : ('mandatory' as const),
-              },
-            },
-          }
-        : {}),
-      ...(mapping.regions?.length
-        ? {
-            lineGroups: Object.fromEntries(
-              ['sample-1', 'sample-2', 'sample-3'].map((id) => [
-                id,
-                {
-                  category:
-                    mapping.regions![0].source === 'category'
-                      ? mapping.regions![0].category!
-                      : mapping.regions![0].source === 'maintenance'
-                        ? 'Maintenance'
-                        : 'Professional Service',
-                  inclusion:
-                    mapping.regions![0].source === 'optional'
-                      ? ('optional' as const)
-                      : (mapping.regions![0].inclusion ?? 'mandatory'),
-                },
-              ]),
-            ),
-          }
-        : {}),
-    }),
+            }
+          : {}),
+      },
+    ),
     lineMode: 'item',
     lines: [
       {
@@ -269,6 +302,7 @@ async function sampleWorkbook(
         amount: 700,
       },
       ...spacingLines,
+      ...sectionLines,
     ],
   });
 }
@@ -419,7 +453,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
   }
 
   /** Download the original or a synthetic fill; neither path creates project archive/history records. */
-  async function downloadWorkbook(sample = false, includeOptional = true) {
+  async function downloadWorkbook(sample = false) {
     if (!draft || inFlight.current) return;
     const mapping = mappingFromDraft(draft);
     if (sample) {
@@ -436,7 +470,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
     setError('');
     try {
       const bytes = sample
-        ? await sampleWorkbook(mapping, includeOptional)
+        ? await sampleWorkbook(mapping)
         : await loadQuoteExcelTemplate(mapping.assetId);
       if (!alive.current || token !== request.current) return;
       const url = URL.createObjectURL(
@@ -446,14 +480,12 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
       );
       const link = document.createElement('a');
       link.href = url;
-      link.download = sample
-        ? `SAMPLE_${mapping.body ? (includeOptional ? 'WITH_OPTIONAL_' : 'WITHOUT_OPTIONAL_') : ''}${mapping.fileName}`
-        : mapping.fileName;
+      link.download = sample ? `SAMPLE_${mapping.fileName}` : mapping.fileName;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       if (sample)
         setNotice(
-          'Sample workbook downloaded with 3 synthetic rows. Check its layout in Excel; no project or quotation history was changed.',
+          'Sample workbook downloaded with synthetic quotation sections and items. Check its layout in Excel; no project or quotation history was changed.',
         );
     } catch (failure) {
       if (alive.current && token === request.current)
@@ -991,18 +1023,8 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               onClick={() => void downloadWorkbook(true)}
             >
               <Download />{' '}
-              {draft.body ? 'Sample with Optional' : 'Test with sample rows'}
+              {draft.body ? 'Sample workbook' : 'Test with sample rows'}
             </Button>
-            {draft.body && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!asset}
-                onClick={() => void downloadWorkbook(true, false)}
-              >
-                <Download /> Sample without Optional
-              </Button>
-            )}
             <Button
               size="sm"
               variant="outline"
@@ -1024,8 +1046,8 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
           </div>
           {draft.body && (
             <p className="text-xs text-muted-foreground">
-              Samples include every category named in the spacing rules so you
-              can check its blank rows.
+              Samples include the sections and categories named in the spacing
+              rules so you can check their blank rows.
             </p>
           )}
         </fieldset>

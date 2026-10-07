@@ -36,10 +36,25 @@ export function groupedLines(
   groups?: QuoteLineGroups,
   sectionNames?: { mandatory: string; optional: string },
 ): QuoteLine[] {
-  return lines.map((line) => ({
-    ...line,
-    ...groupFor(line, groups, sectionNames),
-  }));
+  return normalizeSectionMembership(
+    lines.map((line) => ({
+      ...line,
+      ...groupFor(line, groups, sectionNames),
+    })),
+  );
+}
+/** A named section cannot split into two chapters because of hidden legacy inclusion flags. */
+export function normalizeSectionMembership(
+  lines: readonly QuoteLine[],
+): QuoteLine[] {
+  const memberships = new Map<string, 'mandatory' | 'optional'>();
+  return lines.map((line) => {
+    const group = groupFor(line);
+    const key = categoryKey(group.section ?? '');
+    const inclusion = memberships.get(key) ?? group.inclusion;
+    memberships.set(key, inclusion);
+    return { ...line, ...group, inclusion };
+  });
 }
 export function quotationSections(lines: readonly QuoteLine[]) {
   const sections: {
@@ -49,7 +64,7 @@ export function quotationSections(lines: readonly QuoteLine[]) {
     lines: QuoteLine[];
   }[] = [];
   for (const inclusion of ['mandatory', 'optional'] as const)
-    for (const line of lines) {
+    for (const line of normalizeSectionMembership(lines)) {
       const group = groupFor(line);
       if (group.inclusion !== inclusion) continue;
       let section = sections.find(

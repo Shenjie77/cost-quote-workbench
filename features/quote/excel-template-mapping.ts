@@ -226,9 +226,13 @@ export function validateQuoteExcelMapping(
         (!isRecord(body.spacing) ||
           Object.entries(body.spacing).some(
             ([key, value]) =>
-              !['chapterHeading', 'category', 'mandatory', 'optional'].includes(
-                key,
-              ) ||
+              ![
+                'chapterHeading',
+                'category',
+                'section',
+                'mandatory',
+                'optional',
+              ].includes(key) ||
               !Number.isInteger(value) ||
               Number(value) < 0 ||
               Number(value) > 5,
@@ -255,6 +259,26 @@ export function validateQuoteExcelMapping(
       )
         errors.push(
           'Category spacing requires unique names and 0–5 blank rows.',
+        );
+      if (
+        body.sectionSpacing !== undefined &&
+        (!Array.isArray(body.sectionSpacing) ||
+          body.sectionSpacing.length > 100 ||
+          body.sectionSpacing.some(
+            (rule) =>
+              !isRecord(rule) ||
+              typeof rule.section !== 'string' ||
+              !rule.section.trim() ||
+              rule.section.length > 120 ||
+              !Number.isInteger(rule.rows) ||
+              rule.rows < 0 ||
+              rule.rows > 5,
+          ) ||
+          new Set(body.sectionSpacing.map((rule) => categoryKey(rule.section)))
+            .size !== body.sectionSpacing.length)
+      )
+        errors.push(
+          'Section spacing requires unique names and 0–5 blank rows.',
         );
       const rowValid = (value: unknown) =>
         Number.isInteger(value) &&
@@ -311,9 +335,15 @@ export function validateQuoteExcelMapping(
         'optionalTotal',
         'discount',
         'grandTotal',
+        'section',
+        'sectionTotal',
       ] as const) {
         const title = body.titles[key];
-        if (key === 'grandTotal' && title === undefined) continue;
+        if (
+          ['grandTotal', 'section', 'sectionTotal'].includes(key) &&
+          title === undefined
+        )
+          continue;
         if (typeof title !== 'string' || !title.trim() || title.length > 1000)
           errors.push(`Enter a ${key} title (1–1000 characters).`);
         else {
