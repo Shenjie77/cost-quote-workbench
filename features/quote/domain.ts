@@ -106,12 +106,14 @@ export const calculatePricing = (
     errors.push('Select a supported manual pricing basis.');
   if (
     settings.lineMode !== undefined &&
-    !['single', 'scope', 'item', 'manual'].includes(settings.lineMode)
+    !['single', 'scope', 'group', 'item', 'manual'].includes(settings.lineMode)
   )
     errors.push('Select a supported quotation detail mode.');
   if (
     settings.lineSourceMode !== undefined &&
-    !['single', 'scope', 'item', 'manual'].includes(settings.lineSourceMode)
+    !['single', 'scope', 'group', 'item', 'manual'].includes(
+      settings.lineSourceMode,
+    )
   )
     errors.push('Select a supported quotation line source.');
   if (!Number.isFinite(totalCost) || totalCost < 0 || totalCost > 1e12)

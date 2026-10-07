@@ -50,6 +50,7 @@ import { QuoteNumberInput } from './quote-number-input';
 const MODES: Array<{ value: QuoteLineMode; label: string }> = [
   { value: 'single', label: 'Single line · 单行总价' },
   { value: 'scope', label: 'By Scope · 按 Scope 汇总' },
+  { value: 'group', label: 'By cost Group · 按成本分组' },
   { value: 'item', label: 'By cost item · 按成本条目' },
   { value: 'manual', label: 'Custom lines · 自定义明细' },
 ];
@@ -371,6 +372,13 @@ export function QuoteLinesEditor({
         </p>
       )}
       <p className="text-xs text-muted-foreground">
+        {mode === 'group' && (
+          <>
+            Cost Groups follow the Group field in Personnel costs. Blank groups
+            use Unassigned Group; subcontract and additional costs stay
+            separate.{' '}
+          </>
+        )}
         Section and Category accept custom titles for this quotation. Structured
         templates generate matching categories automatically. Grand Total
         includes all sections; internal cost and GP include all service lines.

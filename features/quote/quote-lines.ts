@@ -10,6 +10,10 @@ import {
   totalRowCost,
 } from '../cost/domain.ts';
 import { calculateSubcontractCost } from '../cost/subcontract-domain.ts';
+import {
+  groupPersonnelRows,
+  UNASSIGNED_PERSONNEL_GROUP,
+} from '../cost/personnel-table-layout.ts';
 import { allocateMoneyByWeights } from './profit-share.ts';
 import type {
   ManualQuoteLine,
@@ -186,7 +190,7 @@ type WeightedLine = { id: string; description: string; weight: number };
 /** Builds independent priced leaves; overhead/risk is included through total-price allocation. */
 function costQuoteLeaves(
   snapshot: QuoteCostSource,
-  mode: 'scope' | 'item',
+  mode: 'scope' | 'group' | 'item',
 ): WeightedLine[] {
   // Use captured costs exactly as pricing does; export validation rejects stale calculations.
   const rows = snapshot.costRows;
@@ -210,19 +214,32 @@ function costQuoteLeaves(
         ?.category === 'subcontract',
   );
   const legacyIds = new Set(legacySubcon.map((row) => row.id));
-  const leaves: WeightedLine[] = rows
-    .filter((row) => !legacyIds.has(row.id))
-    .map((row) => ({
-      id: `cost:${row.id}`,
-      description: row.scope.trim() || 'Project services',
-      weight: totalRowCost(row),
-    }));
+  const personnel = rows.filter((row) => !legacyIds.has(row.id));
+  const leaves: WeightedLine[] =
+    mode === 'group'
+      ? groupPersonnelRows(personnel).map((group, index) => ({
+          id: `personnel-group:${index + 1}`,
+          description: group.groupName || UNASSIGNED_PERSONNEL_GROUP,
+          weight: roundMoney(
+            group.rows.reduce((sum, row) => sum + totalRowCost(row), 0),
+          ),
+        }))
+      : personnel.map((row) => ({
+          id: `cost:${row.id}`,
+          description: row.scope.trim() || 'Project services',
+          weight: totalRowCost(row),
+        }));
   // Project-wide and legacy subcontract rows share one quote line; site BOQs remain grouped by stable site IDs.
   const subcontract = calculateSubcontractCost(
     snapshot.subcontractCost,
     getY1Year(snapshot.rateSettings),
   );
-  const subconLabel = mode === 'scope' ? 'Subcon scope' : 'Subcon item';
+  const subconLabel =
+    mode === 'scope'
+      ? 'Subcon scope'
+      : mode === 'group'
+        ? 'Subcontract services'
+        : 'Subcon item';
   if (legacySubcon.length || subcontract.lines.length)
     leaves.push({
       id: 'subcontract:project',
@@ -274,7 +291,7 @@ function costQuoteLeaves(
       ];
 }
 
-/** Allocates the existing service price to Scope groups or individual cost entries, preserving cents. */
+/** Allocates the existing service price by Scope, personnel Group, or cost item, preserving cents. */
 export function buildQuoteLines(
   snapshot: CostExportSnapshot,
   mode: QuoteLineMode | undefined,

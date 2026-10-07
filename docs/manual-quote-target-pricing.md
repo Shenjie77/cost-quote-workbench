@@ -50,7 +50,7 @@ GST/税输入、当前报价税计算和标准客户文件税行均已移除。�
 
 ## 保存字段兼容
 
-新逐行定价使用 `pricing.manualPricingBasis: "line-gp"`，不再由 `manualTargetPrice` 控制总额。`lineSourceMode` 记录明细来自单行、Scope、成本条目或自定义。
+新逐行定价使用 `pricing.manualPricingBasis: "line-gp"`，不再由 `manualTargetPrice` 控制总额。`lineSourceMode` 记录明细来自单行、Scope、成本 Group、成本条目或自定义。
 
 - `costWeight`：独立保存的成本分配基础；展示的 Weight 是由实际分摊 Cost 得到的百分比。
 - `targetGrossMargin`：逐行目标 GP；没有该值的行保留已保存的单价。
@@ -58,3 +58,10 @@ GST/税输入、当前报价税计算和标准客户文件税行均已移除。�
 - `priceFixed`：固定单价，和比例锁互斥。
 
 没有新标记的旧手工报价，以及旧 `"gp"` 和 `manualTargetPrice` 约束仍按兼容规则读取；仅打开、预览或导出不会重写已保存的行。用户明确编辑或切换明细定价后，才保存新的逐行定价意图。历史记录始终保留当时输出快照。
+
+
+## 按成本 Group 报价
+
+报价明细模式增加 **By cost Group · 按成本分组**。它使用 Personnel costs 中的 Group 字段：同组不同 Scope 合并，不同组相同 Scope 不合并；组名和顺序与成本输入表一致。空 Group 显示为 Unassigned Group。
+
+每个组生成一条 quantity = 1、unit = lot 的报价明细，成本权重包含全部年度。项目级分包、各站型分包、差旅及其他附加成本分别保留，完整报价金额按现有成本权重分配并精确到分。切换到该模式时按现有规则重新生成明细并以 50% GP 初始化；随后可逐行调整 GP、单价、Section 和 Category。此模式与其他成本汇总模式一样保存生成的定价明细；成本分组或成员发生变化后，可切换明细模式重新生成。历史报价快照不变。

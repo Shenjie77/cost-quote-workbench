@@ -139,4 +139,4 @@ export type ManualQuoteLine = Omit<QuoteLine, 'amount'> & {
   /** Preserve this unit price when distributing a target quotation total. */
   priceFixed?: boolean;
 };
-export type QuoteLineMode = 'single' | 'scope' | 'item' | 'manual';
+export type QuoteLineMode = 'single' | 'scope' | 'group' | 'item' | 'manual';

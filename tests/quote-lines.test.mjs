@@ -99,7 +99,7 @@ const manualLine = (extra = {}) => ({
 
 test('legacy single output and explicit single mode preserve all pricing results', () => {
   const base = calculatePricing(750, terms);
-  for (const mode of ['single', 'scope', 'item'])
+  for (const mode of ['single', 'scope', 'group', 'item'])
     assert.deepEqual(calculatePricing(750, { ...terms, lineMode: mode }), base);
   const input = snapshot({ costRows: [row('r1', 'Survey', 750)] });
   assert.deepEqual(
@@ -206,6 +206,26 @@ test('subcontract BOQs, manual services and HQ travel retain distinct descriptio
     ],
   );
   assert.deepEqual(validateQuoteLines(lines, 1234.56), []);
+  input.costRows[0].groupName = 'Delivery group';
+  const grouped = buildQuoteLines(input, 'group', 241);
+  assert.deepEqual(
+    grouped.map((line) => line.description),
+    [
+      'Delivery group',
+      'Subcontract services',
+      'Subcontract services · Type A',
+      'Inland logistics',
+      'Settlement services',
+      'Other services',
+      'Travel services',
+    ],
+  );
+  assert.deepEqual(
+    grouped.map((line) => line.amount),
+    [100, 20, 30, 10, 10, 21, 50],
+  );
+  assert.deepEqual(validateQuoteLines(grouped, 241), []);
+
   assert.doesNotMatch(JSON.stringify(lines), /risk|mandays|mandayRate|cost|HQ/);
   // At the 241 cost-weight total, each price exposes its exact allocation weight.
   // EHS = (100 labour + 50 HQ travel + 50 subcontract + 10 settlement) × 10%.
@@ -385,5 +405,51 @@ test('subcontract grouping merges legacy and project BOQs while keeping each sit
   assert.deepEqual(
     buildQuoteLines(input, 'item', 160).map((line) => line.amount),
     [100, 60],
+  );
+});
+
+test('cost Group quoting follows personnel groups rather than Scope and retains unassigned groups', () => {
+  const input = snapshot({
+    costRows: [
+      { ...row('a', 'Survey', 10), groupName: ' Deployment ' },
+      { ...row('b', 'Shared scope', 20), groupName: 'Support' },
+      { ...row('c', 'Shared scope', 30), groupName: 'Deployment' },
+      row('d', 'Ungrouped A', 10),
+      { ...row('e', 'Ungrouped B', 10), groupName: '  ' },
+    ],
+  });
+  input.costRows[0].years[1].cost = 20;
+  input.manualCosts.inlandLogistics = 20;
+  const before = structuredClone(input);
+  const lines = buildQuoteLines(input, 'group', 120);
+  assert.deepEqual(
+    lines.map(({ description, amount }) => ({ description, amount })),
+    [
+      { description: 'Deployment', amount: 60 },
+      { description: 'Support', amount: 20 },
+      { description: 'Unassigned Group', amount: 20 },
+      { description: 'Inland logistics', amount: 20 },
+    ],
+  );
+  assert.deepEqual(validateQuoteLines(lines, 120), []);
+  assert.deepEqual(
+    validateQuoteLines(buildQuoteLines(input, 'group', 100.01), 100.01),
+    [],
+  );
+  assert.deepEqual(input, before);
+  assert.ok(lines.every((line) => line.quantity === 1 && line.unit === 'lot'));
+  const free = snapshot({
+    costRows: [
+      { ...row('a', 'Scope', 0), groupName: 'A' },
+      { ...row('b', 'Scope', 0), groupName: 'B' },
+    ],
+  });
+  assert.deepEqual(
+    buildQuoteLines(free, 'group', 0.01).map((line) => line.amount),
+    [0.01, 0],
+  );
+  assert.deepEqual(
+    validateQuoteLines(buildQuoteLines(snapshot(), 'group', 10), 10),
+    [],
   );
 });

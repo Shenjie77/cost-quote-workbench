@@ -40,7 +40,7 @@ test('single, Scope and item cost bases include all risk and overhead exactly on
   const snapshot = makeCostSnapshot();
   snapshot.manualCosts.riskContingency = 1234.56;
   const total = calculateBuCostAllocation(snapshot).totalCost;
-  for (const mode of ['single', 'scope', 'item']) {
+  for (const mode of ['single', 'scope', 'group', 'item']) {
     const source = buildQuoteLines(snapshot, mode, total);
     const editable = source.map(({ amount, ...entry }) => ({
       ...entry,
@@ -296,6 +296,7 @@ test('API persistence and customer workbook use effective independent prices wit
     assert.equal(saved.workspace.pricing.manualPricingBasis, 'line-gp');
     assert.equal(saved.workspace.pricing.lineSourceMode, 'item');
     assert.deepEqual(saved.workspace.pricing.manualLines, pricing.manualLines);
+
     assert.deepEqual(
       saved.workspace.pricing.customLinesDraft,
       pricing.customLinesDraft,
@@ -340,6 +341,15 @@ test('API persistence and customer workbook use effective independent prices wit
       /minimum|>=/,
     );
     assert.equal(repository.get(id).revision, saved.revision);
+    update('quote', 'settings', {
+      set: { pricing: { ...pricing, lineSourceMode: 'group' } },
+    });
+    const groupedSaved = repository.get(id);
+    assert.equal(groupedSaved.workspace.pricing.lineSourceMode, 'group');
+    assert.equal(
+      validatedQuoteInput(groupedSaved.workspace, 'Q-GROUP').pricing.listPrice,
+      350,
+    );
   } finally {
     repository.close();
   }

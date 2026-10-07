@@ -146,7 +146,7 @@ test('combined statement links structured Subcon and the complete EHS base witho
 });
 
 test('generated and legacy quotation modes preserve captured prices and complete cost allocation', async () => {
-  for (const mode of ['single', 'scope', 'item', 'manual']) {
+  for (const mode of ['single', 'scope', 'group', 'item', 'manual']) {
     const input = combinedFixture();
     input.pricing.lineMode = mode;
     delete input.pricing.manualPricingBasis;

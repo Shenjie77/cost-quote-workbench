@@ -1128,3 +1128,31 @@ test('section and category controls preserve quote grouping without exposing leg
     'Support options',
   );
 });
+
+test('cost Group mode merges different scopes, preserves per-line edits after reopening and respects locked versions', () => {
+  const initial = { ...legacyTerms(), lineMode: 'single' };
+  const view = quotationHarness(QuoteLinesEditor, initial);
+  for (const row of view.props.costSnapshot.costRows)
+    row.groupName = 'Delivery package';
+  assert.ok(textOf(view.render()).includes('By cost Group'));
+  view.mode('group');
+  assert.equal(view.pricing.lineSourceMode, 'group');
+  assert.equal(view.pricing.manualPricingBasis, 'line-gp');
+  assert.deepEqual(
+    view.effectiveLines.map((line) => line.description),
+    ['Delivery package'],
+  );
+  assert.deepEqual(allocatedCosts(view), [100]);
+  assert.deepEqual(allocatedAmounts(view), [200]);
+  commitNumber(view, 'Line 1 target GP', 60);
+  assert.deepEqual(allocatedAmounts(view), [250]);
+  const reopened = quotationHarness(
+    QuoteLinesEditor,
+    structuredClone(view.pricing),
+  );
+  assert.equal(reopened.pricing.lineSourceMode, 'group');
+  assert.deepEqual(allocatedAmounts(reopened), [250]);
+  const locked = quotationHarness(QuoteLinesEditor, initial, true);
+  locked.mode('group');
+  assert.equal(locked.writes, 0);
+});

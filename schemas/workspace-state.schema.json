@@ -194,7 +194,7 @@
         },
         "lineSourceMode": {
           "type": "string",
-          "enum": ["single", "scope", "item", "manual"]
+          "enum": ["single", "scope", "group", "item", "manual"]
         },
         "customLinesDraft": {
           "type": "array",
@@ -2841,7 +2841,7 @@
       }
     },
     "quoteLineMode": {
-      "enum": ["single", "scope", "item", "manual"]
+      "enum": ["single", "scope", "group", "item", "manual"]
     },
     "quoteExcelTemplate": {
       "type": "object",
