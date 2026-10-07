@@ -23,6 +23,8 @@ import {
 export type PricingSettings = {
   /** Customer-facing project title; blank uses the internal project name. */
   quotationProjectName?: string;
+  /** Quote-owned default section titles, migrated once from legacy templates. */
+  sectionNames?: { mandatory: string; optional: string };
   lineGroups?: QuoteLineGroups;
   /** Target sales GP after BU profit share, as a percentage from 0 through 95. */
   targetGrossMargin: number;
@@ -244,6 +246,9 @@ export const calculatePricing = (
   return {
     ...(typeof settings.quotationProjectName === 'string'
       ? { quotationProjectName: settings.quotationProjectName.trim() }
+      : {}),
+    ...(settings.sectionNames
+      ? { sectionNames: structuredClone(settings.sectionNames) }
       : {}),
     ...(settings.lineGroups
       ? { lineGroups: structuredClone(settings.lineGroups) }

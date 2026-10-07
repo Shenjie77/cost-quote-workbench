@@ -67,9 +67,26 @@ export function structuredBodyRows(
   const rank = new Map(
     layout.categoryOrder.map((name, i) => [categoryKey(name), i]),
   );
-  for (const inclusion of ['mandatory', 'optional'] as const) {
+  const chapters = document.sections.filter(
+    (s, i, all) =>
+      all.findIndex(
+        (other) =>
+          other.inclusion === s.inclusion &&
+          categoryKey(other.section ?? '') === categoryKey(s.section ?? ''),
+      ) === i,
+  );
+  for (const chapterGroup of chapters) {
+    const inclusion = chapterGroup.inclusion;
+    const sectionName =
+      chapterGroup.section ||
+      (inclusion === 'mandatory' ? 'Mandatory' : 'Optional');
     const sections = document.sections
-      .filter((s) => s.inclusion === inclusion && s.lines.length)
+      .filter(
+        (s) =>
+          s.inclusion === inclusion &&
+          categoryKey(s.section ?? '') === categoryKey(sectionName) &&
+          s.lines.length,
+      )
       .sort(
         (a, b) =>
           (rank.get(categoryKey(a.category)) ?? Infinity) -
@@ -77,9 +94,6 @@ export function structuredBodyRows(
       );
     if (!sections.length) continue;
     chapter++;
-    const sectionName =
-      layout.sectionNames?.[inclusion] ||
-      (inclusion === 'mandatory' ? 'Mandatory' : 'Optional');
     const text = (pattern: string, category = '') =>
       String(
         renderTemplateText(pattern, {
@@ -123,7 +137,9 @@ export function structuredBodyRows(
       const categoryDiscount =
         allocation.mode === 'category'
           ? (allocation.rows.find(
-              (r) => r.key === discountGroupKey(inclusion, section.category),
+              (r) =>
+                r.key ===
+                discountGroupKey(inclusion, section.category, sectionName),
             )?.discount ?? 0)
           : 0;
       let categoryDiscountRow: number | undefined;
@@ -163,8 +179,10 @@ export function structuredBodyRows(
     let discount: number | undefined;
     const sectionDiscount =
       allocation.mode === 'section'
-        ? (allocation.rows.find((r) => r.key === discountGroupKey(inclusion))
-            ?.discount ?? 0)
+        ? (allocation.rows.find(
+            (r) =>
+              r.key === discountGroupKey(inclusion, undefined, sectionName),
+          )?.discount ?? 0)
         : 0;
     if (sectionDiscount) {
       discount = rows.length;
@@ -174,7 +192,7 @@ export function structuredBodyRows(
         amount: sectionDiscount,
       });
     }
-    if (inclusion === 'mandatory') grandTotals.push(rows.length);
+    grandTotals.push(rows.length);
     rows.push({
       role: 'total',
       description: text(
@@ -184,12 +202,10 @@ export function structuredBodyRows(
       ),
       sum: subtotals,
       subtract: discount,
-      amount:
-        inclusion === 'mandatory'
-          ? allocation.mode === 'total'
-            ? allocation.mandatoryGross
-            : document.total
-          : document.optionalAmount,
+      amount: roundMoney(
+        subtotals.reduce((sum, index) => sum + (rows[index].amount ?? 0), 0) -
+          sectionDiscount,
+      ),
     });
     blank(layout.spacing?.[inclusion]);
   }
@@ -201,7 +217,7 @@ export function structuredBodyRows(
       description: String(
         renderTemplateText(titles.discount, {
           ...values,
-          section: layout.sectionNames?.mandatory || 'Mandatory',
+          section: 'All sections',
           category: '',
           chapterNumber: '',
         }),
@@ -210,11 +226,11 @@ export function structuredBodyRows(
     });
   }
   rows.push({
-    role: 'total',
+    role: 'grandTotal',
     description: String(
       renderTemplateText(titles.grandTotal!, {
         ...values,
-        section: layout.sectionNames?.mandatory || 'Mandatory',
+        section: 'All sections',
         category: '',
         chapterNumber: '',
       }),

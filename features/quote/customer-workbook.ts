@@ -134,7 +134,7 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
       sheet.getCell(row, 3).value = entry.description;
       sheet.getRow(row).font = {
         name: 'Arial',
-        size: entry.role === 'total' ? 11 : 10,
+        size: entry.role === 'total' || entry.role === 'grandTotal' ? 11 : 10,
         bold: true,
       };
       sheet.getCell(row, 7).value = entry.sum

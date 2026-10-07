@@ -1,6 +1,7 @@
 'use client';
 
 import { normalizedBodyTitles } from '@/features/quote/structured-body';
+import { categoryKey } from '@/features/quote/quotation-groups';
 
 import { QuoteLayoutLibrary } from './quote-layout-library';
 import {
@@ -134,7 +135,7 @@ function mappingFromDraft(draft: MappingDraft): QuoteExcelTemplate {
   };
 }
 
-/** Three synthetic lines exercise row expansion and totals without reading or archiving any project. */
+/** Synthetic lines exercise configured categories without reading or archiving any project. */
 async function sampleWorkbook(
   mapping: QuoteExcelTemplate,
   includeOptional = true,
@@ -146,6 +147,25 @@ async function sampleWorkbook(
     import('@/features/quote/export-quote-workbook'),
     import('@/features/quote/domain'),
   ]);
+  const seenCategories = new Set(
+    ['Professional Service', 'Custom category'].map(categoryKey),
+  );
+  const spacingCategories = (mapping.body?.categorySpacing ?? [])
+    .map((rule) => rule.category.trim())
+    .filter((category) => {
+      const key = categoryKey(category);
+      if (!key || seenCategories.has(key)) return false;
+      seenCategories.add(key);
+      return true;
+    });
+  const spacingLines = spacingCategories.map((category, index) => ({
+    id: `sample-spacing-${index + 1}`,
+    description: `Sample ${category} item`,
+    quantity: 1,
+    unit: 'lot',
+    unitPrice: 100,
+    amount: 100,
+  }));
   return buildQuoteWorkbookBuffer({
     project: {
       id: 'SAMPLE',
@@ -168,12 +188,21 @@ async function sampleWorkbook(
       excel: mapping,
     },
     assumptions: [],
-    pricing: calculatePricing(1200, {
+    pricing: calculatePricing(1200 + spacingLines.length * 80, {
       ...initialPricingSettings,
       targetGrossMargin: 20,
       ...(mapping.body
         ? {
             lineGroups: {
+              ...Object.fromEntries(
+                spacingLines.map((line, index) => [
+                  line.id,
+                  {
+                    category: spacingCategories[index],
+                    inclusion: 'mandatory' as const,
+                  },
+                ]),
+              ),
               'sample-1': {
                 category: 'Professional Service',
                 inclusion: 'mandatory' as const,
@@ -239,6 +268,7 @@ async function sampleWorkbook(
         unitPrice: 700,
         amount: 700,
       },
+      ...spacingLines,
     ],
   });
 }
@@ -848,7 +878,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
             <p className="text-xs text-muted-foreground">
               Fields:{' '}
               {
-                '{date} {quoteNumber} {client} {project} {costVersion} {currency} {documentTitle} {companyName} {companyAddress} {quoteBeforeTax} {quoteAfterTax} {servicePrice} {maintenancePrice} {optionalPrice} {discount} {validityDays} {paymentTerms} {termsAndConditions} {assumptions} {documentStatus}'
+                '{date} {quoteNumber} {client} {project} {costVersion} {currency} {documentTitle} {companyName} {companyAddress} {quoteBeforeTax} {quoteAfterTax} {servicePrice} {maintenancePrice} {optionalPrice} {grandTotal} {discount} {validityDays} {paymentTerms} {termsAndConditions} {assumptions} {documentStatus}'
               }
             </p>
             <div className="grid gap-2 sm:grid-cols-3">
@@ -992,6 +1022,12 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               <Trash2 /> Remove Excel layout
             </Button>
           </div>
+          {draft.body && (
+            <p className="text-xs text-muted-foreground">
+              Samples include every category named in the spacing rules so you
+              can check its blank rows.
+            </p>
+          )}
         </fieldset>
       )}
       {busy && (

@@ -157,8 +157,10 @@ test('custom titles/order/numbering repeat across categories and Optional remain
   assert.equal(sheet.getCell('B17').value, '1.1.1');
   const rows = structuredBodyRows(data, body, { project: 'Campus' });
   assert.deepEqual(
-    rows.filter((r) => r.role === 'total').map((r) => r.amount),
-    [300, 100, 300],
+    rows
+      .filter((r) => r.role === 'total' || r.role === 'grandTotal')
+      .map((r) => r.amount),
+    [300, 100, 400],
   );
   assert.deepEqual(
     rows.filter((r) => r.role === 'chapter').map((r) => r.number),
@@ -350,4 +352,106 @@ test('custom section names and selected blank rows preserve numbering, shifted f
   invalid.body.spacing.mandatory = 1;
   invalid.body.categorySpacing.push({ category: ' deployment ', rows: 1 });
   assert.match(validateQuoteExcelMapping(invalid).join(' '), /unique names/);
+});
+
+test('quote-owned custom sections generate chapters, isolate category discounts, and use an independent Grand Total prototype', async () => {
+  const data = input(4, true);
+  data.pricing.lineGroups.s0.section = 'Design';
+  data.pricing.lineGroups.s1.section = 'Rollout';
+  data.pricing.lineGroups.s2.section = 'Design';
+  data.pricing.lineGroups.s3.section = 'Enhancements';
+  data.template.excel.body.styles.grandTotal = 28;
+  const template = structuredClone(data.template);
+  for (const mode of ['total', 'section', 'category']) {
+    data.pricing = calculatePricing(320, {
+      targetGrossMargin: 20,
+      discount: 40,
+      gstPercent: 0,
+      lineGroups: data.pricing.lineGroups,
+      discountAllocation: { mode },
+    });
+    const plan = structuredBodyRows(data, data.template.excel.body, {
+      project: 'Campus',
+    });
+    assert.deepEqual(
+      plan.filter((r) => r.role === 'chapter').map((r) => r.description),
+      [
+        'Design items for Campus',
+        'Rollout items for Campus',
+        'Enhancements items (excluded from mandatory total)',
+      ],
+    );
+    assert.equal(plan.at(-1).amount, 360);
+    assert.equal(plan.at(-1).role, 'grandTotal');
+    plan
+      .filter((r) => r.sum)
+      .forEach((row) => {
+        assert.equal(
+          row.amount,
+          Math.round(
+            (row.sum.reduce((sum, i) => sum + plan[i].amount, 0) -
+              (row.subtract === undefined ? 0 : plan[row.subtract].amount)) *
+              100,
+          ) / 100,
+        );
+      });
+    const book = await output(data, (_book, sheet) => {
+      sheet.getCell('C28').font = {
+        name: 'Arial',
+        size: 18,
+        bold: true,
+        color: { argb: 'FF008080' },
+      };
+      sheet.getCell('G28').numFmt = '"SGD "#,##0.000';
+      sheet.getCell('G28').fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFABCDEF' },
+      };
+      sheet.getCell('G28').border = { top: { style: 'double' } };
+      sheet.getRow(28).height = 38;
+    });
+    const row = book
+      .getWorksheet('Quote')
+      .getRow(data.template.excel.body.startRow + plan.length - 1);
+    assert.equal(row.getCell(3).font.size, 18);
+    assert.equal(row.getCell(3).font.color.argb, 'FF008080');
+    assert.equal(row.getCell(7).numFmt, '"SGD "#,##0.000');
+    assert.equal(row.getCell(7).fill.fgColor.argb, 'FFABCDEF');
+    assert.equal(row.getCell(7).border.top.style, 'double');
+    assert.equal(row.getCell(7).result, 360);
+    assert.equal(row.height, 38);
+    assert.deepEqual(data.template, template);
+  }
+  data.template.excel.body.styles.grandTotal = 99;
+  assert.match(
+    validateQuoteExcelMapping(data.template.excel).join(' '),
+    /grandTotal style row must be inside/,
+  );
+});
+
+test('heading spacing and named category end spacing occupy different positions and override rather than add', () => {
+  const data = input(2);
+  const body = data.template.excel.body;
+  body.spacing = { chapterHeading: 1, category: 1 };
+  body.categorySpacing = [{ category: 'Deployment', rows: 2 }];
+  const plan = structuredBodyRows(data, body, { project: 'Campus' });
+  assert.equal(plan[1].role, 'blank');
+  const after = (text) => {
+    let index = plan.findIndex((r) => r.description === text) + 1,
+      count = 0;
+    while (plan[index]?.role === 'blank') {
+      index++;
+      count++;
+    }
+    return count;
+  };
+  assert.equal(after('Professional Service Subtotal'), 1);
+  assert.equal(after('Deployment Subtotal'), 2);
+  body.categorySpacing[0].rows = 0;
+  const without = structuredBodyRows(data, body, { project: 'Campus' });
+  const index = without.findIndex(
+    (r) => r.description === 'Deployment Subtotal',
+  );
+  assert.notEqual(without[index + 1].role, 'blank');
 });

@@ -274,11 +274,14 @@ export function validateQuoteExcelMapping(
         'detail',
         'subtotal',
         'total',
+        ...(body.styles.grandTotal !== undefined
+          ? ['grandTotal' as const]
+          : []),
       ] as const)
         if (
           !rowValid(body.styles[role]) ||
-          body.styles[role] < body.startRow ||
-          body.styles[role] > body.endRow
+          Number(body.styles[role]) < body.startRow ||
+          Number(body.styles[role]) > body.endRow
         )
           errors.push(
             `The ${role} style row must be inside the quotation body.`,

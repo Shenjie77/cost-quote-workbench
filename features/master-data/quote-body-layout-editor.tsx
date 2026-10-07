@@ -71,20 +71,30 @@ export function QuoteBodyLayoutEditor({
               </tr>
             ))}
             {(
-              ['chapter', 'category', 'detail', 'subtotal', 'total'] as const
+              [
+                'chapter',
+                'category',
+                'detail',
+                'subtotal',
+                'total',
+                'grandTotal',
+              ] as const
             ).map((role) => (
               <tr key={role}>
                 <th className="px-2 font-normal capitalize">
-                  {role} style row
+                  {role === 'grandTotal' ? 'Grand Total' : role} style row
                 </th>
                 <td>
                   <input
                     className={cellControl}
-                    aria-label={`${role} style row`}
+                    aria-label={`${role === 'grandTotal' ? 'Grand Total' : role} style row`}
                     type="number"
                     min={1}
                     max={20000}
-                    value={value.styles[role] || ''}
+                    value={
+                      value.styles[role] ??
+                      (role === 'grandTotal' ? value.styles.total : '')
+                    }
                     onChange={(e) =>
                       onChange({
                         ...value,
@@ -98,39 +108,10 @@ export function QuoteBodyLayoutEditor({
                 </td>
               </tr>
             ))}
-            {(['mandatory', 'optional'] as const).map((key) => (
-              <tr key={key}>
-                <th className="px-2 font-normal">
-                  {key === 'mandatory' ? 'Mandatory' : 'Optional'} section name
-                </th>
-                <td>
-                  <input
-                    className={cellControl}
-                    aria-label={`${key} section name`}
-                    maxLength={120}
-                    value={
-                      value.sectionNames?.[key] ??
-                      (key === 'mandatory' ? 'Mandatory' : 'Optional')
-                    }
-                    onChange={(e) =>
-                      onChange({
-                        ...value,
-                        sectionNames: {
-                          mandatory: 'Mandatory',
-                          optional: 'Optional',
-                          ...value.sectionNames,
-                          [key]: e.target.value,
-                        },
-                      })
-                    }
-                  />
-                </td>
-              </tr>
-            ))}
             {(
               [
-                ['chapterHeading', 'After each section heading'],
-                ['category', 'After each category'],
+                ['chapterHeading', 'After section heading'],
+                ['category', 'After category block (default)'],
                 ['mandatory', 'After Mandatory section'],
                 ['optional', 'After Optional section'],
               ] as const
@@ -225,13 +206,19 @@ export function QuoteBodyLayoutEditor({
         </table>
       </div>
       <div className="overflow-x-auto border rounded-md">
+        <p className="border-b px-2 py-2 text-xs text-muted-foreground">
+          Category spacing exceptions (optional). Match the Category in Pricing
+          &amp; Quote, not its Section or printed heading. For example,
+          Maintenance = 2 replaces the default with 2 blank rows after
+          Maintenance; 0 removes its spacing.
+        </p>
         <table className="w-full text-xs text-left">
           <thead className="bg-muted/40">
             <tr>
-              <th className="px-2 py-2 font-medium">
-                Category spacing override
+              <th className="px-2 py-2 font-medium">Category name</th>
+              <th className="px-2 font-medium">
+                Blank rows after this category block
               </th>
-              <th className="px-2 font-medium">Blank rows after category</th>
               <th>
                 <button
                   type="button"
@@ -252,6 +239,14 @@ export function QuoteBodyLayoutEditor({
             </tr>
           </thead>
           <tbody className="divide-y">
+            {!value.categorySpacing?.length && (
+              <tr>
+                <td colSpan={3} className="px-2 py-2 text-muted-foreground">
+                  No exceptions. Every category uses After category block
+                  (default).
+                </td>
+              </tr>
+            )}
             {value.categorySpacing?.map((rule, index) => (
               <tr key={index}>
                 <td>
@@ -259,6 +254,7 @@ export function QuoteBodyLayoutEditor({
                     aria-label={`Spacing category ${index + 1}`}
                     className={cellControl}
                     maxLength={120}
+                    placeholder="e.g. Maintenance"
                     value={rule.category}
                     onChange={(event) =>
                       onChange({
@@ -352,7 +348,13 @@ export function QuoteBodyLayoutEditor({
       <p className="text-xs text-muted-foreground">
         Headings support {'{section}, {project}, {category}, {chapterNumber}'}{' '}
         and the cell placeholders below. Style rows must be inside the body.
-        Cell content mappings must be outside it.
+        Cell content mappings must be outside it. Section titles are edited on
+        Pricing &amp; Quote, not in the template. Grand Total style row controls
+        its font, fill, borders, alignment and number format independently of
+        section totals. Heading spacing inserts rows before the first category.
+        Category block spacing inserts rows after its details and Subtotal. A
+        named category override replaces the default category block spacing
+        (including 0); it applies wherever that category appears.
       </p>
     </section>
   );

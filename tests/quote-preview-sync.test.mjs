@@ -161,12 +161,11 @@ test('preview XLSX exports the visible schedule and totals as internal review wi
   assert.match(text, /Current clause/);
   let total, optional;
   sheet.eachRow((row) => {
-    if (row.getCell(1).value === 'Mandatory Quote Total')
-      total = row.getCell(6).value;
-    if (row.getCell(1).value === 'Optional total (excluded)')
+    if (row.getCell(1).value === 'Grand Total') total = row.getCell(6).value;
+    if (row.getCell(1).value === 'Optional total (included)')
       optional = row.getCell(6).value;
   });
-  assert.equal(total, 95);
+  assert.equal(total, 115);
   assert.equal(optional, 20);
   assert.deepEqual(input, before);
   await assert.rejects(

@@ -60,6 +60,8 @@ export type QuoteBodyLayout = {
     detail: number;
     subtotal: number;
     total: number;
+    /** Optional independent Grand Total prototype; old layouts reuse total. */
+    grandTotal?: number;
   };
   numbering: 'hierarchical' | 'continuous' | 'alphabetic';
   categoryOrder: string[];
@@ -101,6 +103,7 @@ export type QuoteExcelAsset = {
 
 /** Customer-facing quotation lines never contain internal cost/rate metadata. */
 export type QuoteLine = {
+  section?: string;
   category?: string;
   inclusion?: 'mandatory' | 'optional';
   id: string;

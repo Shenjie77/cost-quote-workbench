@@ -261,7 +261,8 @@ test('custom category and inclusion route each line once; Optional stays out of 
   const { customerDocument } =
     await import('../features/quote/customer-document.ts');
   const doc = customerDocument(input);
-  assert.equal(doc.total, 200);
+  assert.equal(doc.total, 300);
+  assert.equal(doc.mandatoryTotal, 200);
   assert.equal(doc.optionalAmount, 100);
   assert.deepEqual(
     doc.sections.map((s) => [s.category, s.inclusion]),

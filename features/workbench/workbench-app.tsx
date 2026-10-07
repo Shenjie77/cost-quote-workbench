@@ -4,6 +4,7 @@
  */
 
 'use client';
+import { migrateQuoteSections } from '@/features/quote/quote-section-settings';
 import {
   captureQuoteReferences,
   syncQuoteAssumptions,
@@ -650,7 +651,14 @@ function ProjectSessionApp({
     setTravelRows(workspace.travelRows);
     setTravelUplift(workspace.travelUplift);
     setManualCosts(workspace.manualCosts);
-    setPricing(workspace.pricing || initialPricingSettings);
+    setPricing(
+      migrateQuoteSections(
+        workspace.pricing || initialPricingSettings,
+        workspace.quoteTemplates?.find(
+          (item) => item.id === workspace.selectedQuoteTemplateId,
+        ),
+      ),
+    );
     setAssumptionLibrary(
       workspace.assumptionLibrary ??
         createAssumptionLibrary(

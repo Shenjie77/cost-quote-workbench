@@ -28,12 +28,7 @@ export async function buildQuotePreviewWorkbook(
   const input = structuredClone(source);
   const total =
     input.bodyRows?.at(-1)?.amount ??
-    roundMoney(
-      input.servicePrice +
-        input.maintenanceAmount -
-        input.discount -
-        input.optionalAmount,
-    );
+    roundMoney(input.servicePrice + input.maintenanceAmount - input.discount);
   if (
     [
       input.servicePrice,
@@ -145,7 +140,7 @@ export async function buildQuotePreviewWorkbook(
       );
       if (entry.line) row.getCell(5).numFmt = '#,##0.00';
       row.getCell(6).numFmt = '#,##0.00';
-      if (entry.role === 'total')
+      if (entry.role === 'total' || entry.role === 'grandTotal')
         row.eachCell((cell) => {
           cell.fill = {
             type: 'pattern',
@@ -199,11 +194,11 @@ export async function buildQuotePreviewWorkbook(
       )
     )
       amounts.push(['Maintenance', input.maintenanceAmount]);
-    const mandatoryLabel = `${input.sectionNames?.mandatory || 'Mandatory'} Quote Total`;
+    const mandatoryLabel = 'Grand Total';
     amounts.push(['Discount', input.discount], [mandatoryLabel, total]);
     if (input.optionalAmount > 0)
       amounts.push([
-        `${input.sectionNames?.optional || 'Optional'} total (excluded)`,
+        `${input.sectionNames?.optional || 'Optional'} total (included)`,
         input.optionalAmount,
       ]);
     for (const [label, amount] of amounts) {

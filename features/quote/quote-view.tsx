@@ -676,7 +676,7 @@ export function QuoteView({
                 <BiText
                   zhClassName="text-white/70"
                   en="Grand Total"
-                  zh="折后总报价（不含可选项）"
+                  zh="全部章节折后总报价"
                 />
               </TableHead>
             </TableRow>
@@ -728,7 +728,6 @@ export function QuoteView({
           lines={
             grossDocument?.allLines ?? groupedLines(lines, pricing.lineGroups)
           }
-          sectionNames={template?.excel?.body?.sectionNames}
           disabled={isExporting || exportInProgress || isApplyingRates}
         />
         {/* The detail editor spans the same width as the parameters that determine its prices. */}
@@ -789,7 +788,7 @@ export function QuoteView({
       </section>
       <section className="wb-panel overflow-hidden">
         <SectionHeading index="02" title="Maintenance" titleZh="维保报价" />
-        {customerPreview?.maintenance.length ? (
+        {grossDocument?.maintenance.length ? (
           <div className="overflow-x-auto border-b">
             <h3 className="px-3 py-2 text-xs font-medium">
               Maintenance quotation groups
@@ -800,12 +799,12 @@ export function QuoteView({
                   <th className="px-3 py-2 font-medium">Description</th>
                   <th className="w-24 px-2 py-2 font-medium">Equipment unit</th>
                   <th className="px-2 py-2 font-medium">
-                    Category / Inclusion
+                    Section / Category / Inclusion
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {customerPreview.maintenance.map((line) => (
+                {grossDocument.maintenance.map((line) => (
                   <tr key={line.id}>
                     <td className="px-3 py-1">{line.description}</td>
                     <td>
@@ -831,7 +830,14 @@ export function QuoteView({
                       <QuoteGroupFields
                         label={line.description}
                         disabled={exportInProgress}
-                        value={groupFor(line, pricing.lineGroups)}
+                        value={groupFor(
+                          line,
+                          pricing.lineGroups,
+                          pricing.sectionNames,
+                        )}
+                        sections={Object.values(pricing.lineGroups ?? {}).map(
+                          (g) => g.section ?? '',
+                        )}
                         categories={Object.values(pricing.lineGroups ?? {}).map(
                           (g) => g.category,
                         )}

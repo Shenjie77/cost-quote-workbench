@@ -1068,7 +1068,7 @@ test('every Scope exposes independent Risk share before selection, defaulting to
   assert.equal(view.label('Risk percentage Delivery').props.value, '70.00');
 });
 
-test('category and inclusion controls save grouping without changing line pricing', () => {
+test('section, category and inclusion controls persist quote-owned grouping without changing line pricing', () => {
   const initial = {
     targetGrossMargin: 50,
     discount: 0,
@@ -1091,9 +1091,19 @@ test('category and inclusion controls save grouping without changing line pricin
   assert.equal(view.pricing.lineMode, 'single');
   assert.equal(view.result.quoteBeforeTax, before);
   assert.deepEqual(field().props.value, {
+    section: 'Optional',
     category: 'Managed support',
     inclusion: 'optional',
   });
+  field().props.onChange({
+    ...field().props.value,
+    section: 'Support options',
+  });
+  assert.equal(
+    view.pricing.lineGroups['service:project'].section,
+    'Support options',
+  );
+  assert.equal(view.result.quoteBeforeTax, before);
   const reopened = quotationHarness(
     QuoteLinesEditor,
     structuredClone(view.pricing),
@@ -1103,5 +1113,11 @@ test('category and inclusion controls save grouping without changing line pricin
       (node) => node.props.label === 'Line 1' && node.props.value?.category,
     ).props.value.category,
     'Managed support',
+  );
+  assert.equal(
+    reopened.find(
+      (node) => node.props.label === 'Line 1' && node.props.value?.category,
+    ).props.value.section,
+    'Support options',
   );
 });

@@ -772,3 +772,61 @@ test('structured uploads validate both Optional states and preserve reusable tit
   assert.match(markup, /Category heading text/);
   assert.match(markup, /\{category\}/);
 });
+
+test('structured samples exercise named category spacing in both Optional states', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () =>
+    response({
+      ...asset(),
+      sheets: [{ name: 'Quotation', rowCount: 60, columnCount: 7 }],
+    }),
+  );
+  const editor = harness({ templateId: 'spacing-sample', onChange: () => {} });
+  t.after(() => editor.unmount());
+  editor.upload(new File(['fixture'], 'Book2.xlsx'));
+  await settle();
+  editor.button('Use Book2 structured layout').props.onClick();
+  assert.match(renderToStaticMarkup(editor.render()), /No exceptions/);
+  const bodyEditor = elements(editor.render()).find(
+    (node) => node.props.value?.categoryOrder && node.props.onChange,
+  );
+  bodyEditor.props.onChange({
+    ...bodyEditor.props.value,
+    spacing: { category: 1 },
+    categorySpacing: [
+      { category: 'Maintenance', rows: 2 },
+      { category: 'Managed support', rows: 0 },
+      { category: ' professional   service ', rows: 3 },
+    ],
+  });
+  const before = (globalThis[samplesKey] ?? []).length;
+  await editor.button('Apply mapping').props.onClick();
+  const samples = globalThis[samplesKey].slice(before);
+  assert.equal(samples.length, 2);
+  const { structuredBodyRows } =
+    await import('../features/quote/structured-body.ts');
+  for (const sample of samples) {
+    assert.equal(
+      sample.lines.length,
+      5,
+      'existing categories are not duplicated',
+    );
+    assert.equal(sample.pricing.listPrice, 1700);
+    const rows = structuredBodyRows(sample, sample.template.excel.body, {
+      project: 'Sample Project',
+    });
+    for (const [category, expected] of [
+      ['Maintenance', 2],
+      ['Managed support', 0],
+      ['Professional Service', 3],
+      ['Custom category', 1],
+    ]) {
+      const subtotal = rows.findIndex(
+        (row) => row.description === `${category} Subtotal`,
+      );
+      assert.ok(subtotal >= 0, `${category} is present in the sample`);
+      let count = 0;
+      while (rows[subtotal + count + 1]?.role === 'blank') count++;
+      assert.equal(count, expected, `${category} uses its override or default`);
+    }
+  }
+});

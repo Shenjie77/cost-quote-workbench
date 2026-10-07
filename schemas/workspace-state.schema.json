@@ -239,6 +239,11 @@
               },
               "inclusion": {
                 "enum": ["mandatory", "optional"]
+              },
+              "section": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
               }
             }
           }
@@ -271,6 +276,23 @@
                   }
                 }
               }
+            }
+          }
+        },
+        "sectionNames": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mandatory", "optional"],
+          "properties": {
+            "mandatory": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "optional": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
             }
           }
         }
@@ -1419,6 +1441,11 @@
                   },
                   "net": {
                     "$ref": "#/$defs/money"
+                  },
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
                   }
                 }
               }
@@ -2748,6 +2775,11 @@
         },
         "inclusion": {
           "enum": ["mandatory", "optional"]
+        },
+        "section": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
         }
       }
     },
@@ -2800,6 +2832,11 @@
         },
         "inclusion": {
           "enum": ["mandatory", "optional"]
+        },
+        "section": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
         }
       }
     },
@@ -3096,6 +3133,11 @@
                   "maximum": 20000
                 },
                 "total": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20000
+                },
+                "grandTotal": {
                   "type": "integer",
                   "minimum": 1,
                   "maximum": 20000

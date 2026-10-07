@@ -1,5 +1,6 @@
 import type { QuoteExcelRegion, QuoteLine } from './excel-template-types.ts';
 export type QuoteLineGroup = {
+  section?: string;
   category: string;
   inclusion: 'mandatory' | 'optional';
 };
@@ -9,28 +10,40 @@ export const categoryKey = (title: string) =>
     ? title.trim().replace(/\s+/g, ' ').toLowerCase()
     : '';
 export function groupFor(
-  line: Pick<QuoteLine, 'id' | 'category' | 'inclusion'>,
+  line: Pick<QuoteLine, 'id' | 'category' | 'inclusion' | 'section'>,
   groups?: QuoteLineGroups,
+  sectionNames?: { mandatory: string; optional: string },
 ): QuoteLineGroup {
-  return (
-    groups?.[line.id] ?? {
-      category:
-        line.category ??
-        (line.id.startsWith('maintenance:')
-          ? 'Maintenance'
-          : 'Professional Service'),
-      inclusion: line.inclusion ?? 'mandatory',
-    }
-  );
+  const group = groups?.[line.id] ?? {
+    category:
+      line.category ??
+      (line.id.startsWith('maintenance:')
+        ? 'Maintenance'
+        : 'Professional Service'),
+    inclusion: line.inclusion ?? 'mandatory',
+    ...(line.section ? { section: line.section } : {}),
+  };
+  return {
+    ...group,
+    section:
+      group.section ??
+      sectionNames?.[group.inclusion] ??
+      (group.inclusion === 'mandatory' ? 'Mandatory' : 'Optional'),
+  };
 }
 export function groupedLines(
   lines: readonly QuoteLine[],
   groups?: QuoteLineGroups,
+  sectionNames?: { mandatory: string; optional: string },
 ): QuoteLine[] {
-  return lines.map((line) => ({ ...line, ...groupFor(line, groups) }));
+  return lines.map((line) => ({
+    ...line,
+    ...groupFor(line, groups, sectionNames),
+  }));
 }
 export function quotationSections(lines: readonly QuoteLine[]) {
   const sections: {
+    section?: string;
     category: string;
     inclusion: 'mandatory' | 'optional';
     lines: QuoteLine[];
@@ -42,6 +55,7 @@ export function quotationSections(lines: readonly QuoteLine[]) {
       let section = sections.find(
         (s) =>
           s.inclusion === inclusion &&
+          categoryKey(s.section ?? '') === categoryKey(group.section ?? '') &&
           categoryKey(s.category) === categoryKey(group.category),
       );
       if (!section) {
@@ -83,10 +97,14 @@ export function validateLineGroups(
       typeof g.category === 'string' &&
       g.category.trim() &&
       g.category.length <= 120 &&
-      ['mandatory', 'optional'].includes(g.inclusion),
+      ['mandatory', 'optional'].includes(g.inclusion) &&
+      (g.section === undefined ||
+        (typeof g.section === 'string' &&
+          g.section.trim().length > 0 &&
+          g.section.length <= 120)),
   )
     ? []
     : [
-        'Each quotation group needs a category (1–120 characters) and Mandatory or Optional.',
+        'Each quotation group needs a section and category (1–120 characters) and Mandatory or Optional.',
       ];
 }

@@ -57,7 +57,7 @@ const input = (mode) => ({
 });
 
 for (const mode of ['total', 'section', 'category'])
-  test(`${mode}: proportional discount conserves cents and excludes Optional from Grand Total`, async () => {
+  test(`${mode}: proportional discount conserves cents and includes Optional in Grand Total`, async () => {
     const data = input(mode),
       before = structuredClone(data),
       doc = customerDocument(data);
@@ -65,9 +65,12 @@ for (const mode of ['total', 'section', 'category'])
       doc.allocation.rows.reduce((s, r) => s + r.discount, 0),
       100,
     );
-    assert.equal(doc.total, mode === 'total' ? 800 : 810);
+    assert.equal(doc.total, 900);
     assert.equal(doc.optionalAmount, mode === 'total' ? 100 : 90);
-    assert.equal(doc.total + doc.optionalAmount, 900);
+    assert.equal(
+      doc.mandatoryTotal + doc.optionalAmount - (mode === 'total' ? 100 : 0),
+      900,
+    );
     const rows = structuredBodyRows(data, layout, { project: 'Test' });
     assert.equal(rows.at(-1).description, 'Grand Total');
     assert.equal(rows.at(-1).amount, doc.total);
@@ -164,13 +167,14 @@ test('hidden category subtotals still show a net category amount when discounted
       grandTotal: '{project} Final Total',
     },
   };
+  data.pricing.sectionNames = { mandatory: 'Base', optional: 'Extras' };
   const rows = structuredBodyRows(data, body, { project: 'Test' });
   assert.equal(rows.at(-1).description, 'Test Final Total');
-  assert.equal(rows.at(-1).amount, 810);
+  assert.equal(rows.at(-1).amount, 900);
   assert.equal(rows.filter((r) => r.subtract !== undefined).length, 3);
   assert.ok(rows.some((r) => r.description === 'Base / Service Discount'));
 });
-test('Optional-only and zero-price schedules have a zero Grand Total and valid SUM(0) formula', async () => {
+test('Optional-only zero-price schedules retain the section reference in Grand Total', async () => {
   const data = input('total');
   data.lines = [line('only', 0, 'Service', 'optional')];
   data.pricing = calculatePricing(0, {
@@ -184,7 +188,7 @@ test('Optional-only and zero-price schedules have a zero Grand Total and valid S
   book.worksheets[0].eachRow((r) => {
     if (r.getCell(3).text === 'Grand Total') grand = r;
   });
-  assert.equal(grand.getCell(7).formula, 'ROUND(SUM(0),2)');
+  assert.equal(grand.getCell(7).formula, 'ROUND(SUM(G16),2)');
   assert.equal(grand.getCell(7).result, 0);
 });
 test('pricing shares and immutable allocation snapshots satisfy durable schemas', () => {
@@ -249,6 +253,77 @@ test('preview XLSX uses the same allocated schedule and net totals as customer o
   book.worksheets[0].eachRow((r) => {
     if (r.getCell(2).text === 'Grand Total') amounts.push(r.getCell(6).value);
   });
-  assert.deepEqual(amounts, [810]);
+  assert.deepEqual(amounts, [900]);
   assert.equal(quoteFieldValues(data).optionalPrice, 90);
+});
+
+test('same categories in distinct quote sections receive independent default and manual discount shares', () => {
+  const custom = [
+    { ...line('a', 600), section: 'Build' },
+    { ...line('b', 300), section: 'Support' },
+    { ...line('c', 100, 'Service', 'optional'), section: 'Extras' },
+  ];
+  for (const mode of ['section', 'category']) {
+    const key = discountGroupKey(
+      'mandatory',
+      mode === 'category' ? 'Service' : undefined,
+      'Support',
+    );
+    const result = allocateQuotationDiscount(custom, 100, {
+      mode,
+      shares: [{ key, percentage: 20 }],
+    });
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.rows.length, 3);
+    assert.equal(result.rows.find((r) => r.section === 'Support').discount, 20);
+    assert.equal(
+      result.rows.reduce((s, r) => s + r.discount, 0),
+      100,
+    );
+  }
+});
+
+test('legacy names and pinned shares migrate once into pricing and survive template changes without altering history', async () => {
+  const { migrateQuoteSections } =
+    await import('../features/quote/quote-section-settings.ts');
+  const template = {
+    ...initialQuoteTemplates[0],
+    excel: {
+      body: { sectionNames: { mandatory: 'Base', optional: 'Extras' } },
+    },
+  };
+  const pricing = {
+    targetGrossMargin: 50,
+    discount: 10,
+    gstPercent: 0,
+    discountAllocation: {
+      mode: 'section',
+      shares: [{ key: discountGroupKey('mandatory'), percentage: 90 }],
+    },
+  };
+  const before = structuredClone({ pricing, template });
+  const migrated = migrateQuoteSections(pricing, template);
+  assert.equal(migrated.sectionNames.mandatory, 'Base');
+  assert.equal(
+    migrated.discountAllocation.shares[0].key,
+    discountGroupKey('mandatory', undefined, 'Base'),
+  );
+  const differentTemplate = {
+    ...template,
+    excel: {
+      body: { sectionNames: { mandatory: 'Changed', optional: 'Changed too' } },
+    },
+  };
+  assert.deepEqual(migrateQuoteSections(migrated, differentTemplate), migrated);
+  assert.deepEqual({ pricing, template }, before);
+  const schema = JSON.parse(
+    readFileSync(
+      new URL('../schemas/workspace-state.schema.json', import.meta.url),
+    ),
+  );
+  const validate = new Ajv({ strict: false }).compile({
+    ...schema.properties.pricing,
+    $defs: schema.$defs,
+  });
+  assert.equal(validate(migrated), true, JSON.stringify(validate.errors));
 });

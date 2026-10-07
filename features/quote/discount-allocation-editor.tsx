@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { PricingSettings } from './domain';
-import type { QuoteBodyLayout, QuoteLine } from './excel-template-types';
+import type { QuoteLine } from './excel-template-types';
 import {
   allocateQuotationDiscount,
   type DiscountAllocation,
@@ -13,13 +13,11 @@ export function DiscountAllocationEditor({
   pricing,
   setPricing,
   lines,
-  sectionNames,
   disabled,
 }: {
   pricing: PricingSettings;
   setPricing: Dispatch<SetStateAction<PricingSettings>>;
   lines: QuoteLine[];
-  sectionNames?: QuoteBodyLayout['sectionNames'];
   disabled?: boolean;
 }) {
   const allocation = allocateQuotationDiscount(
@@ -94,7 +92,7 @@ export function DiscountAllocationEditor({
             <tbody className="divide-y">
               {allocation.rows.map((row) => {
                 const name =
-                  sectionNames?.[row.inclusion] ||
+                  row.section ||
                   (row.inclusion === 'mandatory' ? 'Mandatory' : 'Optional');
                 return (
                   <tr key={row.key}>
@@ -156,8 +154,8 @@ export function DiscountAllocationEditor({
       )}
       <p className="px-3 py-2 text-muted-foreground">
         {allocation.mode === 'total'
-          ? 'Deduct once from the Mandatory total. Optional items remain separate.'
-          : 'Blank shares follow prices and split the remaining percentage. Section and Category allocation includes Optional items; their net amount remains excluded from Grand Total.'}
+          ? 'Deduct once from all sections combined, including Optional.'
+          : 'Blank shares follow prices and split the remaining percentage. Section and Category allocation includes Optional items; all net amounts are included in Grand Total.'}
       </p>
       {allocation.errors.map((error) => (
         <p role="alert" key={error} className="px-3 pb-2 text-destructive">

@@ -829,10 +829,10 @@ async function fillStructuredBody(
   }
   const merges = [...sheet.model.merges];
   const patterns = Object.fromEntries(
-    Object.entries(body.styles).map(([role, row]) => [
-      role,
-      snapshotRow(sheet.getRow(row)),
-    ]),
+    Object.entries({
+      ...body.styles,
+      grandTotal: body.styles.grandTotal ?? body.styles.total,
+    }).map(([role, row]) => [role, snapshotRow(sheet.getRow(row))]),
   );
   for (const range of merges) {
     const [a, b = a] = range.split(':');

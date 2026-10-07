@@ -118,6 +118,7 @@ export function QuotePreviewDialog({
     }
 
   const sectionName = (inclusion: 'mandatory' | 'optional') =>
+    pricing.sectionNames?.[inclusion] ||
     template?.excel?.body?.sectionNames?.[inclusion] ||
     (inclusion === 'mandatory' ? 'Mandatory' : 'Optional');
   async function exportPreview() {
@@ -137,7 +138,7 @@ export function QuotePreviewDialog({
       quoteNumber: `QT-${project.id.replace(/^PRJ-/, '')}-${activeVersion}`,
       costVersion: activeVersion,
       sections: sections.map((section) => ({
-        name: `${sectionName(section.inclusion)} / ${section.category}`,
+        name: `${section.section || sectionName(section.inclusion)} / ${section.category}`,
         lines: section.lines,
       })),
       bodyRows,
@@ -254,7 +255,7 @@ export function QuotePreviewDialog({
                   <TableRow
                     key={index}
                     className={
-                      row.role === 'total'
+                      row.role === 'total' || row.role === 'grandTotal'
                         ? 'bg-accent/50 font-semibold'
                         : row.role !== 'detail'
                           ? 'font-medium'

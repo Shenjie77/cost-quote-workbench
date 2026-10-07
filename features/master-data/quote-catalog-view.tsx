@@ -388,7 +388,7 @@ export function QuoteTemplatesView({
               <span className="mt-1 block text-muted-foreground">
                 Supports{' '}
                 {
-                  '{project} {client} {date} {quoteNumber} {currency} {validityDays} {paymentTerms} {companyName} {companyAddress} {quoteBeforeTax} {maintenancePrice} {optionalPrice}'
+                  '{project} {client} {date} {quoteNumber} {currency} {validityDays} {paymentTerms} {companyName} {companyAddress} {quoteBeforeTax} {maintenancePrice} {optionalPrice} {grandTotal}'
                 }
                 . Project uses the quotation project name.
               </span>

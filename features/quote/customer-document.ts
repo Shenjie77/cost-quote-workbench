@@ -1,3 +1,4 @@
+import { migrateQuoteSections } from './quote-section-settings.ts';
 import { allocateQuotationDiscount } from './discount-allocation.ts';
 import { quotationProjectName } from './template-text.ts';
 import { groupedLines, quotationSections } from './quotation-groups.ts';
@@ -58,39 +59,45 @@ export function customerDocument(input: QuoteWorkbookInput) {
   const total = roundMoney(input.pricing.quoteBeforeTax + maintenanceAmount);
   if (!Number.isFinite(total) || total > 1e12)
     throw new Error('Customer quotation total exceeds the supported range.');
-  const groupedService = groupedLines(service, input.pricing.lineGroups);
+  const sectionSettings = migrateQuoteSections(input.pricing, input.template);
+  const sectionNames = sectionSettings.sectionNames;
+  const groupedService = groupedLines(
+    service,
+    input.pricing.lineGroups,
+    sectionNames,
+  );
   const groupedMaintenance = groupedLines(
     maintenance,
     input.pricing.lineGroups,
+    sectionNames,
   );
   const allLines = [...groupedService, ...groupedMaintenance];
   const allocation = allocateQuotationDiscount(
     allLines,
     input.pricing.discount,
-    input.pricing.discountAllocation,
+    sectionSettings.discountAllocation,
   );
   if (allocation.errors.length) throw new Error(allocation.errors.join(' '));
-  // Historical service-only discounts retain their original validation contract.
-  if (
-    !input.pricing.discountAllocation &&
-    input.pricing.discount >
-      roundMoney(
-        groupedService
-          .filter((l) => l.inclusion === 'mandatory')
-          .reduce((sum, l) => sum + l.amount, 0),
-      )
-  )
-    throw new Error(
-      'The service discount exceeds the Mandatory service amount.',
-    );
-  const optionalAmount = allocation.optionalNet;
-  const mandatoryTotal = allocation.mandatoryNet;
+  const optionalAmount =
+    allocation.mode === 'total'
+      ? allocation.optionalGross
+      : allocation.optionalNet;
+  const mandatoryTotal =
+    allocation.mode === 'total'
+      ? allocation.mandatoryGross
+      : allocation.mandatoryNet;
+  const grandTotal = roundMoney(
+    allocation.mandatoryGross +
+      allocation.optionalGross -
+      input.pricing.discount,
+  );
   return {
     allocation,
     service: groupedService,
     maintenance: groupedMaintenance,
     maintenanceAmount,
-    total: mandatoryTotal,
+    total: grandTotal,
+    mandatoryTotal,
     optionalAmount,
     allLines,
     sections: quotationSections(allLines),

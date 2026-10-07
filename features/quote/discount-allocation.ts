@@ -8,10 +8,17 @@ export type DiscountAllocation = {
   /** Explicit shares; omitted groups share the remaining percentage by price. */
   shares?: { key: string; percentage: number }[];
 };
-export const discountGroupKey = (inclusion: string, category?: string) =>
-  JSON.stringify(
-    category === undefined ? [inclusion] : [inclusion, categoryKey(category)],
-  );
+export const discountGroupKey = (
+  inclusion: string,
+  category?: string,
+  section?: string,
+) => {
+  const parts = [inclusion];
+  if (section && categoryKey(section) !== inclusion)
+    parts.push(`section:${categoryKey(section)}`);
+  if (category !== undefined) parts.push(categoryKey(category));
+  return JSON.stringify(parts);
+};
 
 /** Stable keys are independent of user-facing section titles. Amounts reconcile in cents. */
 export function allocateQuotationDiscount(
@@ -28,17 +35,23 @@ export function allocateQuotationDiscount(
   const buckets: {
     key: string;
     inclusion: 'mandatory' | 'optional';
+    section?: string;
     category?: string;
     gross: number;
   }[] = [];
   for (const line of lines) {
     const group = groupFor(line);
-    if (mode === 'total' && group.inclusion === 'optional') continue;
     const category = mode === 'category' ? group.category : undefined;
-    const key = discountGroupKey(group.inclusion, category);
+    const key = discountGroupKey(group.inclusion, category, group.section);
     let bucket = buckets.find((row) => row.key === key);
     if (!bucket) {
-      bucket = { key, inclusion: group.inclusion, category, gross: 0 };
+      bucket = {
+        key,
+        inclusion: group.inclusion,
+        section: group.section,
+        category,
+        gross: 0,
+      };
       buckets.push(bucket);
     }
     bucket.gross = roundMoney(bucket.gross + line.amount);
