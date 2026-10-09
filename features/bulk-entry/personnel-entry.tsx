@@ -22,15 +22,43 @@ export function personnelEntrySheets(rates: RateSettings): EntrySheet[] {
     id: mode,
     name: mode === 'mandays' ? 'Personnel MD' : 'Personnel Sites',
     columns: [
-      { key: 'groupName', label: 'Group', kind: 'text' },
-      { key: 'scope', label: 'Scope', kind: 'text', required: true },
-      { key: 'bu', label: 'BU', kind: 'text', required: true },
-      { key: 'reType', label: 'RE Type', kind: 'text', required: true },
+      {
+        key: 'groupName',
+        label: 'Group',
+        kind: 'text',
+        description: 'Optional cost group for related activities.',
+        example: 'Deployment',
+      },
+      {
+        key: 'scope',
+        label: 'Scope',
+        kind: 'text',
+        required: true,
+        description: 'Describe the work to be delivered.',
+        example: 'Install and test',
+      },
+      {
+        key: 'bu',
+        label: 'BU',
+        kind: 'text',
+        required: true,
+        description: 'Business unit responsible for this work.',
+        example: 'Network',
+      },
+      {
+        key: 'reType',
+        label: 'RE Type',
+        kind: 'text',
+        required: true,
+        description: 'Use a resource code from the current cost version.',
+      },
       ...(mode === 'sites'
         ? [
             {
               key: 'mdPerSite',
               label: 'MD / Site',
+              description: 'Mandays needed per site.',
+              example: 2,
               kind: 'number' as const,
               required: true,
             },
@@ -40,6 +68,11 @@ export function personnelEntrySheets(rates: RateSettings): EntrySheet[] {
         key: `${mode}:${i}`,
         label: `Y${i + 1}${year ? ` (${year})` : ''} ${mode === 'mandays' ? 'MD' : 'Sites'}`,
         kind: 'number' as const,
+        description:
+          mode === 'mandays'
+            ? 'Total mandays in this year; blank means zero.'
+            : 'Number of sites in this year; blank means zero.',
+        example: mode === 'mandays' ? 10 : 3,
       })),
     ],
   }));

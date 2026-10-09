@@ -1,3 +1,4 @@
+import { validateServiceHistory } from '../features/master-data/history-fields.ts';
 /** Independent source catalogs. No update path reads or mutates a project. */
 import { createHash } from 'node:crypto';
 import {
@@ -31,6 +32,7 @@ export const GLOBAL_MASTER_TABS = {
   subcontract: ['subcontractItems', 'id', 'subcontractItem'],
   supplemental: ['supplementalCostItems', 'id', 'supplementalCostItem'],
   maintenance: ['maintenancePriceRecords', 'id', 'maintenancePriceRecord'],
+  'service-history': ['servicePriceRecords', 'id', 'servicePriceRecord'],
   assumptions: ['assumptionLibrary', 'id', 'assumptionDefinition'],
   'quote-templates': ['quoteTemplates', 'id', 'quoteTemplate'],
   'profit-share': ['profitShareRates', 'id', 'profitShareRate'],
@@ -145,6 +147,7 @@ const defaultCatalogs = () => ({
   subcontract: [],
   supplemental: [],
   maintenance: [],
+  'service-history': [],
   assumptions: createAssumptionLibrary(initialQuoteAssumptions),
   'quote-templates': initialQuoteTemplates,
   'profit-share': [],
@@ -202,6 +205,10 @@ function validateItems(tab, items) {
       if (errors.length) fail(errors.join(' '));
     }
     if (tab === 'cpq-catalog') assertCatalog(items);
+    if (tab === 'service-history') {
+      const errors = validateServiceHistory(items);
+      if (errors.length) fail(errors.join(' '));
+    }
     if (tab === 'maintenance')
       assertMaintenanceImport({ schemaVersion: '1.0.0', records: items });
   } catch (error) {
@@ -331,7 +338,7 @@ export function initializeGlobalMasterData(db) {
       for (const tab of GLOBAL_MASTER_DATA_TABS) {
         // This new commercial catalog starts empty; historical projects are not
         // a source of company profit-share policy.
-        if (tab === 'profit-share') continue;
+        if (tab === 'profit-share' || tab === 'service-history') continue;
         const items =
           tab === 'project-tags'
             ? legacyTagRows(workspace.projectTags)
@@ -353,7 +360,7 @@ export function initializeGlobalMasterData(db) {
         collectTab(
           tab,
           rows[tab],
-          tab === 'profit-share' ? 'defaults' : from,
+          ['profit-share', 'service-history'].includes(tab) ? 'defaults' : from,
           timestamp,
         ),
       ]),
@@ -557,7 +564,10 @@ export function makeGlobalMasterDataStore(db) {
     'SELECT tab,revision,payload_json,updated_at FROM master_data_tabs WHERE tab = ?',
   );
   const ensureAdditiveTab = (tab) => {
-    if (!['profit-share', 'project-tags'].includes(tab) || select.get(tab))
+    if (
+      !['profit-share', 'project-tags', 'service-history'].includes(tab) ||
+      select.get(tab)
+    )
       return;
     // A savepoint works both standalone and inside an existing repository
     // transaction. Never reseed existing tabs. Only the first tag-catalog

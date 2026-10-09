@@ -1567,6 +1567,83 @@
         }
       }
     },
+    "servicePriceRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "client",
+        "project",
+        "service",
+        "unit",
+        "source",
+        "unitPrice",
+        "costAmount",
+        "quotedAmount",
+        "quantity",
+        "quotedYear",
+        "currency"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1
+        },
+        "client": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1
+        },
+        "project": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1
+        },
+        "service": {
+          "type": "string",
+          "maxLength": 4000,
+          "minLength": 1
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 40,
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "unitPrice": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000.0
+        },
+        "costAmount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000.0
+        },
+        "quotedAmount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000000.0
+        },
+        "quantity": {
+          "type": "number",
+          "minimum": 0.0001,
+          "maximum": 1000000000.0
+        },
+        "quotedYear": {
+          "type": "integer",
+          "minimum": 1900,
+          "maximum": 9999
+        },
+        "currency": {
+          "const": "SGD"
+        }
+      }
+    },
     "maintenancePriceRecord": {
       "type": "object",
       "additionalProperties": false,

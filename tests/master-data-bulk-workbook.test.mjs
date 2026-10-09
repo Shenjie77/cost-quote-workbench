@@ -1,9 +1,11 @@
+import { entryHeader } from '../features/bulk-entry/column-guide.ts';
 /** Fixed-format XLSX import remains all-or-nothing and never reads the guide as data. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { GLOBAL_MASTER_DATA_TABS } from '../features/master-data/global-types.ts';
+import { historyFieldValue } from '../features/master-data/history-fields.ts';
 import { bulkTabSpec } from '../features/master-data/bulk-import-model.ts';
 import {
   createBulkImportWorkbook,
@@ -54,7 +56,13 @@ test('every Master Data tab produces an empty, styled template with a complete f
     assert.equal(workbook.getWorksheet('_MasterData').state, 'veryHidden');
     assert.deepEqual(
       data.getRow(1).values.slice(1),
-      spec.columns.map((column) => column.key),
+      spec.columns.map((column) =>
+        entryHeader({
+          ...column,
+          required: false,
+          requiredForNew: column.required,
+        }),
+      ),
     );
     assert.deepEqual(
       guide.getColumn(1).values.slice(2, spec.columns.length + 2),
@@ -76,12 +84,20 @@ test('all tabs round-trip their flattened fields, preserving zero, false, IDs, d
     const item = Object.fromEntries(
       bulkTabSpec(tab).columns.map((column) => [column.key, valueFor(column)]),
     );
+    const displayed = Object.fromEntries(
+      bulkTabSpec(tab)
+        .columns.map((column) => [
+          column.key,
+          historyFieldValue(tab, column.key, item),
+        ])
+        .filter(([, value]) => value !== undefined),
+    );
     const bytes = await createBulkImportWorkbook(tab, [item, item]);
     assert.deepEqual(
       await readBulkImportWorkbook(tab, bytes),
       [
-        { row: 2, values: item },
-        { row: 3, values: item },
+        { row: 2, values: displayed },
+        { row: 3, values: displayed },
       ],
       tab,
     );

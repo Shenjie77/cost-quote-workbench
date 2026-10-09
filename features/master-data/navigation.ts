@@ -4,7 +4,16 @@ export const masterDataTabs = [
   { value: 'resources', label: 'RE Types', labelZh: '资源与费率' },
   { value: 'subcontract', label: 'Subcontract', labelZh: '分包' },
   { value: 'supplemental', label: 'Supplemental', labelZh: '补充成本' },
-  { value: 'maintenance', label: 'Maintenance', labelZh: '维保历史' },
+  {
+    value: 'maintenance',
+    label: 'Maintenance History',
+    labelZh: '维保报价历史',
+  },
+  {
+    value: 'service-history',
+    label: 'Service History',
+    labelZh: '服务报价历史',
+  },
   { value: 'assumptions', label: 'Assumptions', labelZh: '假设库' },
   { value: 'quote-templates', label: 'Quote Templates', labelZh: '报价模板' },
   { value: 'profit-share', label: 'Profit Share', labelZh: 'BU 分成' },

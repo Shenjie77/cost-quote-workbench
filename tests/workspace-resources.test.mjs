@@ -238,6 +238,28 @@ test('all master tabs have independent reads, filters and stable-ID updates', ()
       { upsert: [{ id: 'tag-dc', name: 'Data Centre', active: true }] },
       1,
     );
+    repo.globalMasterData.update(
+      'service-history',
+      {
+        upsert: [
+          {
+            id: 'TEST-SERVICE-HISTORY',
+            client: 'Customer',
+            project: 'Deployment',
+            service: 'Installation',
+            quantity: 2,
+            unit: 'day',
+            unitPrice: 500,
+            costAmount: 600,
+            quotedAmount: 1000,
+            quotedYear: 2026,
+            source: 'QT-001',
+            currency: 'SGD',
+          },
+        ],
+      },
+      1,
+    );
     for (const [tab, [, key]] of Object.entries(GLOBAL_MASTER_TABS)) {
       const projectBefore = repo.get('P-TEST');
       const allBefore = repo.globalMasterData.all();

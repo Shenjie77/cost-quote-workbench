@@ -1,3 +1,5 @@
+import { entryHeader, entryHeaderHeight } from '../bulk-entry/column-guide.ts';
+import { historyFieldValue } from './history-fields.ts';
 /** Fixed-format Master Data workbooks: source rows stay separate from their field guide. */
 import type { Cell, CellValue, Workbook, Worksheet } from 'exceljs';
 import type JSZip from 'jszip';
@@ -366,8 +368,12 @@ export async function createBulkImportWorkbook(
   const sheet = workbook.addWorksheet(DATA_SHEET);
   sheet.columns = spec.columns.map((column) => ({
     key: column.key,
-    header: column.key,
-    width: Math.max(16, Math.min(42, column.key.length + 5)),
+    header: entryHeader({
+      ...column,
+      required: false,
+      requiredForNew: column.required,
+    }),
+    width: 32,
     style: {
       font: { name: 'Calibri', size: 11, color: { argb: INPUT_COLOR } },
       alignment: { vertical: 'top', wrapText: true },
@@ -383,7 +389,9 @@ export async function createBulkImportWorkbook(
   }));
   for (const item of items)
     sheet.addRow(
-      spec.columns.map((column) => exportField(item[column.key], column)),
+      spec.columns.map((column) =>
+        exportField(historyFieldValue(tab, column.key, item), column),
+      ),
     );
   for (const [index, column] of spec.columns.entries()) {
     const options =
@@ -410,6 +418,16 @@ export async function createBulkImportWorkbook(
     });
   }
   styleTable(sheet);
+  sheet.getRow(1).height =
+    entryHeaderHeight(
+      spec.columns.map((column) => ({
+        ...column,
+        required: false,
+        requiredForNew: column.required,
+      })),
+    ) * 0.75;
+  sheet.getRow(1).alignment = { vertical: 'top', wrapText: true };
+
   const guide = workbook.addWorksheet('Guide');
   guide.columns = [
     { header: 'Field key', key: 'key', width: 26 },
@@ -524,7 +542,26 @@ export async function readBulkImportWorkbook(
     );
   }
   const spec = bulkTabSpec(tab);
-  const fields = new Map(spec.columns.map((column) => [column.key, column]));
+  const fields = new Map(
+    spec.columns.flatMap(
+      (column) =>
+        [
+          [column.key, column],
+          ...(['maintenance', 'service-history'].includes(tab)
+            ? [[column.label, column] as const]
+            : []),
+        ] as const,
+    ),
+  );
+  for (const column of spec.columns)
+    fields.set(
+      entryHeader({
+        ...column,
+        required: false,
+        requiredForNew: column.required,
+      }),
+      column,
+    );
   const headers = new Map<number, BulkColumn>();
   const seen = new Set<string>();
   for (let index = 1; index <= sheet.columnCount; index += 1) {
@@ -550,8 +587,9 @@ export async function readBulkImportWorkbook(
         cell,
         `Unknown field key "${key}". Use this tab's downloaded template.`,
       );
-    if (seen.has(key)) throw cellError(cell, `Duplicate field key "${key}".`);
-    seen.add(key);
+    if (seen.has(column.key))
+      throw cellError(cell, `Duplicate field key "${key}".`);
+    seen.add(column.key);
     headers.set(index, column);
   }
   const missing = spec.columns.filter((column) => !seen.has(column.key));

@@ -321,7 +321,7 @@ function downloads(t) {
 
 test('all ten tabs expose an accessible template and import entry, with disabled catalogs protected', (t) => {
   const { ui, props, calls } = fixture(t);
-  assert.equal(masterDataTabs.length, 11);
+  assert.equal(masterDataTabs.length, 12);
   for (const tab of masterDataTabs) {
     props.tab = tab.value;
     assert.equal(

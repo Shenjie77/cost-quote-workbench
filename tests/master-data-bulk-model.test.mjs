@@ -34,16 +34,22 @@ const samples = {
   },
   maintenance: {
     client: 'Customer',
-    service: 'Support',
     productModel: 'Model A',
-    serviceLevel: '8x5',
-    site: 'Singapore',
-    coverageMonths: 12,
+    ct: 100,
+    spms: 50,
+    quotedYear: 2026,
+    project: 'QT-001',
+  },
+  'service-history': {
+    client: 'Customer',
+    project: 'Deployment',
+    service: 'Installation',
     quantity: 2,
-    costAmount: 100,
-    quotedAmount: 150,
-    quoteDate: '2026-02-28',
-    source: 'QT-001',
+    unit: 'day',
+    unitPrice: 500,
+    costAmount: 600,
+    quotedYear: 2026,
+    source: 'QT-002',
   },
   assumptions: { name: 'Scope', text: 'Changes need approval.' },
   'quote-templates': {
@@ -75,7 +81,7 @@ function imported(tab, values = samples[tab], current = [], related = {}) {
   return preview;
 }
 
-test('all ten tab templates create rows accepted by the persisted catalog validators', () => {
+test('all tab templates create rows accepted by the persisted catalog validators', () => {
   for (const tab of GLOBAL_MASTER_DATA_TABS) {
     const spec = bulkTabSpec(tab);
     assert.equal(spec.tab, tab);

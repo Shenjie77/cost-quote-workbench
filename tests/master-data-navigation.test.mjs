@@ -6,9 +6,9 @@ import {
   isMasterDataTab,
 } from '../features/master-data/navigation.ts';
 
-test('one maintenance surface retains all eleven independent global data tabs', () => {
+test('one maintenance surface retains all twelve independent global data tabs', () => {
   const keys = masterDataTabs.map((tab) => tab.value);
-  assert.equal(keys.length, 11);
+  assert.equal(keys.length, 12);
   assert.equal(new Set(keys).size, keys.length);
   assert.deepEqual([...keys].sort(), [
     'assumptions',
@@ -18,6 +18,7 @@ test('one maintenance surface retains all eleven independent global data tabs', 
     'project-tags',
     'quote-templates',
     'resources',
+    'service-history',
     'status',
     'subcontract',
     'supplemental',

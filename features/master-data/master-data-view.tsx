@@ -1,3 +1,9 @@
+import {
+  maintenanceHistoryColumns,
+  historyFieldValue,
+  type ServicePriceRecord,
+} from './history-fields';
+import { ServiceHistoryEditor } from './service-history-editor';
 import { MaintenancePriceInput } from '../maintenance/price-input';
 import { ProjectTagsEditor } from './project-tags-editor';
 import type { ProjectTagDefinition } from './global-types';
@@ -71,6 +77,10 @@ import {
 } from './resource-editing';
 
 type Props = {
+  servicePriceRecords?: ServicePriceRecord[];
+  setServicePriceRecords?: React.Dispatch<
+    React.SetStateAction<ServicePriceRecord[]>
+  >;
   /** Per-tab bulk tools share the existing search/save toolbar without adding another action row. */
   bulkActions?: React.ReactNode;
   editingDisabled?: boolean;
@@ -285,6 +295,8 @@ export function MasterDataView(props: Props) {
     supplementalCostItems,
     setSupplementalCostItems,
     maintenancePriceRecords,
+    servicePriceRecords = [],
+    setServicePriceRecords = () => {},
     setMaintenancePriceRecords,
     assumptionLibrary,
     setAssumptionLibrary,
@@ -318,6 +330,7 @@ export function MasterDataView(props: Props) {
     subcontract: subcontractItems.length,
     supplemental: supplementalCostItems.length,
     maintenance: maintenancePriceRecords.length,
+    'service-history': servicePriceRecords.length,
     assumptions: assumptionLibrary.length,
     'quote-templates': quoteTemplates.length,
     'profit-share': profitShareRates.length,
@@ -1292,25 +1305,29 @@ export function MasterDataView(props: Props) {
               <div className="wb-toolbar justify-between border-b text-xs text-muted-foreground">
                 <span>{maintenance.length} records / 条记录</span>
                 <div className="flex gap-2">
-                  <input
-                    ref={maintenanceImportRef}
-                    type="file"
-                    accept=".json,.xlsx"
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void importMaintenance(file);
-                      event.target.value = '';
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
-                    onClick={() => maintenanceImportRef.current?.click()}
-                  >
-                    <Upload /> Import JSON/XLSX / 导入
-                  </Button>
+                  {!props.bulkActions && (
+                    <>
+                      <input
+                        ref={maintenanceImportRef}
+                        type="file"
+                        accept=".json,.xlsx"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void importMaintenance(file);
+                          event.target.value = '';
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => maintenanceImportRef.current?.click()}
+                      >
+                        <Upload /> Import JSON/XLSX / 导入
+                      </Button>
+                    </>
+                  )}
                   <Button
                     size="sm"
                     className="h-8 text-xs"
@@ -1325,13 +1342,9 @@ export function MasterDataView(props: Props) {
                   <TableHeader>
                     <TableRow>
                       {[
-                        'Model',
-                        'Client',
-                        'CT',
-                        'SPMS',
-                        'U/P',
-                        'Quoted Year',
-                        'Project',
+                        ...maintenanceHistoryColumns.map(
+                          (column) => column.label,
+                        ),
                         'Action',
                       ].map((label) => (
                         <TableHead key={label}>{label}</TableHead>
@@ -1363,7 +1376,13 @@ export function MasterDataView(props: Props) {
                           <TableCell key={field}>
                             <MaintenancePriceInput
                               key={`${row.id}-${field}-${row[field]}`}
-                              value={row[field]}
+                              value={Number(
+                                historyFieldValue(
+                                  'maintenance',
+                                  field,
+                                  row as unknown as Record<string, unknown>,
+                                ),
+                              )}
                               label={field.toUpperCase()}
                               onChange={(value) =>
                                 setMaintenancePriceRecords((current) =>
@@ -1456,6 +1475,13 @@ export function MasterDataView(props: Props) {
                   </TableBody>
                 </Table>
               </div>
+            </TabsContent>
+            <TabsContent value="service-history" className="mt-0">
+              <ServiceHistoryEditor
+                rows={servicePriceRecords}
+                setRows={setServicePriceRecords}
+                query={query}
+              />
             </TabsContent>
             <TabsContent value="assumptions" className="mt-0">
               <AssumptionLibraryView

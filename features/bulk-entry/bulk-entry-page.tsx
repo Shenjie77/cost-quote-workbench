@@ -11,7 +11,13 @@ const CalculationEditor = lazy(() =>
   })),
 );
 import type { CalculationDocument } from '@/features/calculation/workbook';
-import { entryWorkbook, type EntrySheet, type EntryIssue } from './workbook';
+import { entryHeader, entrySample } from './column-guide';
+import {
+  upgradeEntryHeaders,
+  entryWorkbook,
+  type EntrySheet,
+  type EntryIssue,
+} from './workbook';
 export type EntryPreview<T> = {
   payload: T;
   issues: EntryIssue[];
@@ -235,7 +241,7 @@ export function BulkEntryPage<T>({
               {target}
             </span>
             <span className="ml-auto text-xs text-muted-foreground">
-              Fixed headers · Paste values below row 1
+              * Required (conditions in header) · Paste data from row 2
             </span>
           </header>
           <div
@@ -278,8 +284,11 @@ export function BulkEntryPage<T>({
                       {s.columns.map((c) => (
                         <p key={c.key} className="py-1">
                           <b>{c.label}</b>
-                          {c.required ? ' *' : ''} —{' '}
-                          {c.description || c.kind || 'Text'}
+                          {c.required || c.requiredForNew || c.requiredTogether
+                            ? ' *'
+                            : ''}{' '}
+                          — {entryHeader(c).split('\n')[1]} · Sample:{' '}
+                          {entrySample(c)}
                           {c.options?.length
                             ? ` (${c.options.join(', ')})`
                             : ''}
@@ -340,6 +349,9 @@ export function BulkEntryPage<T>({
                 key={`${draftId}:${batch}`}
                 draftId={batch ? `${draftId}:batch:${batch}` : draftId}
                 initialDocument={initial}
+                prepareDocument={(document) =>
+                  upgradeEntryHeaders(document, sheets)
+                }
                 title="Bulk Entry workbook"
                 pageLayout
                 readOnly={disabled || busy}

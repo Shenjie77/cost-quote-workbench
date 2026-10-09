@@ -2,6 +2,7 @@
 import { MasterDataBulkEntryPage } from '@/features/bulk-entry/master-data-entry';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import type { ServicePriceRecord } from './history-fields';
 import type { ResourceType } from '@/features/cost/domain';
 import { contentKey, type CatalogItem } from '@/features/cpq/domain';
 import type {
@@ -511,6 +512,8 @@ export function GlobalMasterDataPage({
           setSupplementalCostItems={setter('supplemental')}
           maintenancePriceRecords={rows<MaintenancePriceRecord>('maintenance')}
           setMaintenancePriceRecords={setter('maintenance')}
+          servicePriceRecords={rows<ServicePriceRecord>('service-history')}
+          setServicePriceRecords={setter('service-history')}
           assumptionLibrary={rows<AssumptionDefinition>('assumptions')}
           setAssumptionLibrary={setter('assumptions')}
           quoteTemplates={rows<QuoteTemplate>('quote-templates')}

@@ -47,7 +47,7 @@ test('global catalogs can be read and maintained without any project', () => {
   try {
     assert.equal(initializeGlobalMasterData(db), true);
     const store = makeGlobalMasterDataStore(db);
-    assert.equal(store.all().length, 11);
+    assert.equal(store.all().length, 12);
     const current = store.get('resources');
     assert.equal(current.scope, 'global');
     assert.equal(current.initializedFrom, 'defaults');

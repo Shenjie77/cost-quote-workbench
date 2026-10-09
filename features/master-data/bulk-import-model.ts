@@ -1,4 +1,12 @@
 import {
+  maintenanceHistoryColumns,
+  serviceHistoryColumns,
+  historyFieldValue,
+  validateServiceHistory,
+  type ServicePriceRecord,
+} from './history-fields.ts';
+import { roundMoney } from '../cost/domain.ts';
+import {
   projectTagKey,
   normalizeProjectTags,
 } from '../projects/project-tags.ts';
@@ -22,6 +30,7 @@ export type BulkColumn = {
   label: string;
   kind: 'text' | 'number' | 'integer' | 'boolean' | 'date' | 'list';
   required?: boolean;
+  computed?: boolean;
   options?: string[];
   description: string;
   example?: string | number | boolean;
@@ -277,90 +286,12 @@ const specs: Record<GlobalMasterDataTab, BulkTabSpec> = {
   maintenance: {
     tab: 'maintenance',
     label: 'Maintenance History',
-    columns: [
-      id,
-      textColumn(
-        'client',
-        'Client',
-        'Customer name.',
-        true,
-        'Example Customer',
-      ),
-      textColumn(
-        'service',
-        'Service',
-        'Maintenance service description.',
-        true,
-        'Hardware maintenance',
-      ),
-      textColumn(
-        'productModel',
-        'Product model',
-        'Equipment model.',
-        true,
-        'Model A',
-      ),
-      textColumn(
-        'serviceLevel',
-        'Service level',
-        'Service-level agreement.',
-        true,
-        '8x5 NBD',
-      ),
-      textColumn('site', 'Site', 'Covered location.', true, 'Singapore'),
-      column(
-        'coverageMonths',
-        'Coverage months',
-        'integer',
-        'Whole contract duration in months.',
-        { required: true, min: 0, max: 1200, example: 12 },
-      ),
-      numberColumn(
-        'quantity',
-        'Quantity',
-        'Covered equipment quantity.',
-        true,
-        0,
-        1e9,
-        1,
-      ),
-      numberColumn(
-        'costAmount',
-        'Cost amount',
-        'Total historical cost.',
-        true,
-        0,
-        1e12,
-        100,
-      ),
-      numberColumn(
-        'quotedAmount',
-        'Quoted amount',
-        'Total historical quoted price.',
-        true,
-        0,
-        1e12,
-        150,
-      ),
-      currency,
-      column(
-        'quoteDate',
-        'Quote date',
-        'date',
-        'Calendar date in YYYY-MM-DD format.',
-        { required: true, example: '2026-01-01' },
-      ),
-      column('outcome', 'Outcome', 'text', 'New-row default: Reference.', {
-        options: ['Quoted', 'Won', 'Lost', 'Reference'],
-      }),
-      textColumn(
-        'source',
-        'Source',
-        'Original quote number or reference.',
-        true,
-        'QT-001',
-      ),
-    ],
+    columns: [...maintenanceHistoryColumns, id],
+  },
+  'service-history': {
+    tab: 'service-history',
+    label: 'Service History',
+    columns: [...serviceHistoryColumns, id],
   },
   assumptions: {
     tab: 'assumptions',
@@ -770,7 +701,21 @@ function newItem(tab: GlobalMasterDataTab, values: Item): Item {
     },
     subcontract: { currency: 'SGD', active: true },
     supplemental: { currency: 'SGD', owner: '', sourceNote: '', active: true },
-    maintenance: { currency: 'SGD', outcome: 'Reference' },
+    maintenance: {
+      currency: 'SGD',
+      outcome: 'Reference',
+      service: 'Maintenance Service',
+      serviceLevel: 'Not specified',
+      site: 'Not specified',
+      coverageMonths: 12,
+      quantity: 1,
+      costAmount: 0,
+      source: 'Bulk entry',
+      project: '',
+      ct: 0,
+      spms: 0,
+    },
+    'service-history': { currency: 'SGD', source: '' },
     assumptions: {
       category: 'General',
       clientPattern: '*',
@@ -833,6 +778,7 @@ const definitionNames: Record<GlobalMasterDataTab, string> = {
   subcontract: 'subcontractItem',
   supplemental: 'supplementalCostItem',
   maintenance: 'maintenancePriceRecord',
+  'service-history': 'servicePriceRecord',
   assumptions: 'assumptionDefinition',
   'quote-templates': 'quoteTemplate',
   'profit-share': 'profitShareRate',
@@ -900,6 +846,9 @@ function validateItem(
       normalizeProjectTags([scalarText(item.name)])[0] !== item.name
     )
       add('Remove leading, trailing or repeated whitespace.', 'name');
+    if (tab === 'service-history')
+      for (const error of validateServiceHistory([item as ServicePriceRecord]))
+        add(error);
     if (tab === 'maintenance')
       assertMaintenanceImport({ schemaVersion: '1.0.0', records: [item] });
     if (tab === 'profit-share')
@@ -1062,6 +1011,56 @@ export function previewBulkImport(
             message: 'Required for a new record.',
           });
     const item = existing ? { ...existing, ...values } : newItem(tab, values);
+    if (tab === 'maintenance') {
+      const priceChanged =
+        !existing ||
+        ['ct', 'spms'].some(
+          (key) =>
+            values[key] !== undefined &&
+            values[key] !== historyFieldValue(tab, key, existing),
+        );
+      if (priceChanged) {
+        item.ct =
+          values.ct ?? (existing ? historyFieldValue(tab, 'ct', existing) : 0);
+        item.spms =
+          values.spms ??
+          (existing ? historyFieldValue(tab, 'spms', existing) : 0);
+        item.quotedAmount = roundMoney(Number(item.ct) + Number(item.spms));
+        item.coverageMonths = 12;
+        item.quantity = 1;
+      }
+      if (
+        values.quotedYear !== undefined &&
+        (!existing ||
+          values.quotedYear !== historyFieldValue(tab, 'quotedYear', existing))
+      )
+        item.quoteDate = `${Number(values.quotedYear)}-01-01`;
+      // Export/re-import must preserve legacy dates, quantities and optional metadata.
+      if (existing)
+        for (const key of ['ct', 'spms', 'quotedYear', 'project']) {
+          if (
+            !(priceChanged && ['ct', 'spms'].includes(key)) &&
+            existing[key] === undefined &&
+            values[key] === historyFieldValue(tab, key, existing)
+          )
+            delete item[key];
+        }
+    }
+    if (tab === 'service-history')
+      item.quotedAmount = roundMoney(
+        Number(item.quantity) * Number(item.unitPrice),
+      );
+    for (const field of spec.columns.filter((column) => column.computed)) {
+      const expected = historyFieldValue(tab, field.key, item);
+      if (values[field.key] !== undefined && values[field.key] !== expected)
+        result.issues.push({
+          row,
+          column: field.key,
+          message: `${field.label} is calculated. Leave blank or use ${expected === undefined ? 'a blank value' : scalarText(expected)}.`,
+        });
+      if (!(tab === 'service-history' && field.key === 'quotedAmount'))
+        delete item[field.key];
+    }
     if (tab === 'workflow' && values.no !== undefined)
       item.no = scalarText(values.no).padStart(2, '0');
     const key = String(item[keyField]);

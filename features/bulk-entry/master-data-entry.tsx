@@ -55,6 +55,7 @@ export function MasterDataBulkEntryPage({
     name: tab.label,
     columns: bulkTabSpec(tab.value).columns.map((c) => ({
       ...c,
+      requiredForNew: c.required,
       required: false,
     })),
   }));
@@ -67,8 +68,8 @@ export function MasterDataBulkEntryPage({
   );
   return (
     <BulkEntryPage
-      draftId="bulk:master-data"
-      target="Global Master Data · Import one catalog at a time · Saves catalog edits and imported rows"
+      draftId="bulk:master-data:history-v2"
+      target="Global Master Data · Import one catalog at a time · Calculated columns may be left blank · Record ID is only needed for updates"
       sheets={sheets}
       initialSheet={initialTab}
       contextKey={contextKey}

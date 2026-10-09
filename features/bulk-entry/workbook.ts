@@ -1,9 +1,14 @@
+import {
+  entryHeader,
+  entryHeaderHeight,
+  type GuidedColumn,
+} from './column-guide.ts';
 import type { ICellData } from '@univerjs/core';
 import {
   tableWorkbook,
   type CalculationDocument,
 } from '../calculation/workbook.ts';
-export type EntryColumn = {
+export type EntryColumn = GuidedColumn & {
   key: string;
   label: string;
   kind?: 'text' | 'number' | 'integer' | 'boolean' | 'date' | 'list';
@@ -28,19 +33,28 @@ export function entryWorkbook(sheets: EntrySheet[]): CalculationDocument {
   workbook.sheetOrder = [];
   workbook.sheets = {};
   for (const spec of sheets) {
-    const sheet = tableWorkbook(spec.name, [spec.columns.map((c) => c.label)])
+    const sheet = tableWorkbook(spec.name, [spec.columns.map(entryHeader)])
       .sheets!.calculation;
+    for (const cell of Object.values(sheet.cellData?.[0] ?? {}))
+      cell.s = {
+        ...(typeof cell.s === 'object' ? cell.s : {}),
+        tb: 3,
+        vt: 1,
+        fs: 11,
+        bl: 0,
+      };
     workbook.sheetOrder.push(spec.id);
     workbook.sheets[spec.id] = {
       ...sheet,
       id: spec.id,
       name: spec.name.slice(0, 31),
       rowCount: 1002,
+      rowData: { 0: { h: entryHeaderHeight(spec.columns) } },
       columnCount: Math.max(spec.columns.length, 12),
       columnData: Object.fromEntries(
         spec.columns.map((c, i) => [
           i,
-          { w: /description|scope|item/i.test(c.key) ? 300 : 140 },
+          { w: /description|scope|item/i.test(c.key) ? 300 : 220 },
         ]),
       ),
     };
@@ -66,7 +80,7 @@ export function readEntrySheet(
   }
   for (const [i, col] of spec.columns.entries())
     if (
-      sheet.cellData?.[0]?.[i]?.v !== col.label ||
+      sheet.cellData?.[0]?.[i]?.v !== entryHeader(col) ||
       sheet.cellData?.[0]?.[i]?.f
     )
       fail(1, i + 1, `Keep the fixed header: ${col.label}.`);
@@ -147,4 +161,52 @@ export function entryTsv(spec: EntrySheet, rows: EntryRows) {
       .map(quote)
       .join('\t'),
   ).join('\n');
+}
+
+/** Upgrade only recognized old headers; preserve all data rows and reject damaged layouts. */
+export function upgradeEntryHeaders(
+  document: CalculationDocument,
+  sheets: EntrySheet[],
+): CalculationDocument {
+  const next = structuredClone(document);
+  const template = entryWorkbook(sheets);
+  for (const spec of sheets) {
+    const sheet = next.workbook.sheets?.[spec.id];
+    const headers = sheet?.cellData?.[0];
+    if (!sheet || !headers) continue;
+    if (
+      !spec.columns.every(
+        (column, index) =>
+          !headers[index]?.f &&
+          (headers[index]?.v === column.label ||
+            (String(headers[index]?.v ?? '').includes('\nSample: ') &&
+              [column.label, `${column.label} *`].includes(
+                String(headers[index]?.v ?? '').split('\n')[0],
+              ))),
+      )
+    )
+      continue;
+    if (
+      Object.entries(headers).some(
+        ([index, cell]) =>
+          Number(index) >= spec.columns.length &&
+          (cell?.f ||
+            (cell?.v !== undefined && cell.v !== null && cell.v !== '')),
+      )
+    )
+      continue;
+    if (
+      spec.columns.every(
+        (column, index) => headers[index]?.v === entryHeader(column),
+      )
+    )
+      continue;
+    sheet.cellData![0] = template.workbook.sheets![spec.id].cellData![0];
+    sheet.rowData = {
+      ...sheet.rowData,
+      0: { ...sheet.rowData?.[0], h: entryHeaderHeight(spec.columns) },
+    };
+    sheet.columnData = template.workbook.sheets![spec.id].columnData;
+  }
+  return next;
 }

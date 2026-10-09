@@ -4,6 +4,7 @@ export const GLOBAL_MASTER_DATA_TABS = [
   'subcontract',
   'supplemental',
   'maintenance',
+  'service-history',
   'assumptions',
   'quote-templates',
   'profit-share',

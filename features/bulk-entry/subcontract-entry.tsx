@@ -59,6 +59,7 @@ export function SubcontractBulkEntryPage({
       {
         key: 'code',
         label: 'Item Code',
+        requiredTogether: 'Item Code or Description is required.',
         kind: 'text',
         description:
           'Use an active Master Data item code. Price, unit and BU come from that item.',
@@ -67,6 +68,9 @@ export function SubcontractBulkEntryPage({
       {
         key: 'description',
         label: 'Description',
+        requiredTogether: 'Item Code or Description is required.',
+        example:
+          catalog.find((item) => item.active)?.item ?? 'Installation service',
         kind: 'text',
         description:
           'Match the Master Data description, or leave blank when Item Code is supplied.',
@@ -76,11 +80,15 @@ export function SubcontractBulkEntryPage({
             key: `quantity:${i}`,
             label: `Y${i + 1}${year ? ` (${year})` : ''} Quantity`,
             kind: 'number' as const,
+            description: 'Total quantity for this year; blank means zero.',
+            example: 3,
           }))
         : [
             {
               key: 'quantityPerSite',
               label: 'Quantity / Site',
+              description: 'Quantity of this catalog item needed per site.',
+              example: 2,
               kind: 'number' as const,
               required: true,
             },

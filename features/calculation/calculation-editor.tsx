@@ -24,6 +24,7 @@ export type CalculationCommands = {
 export function CalculationEditor({
   draftId,
   initialDocument,
+  prepareDocument,
   readOnly = false,
   onApply,
   onDirtyChange,
@@ -40,6 +41,7 @@ export function CalculationEditor({
 }: {
   draftId: string;
   initialDocument: CalculationDocument;
+  prepareDocument?: (document: CalculationDocument) => CalculationDocument;
   commandsRef?: RefObject<CalculationCommands | null>;
   fixedHeaders?: string[];
   initialSheet?: string;
@@ -57,6 +59,10 @@ export function CalculationEditor({
   const container = useRef<HTMLDivElement>(null);
   const editor = useRef<UniverHandle | null>(null);
   const initial = useRef(initialDocument);
+  const prepare = useRef(prepareDocument);
+  useEffect(() => {
+    prepare.current = prepareDocument;
+  }, [prepareDocument]);
   const latest = useRef<CalculationDocument>(initialDocument);
   const revision = useRef<number | null>(null);
   const savedJson = useRef('');
@@ -194,6 +200,7 @@ export function CalculationEditor({
         } catch {
           /* An unreadable recovery entry must not hide the database copy. */
         }
+        document = prepare.current?.(document) ?? document;
         latest.current = document;
         const { mountUniver } = await import('./univer-runtime');
         if (cancelled || !container.current) return;
@@ -202,6 +209,7 @@ export function CalculationEditor({
           document.workbook,
           (workbook) => changed({ ...latest.current, workbook }),
           pageLayout ? setToolbarHost : undefined,
+          Boolean(callbacks.current.fixedHeaders?.length),
         );
         editor.current = handle;
         if (callbacks.current.fixedHeaders)

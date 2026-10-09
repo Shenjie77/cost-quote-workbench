@@ -11,11 +11,19 @@ export function mountUniver(
   snapshot: Partial<IWorkbookData>,
   onChange: (snapshot: IWorkbookData) => void,
   onToolbarHost?: (host: HTMLDivElement | null) => void,
+  hideProtectedShadows = false,
 ) {
   const { univer, univerAPI } = createUniver({
     locale: LocaleType.EN_US,
     locales: { [LocaleType.EN_US]: EnUS },
-    presets: [UniverSheetsCorePreset({ container })],
+    presets: [
+      UniverSheetsCorePreset({
+        container,
+        ...(hideProtectedShadows
+          ? { sheets: { protectedRangeShadow: 'none' as const } }
+          : {}),
+      }),
+    ],
   });
   const toolbarPart = onToolbarHost
     ? univerAPI.registerUIPart(univerAPI.Enum.BuiltInUIPart.HEADER_MENU, () =>
