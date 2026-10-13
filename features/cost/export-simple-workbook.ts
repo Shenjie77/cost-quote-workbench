@@ -1,3 +1,8 @@
+import {
+  buildGroupCostSummary,
+  costRowsIncludingHQTravel,
+  GROUP_COST_NOTE,
+} from './group-cost-summary.ts';
 import { unmergeWorkbook } from '../../lib/unmerged-workbook.ts';
 import { addSubcontractWorkbookSheets } from './export-subcontract-workbook.ts';
 import { subcontractCostDetails } from './subcontract-domain.ts';
@@ -204,6 +209,11 @@ const addDetail = (workbook: Workbook, snapshot: CostExportSnapshot) => {
     columns,
     2,
   );
+  sheet.getCell('A3').value =
+    'Cost includes HQ travel allocated to each resource and delivery year. Annual uplift and selected personnel allowance remain included.';
+  sheet.getCell('A3').alignment = { wrapText: true };
+  sheet.mergeCells(3, 1, 3, columns);
+  sheet.getRow(3).height = 28;
   const headers = [
     'Scope / 服务范围',
     'BU / 业务部',
@@ -258,7 +268,12 @@ const addDetail = (workbook: Workbook, snapshot: CostExportSnapshot) => {
         ? MONEY
         : QUANTITY;
   }
-  snapshot.costRows.forEach((input, index) => {
+  const detailRows = costRowsIncludingHQTravel(
+    snapshot.costRows,
+    snapshot.resourceTypes,
+    snapshot.travelSettings,
+  );
+  detailRows.forEach((input, index) => {
     const rowNumber = HEADER_ROW + 2 + index;
     const resource = snapshot.resourceTypes.find(
       (item) => item.id === input.reTypeId,
@@ -298,16 +313,11 @@ const addDetail = (workbook: Workbook, snapshot: CostExportSnapshot) => {
       };
     }
   });
-  const totals = styleRow(
-    sheet,
-    HEADER_ROW + 2 + snapshot.costRows.length,
-    columns,
-    {
-      fill: COLORS.header,
-      bold: true,
-      height: 34,
-    },
-  );
+  const totals = styleRow(sheet, HEADER_ROW + 2 + detailRows.length, columns, {
+    fill: COLORS.header,
+    bold: true,
+    height: 34,
+  });
   const sum = (values: number[]) =>
     roundQuantity(values.reduce((total, value) => total + value, 0));
   setRowValues(totals, [
@@ -315,16 +325,14 @@ const addDetail = (workbook: Workbook, snapshot: CostExportSnapshot) => {
     'All input lines / 全部成本行',
     null,
     null,
-    sum(snapshot.costRows.map(totalRowSites)),
-    sum(snapshot.costRows.map(totalRowMandays)),
-    roundMoney(
-      snapshot.costRows.reduce((total, row) => total + totalRowCost(row), 0),
-    ),
+    sum(detailRows.map(totalRowSites)),
+    sum(detailRows.map(totalRowMandays)),
+    roundMoney(detailRows.reduce((total, row) => total + totalRowCost(row), 0)),
     ...YEAR_BUCKETS.flatMap((_, index) => [
-      sum(snapshot.costRows.map((row) => Number(row.years[index].sites))),
-      sum(snapshot.costRows.map((row) => yearRowMandays(row, index))),
+      sum(detailRows.map((row) => Number(row.years[index].sites))),
+      sum(detailRows.map((row) => yearRowMandays(row, index))),
       roundMoney(
-        snapshot.costRows.reduce(
+        detailRows.reduce(
           (total, row) => total + roundMoney(Number(row.years[index].cost)),
           0,
         ),
@@ -426,9 +434,11 @@ function addPersonnelDetail(
   columns: PersonnelColumnId[],
   references?: PersonnelExportReferences,
 ) {
-  const rows = snapshot.costRows.filter(
-    (row) => !isLegacySubcontractRow(row, snapshot.resourceTypes),
-  );
+  const rows = costRowsIncludingHQTravel(
+    snapshot.costRows,
+    snapshot.resourceTypes,
+    snapshot.travelSettings,
+  ).filter((row) => !isLegacySubcontractRow(row, snapshot.resourceTypes));
   const segments = getPersonnelHeaderSegments(columns);
   const hasAnnual = columns.some((id) => getPersonnelAnnualColumn(id));
   const headerRows = hasAnnual ? 2 : 1;
@@ -442,7 +452,7 @@ function addPersonnelDetail(
   );
   const actualYears = getActualYears(snapshot.rateSettings);
   sheet.mergeCells(3, 1, 3, columns.length);
-  const viewNote = `Cost view: ${layout.grouped ? 'Grouped' : 'Ungrouped'} · ${layout.yearIndex === 'all' ? 'All years' : `${YEAR_BUCKETS[layout.yearIndex]} · ${actualYears[layout.yearIndex] ?? 'Set dates'}`}. Total columns, summaries and Cost Statement cover all years.`;
+  const viewNote = `Cost view: ${layout.grouped ? 'Grouped' : 'Ungrouped'} · ${layout.yearIndex === 'all' ? 'All years' : `${YEAR_BUCKETS[layout.yearIndex]} · ${actualYears[layout.yearIndex] ?? 'Set dates'}`}. Total columns, summaries and Cost Statement cover all years. Cost includes HQ travel allocated by resource and year.`;
   sheet.getCell('A3').value = viewNote;
   sheet.getCell('A3').font = {
     name: 'Arial',
@@ -508,7 +518,9 @@ function addPersonnelDetail(
         : QUANTITY;
   });
   let rowNumber = HEADER_ROW + headerRows;
+  const rowAddresses = new Map<string, number>();
   const writeInput = (input: CostInputRow) => {
+    rowAddresses.set(input.id, rowNumber);
     const values = columns.map((id) => personnelValue(input, id, snapshot));
     const row = styleRow(sheet, rowNumber++, columns.length, {
       height: textRowHeight(
@@ -551,16 +563,32 @@ function addPersonnelDetail(
           [
             [
               title,
-              columns.reduce((sum, id) => sum + personnelColumnWidth(id), 0),
+              personnelColumnWidth(
+                columns.find(personnelTextColumn) ?? columns[0],
+              ),
             ],
           ],
           28,
         ),
       });
-      sheet.mergeCells(groupRow.number, 1, groupRow.number, columns.length);
-      groupRow.getCell(1).value =
-        `${title} · ${group.rows.length} ${group.rows.length === 1 ? 'row' : 'rows'}`;
       group.rows.forEach(writeInput);
+      const labelColumn = columns.findIndex(personnelTextColumn);
+      columns.forEach((id, index) => {
+        const value = personnelTotal(group.rows, id);
+        const cell = groupRow.getCell(index + 1);
+        if (index === labelColumn)
+          cell.value = `${title} · ${group.rows.length} ${group.rows.length === 1 ? 'row' : 'rows'}`;
+        else if (typeof value === 'number') {
+          cell.value = {
+            formula: `SUM(${group.rows.map((row) => sheet.getCell(rowAddresses.get(row.id)!, index + 1).address).join(',')})`,
+            result: value,
+          };
+          cell.numFmt = personnelMoneyColumn(id)
+            ? MONEY
+            : quantityFormat(value);
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        }
+      });
     }
   } else rows.forEach(writeInput);
   const totals = styleRow(sheet, rowNumber, columns.length, {
@@ -901,6 +929,102 @@ const addStatement = (
   });
 };
 
+/** Group and project-level costs, sharing the exact calculation used by the page. */
+export function addGroupCostSheet(
+  workbook: Workbook,
+  snapshot: CostExportSnapshot,
+) {
+  const items = buildGroupCostSummary(
+    snapshot.costRows,
+    snapshot.resourceTypes,
+    snapshot.travelSettings,
+    snapshot.manualCosts,
+    snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
+  );
+  const headers = [
+    'Group / Account',
+    'Level',
+    'Mandays',
+    'Personnel',
+    'HQ Travel',
+    'Subcontract',
+    'EHS',
+    'Risk',
+    'Other',
+    'Total Cost',
+    'Share',
+  ];
+  const sheet = addSheet(
+    workbook,
+    snapshot,
+    'Summary Group',
+    'Group Cost Summary',
+    headers.length,
+  );
+  sheet.mergeCells(3, 1, 3, headers.length);
+  sheet.getCell('A3').value = GROUP_COST_NOTE;
+  sheet.getCell('A3').alignment = { wrapText: true, vertical: 'middle' };
+  sheet.getRow(3).height = 34;
+  setRowValues(
+    styleRow(sheet, HEADER_ROW, headers.length, {
+      fill: COLORS.header,
+      bold: true,
+    }),
+    headers,
+  );
+  [34, 14, 14, 20, 20, 20, 20, 20, 20, 20, 14].forEach((width, index) => {
+    sheet.getColumn(index + 1).width = width;
+  });
+  const fields = [
+    'mandays',
+    'personnel',
+    'travel',
+    'subcontract',
+    'ehs',
+    'risk',
+    'other',
+    'total',
+    'share',
+  ] as const;
+  items.forEach((item, index) => {
+    const row = styleRow(sheet, HEADER_ROW + 1 + index, headers.length, {
+      fill: item.kind === 'Project' ? COLORS.secondary : COLORS.white,
+    });
+    setRowValues(row, [
+      item.label,
+      item.kind,
+      ...fields.map((field) => item[field]),
+    ]);
+  });
+  const total = styleRow(sheet, HEADER_ROW + 1 + items.length, headers.length, {
+    fill: COLORS.subtotal,
+    bold: true,
+  });
+  setRowValues(total, [
+    'Total Cost with Risk',
+    null,
+    ...fields.map((field) =>
+      field === 'mandays'
+        ? roundQuantity(items.reduce((sum, item) => sum + item[field], 0))
+        : field === 'share'
+          ? items.some((item) => item.total)
+            ? 1
+            : 0
+          : roundMoney(items.reduce((sum, item) => sum + item[field], 0)),
+    ),
+  ]);
+  for (let col = 3; col <= headers.length; col++) {
+    sheet.getColumn(col).numFmt =
+      col === 3 ? QUANTITY : col === 11 ? '0.0%' : MONEY;
+    for (let row = HEADER_ROW + 1; row <= total.number; row++)
+      sheet.getCell(row, col).alignment = {
+        horizontal: 'right',
+        vertical: 'middle',
+      };
+  }
+}
+
 /** Values are fixed to this version's snapshot, using the page's shared calculations. */
 export const buildSimpleCostWorkbook = async (
   input: CostExportSnapshot,
@@ -969,6 +1093,7 @@ export const buildSimpleCostWorkbook = async (
   }
   if (layout) addLegacySubcontractDetail(workbook, snapshot);
   addSubcontractWorkbookSheets(workbook, snapshot);
+  addGroupCostSheet(workbook, snapshot);
   addBreakdown(
     workbook,
     snapshot,

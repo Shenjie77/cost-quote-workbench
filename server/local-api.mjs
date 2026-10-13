@@ -2,10 +2,18 @@
 
 /** Minimal same-device JSON API for the SQLite workbench repository. */
 
+import { openAiOutputStore } from './ai-output-store.mjs';
+import { createAiOutputRouter } from './ai-output-api.mjs';
+import { createEnvironmentModelService } from './model-service.mjs';
 import { openReminderService } from './reminder-service.mjs';
-import { openCalculationDraftStore, routeCalculationDrafts } from './calculation-drafts.mjs';
+import {
+  openCalculationDraftStore,
+  routeCalculationDrafts,
+} from './calculation-drafts.mjs';
 import { createServer } from 'node:http';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
+import { loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { GlobalMasterDataConflictError } from './global-master-data.mjs';
 import { ProjectFileError } from './project-files.mjs';
@@ -30,6 +38,8 @@ const ROOT_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
+const envFile = path.join(ROOT_DIR, '.env.ai.local');
+if (existsSync(envFile)) loadEnvFile(envFile);
 const PORT = Number(process.env.COST_WORKBENCH_API_PORT || 3210);
 const DATABASE_PATH = path.resolve(
   process.env.COST_WORKBENCH_DB || path.join(ROOT_DIR, 'data/workbench.sqlite'),
@@ -38,6 +48,12 @@ const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const repository = openWorkspaceRepository(DATABASE_PATH);
 const quoteTemplates = openQuoteTemplateStore(DATABASE_PATH);
 const calculationDrafts = openCalculationDraftStore(DATABASE_PATH);
+const aiOutput = openAiOutputStore(DATABASE_PATH);
+const aiRouter = createAiOutputRouter({
+  store: aiOutput,
+  repository,
+  service: createEnvironmentModelService(),
+});
 const reminders = openReminderService(DATABASE_PATH, repository);
 const scanReminders = () => {
   try {
@@ -99,7 +115,18 @@ const route = async (request, response) => {
     return;
   }
   const url = new URL(request.url || '/', `http://${request.headers.host}`);
-  if (await routeCalculationDrafts({ request, url, store: calculationDrafts, respond, readJson })) return;
+  if (await aiRouter({ request, response, url, respond, readJson, origin }))
+    return;
+  if (
+    await routeCalculationDrafts({
+      request,
+      url,
+      store: calculationDrafts,
+      respond,
+      readJson,
+    })
+  )
+    return;
   if (request.method === 'GET' && url.pathname === '/api/local/health') {
     respond(200, {
       apiVersion: LOCAL_API_VERSION,
@@ -495,6 +522,7 @@ const shutdown = () => {
     reminders.close();
     quoteTemplates.close();
     calculationDrafts.close();
+    aiOutput.close();
     repository.close();
     process.exit(0);
   });

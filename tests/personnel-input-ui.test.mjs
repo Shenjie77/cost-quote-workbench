@@ -547,6 +547,12 @@ test('locked grid blocks inline writers while keeping year views available', () 
     setRateSettings: noop,
     resourceTypes: resources,
     includedTravelCost: 0,
+    travelSettings: {
+      enabled: false,
+      monthlyAllowance: 0,
+      airfarePerTrip: 0,
+      trips: 0,
+    },
     announce: noop,
     locked: true,
   });

@@ -5,7 +5,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
-const vinextBinary = path.resolve('node_modules/.bin/vinext');
+const vinextBinary = path.resolve('node_modules/vinext/dist/cli.js');
 
 const children = [
   spawn(
@@ -15,7 +15,7 @@ const children = [
       stdio: 'inherit',
     },
   ),
-  spawn(vinextBinary, ['dev'], { stdio: 'inherit' }),
+  spawn(process.execPath, [vinextBinary, 'dev'], { stdio: 'inherit' }),
 ];
 
 let closing = false;
@@ -26,6 +26,11 @@ const closeAll = (signal = 'SIGTERM') => {
 };
 
 for (const child of children) {
+  child.on('error', (error) => {
+    console.error('Unable to start local process:', error.message);
+    closeAll();
+    process.exitCode = 1;
+  });
   child.on('exit', (code, signal) => {
     if (!closing) {
       closeAll();

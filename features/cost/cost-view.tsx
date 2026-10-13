@@ -539,6 +539,7 @@ export function CostView({
             setRateSettings={writeIfUnlocked(setRateSettings)}
             resourceTypes={resourceTypes}
             includedTravelCost={includedTravelCost}
+            travelSettings={travelSettings}
             announce={announce}
           />
           <HQTravelPanel
@@ -568,6 +569,7 @@ export function CostView({
           rows={rows}
           resourceTypes={resourceTypes}
           travelCost={hqTravelCost}
+          travelSettings={travelSettings}
           manualCosts={manualCosts}
           subcontractCost={subcontractCost}
           subcontractStartYear={getY1Year(rateSettings)}

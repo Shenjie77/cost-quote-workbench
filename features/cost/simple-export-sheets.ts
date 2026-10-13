@@ -11,6 +11,7 @@ export type SimpleCostSheetId =
   | 'Subcon Rates'
   | 'Subcon Detail'
   | 'Subcon Site Types'
+  | 'Summary Group'
   | 'Summary Scope'
   | 'Summary BU'
   | 'Summary RE Type'
@@ -82,6 +83,12 @@ export function getAvailableSimpleCostSheets(
   }
 
   sheets.push(
+    {
+      id: 'Summary Group',
+      label: 'Summary Group',
+      description:
+        'Group personnel and HQ travel costs, plus subcontract, EHS, risk and project costs.',
+    },
     {
       id: 'Summary Scope',
       label: 'Summary Scope',

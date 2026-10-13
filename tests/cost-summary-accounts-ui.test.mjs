@@ -71,6 +71,7 @@ test('Cost Statement opens first; locked summaries keep named accounts and a sep
       rows: snapshot.costRows,
       resourceTypes: snapshot.resourceTypes,
       travelCost: 20,
+      travelSettings: snapshot.travelSettings,
       manualCosts: snapshot.manualCosts,
       setManualCosts: () => writes++,
     }),
@@ -83,7 +84,7 @@ test('Cost Statement opens first; locked summaries keep named accounts and a sep
     view
       .filter((node) => node.type === TabsTrigger)
       .map((node) => node.props.value),
-    ['statement', 'scope', 'bu', 'resource-type', 'subcontract'],
+    ['statement', 'group', 'scope', 'bu', 'resource-type', 'subcontract'],
   );
   const values = getCostStatementValues(
     snapshot.costRows,

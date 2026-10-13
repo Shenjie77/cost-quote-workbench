@@ -1,3 +1,4 @@
+import { allocateHQTravel } from '../cost/group-cost-summary.ts';
 import { excelMoneyFormula as money } from '../../lib/excel-money.ts';
 import type { MaintenanceWorkspace } from '../maintenance/domain.ts';
 import { emptyMaintenance } from '../maintenance/domain.ts';
@@ -76,6 +77,11 @@ function linkCostStatement(
     subcontract: [] as string[],
   };
   const linkedCosts = { internal: 0, subcontract: 0 };
+  const travelAllocation = allocateHQTravel(
+    snapshot.costRows,
+    snapshot.resourceTypes,
+    snapshot.travelSettings,
+  );
   snapshot.costRows.forEach((row, index) => {
     if (!detail) return;
     const number = index + 6;
@@ -88,10 +94,12 @@ function linkCostStatement(
         ? references?.[`Y${yearIndex + 1}:cost` as keyof typeof references]
         : `${['J', 'M', 'P', 'S', 'V'][yearIndex]}${number}`,
     );
+    const allocatedTravel = travelAllocation.get(row.id) ?? [];
+    const rowTravel = roundMoney(allocatedTravel.reduce((a, b) => a + b, 0));
     const terms = row.years.map((year, yearIndex) =>
       annualAddresses[yearIndex]
         ? `'Cost Detail'!${annualAddresses[yearIndex]}`
-        : String(year.cost),
+        : String(roundMoney(year.cost + (allocatedTravel[yearIndex] ?? 0))),
     );
     const amount = roundMoney(
       row.years.reduce((sum, year) => sum + year.cost, 0),
@@ -101,7 +109,7 @@ function linkCostStatement(
         detail,
         totalAddress,
         `SUM(${(personnelReferences ? terms : annualAddresses).join(',')})`,
-        amount,
+        roundMoney(amount + rowTravel),
       );
     const reference = totalAddress
       ? `'Cost Detail'!${totalAddress}`
@@ -112,7 +120,9 @@ function linkCostStatement(
       (resource) => resource.id === row.reTypeId,
     )?.category;
     if (category && reference) {
-      categoryRefs[category].push(reference);
+      categoryRefs[category].push(
+        rowTravel ? `(${reference}-${rowTravel})` : reference,
+      );
       linkedCosts[category] = roundMoney(linkedCosts[category] + amount);
     }
   });

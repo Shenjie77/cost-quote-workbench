@@ -491,9 +491,10 @@ test('simple cost export includes the Subcon summary and validates format before
       },
     );
     assert.equal(result.status, 0, JSON.stringify(result.response));
-    assert.equal(result.response.data.sheets.length, 6);
+    assert.equal(result.response.data.sheets.length, 7);
     assert.deepEqual(result.response.data.sheets, [
       'Cost Detail',
+      'Summary Group',
       'Summary Scope',
       'Summary BU',
       'Summary RE Type',

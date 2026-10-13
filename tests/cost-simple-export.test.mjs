@@ -1,3 +1,4 @@
+import { costRowsIncludingHQTravel } from '../features/cost/group-cost-summary.ts';
 import { exportTimestamp } from '../lib/file-names.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -52,6 +53,7 @@ test('simple export serializes visible business tables and Cost Input columns', 
     workbook.worksheets.map((sheet) => sheet.name),
     [
       'Cost Detail',
+      'Summary Group',
       'Summary Scope',
       'Summary BU',
       'Summary RE Type',
@@ -76,7 +78,12 @@ test('simple export serializes visible business tables and Cost Input columns', 
     [8, 9, 10].map((column) => detail.getCell(5, column).value),
     ['Sites / 站点数', 'Mandays / 人天', 'Cost / 成本'],
   );
-  snapshot.costRows.forEach((row, index) => {
+  const displayed = costRowsIncludingHQTravel(
+    snapshot.costRows,
+    snapshot.resourceTypes,
+    snapshot.travelSettings,
+  );
+  displayed.forEach((row, index) => {
     const actual = detail.getRow(6 + index);
     assert.deepEqual(values(actual, 7), [
       row.scope,
@@ -105,12 +112,10 @@ test('simple export serializes visible business tables and Cost Input columns', 
       assert.match(actual.getCell(firstColumn + 2).numFmt, /S\$.*0\.00/);
     });
   });
-  assert.equal(detail.getCell('G6').value, 218400);
+  assert.equal(detail.getCell('G6').value, totalRowCost(displayed[0]));
   assert.equal(
     detail.getCell(detail.rowCount, 7).value,
-    roundMoney(
-      snapshot.costRows.reduce((sum, row) => sum + totalRowCost(row), 0),
-    ),
+    roundMoney(displayed.reduce((sum, row) => sum + totalRowCost(row), 0)),
   );
   assert.equal(detail.views[0].xSplit, 3);
   assert.equal(detail.views[0].ySplit, 5);
@@ -292,6 +297,13 @@ test('simple export reads Confirmed and Suspended versions without mutation and 
   }
   const snapshot = makeCostSnapshot();
   const expectedName = snapshot.costRows[0].scope;
+  const expectedCost = totalRowCost(
+    costRowsIncludingHQTravel(
+      snapshot.costRows,
+      snapshot.resourceTypes,
+      snapshot.travelSettings,
+    )[0],
+  );
   const pending = buildSimpleCostWorkbookBytes(snapshot);
   snapshot.costRows[0].scope = 'Concurrent edit after export clicked';
   snapshot.costRows[0].years[0].cost = 1;
@@ -302,7 +314,7 @@ test('simple export reads Confirmed and Suspended versions without mutation and 
   );
   assert.equal(
     workbook.getWorksheet('Cost Detail').getCell('G6').value,
-    218400,
+    expectedCost,
   );
 });
 
@@ -462,6 +474,7 @@ test('available report options match actual workbook order for default, legacy, 
       'Subcon Rates',
       'Subcon Detail',
       'Subcon Site Types',
+      'Summary Group',
       'Summary Scope',
       'Summary BU',
       'Summary RE Type',
@@ -496,10 +509,14 @@ test('explicit all, single and multiple sheet selections preserve existing repor
       const expected = baseline.getWorksheet(sheet.name);
       assert.deepEqual(sheetValues(sheet), sheetValues(expected));
       assert.deepEqual(sheet.pageSetup, expected.pageSetup);
-      // Fixed values make single-sheet export independent of every omitted report.
+      // Group subtotal formulas reference only cells on the same selected sheet.
       sheet.eachRow((row) =>
         row.eachCell((cell) => {
-          assert.notEqual(cell.type, ExcelJS.ValueType.Formula);
+          if (cell.formula) {
+            assert.equal(sheet.name, 'Cost Detail');
+            assert.doesNotMatch(cell.formula, /!/);
+            assert.equal(typeof cell.result, 'number');
+          }
           assert.equal(cell.numFmt, expected.getCell(cell.address).numFmt);
         }),
       );

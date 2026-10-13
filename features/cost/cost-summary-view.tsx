@@ -1,3 +1,6 @@
+import { GroupCostTable } from './components/group-cost-table';
+import { buildGroupCostSummary } from './group-cost-summary';
+import type { TravelSettings } from './domain';
 import {
   subcontractCostDetails,
   type SubcontractCost,
@@ -30,6 +33,7 @@ export function CostSummaryView({
   rows,
   resourceTypes,
   travelCost,
+  travelSettings,
   manualCosts,
   subcontractCost,
   subcontractStartYear,
@@ -39,6 +43,7 @@ export function CostSummaryView({
   rows: CostInputRow[];
   resourceTypes: ResourceType[];
   travelCost: number;
+  travelSettings: TravelSettings;
   manualCosts: ManualCostInputs;
   subcontractCost?: SubcontractCost;
   subcontractStartYear?: number | null;
@@ -185,6 +190,7 @@ export function CostSummaryView({
                 Cost Statement{' '}
                 <span className="text-[9px] opacity-60">成本报表</span>
               </TabsTrigger>
+              <TabsTrigger value="group">Group</TabsTrigger>
               <TabsTrigger value="scope">Scope</TabsTrigger>
               <TabsTrigger value="bu">BU</TabsTrigger>
               <TabsTrigger value="resource-type">
@@ -194,6 +200,18 @@ export function CostSummaryView({
               <TabsTrigger value="subcontract">Subcon</TabsTrigger>
             </TabsList>
           </div>
+          <TabsContent value="group">
+            <GroupCostTable
+              items={buildGroupCostSummary(
+                rows,
+                resourceTypes,
+                travelSettings,
+                manualCosts,
+                subcontractCost,
+                subcontractStartYear,
+              )}
+            />
+          </TabsContent>
           <TabsContent value="scope">
             <BreakdownTable items={scopeBreakdown} />
           </TabsContent>

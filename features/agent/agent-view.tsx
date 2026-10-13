@@ -1,5 +1,6 @@
 /** Live, deterministic daily digest generated from persisted project data. */
 
+import { AiOutputPanel } from '@/features/ai-output/ai-output-panel';
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -218,6 +219,7 @@ export function AgentView({
           </div>
         </div>
       </section>
+      <AiOutputPanel digest={digest} openItem={openItem} />
       <div className="grid gap-3 lg:grid-cols-2">
         {groups.map((group, index) => {
           const Icon = group.icon;

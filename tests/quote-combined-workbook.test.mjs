@@ -268,7 +268,10 @@ test('combined Cost Detail matches saved Cost Input layout and statement referen
   expected.eachRow((row, index) =>
     row.eachCell((cell, column) => {
       const value = actual.getCell(index, column);
-      assert.equal(value.formula ? value.result : value.value, cell.value);
+      assert.equal(
+        value.formula ? value.result : value.value,
+        cell.formula ? cell.result : cell.value,
+      );
     }),
   );
   const statement = combined.getWorksheet('Cost Statement');

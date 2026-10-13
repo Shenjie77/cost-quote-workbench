@@ -133,6 +133,13 @@ definitions without altering captured cost rates or amounts. Each new cost Draft
 migration runs once per schema release instead of scanning every project on
 each CLI call.
 
+## Local AI output experiment
+
+Today offers an opt-in, source-grounded local model draft with editable scene
+presets, reviewed feedback and JSONL export. The original digest remains available.
+See [macOS / Windows setup and use](docs/local-ai-output.md). No models are
+installed automatically and saved feedback never trains a model automatically.
+
 ## Run locally
 
 ```bash

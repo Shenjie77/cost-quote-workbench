@@ -109,11 +109,11 @@ const walk = (node) => {
   return [node, ...walk(node.props.children)];
 };
 
-test('locked cost keeps Scope, BU, RE, statement and Subcon tabs available', () => {
+test('locked cost keeps Group, Scope, BU, RE, statement and Subcon tabs available', () => {
   const markup = renderToStaticMarkup(React.createElement(CostView, costProps));
   const tabs =
     markup.match(/<button[^>]*data-slot="tabs-trigger"[^>]*>/g) || [];
-  assert.equal(tabs.length, 5);
+  assert.equal(tabs.length, 6);
   for (const tab of tabs)
     assert.doesNotMatch(tab, / disabled(?:[ =])|aria-disabled="true"/);
   assert.doesNotMatch(markup, /<fieldset[^>]*disabled/);

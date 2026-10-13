@@ -1,3 +1,6 @@
+import { costRowsIncludingHQTravel } from '../features/cost/group-cost-summary.ts';
+const displayedRows = (s) =>
+  costRowsIncludingHQTravel(s.costRows, s.resourceTypes, s.travelSettings);
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import ExcelJS from 'exceljs';
@@ -73,8 +76,14 @@ test('Personnel export follows custom groups, retains canonical order within eac
       (resource) => resource.id === snapshot.costRows[0].reTypeId,
     ).name,
   );
-  assert.equal(detail.getCell('E8').value, snapshot.costRows[2].years[1].cost);
-  assert.equal(detail.getCell('F7').value, totalRowCost(snapshot.costRows[0]));
+  assert.equal(
+    detail.getCell('E8').value,
+    displayedRows(snapshot)[2].years[1].cost,
+  );
+  assert.equal(
+    detail.getCell('F7').value,
+    totalRowCost(displayedRows(snapshot)[0]),
+  );
   assert.match(detail.getCell('A3').value, /Grouped · Y2/);
   assert.match(
     detail.getCell('A3').value,
@@ -84,7 +93,7 @@ test('Personnel export follows custom groups, retains canonical order within eac
   assert.equal(
     detail.getCell('E13').value,
     roundMoney(
-      snapshot.costRows
+      displayedRows(snapshot)
         .slice(0, 4)
         .reduce((sum, row) => sum + row.years[1].cost, 0),
     ),
@@ -92,7 +101,7 @@ test('Personnel export follows custom groups, retains canonical order within eac
   assert.equal(
     detail.getCell('F13').value,
     roundMoney(
-      snapshot.costRows
+      displayedRows(snapshot)
         .slice(0, 4)
         .reduce((sum, row) => sum + totalRowCost(row), 0),
     ),
@@ -137,8 +146,14 @@ test('Year filtering and reordered columns preserve split annual header segments
   assert.equal(all.getCell('E4').value, 'Total MD');
   assert.match(all.getCell('F4').value, /^Y1 · /);
   assert.match(all.getCell('G4').value, /^Y2 · /);
-  assert.equal(all.getCell('A6').value, snapshot.costRows[0].years[1].cost);
-  assert.equal(all.getCell('F6').value, snapshot.costRows[0].years[0].cost);
+  assert.equal(
+    all.getCell('A6').value,
+    displayedRows(snapshot)[0].years[1].cost,
+  );
+  assert.equal(
+    all.getCell('F6').value,
+    displayedRows(snapshot)[0].years[0].cost,
+  );
   const focused = (
     await exported(snapshot, { grouped: false, columns: order, yearIndex: 0 })
   ).getWorksheet('Cost Detail');
@@ -167,7 +182,7 @@ test('Year filtering and reordered columns preserve split annual header segments
   assert.equal(noAnnual.pageSetup.printTitlesRow, '1:4');
   assert.equal(
     noAnnual.getCell('B5').value,
-    totalRowCost(snapshot.costRows[0]),
+    totalRowCost(displayedRows(snapshot)[0]),
   );
 });
 
@@ -207,7 +222,10 @@ test('Direct MD uses page dashes and numeric totals remain aligned even when onl
   assert.equal(detail.getCell('E6').value, 2.5);
   assert.equal(detail.getCell('F6').value, 0);
   assert.equal(detail.getCell('G6').value, 2.5);
-  assert.equal(detail.getCell('B6').value, snapshot.costRows[0].years[1].cost);
+  assert.equal(
+    detail.getCell('B6').value,
+    displayedRows(snapshot)[0].years[1].cost,
+  );
   assert.match(detail.getCell('B6').numFmt, /S\$/);
   assert.equal(
     detail.getCell(detail.rowCount, 7).value,
@@ -225,7 +243,7 @@ test('Direct MD uses page dashes and numeric totals remain aligned even when onl
   assert.equal(
     numeric.getCell(numeric.rowCount, 1).value,
     roundMoney(
-      snapshot.costRows
+      displayedRows(snapshot)
         .slice(0, 4)
         .reduce((sum, input) => sum + input.years[1].cost, 0),
     ),
@@ -298,7 +316,7 @@ test('Explicit export clones layout and cost snapshot before awaiting and omits 
     mappingKey: 'PRIVATE-MAPPING',
   };
   const originalScope = snapshot.costRows[0].scope;
-  const originalCost = totalRowCost(snapshot.costRows[0]);
+  const originalCost = totalRowCost(displayedRows(snapshot)[0]);
   const layout = {
     grouped: true,
     columns: ['scope', 'totalCost', 'reType', 'action'],

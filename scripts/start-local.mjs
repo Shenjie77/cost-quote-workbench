@@ -5,7 +5,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
-const wranglerBinary = path.resolve('node_modules/.bin/wrangler');
+const wranglerBinary = path.resolve('node_modules/wrangler/bin/wrangler.js');
 
 const children = [
   spawn(
@@ -16,8 +16,9 @@ const children = [
     },
   ),
   spawn(
-    wranglerBinary,
+    process.execPath,
     [
+      wranglerBinary,
       'dev',
       '--config',
       'dist/server/wrangler.json',
@@ -41,6 +42,11 @@ const closeAll = (signal = 'SIGTERM') => {
 };
 
 for (const child of children) {
+  child.on('error', (error) => {
+    console.error('Unable to start local process:', error.message);
+    closeAll();
+    process.exitCode = 1;
+  });
   child.on('exit', (code, signal) => {
     if (!closing) {
       closeAll();

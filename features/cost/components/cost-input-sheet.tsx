@@ -45,6 +45,9 @@ import {
   type PersonnelYear,
 } from './personnel-input-controls';
 
+import { costRowsIncludingHQTravel } from '../group-cost-summary';
+import type { TravelSettings } from '../domain';
+
 /** Keep cost totals compact and all year, entry and display controls directly above the grid. */
 export function CostInputSheet({
   projectId,
@@ -55,6 +58,7 @@ export function CostInputSheet({
   setRateSettings,
   resourceTypes: allResourceTypes,
   includedTravelCost,
+  travelSettings,
   announce,
   canEditCost,
   tableView,
@@ -68,6 +72,7 @@ export function CostInputSheet({
   setRateSettings: React.Dispatch<React.SetStateAction<RateSettings>>;
   resourceTypes: ResourceType[];
   includedTravelCost: number;
+  travelSettings: TravelSettings;
   announce: (message: string) => void;
   canEditCost?: () => boolean;
   tableView: PersonnelTableView;
@@ -96,7 +101,15 @@ export function CostInputSheet({
   const issues = rows.filter((row) =>
     personnelRowIssue(row, resources, rateSettings),
   );
-  const totalCost = rows.reduce((sum, row) => sum + totalRowCost(row), 0);
+  const displayedRows = costRowsIncludingHQTravel(
+    rows,
+    allResourceTypes,
+    travelSettings,
+  );
+  const totalCost = displayedRows.reduce(
+    (sum, row) => sum + totalRowCost(row),
+    0,
+  );
   const totalMd = rows.reduce((sum, row) => sum + totalRowMandays(row), 0);
 
   const applyRowLayout = (
@@ -372,7 +385,7 @@ export function CostInputSheet({
         </div>
       </div>
       <PersonnelLinesTable
-        rows={rows}
+        rows={displayedRows}
         resources={resources}
         rates={rateSettings}
         actualYears={actualYears}
@@ -400,8 +413,9 @@ export function CostInputSheet({
       />
       <div className="border-t border-border bg-muted/20 px-3 py-2 text-xs leading-4 text-muted-foreground">
         Sites × MD/Site or Direct MD → RE rate × annual uplift × selected
-        allowance. MD/Site applies to all years for that row. Draft changes save
-        automatically. Subcontract costs are managed in Subcon.
+        allowance + allocated HQ travel. HQ travel is included in Cost once, by
+        resource and year. MD/Site applies to all years for that row. Draft
+        changes save automatically. Subcontract costs are managed in Subcon.
       </div>
       {showBulkEntry && (
         <PersonnelBulkEntryPage
