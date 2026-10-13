@@ -402,3 +402,13 @@ test('confirmed batches receive new IDs and preserve repeated codes as separate 
   assert.deepEqual(preview, before);
   assert.deepEqual(current.value.lines, []);
 });
+
+// The shared grid always emits both identifier columns, even when one is blank.
+test('fixed-grid code and description columns are alternatives, not two required values', () => {
+  for (const row of ['SC-001\t\t2', '\tInstall cable\t2']) {
+    const preview = parse(`Code\tDescription\tQuantity\n${row}`);
+    assert.equal(preview.canConfirm, true, JSON.stringify(preview));
+    assert.equal(preview.lines[0].catalogItemId, 'catalog-a');
+  }
+  assert.equal(parse('Code\tDescription\tQuantity\n\t\t2').canConfirm, false);
+});

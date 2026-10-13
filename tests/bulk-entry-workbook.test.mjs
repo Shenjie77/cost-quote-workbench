@@ -12,7 +12,7 @@ import {
   bulkTabSpec,
   previewBulkImport,
 } from '../features/master-data/bulk-import-model.ts';
-import { entryHeader } from '../features/bulk-entry/column-guide.ts';
+import { entryGridHeader as entryHeader } from '../features/bulk-entry/column-guide.ts';
 import { upgradeEntryHeaders } from '../features/bulk-entry/workbook.ts';
 const spec = {
   id: 'personnel',
@@ -113,15 +113,12 @@ test('first-row guidance marks required fields and keeps sample values out of im
     ],
   };
   const doc = entryWorkbook([sheet]);
-  assert.equal(
-    doc.workbook.sheets.service.cellData[0][0].v,
-    'Quantity *\nNumber of sites.\nSample: 3',
-  );
+  assert.equal(doc.workbook.sheets.service.cellData[0][0].v, 'Quantity *');
   assert.match(
     doc.workbook.sheets.service.cellData[0][1].v,
-    /Sample: Leave blank/,
+    /Calculated — leave blank/,
   );
-  assert.ok(doc.workbook.sheets.service.rowData[0].h >= 96);
+  assert.ok(doc.workbook.sheets.service.rowData[0].h === 56);
   assert.deepEqual(readEntrySheet(doc, sheet), { rows: [], issues: [] });
   fill(doc, 'service', 1, [3, '']);
   assert.deepEqual(readEntrySheet(doc, sheet).rows[0].values, {
@@ -187,7 +184,7 @@ test('new-record requirement is visible without blocking partial updates by ID',
   const doc = entryWorkbook([sheet]);
   assert.match(
     entryHeader(sheet.columns.find((c) => c.key === 'name')),
-    /^Tag name \*\nRequired for new records/,
+    /^Tag name\nRequired for new records/,
   );
   const values = { id: 'tag-1', active: false };
   fill(
@@ -203,5 +200,44 @@ test('new-record requirement is visible without blocking partial updates by ID',
       { id: 'tag-1', name: 'Existing', active: true },
     ]).issues,
     [],
+  );
+});
+
+test('alternative identifiers have no required stars and legacy starred drafts retain data', () => {
+  const sheet = {
+    id: 'subcontract',
+    name: 'Subcontract',
+    columns: [
+      {
+        key: 'code',
+        label: 'Item Code',
+        kind: 'text',
+        requiredTogether: 'Item Code or Description is required.',
+      },
+      {
+        key: 'description',
+        label: 'Description',
+        kind: 'text',
+        requiredTogether: 'Item Code or Description is required.',
+      },
+    ],
+  };
+  const doc = entryWorkbook([sheet]);
+  for (const column of sheet.columns)
+    assert.ok(!entryHeader(column).includes('*'));
+  fill(
+    doc,
+    sheet.id,
+    0,
+    sheet.columns.map(
+      (c) => `${c.label} *\nItem Code or Description is required.\nSample: old`,
+    ),
+  );
+  fill(doc, sheet.id, 1, ['SC-001', '']);
+  const upgraded = upgradeEntryHeaders(doc, [sheet]);
+  assert.deepEqual(readEntrySheet(upgraded, sheet).issues, []);
+  assert.deepEqual(
+    upgraded.workbook.sheets[sheet.id].cellData[1],
+    doc.workbook.sheets[sheet.id].cellData[1],
   );
 });

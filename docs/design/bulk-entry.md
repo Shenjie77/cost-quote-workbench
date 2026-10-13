@@ -28,3 +28,9 @@ Drafts use the existing local calculation storage and recovery mechanism. New ba
 - Isolated SQLite database and separate preview/API ports; real business data untouched.
 - Browser checks: personnel paste/import and persisted values; duplicate import blocked; project-tag creation saved in Master Data; Shared and site-type subcontract rows imported together using catalog price 125; unknown RE Type blocked.
 - Visual checks at 1500 × 1000 and 375 × 812; narrow document width stayed 375px. Spreadsheet/toolbar scroll locally. No browser page errors in these checks.
+
+## Usability correction (2026-10-13)
+
+The shared entry grid uses compact 56px headers and narrower numeric columns. Detailed rules, examples and reference codes remain in Column guide. Only unconditional required inputs receive a star in the grid; new-record requirements are labeled explicitly. Subcontract Code and Description are alternatives, with no separate required stars. Either identifier plus quantity continues to resolve the catalog item; missing, ambiguous or conflicting identifiers still block import.
+
+Recognized legacy plain and guided headers upgrade without replacing data rows. Regression coverage includes code-only and description-only rows with both fixed columns present, empty identifiers, and migration of starred legacy drafts.

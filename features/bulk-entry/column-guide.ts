@@ -52,10 +52,7 @@ export function entrySample(column: GuidedColumn): string {
 }
 
 export function entryHeader(column: GuidedColumn): string {
-  const star =
-    column.required || column.requiredForNew || column.requiredTogether
-      ? ' *'
-      : '';
+  const star = column.required || column.requiredForNew ? ' *' : '';
   const condition = column.requiredForNew
     ? 'Required for new records. '
     : column.requiredTogether
@@ -79,4 +76,14 @@ export function entryHeaderHeight(columns: GuidedColumn[]): number {
         16,
     ),
   );
+}
+
+/** Compact grid labels; full rules and examples remain available in Column guide. */
+export function entryGridHeader(column: GuidedColumn): string {
+  const label = `${column.label}${column.required ? ' *' : ''}`;
+  if (column.requiredTogether)
+    return `${label}\nCode or Description — fill either`;
+  if (column.requiredForNew) return `${label}\nRequired for new records`;
+  if (column.computed) return `${label}\nCalculated — leave blank`;
+  return label;
 }

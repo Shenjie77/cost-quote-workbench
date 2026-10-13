@@ -1,8 +1,4 @@
-import {
-  entryHeader,
-  entryHeaderHeight,
-  type GuidedColumn,
-} from './column-guide.ts';
+import { entryGridHeader, type GuidedColumn } from './column-guide.ts';
 import type { ICellData } from '@univerjs/core';
 import {
   tableWorkbook,
@@ -33,7 +29,7 @@ export function entryWorkbook(sheets: EntrySheet[]): CalculationDocument {
   workbook.sheetOrder = [];
   workbook.sheets = {};
   for (const spec of sheets) {
-    const sheet = tableWorkbook(spec.name, [spec.columns.map(entryHeader)])
+    const sheet = tableWorkbook(spec.name, [spec.columns.map(entryGridHeader)])
       .sheets!.calculation;
     for (const cell of Object.values(sheet.cellData?.[0] ?? {}))
       cell.s = {
@@ -49,12 +45,18 @@ export function entryWorkbook(sheets: EntrySheet[]): CalculationDocument {
       id: spec.id,
       name: spec.name.slice(0, 31),
       rowCount: 1002,
-      rowData: { 0: { h: entryHeaderHeight(spec.columns) } },
+      rowData: { 0: { h: 56 } },
       columnCount: Math.max(spec.columns.length, 12),
       columnData: Object.fromEntries(
         spec.columns.map((c, i) => [
           i,
-          { w: /description|scope|item/i.test(c.key) ? 300 : 220 },
+          {
+            w: /description|scope|item/i.test(c.key)
+              ? 280
+              : c.kind === 'number' || c.kind === 'integer'
+                ? 150
+                : 200,
+          },
         ]),
       ),
     };
@@ -80,7 +82,7 @@ export function readEntrySheet(
   }
   for (const [i, col] of spec.columns.entries())
     if (
-      sheet.cellData?.[0]?.[i]?.v !== entryHeader(col) ||
+      sheet.cellData?.[0]?.[i]?.v !== entryGridHeader(col) ||
       sheet.cellData?.[0]?.[i]?.f
     )
       fail(1, i + 1, `Keep the fixed header: ${col.label}.`);
@@ -178,7 +180,8 @@ export function upgradeEntryHeaders(
       !spec.columns.every(
         (column, index) =>
           !headers[index]?.f &&
-          (headers[index]?.v === column.label ||
+          (headers[index]?.v === entryGridHeader(column) ||
+            headers[index]?.v === column.label ||
             (String(headers[index]?.v ?? '').includes('\nSample: ') &&
               [column.label, `${column.label} *`].includes(
                 String(headers[index]?.v ?? '').split('\n')[0],
@@ -197,14 +200,14 @@ export function upgradeEntryHeaders(
       continue;
     if (
       spec.columns.every(
-        (column, index) => headers[index]?.v === entryHeader(column),
+        (column, index) => headers[index]?.v === entryGridHeader(column),
       )
     )
       continue;
     sheet.cellData![0] = template.workbook.sheets![spec.id].cellData![0];
     sheet.rowData = {
       ...sheet.rowData,
-      0: { ...sheet.rowData?.[0], h: entryHeaderHeight(spec.columns) },
+      0: { ...sheet.rowData?.[0], h: 56 },
     };
     sheet.columnData = template.workbook.sheets![spec.id].columnData;
   }

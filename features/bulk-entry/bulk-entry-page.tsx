@@ -241,7 +241,10 @@ export function BulkEntryPage<T>({
               {target}
             </span>
             <span className="ml-auto text-xs text-muted-foreground">
-              * Required (conditions in header) · Paste data from row 2
+              * Required · Paste values from row 2
+              {sheets.some((s) => s.columns.some((c) => c.requiredTogether))
+                ? ' · Code or Description: fill either'
+                : ''}
             </span>
           </header>
           <div
@@ -284,10 +287,8 @@ export function BulkEntryPage<T>({
                       {s.columns.map((c) => (
                         <p key={c.key} className="py-1">
                           <b>{c.label}</b>
-                          {c.required || c.requiredForNew || c.requiredTogether
-                            ? ' *'
-                            : ''}{' '}
-                          — {entryHeader(c).split('\n')[1]} · Sample:{' '}
+                          {c.required || c.requiredForNew ? ' *' : ''} —{' '}
+                          {entryHeader(c).split('\n')[1]} · Sample:{' '}
                           {entrySample(c)}
                           {c.options?.length
                             ? ` (${c.options.join(', ')})`
