@@ -96,3 +96,7 @@ CLI coverage is partial; UI-only functions are explicitly listed.
 Use [$ssr-cost-query](../skills/ssr-cost-query/SKILL.md) for a project cost lookup.
 See [22 independent skills and renamed entries](business-skills.md); no routing skill or
 full-manual read is required before a narrow query.
+
+For internal model integrations, use the [lightweight skill index](../skills/index.md)
+and [on-demand loading contract](internal-agent-skill-loading.md). Each SKILL.md is capped
+at 300 characters; avoid recursively attaching all reference files.

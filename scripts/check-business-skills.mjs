@@ -21,6 +21,8 @@ const names = new Set();
 for (const folder of folders) {
   const file = path.join(source, folder, 'SKILL.md');
   const text = readFileSync(file, 'utf8');
+  if (text.length > 300)
+    fail(`Skill entry exceeds 300 characters: ${file}`);
   const front = text.match(/^---\r?\n([\s\S]+?)\r?\n---/);
   const name = front?.[1].match(/^name: (.+)$/m)?.[1];
   const description = front?.[1].match(/^description: (.+)$/m)?.[1];
@@ -32,6 +34,9 @@ for (const folder of folders) {
   )
     fail(`Invalid or duplicate skill: ${file}`);
   if (!description?.trim()) fail(`Missing description: ${file}`);
+  const index = readFileSync(path.join(source, 'index.md'), 'utf8');
+  if (!index.includes('`' + name + '`：' + description))
+    fail(`Lightweight index is stale: ${name}`);
   names.add(name);
   const link = path.join(discovery, name);
   if (
