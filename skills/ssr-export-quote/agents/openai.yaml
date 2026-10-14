@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 导出客户报价"
+  short_description: "导出 SSR 当前成本版本的客户报价 Excel 或填入客户原模板；不调整定价。"
+  default_prompt: "使用 $ssr-export-quote 导出指定项目当前版本的客户报价 Excel。"

@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 查询项目成本"
+  short_description: "查询指定 SSR 项目的成本总额、科目或明细，例如“查 xx 项目成本”；只读，不编制或导出。"
+  default_prompt: "使用 $ssr-query-cost，查询项目成本，按我提供的项目或范围操作。"

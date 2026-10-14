@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 配置项目 CPQ"
+  short_description: "按项目 Scope 匹配 CPQ 条目，采用用户选项，求解服务数量并归档配置结果。"
+  default_prompt: "使用 $ssr-configure-cpq 根据我的简短 Scope 推荐 CPQ 条目，待我选定后计算数量并核对目标成本。"

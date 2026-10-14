@@ -40,7 +40,7 @@
 1. `system doctor` 实跑返回退出码 70、`INTERNAL_ERROR: Unexpected local database schema version.`。[检查代码](../cli/cost-cli.mjs) 硬编码期望版本 1，[数据库结构](../db/schema.ts) 已为 2。应引用统一的版本常量，并覆盖健康检查契约。
 2. 成本 `Confirmed` 是人工标签，当前仍可编辑。内存数据库验证表明修改人天后可继续保持 Confirmed；报价 UI 虽检查 Confirmed，但不能据此证明报价使用的是 DRB 已评审的同一份成本。
 3. 内存验证表明，前置流程都未开始时也能把当前节点选为最后的归档；评审可在没有结果说明的情况下保存为 completed。当前适合作为人工台账，尚不能自动执行正式流程门禁。
-4. [旧 Skill 参考文件](../skills/cost-workbench/references/operations.md) 仍解释 Y0，而当前成本契约只允许 Y1–Y5。应先对齐命令与业务契约，再启用 Skill。
+4. [旧 Skill 参考文件](../skills/references/operations.md) 仍解释 Y0，而当前成本契约只允许 Y1–Y5。应先对齐命令与业务契约，再启用 Skill。
 
 验证结果：`npm test` 共 59 项通过；`npm run lint`、`npx tsc --noEmit` 通过；另外的内存验证用于确认流程控制边界。健康检查失败说明现有测试通过不等于整套 SSR 业务已经满足。没有用公司模板做端到端验收，也没有将上述缺失功能视为已经实现。
 

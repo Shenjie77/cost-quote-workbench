@@ -135,7 +135,7 @@ apply assumptions first when required by template default references. Check the
 new project revision after each step. Adopting new current commercial inputs may
 invalidate previous reviews; old quote-history snapshots remain unchanged.
 
-Use [narrow resource commands](../skills/cost-workbench/references/resources.md)
+Use [narrow resource commands](../skills/references/resources.md)
 for daily work. A deliberate project workspace backup remains available, but it
 is not a global catalog maintenance interface. Standard customer output is
 available through `quote export`; `cost export` produces the internal workbook.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 管理项目"
+  short_description: "新建、修改、删除或恢复 SSR 项目基本资料；不办理流程节点或文件归档。"
+  default_prompt: "使用 $ssr-manage-project 新建指定客户的报价项目，并核对项目号和初始成本版本。"

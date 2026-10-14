@@ -1,4 +1,0 @@
-interface:
-  display_name: "SSR · RE Type 维护"
-  short_description: "维护全局 RE Type、人天费率和有效期，供未来成本版本捕获使用。"
-  default_prompt: "使用 $ssr-retype-maintain 更新全局 RE Type 人天费率，仅修改未来项目的数据来源。"

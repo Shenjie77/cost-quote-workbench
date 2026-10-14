@@ -142,7 +142,7 @@ Later master-data edits do not rewrite that snapshot. Template selection must
 be active and match the customer (exact name or `*` for common templates).
 See [quote catalog management](quote-catalog.md).
 
-Company original-template filling, standard quotation CLI, CPQ and maintenance draft exports are documented in [SSR implementation](ssr-implementation-2026-09-07.md) and the [Skill command reference](../skills/cost-workbench/references/operations.md).
+Company original-template filling, standard quotation CLI, CPQ and maintenance draft exports are documented in [SSR implementation](ssr-implementation-2026-09-07.md) and the [Skill command reference](../skills/references/operations.md).
 
 Quotation descriptions accept line breaks. The grid shows up to three lines;
 the expand button opens the complete description for viewing or editing. Exports

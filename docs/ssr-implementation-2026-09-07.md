@@ -39,7 +39,7 @@
 5. 报价页面选择模板、价格及法务条款；启用 SSR 的项目需记录适用于当前数据的报价决策才能导出。
 6. 原公司 Excel 模板使用 CLI 映射。维护 BOQ 可先生成明确标记的维保报价草稿，正式对外输出走已确认的报价流程。
 
-详细命令和 JSON 示例见 [Skill 操作参考](../skills/cost-workbench/references/operations.md)。`.agents/skills/cost-workbench` 指向同一份项目 Skill，未安装到全局目录。
+详细命令和 JSON 示例见 [Skill 操作参考](../skills/references/operations.md)。当时使用 `.agents/skills/cost-workbench`；2026-10-14 已改为 [22 个独立技能入口](business-skills.md)，仍由项目发现链接指向仓库源文件，不安装到全局目录。
 
 ## 验证与适用范围
 
@@ -60,8 +60,8 @@
 
 项目列表增加可恢复删除，旧自动保存和 seed 无法复活已删项目；最后项目删除后仍可新建。支持 `project list --deleted` / `project restore`。
 
-新增单项目成本行/版本设置、八个 Masterdata 页签、CPQ 目录/草稿/选择、SSR、报价和 BOQ 的分区 get/update，以及过滤、分页、短回执。成本校验/计算/导出可直接指定项目和版本。Skill 默认使用这些窄入口，完整 workspace 命令保留作备份和兼容用途；详细契约见[细分入口](../skills/cost-workbench/references/resources.md)。SQLite 内部仍以单项目文档完成原子校验和保存。
+新增单项目成本行/版本设置、八个 Masterdata 页签、CPQ 目录/草稿/选择、SSR、报价和 BOQ 的分区 get/update，以及过滤、分页、短回执。成本校验/计算/导出可直接指定项目和版本。Skill 默认使用这些窄入口，完整 workspace 命令保留作备份和兼容用途；详细契约见[细分入口](../skills/references/resources.md)。SQLite 内部仍以单项目文档完成原子校验和保存。
 
 ## 后续更新：全局主数据
 
-本记录描述当时的项目级实现；当前 Master Data 已独立为九个全局页签，维护无需项目号，每页签独立 revision。项目现有目录与成本版本继续保留已采用的数据快照；全局更新不改已有 Draft 或历史金额。CPQ 目录也改用全局 `masterdata --tab cpq-catalog`。实际流程进度仍用项目入口。最新用法见[全局主数据与项目快照](global-master-data.md)及[细分资源契约](../skills/cost-workbench/references/resources.md)。
+本记录描述当时的项目级实现；当前 Master Data 已独立为九个全局页签，维护无需项目号，每页签独立 revision。项目现有目录与成本版本继续保留已采用的数据快照；全局更新不改已有 Draft 或历史金额。CPQ 目录也改用全局 `masterdata --tab cpq-catalog`。实际流程进度仍用项目入口。最新用法见[全局主数据与项目快照](global-master-data.md)及[细分资源契约](../skills/references/resources.md)。

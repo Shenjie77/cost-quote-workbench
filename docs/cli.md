@@ -90,3 +90,9 @@ response examples, errors, exit statuses, Agent workflow, and v1 migration.
 See [the audited coverage matrix and latest quotation examples](cli-platform-coverage.md)
 and [the complete generated command inventory](cli-command-reference.md).
 CLI coverage is partial; UI-only functions are explicitly listed.
+
+## Agent skill selection
+
+Use [$ssr-query-cost](../skills/ssr-query-cost/SKILL.md) for a project cost lookup.
+See [22 independent skills and renamed entries](business-skills.md); no routing skill or
+full-manual read is required before a narrow query.

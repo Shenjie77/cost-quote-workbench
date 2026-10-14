@@ -29,7 +29,7 @@ Its **Project On Hold** switch pauses all workflow monitoring and reminders;
 Project List marks held projects **On Hold**. Resuming retains progress and
 adjusts active SLA deadlines for the pause. Workflow templates support more than
 10 steps, with the actual count and Add Step controls at both ends of the list.
-The [Skill operations reference](skills/cost-workbench/references/operations.md)
+The [Skill operations reference](skills/references/operations.md)
 includes column mappings, templates and CLI commands.
 
 Project List includes recoverable deletion. Deleted projects stay out of the UI,
@@ -119,9 +119,9 @@ items kept separate. Select catalogue items in batches or save a manual item,
 then adjust the version's captured price and quantities. Catalogue price updates
 do not reprice existing BOQs. See the [subcontract cost guide](docs/subcontract-cost-design.md).
 
-Use the [19 business Skills](docs/business-skills.md) directly for project setup, master data, costing, CPQ, maintenance, quotation and workflow updates. `cost-workbench` is the lightweight cross-business router.
+Use the [22 independent business Skills](docs/business-skills.md) directly. Names follow `ssr-action-object`; `$ssr-query-cost` reads project costs without loading editing or export instructions. There is no prerequisite routing skill.
 
-For routine Skill work, use [narrow resource commands](skills/cost-workbench/references/resources.md):
+For routine Skill work, use [narrow resource commands](skills/references/resources.md):
 project metadata, individual cost versions/rows, ten global Master Data tabs,
 project CPQ drafts/selections, workflow plan/actions/history, quotations and BOQ. General catalogue maintenance needs
 no project ID or workspace read and has an independent revision per tab. Workflow
@@ -219,7 +219,8 @@ cli/cost-cli.mjs             Machine-first local CLI
 schemas/                     Versioned JSON request/response contracts
 docs/                        Architecture, calculation, CLI, and export guides
 skills/ssr-*/                Independent SSR business Skills and focused references
-skills/cost-workbench/       Lightweight cross-business router and legacy manuals
+skills/ssr-*/               Independent business skills
+skills/references/          Optional shared CLI manuals
 .agents/skills/              Project discovery links to the canonical Skills
 ```
 

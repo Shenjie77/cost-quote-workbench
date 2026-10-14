@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 新建成本"
+  short_description: "为已有 SSR 项目新建空白成本版本，或从指定版本复制草稿。"
+  default_prompt: "使用 $ssr-create-cost 为指定项目新建空白成本草稿，或从我指定的版本复制。"

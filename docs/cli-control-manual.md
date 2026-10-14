@@ -1,9 +1,10 @@
 # cost-cli v2 Agent control manual
 
 Latest audit: [platform coverage and current examples](cli-platform-coverage.md).
+Business skill entrypoints: [22 independent skills](business-skills.md).
 Complete command inventory: [generated CLI reference](cli-command-reference.md).
 
-Unified project workflow is documented in [Project Workflow](project-workflow.md). The CPQ/import/template/BOQ/reminder operations are documented in the [Skill operations reference](../skills/cost-workbench/references/operations.md); request schema `operations` is version `1.0.0`.
+Unified project workflow is documented in [Project Workflow](project-workflow.md). The CPQ/import/template/BOQ/reminder operations are documented in the [Skill operations reference](../skills/references/operations.md); request schema `operations` is version `1.0.0`.
 
 This is the handoff contract for people, scripts, and Agent Skills that control
 the local Cost & Quote Workbench. The CLI is intentionally non-interactive.
@@ -45,7 +46,7 @@ absolute file path and SHA-256 so an Agent can detect a changed contract.
 
 ## 3. Commands
 
-For normal edits, use the [narrow resource contract](../skills/cost-workbench/references/resources.md)
+For normal edits, use the [narrow resource contract](../skills/references/resources.md)
 (`project`, `cost`, `masterdata`, `cpq`, `quote`, `ssr`, `boq` get/update).
 Reads are filtered/paginated; updates merge named rows or fields with revision
 checks. Global `masterdata get/update --tab TAB` needs no project ID and returns

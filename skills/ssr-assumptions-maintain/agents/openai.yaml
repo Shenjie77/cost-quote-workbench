@@ -1,4 +1,0 @@
-interface:
-  display_name: "SSR · 风险假设库维护"
-  short_description: "维护全局法务、Scope 和交付条件假设库，保留已有报价采用的条款。"
-  default_prompt: "使用 $ssr-assumptions-maintain 根据提供的法务及业务文本维护全局风险与交付假设库。"

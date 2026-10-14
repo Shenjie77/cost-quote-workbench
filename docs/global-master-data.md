@@ -92,4 +92,4 @@ Profit Share 条目字段为 `{ "id": "SHARE-NETWORK", "bu": "Network", "ratePer
 
 升级时从旧项目目录建立全局数据来源，同时保留项目原始快照。同一编码/ID 存在不同价格或内容时，保留差异与来源，不能默认为最后一个项目正确。用户提供明确的完整记录后，通过该页签的 upsert 解决冲突；日常维护不重复扫描旧项目。
 
-RE Type、分包、补充成本、维保参考、风险假设、报价模板和 CPQ 目录这 7 个全局维护 skills 不读取项目。流程配置 skill 同样不要求预先选项目，但发布必须预览受影响项目并校验项目 revision。其他业务技能读取目标项目/版本已采用的数据；完整调用示例见[业务 Skill 清单](business-skills.md)，字段及分页规则见[CLI 细分资源契约](../skills/cost-workbench/references/resources.md)。
+RE Type、分包、补充成本、维保参考、风险假设、报价模板和 CPQ 目录这 7 个全局维护 skills 不读取项目。流程配置 skill 同样不要求预先选项目，但发布必须预览受影响项目并校验项目 revision。其他业务技能读取目标项目/版本已采用的数据；完整调用示例见[业务 Skill 清单](business-skills.md)，字段及分页规则见[CLI 细分资源契约](../skills/references/resources.md)。
