@@ -1,6 +1,6 @@
 # cost-cli quick reference
 
-`cost-cli` 0.3.0 is the stable local machine interface. The complete Agent and
+`cost-cli` 0.11.0 is the stable local machine interface. The complete Agent and
 handoff contract is in `docs/cli-control-manual.md`.
 
 ## Discovery
@@ -15,7 +15,7 @@ npm run --silent cost-cli -- schema show \
   --pretty
 ```
 
-Schema names are `cost-export`, `maintenance-price`, `command-request`,
+Schema names are `operations`, `cost-export`, `maintenance-price`, `command-request`,
 `command-envelope`, and `workspace-state`.
 
 ## Cost commands
@@ -62,8 +62,8 @@ npm run --silent cost-cli -- digest generate \
 ```
 
 The digest reads all local projects and returns source-grounded exceptions:
-overdue, blocked, or stale reviews; due decisions; draft cost baselines; and
-incomplete cost rows. Omit `--as-of` to use the workspace's Singapore date.
+workflow follow-ups and node urgency, legacy review exceptions where applicable,
+draft cost baselines, and incomplete cost rows. Omit `--as-of` to use the workspace's Singapore date.
 
 ## Protocol
 
@@ -79,8 +79,14 @@ response examples, errors, exit statuses, Agent workflow, and v1 migration.
 
 ## Simple export and suspended cleanup
 
-`cost export --project-id ID --version Vn --format simple --output FILE.xlsx` exports five business sheets matching the page; omit format (or use full) for the existing nine-sheet workbook. Invalid formats are rejected before file or project access.
+`cost export --project-id ID --version Vn --format simple --output FILE.xlsx` exports a simple workbook using the shared export engine; omit format (or use full) for the full workbook. Sheet counts depend on data and export configuration; browser-only layout and sheet selections are not CLI options. Invalid formats are rejected before file or project access.
 
 `cost delete --project-id ID --version Vn --expected-revision R` removes an unlocked Suspended version from the working list, preserving immutable history and at least one visible version. List archives with `cost get --project-id ID --section deleted-versions`; retrieve one using `--section archive --version Vn`. Codes are never reused.
 
 `cost update --section settings` supports `manualCosts.otherServiceRate:0.01` for 2.3.4.2 = 1% × (2.3.1 + 2.3.2 + 2.3.3). Setting only `manualCosts.otherService` switches to manual amount. Master Data resource classifications are explicit; custom RE codes are accepted with valid category/pool/level fields.
+
+## Latest platform coverage
+
+See [the audited coverage matrix and latest quotation examples](cli-platform-coverage.md)
+and [the complete generated command inventory](cli-command-reference.md).
+CLI coverage is partial; UI-only functions are explicitly listed.

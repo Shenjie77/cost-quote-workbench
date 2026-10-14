@@ -326,7 +326,11 @@ test('quotation history snapshots retain exact line values after later edits', (
     costVersion: 'V1',
     template: initialQuoteTemplates[0],
     assumptions: [],
-    pricing: calculatePricing(75, terms),
+    pricing: calculatePricing(75, {
+      ...terms,
+      discountDescription: 'Volume discount',
+    }),
+    lineRemarks: { 'service:project': '45% GP rationale' },
     lines,
     lineMode: 'manual',
   };
@@ -334,6 +338,9 @@ test('quotation history snapshots retain exact line values after later edits', (
     path: 'test.xlsx',
     sha256: 'test-hash',
   });
+  input.lineRemarks['service:project'] = 'Changed';
+  assert.equal(record.lineRemarks['service:project'], '45% GP rationale');
+  assert.equal(record.discountDescription, 'Volume discount');
   lines[0].description = 'Changed';
   lines[0].amount = 9;
   assert.equal(record.lineSnapshots[0].description, 'Customer project');

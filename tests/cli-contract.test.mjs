@@ -526,3 +526,15 @@ test('simple cost export includes the Subcon summary and validates format before
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('published CLI inventory matches running command discovery', () => {
+  const result = spawnSync(
+    process.execPath,
+    ['scripts/update-cli-reference.mjs', '--check'],
+    {
+      cwd: ROOT_DIR,
+      encoding: 'utf8',
+    },
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});

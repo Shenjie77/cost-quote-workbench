@@ -31,6 +31,8 @@ export function quoteHistoryRecord(
     costVersion: input.costVersion,
     templateId: input.template.id,
     status: 'Draft',
+    lineRemarks: structuredClone(input.lineRemarks ?? {}),
+    discountDescription: p.discountDescription ?? '',
     costAmount: p.cost,
     quoteBeforeTax: p.quoteBeforeTax,
     gstAmount: p.gstAmount,

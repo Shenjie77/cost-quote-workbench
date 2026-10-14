@@ -31,6 +31,8 @@ export type QuoteWorkbookInput = {
   /** Customer-visible detail lines, already reconciled to the service price. */
   lines?: QuoteLine[];
   lineMode?: QuoteLineMode;
+  /** Internal pricing rationale: history only, never customer workbook content. */
+  lineRemarks?: Record<string, string>;
 };
 
 const CURRENCY_FORMAT = '"S$" #,##0.00;[Red]-"S$" #,##0.00;-';

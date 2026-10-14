@@ -101,6 +101,7 @@ export function validatedQuoteInput(
     assumptions: structuredClone(assumptions),
     pricing,
     lines,
+    lineRemarks: structuredClone(workspace.pricing.lineRemarks ?? {}),
     lineMode: workspace.pricing.lineMode ?? 'single',
     profitShareMasterDataRevision:
       workspace.pricing.profitShareMasterDataRevision,

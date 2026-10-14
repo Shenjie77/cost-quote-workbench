@@ -1,5 +1,8 @@
 # cost-cli v2 Agent control manual
 
+Latest audit: [platform coverage and current examples](cli-platform-coverage.md).
+Complete command inventory: [generated CLI reference](cli-command-reference.md).
+
 Unified project workflow is documented in [Project Workflow](project-workflow.md). The CPQ/import/template/BOQ/reminder operations are documented in the [Skill operations reference](../skills/cost-workbench/references/operations.md); request schema `operations` is version `1.0.0`.
 
 This is the handoff contract for people, scripts, and Agent Skills that control
@@ -116,7 +119,7 @@ If the output file or import was already saved, the error states that fact.
 Recover with `files upload` using the retained source/output rather than
 repeating an applied import and duplicating business rows. Archive writes do
 not require reopening a locked cost version or completing a workflow node.
-Ten global tabs include CPQ catalog and BU profit-share rates; legacy status remains compatibility data.
+Twelve global tabs include CPQ catalog and BU profit-share rates; legacy status remains compatibility data.
 See [BU profit share and pricing](profit-share.md) for rate snapshots and target Sales GP.
 Actual progress uses `project get --section workflow-plan` plus `project workflow-action`.
 The plan exposes parallel nodes and blockers; global changes use `workflow preview/publish`
@@ -293,9 +296,10 @@ Important rules are:
   second Grade field;
 - each line contains exactly five ordered allocations with explicit
   discriminators: `Y1`, `Y2`, `Y3`, `Y4`, `Y5`;
-- each allocation accepts only `{bucket, sites, cost}`;
+- each allocation requires `{bucket, sites, cost}` and accepts optional `mandays`;
 - `sites` is a non-negative integer;
-- mandays are calculated as `sites × mdPerSite` and are never submitted;
+- explicit `mandays` supports direct effort entry; otherwise effort derives from `sites × mdPerSite`;
+- cost rows accept optional `groupName` for group summaries;
 - annual allocation requires a real TD delivery start date.
 
 `workspace-state/1.0.0` is deliberately more permissive than cost export:
@@ -480,9 +484,9 @@ Global `masterdata --tab resources` is the personnel/rate source; each cost
 version's `resourceTypes` is its detached snapshot. `mandayRate` is SGD/MD, not
 a currency exchange rate; no independent FX engine is implemented. The fields are:
 
-- supported canonical internal codes are `HQ-L1..L4`, `LOCAL-L1..L4`, and
-  `ARP-L0..L4`; unused canonical rows may be removed and later restored;
-- internal `code` equals `${pool}-${level}` and stores `mandayRate`;
+- standard internal codes include `HQ-L1..L4`, `LOCAL-L1..L4`, and
+  `ARP-L0..L4`; custom codes are accepted with valid category, pool and level;
+- internal resources store `mandayRate`; code does not replace explicit classification;
 - `mandaysPerMonth` controls MD↔MM conversion and `hoursPerManday` controls
   MD↔Hour conversion;
 - monthly rate = `mandayRate × mandaysPerMonth`;
@@ -555,10 +559,9 @@ npm run --silent cost-cli -- digest generate \
 
 `--as-of` is optional and must be a real `YYYY-MM-DD` calendar date; omission
 uses the workspace's Singapore date. The result
-uses the same deterministic rules as the Agent Digest page: blocked, overdue,
-or stale open reviews require immediate follow-up; due-soon reviews are
-decisions due; non-zero draft cost versions require cost attention; incomplete
-cost rows are data-quality items. The command reads SQLite only and never
+uses the same deterministic rules as the Agent Digest page: current workflow
+node urgency and project follow-ups, legacy review exceptions where applicable,
+non-zero draft costs and incomplete cost rows. The command reads SQLite only and never
 changes review or project state.
 
 Example:

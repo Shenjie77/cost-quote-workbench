@@ -285,6 +285,8 @@ test('API persistence and customer workbook use effective independent prices wit
       ...initialPricingSettings,
       lineMode: 'manual',
       lineSourceMode: 'item',
+      lineRemarks: { a: 'INTERNAL_RATIONALE_DO_NOT_EXPORT' },
+      discountDescription: 'Contract rebate',
       manualPricingBasis: 'line-gp',
       manualLines: [
         line('a', { costWeight: 1, targetGrossMargin: 50 }),
@@ -304,6 +306,9 @@ test('API persistence and customer workbook use effective independent prices wit
     );
     const input = validatedQuoteInput(saved.workspace, 'Q-INDEPENDENT');
     assert.equal(input.pricing.listPrice, 350);
+    assert.deepEqual(input.lineRemarks, pricing.lineRemarks);
+    assert.notEqual(input.lineRemarks, saved.workspace.pricing.lineRemarks);
+    assert.equal(input.pricing.discountDescription, 'Contract rebate');
     assert.deepEqual(
       input.lines.map((entry) => entry.amount),
       [50, 300],
@@ -323,7 +328,7 @@ test('API persistence and customer workbook use effective independent prices wit
     assert.match(text, /Service a/);
     assert.doesNotMatch(
       text,
-      /costWeight|costScopeKeys|customLinesDraft|targetGrossMargin|allocationWeight|priceFixed/,
+      /INTERNAL_RATIONALE_DO_NOT_EXPORT|costWeight|costScopeKeys|customLinesDraft|targetGrossMargin|allocationWeight|priceFixed/,
     );
     assert.deepEqual(
       repository.get(id).workspace.pricing,
