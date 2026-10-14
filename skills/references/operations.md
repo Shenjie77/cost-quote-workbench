@@ -110,11 +110,11 @@ Confirm requires existing user selection. Equipment/fixed service quantities mus
 
 ## Project Workflow
 
-Read `project get --section workflow-plan` for the actual nodes, parallel phases and blockers. Apply a named node action with `project workflow-action --project-id ID --input request.json --expected-revision R`; the OperationRequest uses `operation:"project.workflow-action"` and `action:{nodeCode,action,...}`. Use returned internal IDs, never derive identity or behavior from names. See the [workflow skill](../ssr-update-workflow/SKILL.md) for supported actions and confirmation rules.
+Read `project get --section workflow-plan` for the actual nodes, parallel phases and blockers. Apply a named node action with `project workflow-action --project-id ID --input request.json --expected-revision R`; the OperationRequest uses `operation:"project.workflow-action"` and `action:{nodeCode,action,...}`. Use returned internal IDs, never derive identity or behavior from names. See the [workflow skill](../ssr-workflow-update/SKILL.md) for supported actions and confirmation rules.
 
 Critical nodes require configured fields and explicit confirmation. Nodes with requiresConfirmedCost also need the current workflow version's user-confirmed cost. Earlier optional nodes can become Skipped after downstream completion; they are not silently approved. The configured finishesWorkflow node stops all project reminders when completed. A new Draft adopts the latest global workflow template, whether the prior round is open or finished, and starts its roundStart node (DTRB by default), preserving prior cost and round snapshots. The start node and its entire parallel group cannot require confirmed cost. Viewing older costs leaves the working round unchanged.
 
-Global workflow definitions use `workflow preview/publish` with a complete steps array. Publication checks both the global revision and previewed project revisions, then updates eligible open projects atomically. Active deadlines are retained unless explicitly requested in migrateActiveProjectIds; completed history and every cost/rate snapshot stay unchanged. Ordinary master-data maintenance still reads no projects. See [configuration skill](../ssr-configure-workflow/SKILL.md).
+Global workflow definitions use `workflow preview/publish` with a complete steps array. Publication checks both the global revision and previewed project revisions, then updates eligible open projects atomically. Active deadlines are retained unless explicitly requested in migrateActiveProjectIds; completed history and every cost/rate snapshot stay unchanged. Ordinary master-data maintenance still reads no projects. See [configuration skill](../ssr-workflow-configure/SKILL.md).
 
 ## Reminders and historical references
 

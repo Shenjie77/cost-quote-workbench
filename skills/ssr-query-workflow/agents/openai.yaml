@@ -1,4 +1,0 @@
-interface:
-  display_name: "SSR · 查询流程与待办"
-  short_description: "只读查询 SSR 项目流程进度、阻塞、SLA 及今日待办；不推进节点或标记已阅。"
-  default_prompt: "使用 $ssr-query-workflow，查询流程与待办，按我提供的项目或范围操作。"

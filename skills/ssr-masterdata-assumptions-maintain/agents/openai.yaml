@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 主数据 · 维护假设库"
+  short_description: "维护全局可复用 Scope、交付条件及法务风险假设；不改变当前报价采用项。"
+  default_prompt: "使用 $ssr-masterdata-assumptions-maintain 根据提供的法务及业务文本维护全局风险与交付假设库。"

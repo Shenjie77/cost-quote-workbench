@@ -1,4 +1,0 @@
-interface:
-  display_name: "SSR · 维护报价模板"
-  short_description: "维护全局客户报价模板的有效期、付款条款、T&C 和默认假设引用。"
-  default_prompt: "使用 $ssr-maintain-quote-templates 更新全局客户报价模板的有效期、付款条款、T&C 和默认假设。"

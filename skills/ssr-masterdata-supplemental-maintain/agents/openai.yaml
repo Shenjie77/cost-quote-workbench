@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 主数据 · 维护补充成本目录"
+  short_description: "维护全局物流、车辆等补充成本参考条目和科目；不改项目实际费用。"
+  default_prompt: "使用 $ssr-masterdata-supplemental-maintain 更新全局补充成本目录中的物流、车辆及其他服务参考条目。"

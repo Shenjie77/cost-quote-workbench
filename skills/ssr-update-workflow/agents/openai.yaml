@@ -1,4 +1,0 @@
-interface:
-  display_name: "SSR · 更新流程节点"
-  short_description: "登记项目流程节点进展、负责人、完成确认或暂停恢复；仅查进度不使用。"
-  default_prompt: '使用 $ssr-update-workflow 根据我提供的公司进展更新目标节点，核对并行待办与 SLA 提醒。'

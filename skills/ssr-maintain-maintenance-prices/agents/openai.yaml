@@ -1,4 +1,0 @@
-interface:
-  display_name: "SSR · 维护维保价格库"
-  short_description: "录入或修正全局设备维保历史成本和报价记录；不编制项目 BOQ 报价。"
-  default_prompt: "使用 $ssr-maintain-maintenance-prices 根据附件维护全局设备及客户维保历史参考数据。"

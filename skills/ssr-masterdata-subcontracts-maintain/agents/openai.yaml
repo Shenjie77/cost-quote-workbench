@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 主数据 · 维护分包目录"
+  short_description: "维护全局分包目录的条目、单位和参考单价；不录入项目分包数量。"
+  default_prompt: "使用 $ssr-masterdata-subcontracts-maintain 根据附件维护全局分包目录，保留已有项目成本快照。"

@@ -123,4 +123,4 @@ cost-cli workflow publish --input publish.json --expected-revision GLOBAL_R
 
 旧节点没有 startedAt 时，以升级时刻初始化需要开始计时节点的 SLA，不假设过去的实际开始日。已有 followUpDate 保留；用户可在节点中按实际开始时间修正，并记录修正原因。迁移沿用完成标记和原始历史，不据此推断公司已批准，也不补造审批证据。
 
-参见 [项目流程 Skill](../skills/ssr-update-workflow/SKILL.md)、[流程配置 Skill](../skills/ssr-configure-workflow/SKILL.md) 和 [全局主数据](global-master-data.md)。
+参见 [项目流程 Skill](../skills/ssr-workflow-update/SKILL.md)、[流程配置 Skill](../skills/ssr-workflow-configure/SKILL.md) 和 [全局主数据](global-master-data.md)。

@@ -119,7 +119,7 @@ items kept separate. Select catalogue items in batches or save a manual item,
 then adjust the version's captured price and quantities. Catalogue price updates
 do not reprice existing BOQs. See the [subcontract cost guide](docs/subcontract-cost-design.md).
 
-Use the [22 independent business Skills](docs/business-skills.md) directly. Names follow `ssr-action-object`; `$ssr-query-cost` reads project costs without loading editing or export instructions. There is no prerequisite routing skill.
+Use the [22 independent business Skills](docs/business-skills.md) directly. Names follow `ssr-module-action`; `$ssr-cost-query` reads project costs without loading editing or export instructions. There is no prerequisite routing skill.
 
 For routine Skill work, use [narrow resource commands](skills/references/resources.md):
 project metadata, individual cost versions/rows, ten global Master Data tabs,

@@ -1,0 +1,4 @@
+interface:
+  display_name: "SSR · 主数据 · 维护人员费率"
+  short_description: "维护全局 RE Type、人员分类、人天费率及换算参数；不修改项目成本快照。"
+  default_prompt: "使用 $ssr-masterdata-retypes-maintain 更新全局 RE Type 人天费率，仅修改未来项目的数据来源。"

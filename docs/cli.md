@@ -93,6 +93,6 @@ CLI coverage is partial; UI-only functions are explicitly listed.
 
 ## Agent skill selection
 
-Use [$ssr-query-cost](../skills/ssr-query-cost/SKILL.md) for a project cost lookup.
+Use [$ssr-cost-query](../skills/ssr-cost-query/SKILL.md) for a project cost lookup.
 See [22 independent skills and renamed entries](business-skills.md); no routing skill or
 full-manual read is required before a narrow query.

@@ -1,4 +1,0 @@
-interface:
-  display_name: "SSR · 修改成本"
-  short_description: "修改或导入 SSR 项目指定版本的成本输入、费率设置、差旅，或按授权定稿；仅查金额不使用。"
-  default_prompt: "使用 $ssr-update-cost 更新指定项目和版本的成本，只修改我提供的人天、费用或计算设置。"

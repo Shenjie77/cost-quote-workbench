@@ -72,7 +72,7 @@ cost-cli files download --project-id ID --file-id FILE_ID --output /absolute/doc
 
 `files settings` 使用独立配置 revision，不需要项目 ID；文件查询和上传使用窄入口，不返回整个 workspace。节点代码及轮次应来自项目流程计划，不能根据显示名称猜测。未指定节点时上传为项目公共文件；节点附件应明确指定轮次。
 
-项目归档根目录、公共文件和节点附件统一使用 `ssr-manage-files`；节点进展使用 `ssr-update-workflow`。成本和报价导出 Skill 已说明自动归档与失败恢复。完整参数见 [CLI 手册](cli-control-manual.md)。
+项目归档根目录、公共文件和节点附件统一使用 `ssr-files-manage`；节点进展使用 `ssr-workflow-update`。成本和报价导出 Skill 已说明自动归档与失败恢复。完整参数见 [CLI 手册](cli-control-manual.md)。
 
 ## 备份与搬迁
 

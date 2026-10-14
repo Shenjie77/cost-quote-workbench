@@ -52,4 +52,4 @@ cost-cli project apply-masterdata --project-id ID --tab profit-share --expected-
 
 主数据条目为 `{id, bu, ratePercent, active}`；更新使用标准 `OperationRequest`，`operation` 为 `masterdata.update`，`changes` 使用 `upsert/remove`。项目报价设置里的 `pricing.profitShareRates` 和 `profitShareMasterDataRevision` 是已采用的快照。
 
-使用 `$ssr-maintain-profit-share` 独立维护比例，不读取项目。使用 `$ssr-price-quote` 在指定项目应用比例及编制定价。项目列表、报价页面、标准 Excel 和公司模板导出共用计算引擎；客户文件只显示报价和商务条款，内部成本、分成及 GP 不写入客户 Excel。
+使用 `$ssr-masterdata-profit-share-maintain` 独立维护比例，不读取项目。使用 `$ssr-quote-price` 在指定项目应用比例及编制定价。项目列表、报价页面、标准 Excel 和公司模板导出共用计算引擎；客户文件只显示报价和商务条款，内部成本、分成及 GP 不写入客户 Excel。
