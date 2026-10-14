@@ -21,6 +21,10 @@ import {
 } from './profit-share.ts';
 
 export type PricingSettings = {
+  /** Internal rationale by stable quotation line ID; never printed on customer quotes. */
+  lineRemarks?: Record<string, string>;
+  /** Blank retains the selected template discount wording. */
+  discountDescription?: string;
   /** Customer-facing project title; blank uses the internal project name. */
   quotationProjectName?: string;
   /** Quote-owned default section titles, migrated once from legacy templates. */
@@ -53,7 +57,7 @@ export type PricingSettings = {
 };
 
 export const initialPricingSettings: PricingSettings = {
-  targetGrossMargin: 50,
+  targetGrossMargin: 45,
   discount: 0,
   gstPercent: 0,
 };
@@ -94,6 +98,22 @@ export const calculatePricing = (
       settings.quotationProjectName.length > 500)
   )
     errors.push('Quotation project name must be at most 500 characters.');
+  if (
+    settings.discountDescription !== undefined &&
+    (typeof settings.discountDescription !== 'string' ||
+      settings.discountDescription.length > 1000)
+  )
+    errors.push('Discount description must be at most 1000 characters.');
+  if (
+    settings.lineRemarks !== undefined &&
+    (!settings.lineRemarks ||
+      typeof settings.lineRemarks !== 'object' ||
+      Array.isArray(settings.lineRemarks) ||
+      Object.values(settings.lineRemarks).some(
+        (value) => typeof value !== 'string' || value.length > 4000,
+      ))
+  )
+    errors.push('Each internal remark must be at most 4000 characters.');
   const manualPricing = settings.lineMode === 'manual';
   const gpManualPricing = manualPricing && settings.manualPricingBasis === 'gp';
   const independentLinePricing =
@@ -246,6 +266,9 @@ export const calculatePricing = (
       'Calculated quote exceeds the supported range. / 报价计算结果超出范围。',
     );
   return {
+    ...(typeof settings.discountDescription === 'string'
+      ? { discountDescription: settings.discountDescription.trim() }
+      : {}),
     ...(typeof settings.quotationProjectName === 'string'
       ? { quotationProjectName: settings.quotationProjectName.trim() }
       : {}),

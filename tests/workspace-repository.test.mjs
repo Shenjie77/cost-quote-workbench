@@ -326,7 +326,7 @@ test('SQLite repository creates, reads, lists, and revises one workspace', () =>
     assert.equal(first.workspace.currentWorkflowStepCode, 'TD_EFFORT_REVIEW');
     assert.equal(first.workspace.costVersions.length, 1);
     assert.equal(first.workspace.costVersions[0].code, 'V1');
-    assert.equal(first.workspace.pricing.targetGrossMargin, 50);
+    assert.equal(first.workspace.pricing.targetGrossMargin, 45);
     assert.match(first.sha256, /^[a-f0-9]{64}$/);
 
     const changed = structuredClone(first.workspace);
@@ -548,6 +548,27 @@ test('quotation groups persist with custom titles and inclusion; blank category 
     assert.throws(
       () => repository.save(workspace.project.id, invalid, saved.revision),
       /category/i,
+    );
+  } finally {
+    repository.close();
+  }
+});
+
+test('quotation internal remarks and discount wording persist without repricing saved GP', () => {
+  const repository = openWorkspaceRepository(':memory:');
+  try {
+    const workspace = makeWorkspace();
+    workspace.pricing = {
+      ...initialPricingSettings,
+      ...workspace.pricing,
+      targetGrossMargin: 37,
+      lineRemarks: { 'service:project': 'GP approved for existing customer' },
+      discountDescription: 'Long-term customer discount',
+    };
+    repository.save(workspace.project.id, workspace, null);
+    assert.deepEqual(
+      repository.get(workspace.project.id).workspace.pricing,
+      workspace.pricing,
     );
   } finally {
     repository.close();

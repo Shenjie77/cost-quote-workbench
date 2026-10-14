@@ -323,20 +323,20 @@ const shares = (view) =>
     (amount) => (amount / view.result.listPrice) * 100,
   );
 
-test('an empty new quotation still shows its default 50% line target without writing prices', () => {
+test('an empty new quotation still shows its default 45% line target without writing prices', () => {
   const view = quotationHarness(QuoteLinesEditor, {
-    targetGrossMargin: 50,
+    targetGrossMargin: 45,
     discount: 0,
     gstPercent: 0,
     lineMode: 'single',
   });
   view.props.totalCost = 0;
-  assert.equal(view.label('Line 1 target GP').props.value, 50);
+  assert.equal(view.label('Line 1 target GP').props.value, 45);
   assert.equal(view.result.listPrice, 0);
   assert.equal(view.writes, 0);
 });
 
-test('cost-backed grouping starts at 50% line GP and exposes separate Cost, Weight and Quote share columns', () => {
+test('cost-backed grouping starts at 45% line GP and exposes separate Cost, Weight and Quote share columns', () => {
   const view = quotationHarness(QuoteLinesEditor, {
     ...legacyTerms(),
     lineMode: 'single',
@@ -346,10 +346,13 @@ test('cost-backed grouping starts at 50% line GP and exposes separate Cost, Weig
   assert.equal(view.pricing.lineSourceMode, 'scope');
   assert.equal(view.pricing.manualTargetPrice, undefined);
   assert.deepEqual(allocatedCosts(view), [25, 75]);
-  assert.deepEqual(allocatedAmounts(view), [50, 150]);
-  assert.deepEqual(shares(view), [25, 75]);
+  assert.deepEqual(allocatedAmounts(view), [45.46, 136.37]);
+  assert.deepEqual(
+    shares(view).map((value) => Number(value.toFixed(2))),
+    [25, 75],
+  );
   assert.ok(
-    view.pricing.manualLines.every((line) => line.targetGrossMargin === 50),
+    view.pricing.manualLines.every((line) => line.targetGrossMargin === 45),
   );
   const text = textOf(view.render());
   for (const header of [
@@ -1143,7 +1146,7 @@ test('cost Group mode merges different scopes, preserves per-line edits after re
     ['Delivery package'],
   );
   assert.deepEqual(allocatedCosts(view), [100]);
-  assert.deepEqual(allocatedAmounts(view), [200]);
+  assert.deepEqual(allocatedAmounts(view), [181.82]);
   commitNumber(view, 'Line 1 target GP', 60);
   assert.deepEqual(allocatedAmounts(view), [250]);
   const reopened = quotationHarness(
@@ -1155,4 +1158,41 @@ test('cost Group mode merges different scopes, preserves per-line edits after re
   const locked = quotationHarness(QuoteLinesEditor, initial, true);
   locked.mode('group');
   assert.equal(locked.writes, 0);
+});
+
+test('quotation remarks save independently of line prices and render one column', () => {
+  const view = quotationHarness(QuoteLinesEditor, {
+    ...legacyTerms(),
+    lineMode: 'single',
+  });
+  const before = view.result.listPrice;
+  const row = view.label('Line 1 internal remark');
+  row.props.onChange({ target: { value: 'GP approved to retain customer' } });
+  assert.equal(view.result.listPrice, before);
+  assert.equal(
+    view.label('Line 1 internal remark').props.value,
+    'GP approved to retain customer',
+  );
+  assert.equal(textOf(view.render()).split('Remark (internal)').length - 1, 1);
+});
+
+test('cost amount is selectable text outside the separate scope dialog trigger', async () => {
+  const { QuoteScopeDialog } =
+    await import('../features/quote/quote-scope-dialog.tsx');
+  const view = harness(QuoteScopeDialog, {
+    lineNumber: 1,
+    amount: 1234.56,
+    selectedKeys: [],
+    scopes: [],
+    disabled: false,
+    onSave: () => assert.fail('No write on copy'),
+  });
+  const amount = view.find(
+    (node) =>
+      node.type === 'span' && node.props.className?.includes('select-text'),
+  );
+  assert.ok(textOf(amount).includes('1,234.56'));
+  assert.equal(amount.props.onClick, undefined);
+  const trigger = view.label('Select cost scopes for line 1');
+  assert.ok(!textOf(trigger).includes('1,234.56'));
 });

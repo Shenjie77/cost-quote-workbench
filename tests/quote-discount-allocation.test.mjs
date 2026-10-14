@@ -327,3 +327,30 @@ test('legacy names and pinned shares migrate once into pricing and survive templ
   });
   assert.equal(validate(migrated), true, JSON.stringify(validate.errors));
 });
+
+test('discount description overrides template wording in every allocation mode; blank follows template', () => {
+  for (const mode of ['total', 'section', 'category']) {
+    const source = input(mode);
+    const customLayout = {
+      ...layout,
+      titles: { ...layout.titles, discount: 'Template concession' },
+    };
+    for (const description of ['Customer loyalty discount', '', '   ']) {
+      source.pricing.discountDescription = description;
+      const rows = structuredBodyRows(
+        source,
+        customLayout,
+        quoteFieldValues(source),
+      );
+      assert.ok(
+        rows.some((row) =>
+          row.description.includes(description.trim() || 'Template concession'),
+        ),
+      );
+      if (description.trim())
+        assert.ok(
+          rows.every((row) => !row.description.includes('Template concession')),
+        );
+    }
+  }
+});

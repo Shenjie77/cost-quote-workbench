@@ -71,6 +71,9 @@ export function isRetiredQuoteAssumption(row: {
 export type QuoteHistoryStatus = 'Draft' | 'Final';
 
 export type QuoteHistoryRecord = {
+  /** Internal commercial rationale captured at export. */
+  lineRemarks?: Record<string, string>;
+  discountDescription?: string;
   discountAllocationSnapshot?: ReturnType<
     typeof import('./discount-allocation.ts').allocateQuotationDiscount
   >;

@@ -421,3 +421,39 @@ test('file routes reject invalid methods, duplicate query fields, traversal name
   );
   assert.equal(repository.files.list('FILES-API').files.length, 0);
 });
+
+test('header folder shortcuts resolve only owned category folders after project relocation', async (t) => {
+  const { repository, directory } = fixture(t);
+  const original = repository.files.list('FILES-API');
+  const moved = repository.files.moveProject('FILES-API', {
+    expectedProjectPath: original.projectPath,
+    projectPath: path.join(directory, 'Relocated'),
+  });
+  for (const category of ['cost', 'quotation', 'workflow']) {
+    const result = await call(
+      repository,
+      `/api/local/projects/FILES-API/files/open-folder?category=${category}`,
+      {
+        method: 'POST',
+        json: folderAction,
+        openFolder: async (folder) =>
+          assert.equal(folder, path.join(moved.projectPath, category)),
+      },
+    );
+    assert.equal(result.status, 200);
+  }
+  for (const category of ['../outside', 'quote', '', '/tmp']) {
+    await assert.rejects(
+      call(
+        repository,
+        `/api/local/projects/FILES-API/files/open-folder?category=${encodeURIComponent(category)}`,
+        {
+          method: 'POST',
+          json: folderAction,
+          openFolder: async () => assert.fail('Must not open'),
+        },
+      ),
+      /Invalid archive folder category/,
+    );
+  }
+});

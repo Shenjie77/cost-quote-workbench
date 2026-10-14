@@ -147,6 +147,12 @@
       "additionalProperties": false,
       "required": ["targetGrossMargin", "discount", "gstPercent"],
       "properties": {
+        "lineRemarks": {
+          "type": "object",
+          "maxProperties": 10000,
+          "additionalProperties": { "type": "string", "maxLength": 4000 }
+        },
+        "discountDescription": { "type": "string", "maxLength": 1000 },
         "quotationProjectName": {
           "type": "string",
           "maxLength": 500
@@ -1289,6 +1295,12 @@
         "note"
       ],
       "properties": {
+        "lineRemarks": {
+          "type": "object",
+          "maxProperties": 10000,
+          "additionalProperties": { "type": "string", "maxLength": 4000 }
+        },
+        "discountDescription": { "type": "string", "maxLength": 1000 },
         "quotationProjectName": {
           "type": "string",
           "maxLength": 500

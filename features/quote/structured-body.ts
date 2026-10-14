@@ -98,6 +98,8 @@ export function structuredBodyRows(
       rows.push({ role: 'blank', description: '' });
   };
   const titles = normalizedBodyTitles(layout.titles);
+  if (input.pricing.discountDescription?.trim())
+    titles.discount = input.pricing.discountDescription.trim();
   const allocation = document.allocation;
   const grandTotals: number[] = [];
   let chapter = 0,

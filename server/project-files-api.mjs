@@ -74,12 +74,20 @@ export async function routeProjectFiles({
         405,
         'METHOD_NOT_ALLOWED',
       );
-    queryValues(url, []);
+    const { category } = queryValues(url, ['category']);
+    if (
+      category !== undefined &&
+      (!folderMatch ||
+        folderMatch[2] ||
+        !['cost', 'quotation', 'workflow'].includes(category))
+    )
+      throw new TypeError('Invalid archive folder category.');
     await readAction(request, readJson, 'ArchiveFolderOpenRequest');
     const directory = folderMatch
       ? repository.files.folder(
           decodeURIComponent(folderMatch[1]),
           folderMatch[2] ? decodeURIComponent(folderMatch[2]) : undefined,
+          category,
         )
       : repository.files.rootFolder();
     try {

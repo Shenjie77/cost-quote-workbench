@@ -86,7 +86,7 @@ export function resolveQuoteScopeCosts(
         unit: 'lot',
         unitPrice: 0,
         costWeight: 0,
-        targetGrossMargin: 50,
+        targetGrossMargin: 45,
       });
       base.push(0);
     }

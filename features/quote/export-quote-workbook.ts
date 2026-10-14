@@ -123,7 +123,10 @@ export const buildQuoteWorkbookBuffer = async (
   const pricingStart = 12;
   const pricingRows: Array<[string, number]> = [
     ['Service Price', input.pricing.listPrice],
-    ['Discount', input.pricing.discount],
+    [
+      input.pricing.discountDescription?.trim() || 'Discount',
+      input.pricing.discount,
+    ],
     ['Quote Total', input.pricing.quoteBeforeTax],
   ];
   pricingRows.forEach(([label, amount], index) => {
@@ -240,7 +243,7 @@ export const buildQuoteWorkbookBuffer = async (
   return workbook.xlsx.writeBuffer();
 };
 
-/** Creates a browser download and returns its auditable file metadata. */
+/** Archives the quotation once and returns its auditable file metadata. */
 export const downloadQuoteWorkbook = async (input: QuoteWorkbookInput) => {
   input = structuredClone(input);
   const buffer = await buildQuoteWorkbookBuffer(input);
@@ -255,11 +258,5 @@ export const downloadQuoteWorkbook = async (input: QuoteWorkbookInput) => {
     category: 'quote',
     versionCode: input.costVersion,
   });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.click();
-  URL.revokeObjectURL(url);
   return { fileName, sizeBytes: blob.size };
 };

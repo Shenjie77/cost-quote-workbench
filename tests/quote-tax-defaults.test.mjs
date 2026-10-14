@@ -1,4 +1,4 @@
-/** New quotations omit tax and start at 50% GP; saved inputs and exported history remain exact. */
+/** New quotations omit tax and start at 45% GP; saved inputs and exported history remain exact. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
@@ -26,15 +26,15 @@ import {
   createProject,
 } from '../server/workspace-resources.mjs';
 
-test('new browser and API projects start at 50% GP without tax and have independent pricing settings', () => {
-  assert.equal(initialPricingSettings.targetGrossMargin, 50);
+test('new browser and API projects start at 45% GP without tax and have independent pricing settings', () => {
+  assert.equal(initialPricingSettings.targetGrossMargin, 45);
   assert.equal(initialPricingSettings.gstPercent, 0);
   const blank = createBlankWorkspace(
     projectRecord('BROWSER-ZERO-TAX', 'New project', 'Customer'),
     'input_preparation',
   );
   assert.equal(blank.pricing.gstPercent, 0);
-  assert.equal(blank.pricing.targetGrossMargin, 50);
+  assert.equal(blank.pricing.targetGrossMargin, 45);
   assert.equal(blank.quoteAssumptions.some(isRetiredQuoteAssumption), false);
   const repository = openWorkspaceRepository(':memory:');
   try {
@@ -44,11 +44,11 @@ test('new browser and API projects start at 50% GP without tax and have independ
     const second = repository.get('NEW-B');
     assert.equal(first.workspace.pricing.gstPercent, 0);
     assert.equal(second.workspace.pricing.gstPercent, 0);
-    assert.equal(first.workspace.pricing.targetGrossMargin, 50);
-    assert.equal(second.workspace.pricing.targetGrossMargin, 50);
+    assert.equal(first.workspace.pricing.targetGrossMargin, 45);
+    assert.equal(second.workspace.pricing.targetGrossMargin, 45);
     const price = calculatePricing(1000, first.workspace.pricing);
     assert.equal(price.gstAmount, 0);
-    assert.equal(price.listPrice, 2000);
+    assert.equal(price.listPrice, 1818.19);
     assert.equal(price.quoteAfterTax, price.quoteBeforeTax);
     first.workspace.pricing.gstPercent = 9;
     repository.save('NEW-A', first.workspace, first.revision);
@@ -60,7 +60,7 @@ test('new browser and API projects start at 50% GP without tax and have independ
   }
 });
 
-test('real CLI project creation uses the same 50% GP defaults as browser and API factories', (t) => {
+test('real CLI project creation uses the same 45% GP defaults as browser and API factories', (t) => {
   const directory = mkdtempSync(path.join(tmpdir(), 'quote-default-gp-'));
   const database = path.join(directory, 'workspace.sqlite');
   t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -96,9 +96,9 @@ test('real CLI project creation uses the same 50% GP defaults as browser and API
   const repository = openWorkspaceRepository(database);
   try {
     const workspace = repository.get('CLI-GP').workspace;
-    assert.equal(workspace.pricing.targetGrossMargin, 50);
+    assert.equal(workspace.pricing.targetGrossMargin, 45);
     assert.equal(workspace.pricing.gstPercent, 0);
-    assert.equal(calculatePricing(1000, workspace.pricing).listPrice, 2000);
+    assert.equal(calculatePricing(1000, workspace.pricing).listPrice, 1818.19);
     assert.equal(
       workspace.quoteAssumptions.some(isRetiredQuoteAssumption),
       false,

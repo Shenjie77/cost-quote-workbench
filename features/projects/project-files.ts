@@ -1,5 +1,5 @@
 /** File archives use small, dedicated endpoints, independently of cost/workflow writes. */
-import { LOCAL_API_VERSION } from '../workbench/workspace-types';
+import { LOCAL_API_VERSION } from '../workbench/workspace-types.ts';
 
 const API_BASE = 'http://127.0.0.1:3210/api/local';
 export const MAX_PROJECT_FILE_BYTES = 50 * 1024 * 1024;
@@ -80,6 +80,7 @@ const projectEndpoint = (projectId: string) =>
 export async function openArchiveFolder(
   projectId?: string,
   fileId?: string,
+  category?: 'cost' | 'quotation' | 'workflow',
 ): Promise<{ opened: true }> {
   if (fileId && !projectId)
     throw new TypeError('A project is required to open a document folder.');
@@ -87,14 +88,17 @@ export async function openArchiveFolder(
     ? `${projectEndpoint(projectId)}${fileId ? `/${encodeURIComponent(fileId)}` : ''}`
     : `${API_BASE}/archive-settings`;
   return parse(
-    await fetch(`${endpoint}/open-folder`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        apiVersion: LOCAL_API_VERSION,
-        kind: 'ArchiveFolderOpenRequest',
-      }),
-    }),
+    await fetch(
+      `${endpoint}/open-folder${category ? `?category=${encodeURIComponent(category)}` : ''}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiVersion: LOCAL_API_VERSION,
+          kind: 'ArchiveFolderOpenRequest',
+        }),
+      },
+    ),
   );
 }
 

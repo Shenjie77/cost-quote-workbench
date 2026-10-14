@@ -30,7 +30,7 @@ Optional 单独列示，不计入 Mandatory 报价总额；内部成本与 GP �
 | By cost item | 成本条目分别展开为报价行。 |
 | Custom lines | 保留当前明细，再修改描述、数量、单位、逐行 GP 或单价，也可新增报价行。 |
 
-明确选择 Single line、By Scope 或 By cost item 会重新生成成本对应的明细，逐行目标 GP 从 50% 开始。自动生成行以 `1 lot` 为报价数量，不把内部人天或站点数量默认当作销售数量。
+明确选择 Single line、By Scope 或 By cost item 会重新生成成本对应的明细，逐行目标 GP 从 45% 开始。自动生成行以 `1 lot` 为报价数量，不把内部人天或站点数量默认当作销售数量。
 
 内部明细的 **Cost** 是含风险总成本分摊额，**Weight %** 为成本占比；**Quote share %** 是可调整的报价比例，初始随成本占比。修改逐行 GP 或 Price / Unit 后，服务报价按行金额合计。修改报价比例时，以当时的明细合计为分配基准，保留已锁定行，由其余未锁定行均分剩余金额。上方整体 Sales GP 根据折扣后的最终报价和 BU 分成只读汇总，不作为另一份可输入目标。
 
@@ -65,4 +65,9 @@ Lint 对 Node 自带测试注册函数作了窄范围配置：只认可 `node` �
 
 The standard customer layout follows the Book2 schedule: recipient, project, quotation number/date/revision, professional services, maintenance when present, subtotals, service discount, total, assumptions and T&C. Maintenance uses device quantity × annual unit price × years; its customer row shows the annual fleet price and the duration in years, with device quantity included in the description. Empty groups are omitted. Optional items are grouped separately and excluded from the mandatory total. No sample supplier name, logo, optional prices or other placeholder content is invented.
 
-Completed downloads are archived with the project and recorded in quotation history. Customer history stores the combined customer total and the maintenance line snapshot separately from the existing service pricing/GP fields. When the selected project template includes an uploaded workbook, `Generate XLSX` automatically uses its saved mappings. Module mappings include maintenance and the combined total; legacy single-row mappings retain service-only output.
+Generated XLSX files are saved to the project Quotation folder and recorded in quotation history, without a second browser download. Customer history stores the combined customer total and the maintenance line snapshot separately from the existing service pricing/GP fields. When the selected project template includes an uploaded workbook, `Generate XLSX` automatically uses its saved mappings. Module mappings include maintenance and the combined total; legacy single-row mappings retain service-only output.
+
+
+Quotation Details includes an internal Remark per line for price/GP rationale. It is saved with the project and quotation history and included in the internal review workbook; customer documents omit it. Discount description overrides the structured template discount wording; blank keeps the selected template default.
+
+Quotation + Simple Cost saves only to the project Cost folder, with the prefix `simple_cost_review_`. The page header provides Cost, Quotation and Workflow folder shortcuts for the current project.

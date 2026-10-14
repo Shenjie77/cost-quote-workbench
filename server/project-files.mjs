@@ -960,7 +960,12 @@ export const makeProjectFileStore = (db, databasePath) => {
       }
     },
     /** Follow the current archive mapping and, for a document, its recorded physical parent. */
-    folder(id, fileId) {
+    folder(id, fileId, category) {
+      if (
+        category !== undefined &&
+        (fileId || !['cost', 'quotation', 'workflow'].includes(category))
+      )
+        fail('Invalid archive folder category.');
       project(id, true);
       if (fileId) readRecord(id, fileId);
       try {
@@ -978,7 +983,13 @@ export const makeProjectFileStore = (db, databasePath) => {
             path.join(archive.project_folder, path.dirname(row.relative_path)),
           );
         }
-        return checkedDirectory(archive.root_path, archive.project_folder);
+        return checkedDirectory(
+          archive.root_path,
+          category
+            ? path.join(archive.project_folder, category)
+            : archive.project_folder,
+          Boolean(category),
+        );
       } catch (error) {
         return ioError(error);
       }

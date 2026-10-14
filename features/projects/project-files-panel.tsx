@@ -48,12 +48,14 @@ export function ArchiveFolderButton({
   fileId,
   disabled = false,
   label = 'Open Folder',
+  category,
   description,
 }: {
   projectId?: string;
   fileId?: string;
   disabled?: boolean;
   label?: string;
+  category?: 'cost' | 'quotation' | 'workflow';
   description: string;
 }) {
   const [opening, setOpening] = useState(false);
@@ -72,7 +74,7 @@ export function ArchiveFolderButton({
     setOpening(true);
     setError('');
     try {
-      await openArchiveFolder(projectId, fileId);
+      await openArchiveFolder(projectId, fileId, category);
     } catch (cause) {
       if (mounted.current) setError(errorMessage(cause));
     } finally {

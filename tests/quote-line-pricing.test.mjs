@@ -212,6 +212,7 @@ test('domain sums independent lines and calculates whole-quote GP while retainin
   );
   const legacy = calculatePricing(100, {
     ...initialPricingSettings,
+    targetGrossMargin: 50,
     lineMode: 'manual',
     manualPricingBasis: 'gp',
     manualLines: [line('a'), line('b')],

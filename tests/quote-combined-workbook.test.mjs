@@ -439,3 +439,16 @@ test('maintenance is captured before asynchronous export and invalid maintenance
   input.maintenance.boq[0].ct = -1;
   await assert.rejects(buildCombinedQuoteWorkbook(input), /CT/);
 });
+
+test('internal review workbook retains per-line pricing rationale', async () => {
+  const source = combinedFixture();
+  source.pricing.lineRemarks = {
+    gp: '45% target due to delivery risk',
+    fixed: 'Agreed customer ceiling',
+  };
+  const workbook = await buildCombinedQuoteWorkbook(source);
+  const sheet = workbook.getWorksheet('Quotation Details');
+  assert.equal(sheet.getCell('N8').value, 'Remark (internal)');
+  assert.equal(sheet.getCell('N9').value, source.pricing.lineRemarks.gp);
+  assert.equal(sheet.getCell('N10').value, source.pricing.lineRemarks.fixed);
+});

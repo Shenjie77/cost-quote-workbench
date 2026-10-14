@@ -1,5 +1,6 @@
 /** Select live Scope shares and a separate Risk Cost share for one quotation line. */
 import { useState } from 'react';
+import { Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -108,18 +109,21 @@ export function QuoteScopeDialog({
     );
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogTrigger
-        render={
-          <Button
-            variant="ghost"
-            disabled={disabled}
-            className="h-8 w-full justify-end px-1 text-xs underline decoration-dotted underline-offset-4"
-          />
-        }
-        aria-label={`Select cost scopes for line ${lineNumber}`}
-      >
-        {formatSgd(amount)}
-      </DialogTrigger>
+      <span className="inline-flex items-center justify-end gap-1">
+        <span className="select-text cursor-text">{formatSgd(amount)}</span>
+        <DialogTrigger
+          render={
+            <Button
+              variant="ghost"
+              disabled={disabled}
+              className="h-8 w-8 shrink-0 p-1"
+            />
+          }
+          aria-label={`Select cost scopes for line ${lineNumber}`}
+        >
+          <Settings2 className="size-3.5" aria-hidden="true" />
+        </DialogTrigger>
+      </span>
       <DialogContent className="sm:max-w-[780px]">
         <DialogHeader>
           <DialogTitle>Line {lineNumber} cost scopes / 成本 Scope</DialogTitle>

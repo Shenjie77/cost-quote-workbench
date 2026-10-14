@@ -116,7 +116,7 @@ is fitted to one page wide, not one page tall.
 
 Each line's internal Cost includes its allocation of the complete project cost
 with Risk. Weight is the cost share; quotation share is a separate editable
-selling-price proportion. New line GP defaults to 50%. Line GP or price edits
+selling-price proportion. New line GP defaults to 45%. Line GP or price edits
 change the summed line total; quotation-share edits redistribute that current
 total across unlocked lines. The page's overall GP is a read-only result based
 on the final quotation after discount and BU profit share. See

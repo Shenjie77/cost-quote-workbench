@@ -186,7 +186,7 @@ export function QuoteLinesEditor({
                 .filter((scope) => scope.description === line.description)
                 .map((scope) => ({ key: scope.key, percentage: 100 }))
             : undefined,
-        targetGrossMargin: 50,
+        targetGrossMargin: 45,
         priceFixed: false,
         allocationFixed: false,
       })),
@@ -283,7 +283,7 @@ export function QuoteLinesEditor({
           unit: 'lot',
           unitPrice: 0,
           costWeight: 0,
-          targetGrossMargin: 50,
+          targetGrossMargin: 45,
           priceFixed: false,
           allocationFixed: false,
         },
@@ -387,7 +387,7 @@ export function QuoteLinesEditor({
       <Table
         containerClassName="max-h-[360px]"
         aria-label="Quotation details grid"
-        className="min-w-[1120px] text-xs [&_td]:p-1.5"
+        className="min-w-[1340px] text-xs [&_td]:p-1.5"
       >
         <TableHeader className="sticky top-0 z-10 bg-muted">
           <TableRow>
@@ -413,6 +413,7 @@ export function QuoteLinesEditor({
             </TableHead>
             <TableHead className="w-12 text-center">Lock</TableHead>
             <TableHead className="w-28 text-right">Amount</TableHead>
+            <TableHead className="min-w-48">Remark (internal)</TableHead>
             <TableHead className="w-10">
               <span className="sr-only">Remove</span>
             </TableHead>
@@ -667,6 +668,26 @@ export function QuoteLinesEditor({
                 </TableCell>
                 <TableCell className="financial-numeral text-right font-medium">
                   {formatSgd(line.amount)}
+                </TableCell>
+                <TableCell>
+                  <Textarea
+                    aria-label={`Line ${index + 1} internal remark`}
+                    value={pricing.lineRemarks?.[line.id] ?? ''}
+                    maxLength={4000}
+                    disabled={disabled}
+                    rows={2}
+                    placeholder="Reason for price / GP"
+                    className="min-w-48 text-xs"
+                    onChange={(e) =>
+                      setPricing((current) => ({
+                        ...current,
+                        lineRemarks: {
+                          ...current.lineRemarks,
+                          [line.id]: e.target.value,
+                        },
+                      }))
+                    }
+                  />
                 </TableCell>
                 <TableCell>
                   <Button

@@ -72,7 +72,7 @@ history stay unchanged. See [BU profit share and pricing](docs/profit-share.md).
 
 Quotation details show **Cost**, **Weight %**, **Quote share %**, **Target GP %**,
 and **Price / Unit**. Cost allocates the complete project cost including Risk;
-Weight is that line's cost share. New lines use 50% GP, with quotation shares
+Weight is that line's cost share. New lines use 45% GP, with quotation shares
 initially following cost shares. Edit an individual GP or unit price to change
 that line and the total. Editing a quotation share redistributes the current
 line total across the remaining unlocked rows. **Quote Total** is the sum of

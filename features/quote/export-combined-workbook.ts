@@ -406,6 +406,7 @@ export async function buildCombinedQuoteWorkbook(
     'Actual GP',
     'Price basis',
     'Saved price input',
+    'Remark (internal)',
   ];
   calc.getRow(8).values = [
     'Line',
@@ -462,6 +463,7 @@ export async function buildCombinedQuoteWorkbook(
       null,
       gpMode ? 'Target GP' : 'Saved price',
       line.unitPrice,
+      pricing.lineRemarks?.[line.id] ?? '',
     ];
     formula(
       calc,
@@ -539,7 +541,7 @@ export async function buildCombinedQuoteWorkbook(
       `SUM(${column}${FIRST_LINE}:${column}${last})`,
       value,
     );
-  const widths = [6, 44, 12, 10, 18, 12, 12, 12, 18, 18, 12, 16, 18];
+  const widths = [6, 44, 12, 10, 18, 12, 12, 12, 18, 18, 12, 16, 18, 44];
   widths.forEach((width, index) => {
     sheet.getColumn(index + 1).width = width;
   });
@@ -602,8 +604,8 @@ export async function buildCombinedQuoteWorkbook(
     size: 17,
     color: { argb: 'FF173A52' },
   };
-  sheet.autoFilter = `A8:M${last}`;
-  sheet.pageSetup.printArea = `A1:M${totalRow}`;
+  sheet.autoFilter = `A8:N${last}`;
+  sheet.pageSetup.printArea = `A1:N${totalRow}`;
   unmergeWorkbook(workbook);
   const maintenance = writeMaintenanceTable(
     sheet,
@@ -633,7 +635,7 @@ export async function buildCombinedQuoteWorkbook(
   sheet.getCell('B7').value = 'Professional Service';
   sheet.getCell('M5').numFmt = MONEY;
   sheet.getRow(4).height = 44;
-  sheet.pageSetup.printArea = `A1:M${maintenance.totalRow}`;
+  sheet.pageSetup.printArea = `A1:N${maintenance.totalRow}`;
   workbook.calcProperties.fullCalcOnLoad = true;
   return workbook;
 }
@@ -649,7 +651,7 @@ export async function buildCombinedQuoteWorkbookBytes(
     : Uint8Array.from(buffer as unknown as ArrayLike<number>);
 }
 
-/** Archive as an internal cost file, then download; do not create a customer quotation history record. */
+/** Archive as an internal cost file only; do not create a customer quotation history record. */
 export async function downloadCombinedQuoteWorkbook(
   input: CombinedQuoteWorkbookInput,
 ) {
@@ -658,7 +660,7 @@ export async function downloadCombinedQuoteWorkbook(
   const bytes = await buildCombinedQuoteWorkbookBytes(captured);
   const fileName = getSimpleCostWorkbookFileName(captured.costSnapshot).replace(
     /^Cost_Simple_/,
-    'Quotation_Simple_Cost_',
+    'simple_cost_review_',
   );
   const blob = new Blob([bytes.slice().buffer as ArrayBuffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -669,17 +671,5 @@ export async function downloadCombinedQuoteWorkbook(
     category: 'cost',
     versionCode: captured.costSnapshot.costVersion.code,
   });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  try {
-    anchor.href = url;
-    anchor.download = fileName;
-    anchor.style.display = 'none';
-    document.body.appendChild(anchor);
-    anchor.click();
-  } finally {
-    anchor.remove();
-    globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
   return { fileName, sizeBytes: bytes.byteLength };
 }

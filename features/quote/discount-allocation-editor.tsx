@@ -49,6 +49,22 @@ export function DiscountAllocationEditor({
           <option value="section">By Section</option>
           <option value="category">By Category</option>
         </select>
+        <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+          <label htmlFor="discount-description" className="font-medium">
+            Discount description
+          </label>
+          <input
+            id="discount-description"
+            value={pricing.discountDescription ?? ''}
+            maxLength={1000}
+            disabled={disabled}
+            placeholder="Leave blank to use template wording"
+            className="min-w-48 flex-1 rounded border px-2 py-1"
+            onChange={(e) =>
+              setPricing((p) => ({ ...p, discountDescription: e.target.value }))
+            }
+          />
+        </div>
         {allocation.mode !== 'total' && (
           <button
             type="button"

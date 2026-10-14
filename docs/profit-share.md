@@ -4,7 +4,7 @@
 
 1. 在 **Master Data → Profit Share** 添加 BU、可选 **BU Code**、分成百分比和 Active 状态，保存该页签。20% 输入为 `20`。
 2. 新项目自动捕获当前比例。已有项目在 **Pricing Parameters → Apply Latest Master Data** 明确采用最新比例，立即保存到该项目；成本已 Confirmed 也可以操作。
-3. 在报价明细中逐行设置 **Target GP %** 或 **Price / Unit**；新生成行默认 GP 为 50%。系统合计行金额，上方 **Actual Sales GP** 只读显示折扣后的实际毛利，并展示各 BU 的成本、占比、比例及分成金额。**Manage Rates** 可跳转到主数据维护。
+3. 在报价明细中逐行设置 **Target GP %** 或 **Price / Unit**；新生成行默认 GP 为 45%。系统合计行金额，上方 **Actual Sales GP** 只读显示折扣后的实际毛利，并展示各 BU 的成本、占比、比例及分成金额。**Manage Rates** 可跳转到主数据维护。
 
 全局维护不重算已有项目。报价历史保留当次 BU 分摊、分成比例和金额，之后采用新主数据也不会更改原记录。
 

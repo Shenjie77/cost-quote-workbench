@@ -320,7 +320,7 @@ export function QuoteView({
         personnelLayout: personnelTableView.layout,
       });
       announce(
-        `Exported ${exported.fileName} / 已导出报价明细与 Simple Cost，成本及价格使用关联公式。`,
+        `Saved ${exported.fileName} to Cost folder / 已保存到 Cost 文件夹，不另行下载。`,
       );
       return true;
     } catch (error) {
@@ -458,6 +458,8 @@ export function QuoteView({
             }
           : {}),
         discountAllocationSnapshot: document.allocation,
+        discountDescription: pricing.discountDescription ?? '',
+        lineRemarks: structuredClone(pricing.lineRemarks ?? {}),
         costAmount: result.cost,
         quoteBeforeTax: result.quoteBeforeTax,
         gstAmount: result.gstAmount,
@@ -486,7 +488,7 @@ export function QuoteView({
       setQuoteHistory((records) => [history, ...records]);
       if (mounted.current) setShowExport(false);
       announce(
-        `Exported ${exported.fileName} and recorded quotation history. / 已导出报价并记录历史。`,
+        `Saved ${exported.fileName} to Quotation folder and recorded history. / 已保存到 Quotation 文件夹并记录历史，不另行下载。`,
       );
     } catch (error) {
       announce(

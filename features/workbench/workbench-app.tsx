@@ -4,6 +4,8 @@
  */
 
 'use client';
+import { ArchiveFolderButton } from '@/features/projects/project-files-panel';
+
 import { migrateQuoteSections } from '@/features/quote/quote-section-settings';
 import {
   captureQuoteReferences,
@@ -2697,13 +2699,22 @@ function ProjectSessionApp({
             </Button>
             <div className="min-w-[120px] flex-1">
               <p className="sr-only">{pageEyebrow}</p>
-              <div className="flex min-w-0 items-baseline gap-x-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2">
                 <h1 className="truncate text-base font-semibold leading-snug">
                   {title.title}
                 </h1>
                 <span className="hidden shrink-0 text-xs text-muted-foreground xl:inline">
                   {title.titleZh}
                 </span>
+                {activeProjectId && activeView !== 'master-data' && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    {(['cost', 'quotation', 'workflow'] as const).map((category) => (
+                      <ArchiveFolderButton key={category} projectId={activeProjectId} category={category}
+                        label={category === 'cost' ? 'Cost' : category === 'quotation' ? 'Quotation' : 'Workflow'}
+                        description={`Open ${category} folder`} />
+                    ))}
+                  </div>
+                )}
                 <p className="sr-only">{pageSubtitle}</p>
               </div>
               <p className="sr-only">{pageSubtitleZh}</p>
