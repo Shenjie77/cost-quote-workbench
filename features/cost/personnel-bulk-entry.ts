@@ -24,6 +24,7 @@ export type PersonnelBulkMode = 'sites' | 'mandays';
 export type PersonnelBulkInputFormat = 'auto' | 'scope-md' | 'group-scope-md';
 export type PersonnelBulkColumnTarget =
   | 'groupName'
+  | 'category'
   | 'scope'
   | 'bu'
   | 'reType'
@@ -59,6 +60,7 @@ export type PersonnelBulkColumn = {
 export type PersonnelBulkEntry = {
   sourceRow: number;
   groupName?: string;
+  category?: string;
   scope: string;
   bu: string;
   reTypeText: string;
@@ -137,6 +139,7 @@ export function matchPersonnelBulkResource(
 
 const aliases: Record<string, PersonnelBulkColumnTarget> = {};
 for (const [target, names] of Object.entries({
+  category: ['category', 'quotation category', '报价分类', '类别'],
   groupName: [
     'group',
     'group name',
@@ -371,6 +374,7 @@ function tieredHeaders(
 const targetAllowed = (target: string) =>
   [
     'groupName',
+    'category',
     'scope',
     'bu',
     'reType',
@@ -560,6 +564,9 @@ export function parsePersonnelBulkEntry(
       );
       continue;
     }
+    const category = get(record, 'category');
+    if (category.length > 120)
+      rowIssues.push('Category must be at most 120 characters.');
     let groupName = get(record, 'groupName');
     if (!groupName && options.fillDownGroup === true && previousGroup) {
       groupName = previousGroup;
@@ -699,6 +706,7 @@ export function parsePersonnelBulkEntry(
     const entry: PersonnelBulkEntry = {
       sourceRow: record.sourceRow,
       ...(column('groupName') !== undefined ? { groupName } : {}),
+      ...(column('category') !== undefined ? { category } : {}),
       scope,
       bu,
       reTypeText: rawRE || options.defaultRETypeId || '',
@@ -713,6 +721,7 @@ export function parsePersonnelBulkEntry(
       const raw: CostInputRow = {
         id: `BULK-PREVIEW-${record.sourceRow}`,
         ...(column('groupName') !== undefined ? { groupName } : {}),
+        ...(column('category') !== undefined ? { category } : {}),
         scope,
         bu,
         reTypeId: matched.resource.id,
@@ -769,4 +778,23 @@ export function parsePersonnelBulkEntry(
     !!preview.entries.length &&
     preview.entries.every((entry) => !entry.issues.length && !!entry.row);
   return preview;
+}
+
+/** Apply stable row identities without deleting rows absent from a selected sheet. */
+export function mergePersonnelBulkRows(
+  current: CostInputRow[],
+  edits: CostInputRow[],
+): CostInputRow[] {
+  const pending = new Map<string, CostInputRow>();
+  for (const row of edits) {
+    if (pending.has(row.id))
+      throw new Error('A row ID occurs more than once in Bulk Entry.');
+    pending.set(row.id, structuredClone(row));
+  }
+  const next = current.map((row) => {
+    const edit = pending.get(row.id);
+    pending.delete(row.id);
+    return edit ? { ...row, ...edit } : row;
+  });
+  return [...next, ...pending.values()];
 }

@@ -84,7 +84,7 @@ test('combined export includes the complete Simple Cost workbook and linked quot
   assert.equal(workbook.getWorksheet('Pricing Calculations').state, 'hidden');
   assert.match(
     workbook.getWorksheet('Cost Detail').getCell('G6').formula,
-    /J6,M6,P6,S6,V6/,
+    /Cost Calculations/,
   );
   assert.ok(workbook.getWorksheet('Cost Statement').getCell('B22').formula);
   assert.equal(sheet.getCell('E5').numFmt, '0.00%');
@@ -219,6 +219,9 @@ test('combined export supports summary-only and mixed selections with mandatory 
         'Cost Statement',
         'Pricing Calculations',
         ...selectedSheets,
+        ...(selectedSheets.includes('Cost Detail')
+          ? ['Cost Calculations']
+          : []),
       ]),
     );
     assert.equal(
@@ -275,21 +278,9 @@ test('combined Cost Detail matches saved Cost Input layout and statement referen
     }),
   );
   const statement = combined.getWorksheet('Cost Statement');
-  let linked = false;
-  statement.eachRow((row) =>
-    row.eachCell((cell) => {
-      if (cell.formula?.includes("'Cost Detail'!")) {
-        linked = true;
-        for (const match of cell.formula.matchAll(
-          /'Cost Detail'!([A-Z]+\d+)/g,
-        )) {
-          assert.match(match[1], /^B/);
-          assert.ok(actual.getCell(match[1]).formula);
-        }
-      }
-    }),
-  );
-  assert.ok(linked);
+  assert.match(statement.getCell('B13').formula, /Cost Calculations/);
+  assert.match(actual.getCell('B7').formula, /Cost Calculations/);
+  assertSheetReferences(combined);
 });
 
 test('pricing and exported quotation use persisted Scope and Risk percentages after cost sources change', async () => {

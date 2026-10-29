@@ -2,6 +2,8 @@ import { costRowsIncludingHQTravel } from '../features/cost/group-cost-summary.t
 const displayedRows = (s) =>
   costRowsIncludingHQTravel(s.costRows, s.resourceTypes, s.travelSettings);
 import assert from 'node:assert/strict';
+const cachedScalar = (value) => (value?.formula ? (value.result ?? 0) : value);
+const cachedValue = (cell) => cachedScalar(cell.value);
 import test from 'node:test';
 import ExcelJS from 'exceljs';
 import { buildSimpleCostWorkbookBytes } from '../features/cost/export-simple-workbook.ts';
@@ -30,7 +32,9 @@ const fixture = () => {
   return snapshot;
 };
 const values = (row, count) =>
-  Array.from({ length: count }, (_, index) => row.getCell(index + 1).value);
+  Array.from({ length: count }, (_, index) =>
+    cachedValue(row.getCell(index + 1)),
+  );
 const sheetValues = (sheet) =>
   Array.from({ length: sheet.rowCount }, (_, index) =>
     values(sheet.getRow(index + 1), sheet.columnCount),
@@ -56,42 +60,44 @@ test('Personnel export follows custom groups, retains canonical order within eac
   });
   const detail = workbook.getWorksheet('Cost Detail');
   assert.equal(detail.columnCount, 6);
+  assert.match(detail.getCell('E8').formula, /Cost Calculations/);
+  assert.match(detail.getCell('F13').formula, /SUM/);
   assert.deepEqual(values(detail.getRow(4), 3), ['Scope', 'Group', 'RE Type']);
-  assert.match(detail.getCell('D4').value, /^Y2 · /);
-  assert.equal(detail.getCell('F4').value, 'Total Cost');
+  assert.match(cachedValue(detail.getCell('D4')), /^Y2 · /);
+  assert.equal(cachedValue(detail.getCell('F4')), 'Total Cost');
   assert.deepEqual(
-    [detail.getCell('D5').value, detail.getCell('E5').value],
+    [cachedValue(detail.getCell('D5')), cachedValue(detail.getCell('E5'))],
     ['Sites', 'Cost (SGD)'],
   );
-  assert.equal(detail.getCell('A6').value, 'West · 2 rows');
-  assert.equal(detail.getCell('A7').value, snapshot.costRows[0].scope);
-  assert.equal(detail.getCell('A8').value, snapshot.costRows[2].scope);
-  assert.equal(detail.getCell('A9').value, 'East · 1 row');
-  assert.equal(detail.getCell('A10').value, snapshot.costRows[1].scope);
-  assert.equal(detail.getCell('A11').value, 'Unassigned Group · 1 row');
-  assert.equal(detail.getCell('A12').value, snapshot.costRows[3].scope);
+  assert.equal(cachedValue(detail.getCell('A6')), 'West · 2 rows');
+  assert.equal(cachedValue(detail.getCell('A7')), snapshot.costRows[0].scope);
+  assert.equal(cachedValue(detail.getCell('A8')), snapshot.costRows[2].scope);
+  assert.equal(cachedValue(detail.getCell('A9')), 'East · 1 row');
+  assert.equal(cachedValue(detail.getCell('A10')), snapshot.costRows[1].scope);
+  assert.equal(cachedValue(detail.getCell('A11')), 'Unassigned Group · 1 row');
+  assert.equal(cachedValue(detail.getCell('A12')), snapshot.costRows[3].scope);
   assert.equal(
-    detail.getCell('C7').value,
+    cachedValue(detail.getCell('C7')),
     snapshot.resourceTypes.find(
       (resource) => resource.id === snapshot.costRows[0].reTypeId,
     ).name,
   );
   assert.equal(
-    detail.getCell('E8').value,
+    cachedValue(detail.getCell('E8')),
     displayedRows(snapshot)[2].years[1].cost,
   );
   assert.equal(
-    detail.getCell('F7').value,
+    cachedValue(detail.getCell('F7')),
     totalRowCost(displayedRows(snapshot)[0]),
   );
-  assert.match(detail.getCell('A3').value, /Grouped · Y2/);
+  assert.match(cachedValue(detail.getCell('A3')), /Grouped · Y2/);
   assert.match(
-    detail.getCell('A3').value,
+    cachedValue(detail.getCell('A3')),
     /summaries and Cost Statement cover all years/,
   );
-  assert.match(detail.getCell('A13').value, /Visible Total · 4 rows/);
+  assert.match(cachedValue(detail.getCell('A13')), /Visible Total · 4 rows/);
   assert.equal(
-    detail.getCell('E13').value,
+    cachedValue(detail.getCell('E13')),
     roundMoney(
       displayedRows(snapshot)
         .slice(0, 4)
@@ -99,7 +105,7 @@ test('Personnel export follows custom groups, retains canonical order within eac
     ),
   );
   assert.equal(
-    detail.getCell('F13').value,
+    cachedValue(detail.getCell('F13')),
     roundMoney(
       displayedRows(snapshot)
         .slice(0, 4)
@@ -109,9 +115,15 @@ test('Personnel export follows custom groups, retains canonical order within eac
   assert.equal(detail.views[0].ySplit, 5);
   assert.equal(detail.views[0].xSplit, 1);
   const legacy = workbook.getWorksheet('Legacy Subcon');
-  assert.equal(legacy.getCell('A5').value, snapshot.costRows[4].scope);
-  assert.equal(legacy.getCell('D5').value, totalRowCost(snapshot.costRows[4]));
-  assert.equal(legacy.getCell('D6').value, totalRowCost(snapshot.costRows[4]));
+  assert.equal(cachedValue(legacy.getCell('A5')), snapshot.costRows[4].scope);
+  assert.equal(
+    cachedValue(legacy.getCell('D5')),
+    totalRowCost(snapshot.costRows[4]),
+  );
+  assert.equal(
+    cachedValue(legacy.getCell('D6')),
+    totalRowCost(snapshot.costRows[4]),
+  );
   assert.doesNotMatch(
     JSON.stringify(sheetValues(detail)),
     /Cutover Subcontract|rt-hq|Check|Action/,
@@ -138,20 +150,20 @@ test('Year filtering and reordered columns preserve split annual header segments
     })
   ).getWorksheet('Cost Detail');
   assert.equal(all.columnCount, 7);
-  assert.match(all.getCell('A4').value, /^Y2 · /);
-  assert.equal(all.getCell('B4').value, 'Scope');
-  assert.match(all.getCell('C4').value, /^Y1 · /);
+  assert.match(cachedValue(all.getCell('A4')), /^Y2 · /);
+  assert.equal(cachedValue(all.getCell('B4')), 'Scope');
+  assert.match(cachedValue(all.getCell('C4')), /^Y1 · /);
   assert.equal(all.getCell('D4').master.address, 'D4');
   assert.deepEqual(all.model.merges, []);
-  assert.equal(all.getCell('E4').value, 'Total MD');
-  assert.match(all.getCell('F4').value, /^Y1 · /);
-  assert.match(all.getCell('G4').value, /^Y2 · /);
+  assert.equal(cachedValue(all.getCell('E4')), 'Total MD');
+  assert.match(cachedValue(all.getCell('F4')), /^Y1 · /);
+  assert.match(cachedValue(all.getCell('G4')), /^Y2 · /);
   assert.equal(
-    all.getCell('A6').value,
+    cachedValue(all.getCell('A6')),
     displayedRows(snapshot)[0].years[1].cost,
   );
   assert.equal(
-    all.getCell('F6').value,
+    cachedValue(all.getCell('F6')),
     displayedRows(snapshot)[0].years[0].cost,
   );
   const focused = (
@@ -159,11 +171,11 @@ test('Year filtering and reordered columns preserve split annual header segments
   ).getWorksheet('Cost Detail');
   assert.equal(focused.columnCount, 5);
   assert.deepEqual(
-    [focused.getCell('A4').value, focused.getCell('D4').value],
+    [cachedValue(focused.getCell('A4')), cachedValue(focused.getCell('D4'))],
     ['Scope', 'Total MD'],
   );
-  assert.match(focused.getCell('B4').value, /^Y1 · /);
-  assert.match(focused.getCell('E4').value, /^Y1 · /);
+  assert.match(cachedValue(focused.getCell('B4')), /^Y1 · /);
+  assert.match(cachedValue(focused.getCell('E4')), /^Y1 · /);
   assert.doesNotMatch(JSON.stringify(values(focused.getRow(4), 5)), /Y2/);
   const noAnnual = (
     await exported(snapshot, {
@@ -177,11 +189,11 @@ test('Year filtering and reordered columns preserve split annual header segments
     'Total Cost',
     'Scope',
   ]);
-  assert.equal(noAnnual.getCell('C5').value, snapshot.costRows[0].scope);
+  assert.equal(cachedValue(noAnnual.getCell('C5')), snapshot.costRows[0].scope);
   assert.equal(noAnnual.views[0].ySplit, 4);
   assert.equal(noAnnual.pageSetup.printTitlesRow, '1:4');
   assert.equal(
-    noAnnual.getCell('B5').value,
+    cachedValue(noAnnual.getCell('B5')),
     totalRowCost(displayedRows(snapshot)[0]),
   );
 });
@@ -217,18 +229,18 @@ test('Direct MD uses page dashes and numeric totals remain aligned even when onl
       yearIndex: 1,
     })
   ).getWorksheet('Cost Detail');
-  assert.equal(detail.getCell('C6').value, '—');
-  assert.equal(detail.getCell('D6').value, '—');
-  assert.equal(detail.getCell('E6').value, 2.5);
-  assert.equal(detail.getCell('F6').value, 0);
-  assert.equal(detail.getCell('G6').value, 2.5);
+  assert.equal(cachedValue(detail.getCell('C6')), '—');
+  assert.equal(cachedValue(detail.getCell('D6')), '—');
+  assert.equal(cachedValue(detail.getCell('E6')), 2.5);
+  assert.equal(cachedValue(detail.getCell('F6')), 0);
+  assert.equal(cachedValue(detail.getCell('G6')), 2.5);
   assert.equal(
-    detail.getCell('B6').value,
+    cachedValue(detail.getCell('B6')),
     displayedRows(snapshot)[0].years[1].cost,
   );
   assert.match(detail.getCell('B6').numFmt, /S\$/);
   assert.equal(
-    detail.getCell(detail.rowCount, 7).value,
+    cachedValue(detail.getCell(detail.rowCount, 7)),
     snapshot.costRows
       .slice(0, 4)
       .reduce((sum, input) => sum + totalRowMandays(input), 0),
@@ -241,7 +253,7 @@ test('Direct MD uses page dashes and numeric totals remain aligned even when onl
     })
   ).getWorksheet('Cost Detail');
   assert.equal(
-    numeric.getCell(numeric.rowCount, 1).value,
+    cachedValue(numeric.getCell(numeric.rowCount, 1)),
     roundMoney(
       displayedRows(snapshot)
         .slice(0, 4)
@@ -249,13 +261,13 @@ test('Direct MD uses page dashes and numeric totals remain aligned even when onl
     ),
   );
   assert.equal(
-    numeric.getCell(numeric.rowCount, 2).value,
+    cachedValue(numeric.getCell(numeric.rowCount, 2)),
     snapshot.costRows
       .slice(0, 4)
       .reduce((sum, input) => sum + totalRowMandays(input), 0),
   );
   assert.equal(
-    numeric.getCell(numeric.rowCount, 3).value,
+    cachedValue(numeric.getCell(numeric.rowCount, 3)),
     snapshot.costRows
       .slice(0, 4)
       .reduce((sum, input) => sum + yearRowMandays(input, 1), 0),
@@ -299,7 +311,15 @@ test('Personnel layout never narrows business summaries, Cost Statement or struc
       sheetValues(baseline.getWorksheet(name)),
     );
   assert.deepEqual(snapshot, original);
-  assert.equal(baseline.getWorksheet('Cost Detail').columnCount, 22);
+  assert.equal(baseline.getWorksheet('Cost Detail').columnCount, 23);
+  assert.ok(
+    baseline
+      .getWorksheet('Cost Detail')
+      .getRow(4)
+      .values.some(
+        (label) => typeof label === 'string' && label.includes('Category'),
+      ),
+  );
   assert.equal(baseline.getWorksheet('Legacy Subcon'), undefined);
 });
 
@@ -331,9 +351,9 @@ test('Explicit export clones layout and cost snapshot before awaiting and omits 
   const workbook = await load(await pending);
   const detail = workbook.getWorksheet('Cost Detail');
   assert.equal(detail.columnCount, 3);
-  assert.equal(detail.getCell('A5').value, 'West · 2 rows');
-  assert.equal(detail.getCell('A6').value, originalScope);
-  assert.equal(detail.getCell('B6').value, originalCost);
+  assert.equal(cachedValue(detail.getCell('A5')), 'West · 2 rows');
+  assert.equal(cachedValue(detail.getCell('A6')), originalScope);
+  assert.equal(cachedValue(detail.getCell('B6')), originalCost);
   assert.doesNotMatch(
     JSON.stringify(workbook.worksheets.map(sheetValues)),
     /PRIVATE-|Concurrent changed/,

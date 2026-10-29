@@ -62,6 +62,73 @@ const groupOf = (row: CostInputRow) => row.groupName?.trim() || '';
 const validGroup = (groupName: string) =>
   Array.from(groupName.trim()).length <= 200;
 
+export type PersonnelGroupCopy = {
+  groupName: string;
+  nextGroupName: string;
+  rowIds: string[];
+  newRowIds: string[];
+};
+
+export function nextPersonnelGroupCopyName(
+  rows: CostInputRow[],
+  groupName: string,
+): string {
+  const names = new Set(rows.map(groupOf));
+  const base = groupName.trim() || 'Unassigned Group';
+  for (let index = 1; ; index += 1) {
+    const suffix = index === 1 ? ' (copy)' : ` (copy ${index})`;
+    const name = `${Array.from(base)
+      .slice(0, 200 - suffix.length)
+      .join('')}${suffix}`;
+    if (!names.has(name)) return name;
+  }
+}
+
+/** Copy current raw inputs, never displayed travel allocations or imported-row identity. */
+export function copyPersonnelGroup(
+  current: CostInputRow[],
+  resources: ResourceType[],
+  request: PersonnelGroupCopy,
+  locked = false,
+): CostInputRow[] | null {
+  const name = request.nextGroupName.trim();
+  if (locked || !name || !validGroup(name) || !request.rowIds.length)
+    return null;
+  const personnel = current.filter(
+    (row) => !isLegacySubcontractRow(row, resources),
+  );
+  const members = personnel.filter(
+    (row) => groupOf(row) === request.groupName.trim(),
+  );
+  const ids = new Set(request.rowIds);
+  const newIds = new Set(request.newRowIds);
+  if (
+    personnel.some((row) => groupOf(row) === name) ||
+    ids.size !== request.rowIds.length ||
+    members.length !== ids.size ||
+    members.some((row) => !ids.has(row.id)) ||
+    newIds.size !== members.length ||
+    request.newRowIds.length !== members.length ||
+    request.newRowIds.some((id) => !id.trim()) ||
+    current.some((row) => newIds.has(row.id))
+  )
+    return null;
+  const copies = members.map((row, index) => {
+    const copy = structuredClone(row);
+    copy.id = request.newRowIds[index];
+    copy.groupName = name;
+    // Duplicates are independent manual inputs; re-import must only match the original.
+    delete copy.source;
+    return copy;
+  });
+  const insertion = current.findLastIndex((row) => ids.has(row.id)) + 1;
+  return [
+    ...current.slice(0, insertion),
+    ...copies,
+    ...current.slice(insertion),
+  ];
+}
+
 /** Reorder personnel slots without moving or rewriting legacy Subcon entries. */
 function replacePersonnelSlots(
   current: CostInputRow[],

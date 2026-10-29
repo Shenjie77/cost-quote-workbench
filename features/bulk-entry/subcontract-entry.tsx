@@ -55,7 +55,29 @@ export function SubcontractBulkEntryPage({
   const sheets: EntrySheet[] = targets.map((t) => ({
     id: t.id,
     name: t.name,
+    rows: (t.target.kind === 'project'
+      ? value.lines
+      : (value.siteTypes.find(
+          (site) => t.target.kind === 'site' && site.id === t.target.id,
+        )?.lines ?? [])
+    ).map((line) => ({
+      id: line.id,
+      code: line.code,
+      description: line.description,
+      category: line.category ?? '',
+      ...('quantities' in line
+        ? Object.fromEntries(
+            line.quantities.map((quantity, i) => [`quantity:${i}`, quantity]),
+          )
+        : { quantityPerSite: line.quantityPerSite }),
+    })),
     columns: [
+      {
+        key: 'category',
+        label: 'Category',
+        kind: 'text',
+        description: 'Quotation category; blank uses the normal cost category.',
+      },
       {
         key: 'code',
         label: 'Item Code',
@@ -93,13 +115,20 @@ export function SubcontractBulkEntryPage({
               required: true,
             },
           ]),
+      {
+        key: 'id',
+        label: 'Row ID',
+        kind: 'text',
+        description:
+          'Keep to update the same row. Blank matches a unique catalog item or adds a new item.',
+      },
     ],
   }));
   const basis = subcontractEntryContext(value, catalog, actualYears);
   return (
     <BulkEntryPage
       draftId={`bulk:subcontract:${workspaceKey}`}
-      target={`${workspaceKey} · Subcontract · Append catalog items; rates come from Master Data`}
+      target={`${workspaceKey} · Subcontract · Update quantities; existing item rates are retained`}
       sheets={sheets}
       initialSheet={target.kind === 'project' ? 'project' : `site-${target.id}`}
       contextKey={basis}
@@ -153,22 +182,11 @@ export function SubcontractBulkEntryPage({
         return {
           payload,
           issues,
-          summary: `${count} subcontract items to append across ${payload.length} sheets`,
+          summary: `${count} subcontract items to save across ${payload.length} sheets`,
           count,
         };
       }}
-      onImport={(batch) =>
-        onConfirm(
-          batch.map((b) => ({
-            ...b,
-            lines: b.lines.map((line) => ({
-              ...line,
-              id: `SC-${crypto.randomUUID()}`,
-            })),
-          })),
-          basis,
-        )
-      }
+      onImport={(batch) => onConfirm(batch, basis)}
     />
   );
 }

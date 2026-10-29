@@ -1,5 +1,7 @@
 /** Every public cost consumer uses delivery dates with the independent Subcon baseline. */
 import assert from 'node:assert/strict';
+const cachedScalar = (value) => (value?.formula ? (value.result ?? 0) : value);
+const cachedValue = (cell) => cachedScalar(cell.value);
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -216,17 +218,18 @@ test('both cost workbook formats export actual years, base prices, rate assumpti
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(await build(snapshot));
     const detail = book.getWorksheet('Subcon Detail');
-    assert.equal(detail.getCell('F5').value, 100);
-    assert.equal(detail.getCell('J4').value, 'Y1 2028 Qty');
-    assert.equal(detail.getCell('K4').value, 'Y1 2028 Cost');
-    assert.equal(detail.getCell('K5').value, 110);
-    assert.equal(detail.getCell('M5').value, 132);
-    assert.equal(detail.getCell(detail.rowCount, 9).value, 242);
+    assert.equal(cachedValue(detail.getCell('F5')), 100);
+    assert.equal(cachedValue(detail.getCell('J4')), 'Y1 2028 Qty');
+    assert.equal(cachedValue(detail.getCell('K4')), 'Y1 2028 Cost');
+    assert.match(detail.getCell('K5').formula, /Subcon Rates/);
+    assert.equal(cachedValue(detail.getCell('K5')), 110);
+    assert.equal(cachedValue(detail.getCell('M5')), 132);
+    assert.equal(cachedValue(detail.getCell(detail.rowCount, 9)), 242);
     const rates = book.getWorksheet('Subcon Rates');
-    assert.equal(rates.getCell('B5').value, 2027);
-    assert.equal(rates.getCell('D4').value, 'Y1 2028');
+    assert.equal(cachedValue(rates.getCell('B5')), 2027);
+    assert.equal(cachedValue(rates.getCell('D4')), 'Y1 2028');
     assert.deepEqual(rates.getRow(5).values.slice(4), [10, 20, 0, 0, 0]);
-    assert.equal(rates.getCell('D6').value, 1.1);
+    assert.equal(cachedValue(rates.getCell('D6')), 1.1);
     const statement = book.getWorksheet(
       full ? '06_Cost_Statement' : 'Cost Statement',
     );
@@ -245,14 +248,14 @@ test('both cost workbook formats export actual years, base prices, rate assumpti
     assert.equal(settlement.getCell(1).font.bold, true);
     if (full) {
       assert.equal(
-        settlement.getCell(5).value,
+        cachedValue(settlement.getCell(5)),
         'MANUAL',
         'presentation does not turn settlement into an automatic account',
       );
       const statuses = [];
       book.getWorksheet('07_Reconciliation').eachRow((row) =>
         row.eachCell((cell) => {
-          if (cell.value?.formula?.startsWith('IF('))
+          if (cell.value?.formula?.includes('"PASS","FAIL"'))
             statuses.push(cell.value.result);
         }),
       );
@@ -291,8 +294,8 @@ test('CPQ baseline export preserves the archived delivery dates and Subcon assum
   const parameters = book.getWorksheet('Rates and Assumptions');
   let settings;
   parameters.eachRow((row) => {
-    if (row.getCell(1).value === 'Subcon rate settings')
-      settings = JSON.parse(row.getCell(2).value);
+    if (cachedValue(row.getCell(1)) === 'Subcon rate settings')
+      settings = JSON.parse(cachedValue(row.getCell(2)));
   });
   assert.deepEqual(settings, baseline.subcontractCost.rateSettings);
 });
@@ -309,13 +312,15 @@ test('exported prices stay flat through a future Subcon base year and only then 
   await book.xlsx.load(await buildSimpleCostWorkbookBytes(snapshot));
   const detail = book.getWorksheet('Subcon Detail');
   assert.deepEqual(
-    [11, 13, 15, 17, 19].map((column) => detail.getCell(5, column).value),
+    [11, 13, 15, 17, 19].map((column) =>
+      cachedValue(detail.getCell(5, column)),
+    ),
     [100, 100, 100, 110, 121],
   );
-  assert.equal(detail.getCell(detail.rowCount, 9).value, 531);
+  assert.equal(cachedValue(detail.getCell(detail.rowCount, 9)), 531);
   const factors = book.getWorksheet('Subcon Rates').getRow(6).values.slice(4);
   assert.deepEqual(
-    factors.map((factor) => Math.round(factor * 100) / 100),
+    factors.map((factor) => Math.round(cachedScalar(factor) * 100) / 100),
     [1, 1, 1, 1.1, 1.21],
   );
 });

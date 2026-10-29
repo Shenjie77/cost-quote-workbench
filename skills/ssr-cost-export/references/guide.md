@@ -19,3 +19,5 @@ cost-cli cost export --project-id ID --version V1 --output outputs/Cost-new.xlsx
 用户要求“简易导出/按页面导出”时，运行 `cost export --project-id ID --version Vn --format simple --output outputs/Cost-simple.xlsx`。工作表含人员明细及 Scope/BU/RE Type/Group/分包汇总等，数量随数据及配置变化；HQ 差旅使用共享计算结果。CLI 不继承浏览器视图/工作表勾选。省略 format 或 `--format full` 输出完整审计工作簿。两种格式都取该版本已计算结果，支持锁版只读导出，不更改成本。
 
 项目导出自动归档生成文件，模板导出还保留输入模板；可用 `files list --project-id ID --category cost --version Vn` 核对文件。归档失败仍返回错误，即使输出文件已生成；按已完成状态用 `files upload` 补归档，不把错误当作完整成功。上传不完成节点或解锁成本，参数按需查 [CLI 文档归档](../../../docs/cli-control-manual.md#project-documents-and-archive-location)。
+
+Simple / Full 及 Quotation + Simple Cost 导出保留 Excel 公式和缓存结果。人员数量、分包数量与单价连接明细和汇总；Simple 的隐藏 Cost Calculations 表处理 HQ 差旅分摊。Category 随明细导出，Summary Group 按 Category + Group 区分。省略明细或年度时保留该部分已捕获输入；Excel 修改不回写平台，新增来源行或变更分组后应从平台重新导出。详见 [导出公式](../../../docs/excel-export.md)。

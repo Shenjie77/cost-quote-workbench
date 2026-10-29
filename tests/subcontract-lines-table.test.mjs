@@ -81,7 +81,7 @@ const tableProps = (line, extra = {}) => ({
   ...extra,
 });
 
-test('focused annual details display the selected year without inline editing', () => {
+test('focused annual details directly edit only the selected year quantity', () => {
   const original = item();
   const changes = [];
   const props = tableProps(original, {
@@ -89,7 +89,7 @@ test('focused annual details display the selected year without inline editing', 
     onChange: (line) => changes.push(line),
   });
   const html = render(SubcontractLinesTable, props);
-  assert.equal((html.match(/data-slot="table-head"/g) || []).length, 8);
+  assert.equal((html.match(/data-slot="table-head"/g) || []).length, 9);
   assert.match(html, /Y3 Qty/);
   assert.match(html, /600.00/);
   assert.doesNotMatch(
@@ -102,8 +102,19 @@ test('focused annual details display the selected year without inline editing', 
     html,
     /aria-label="ROUTER unit"|aria-label="ROUTER item"/,
   );
-  assert.doesNotMatch(html, /<input/);
-  assert.deepEqual(changes, []);
+  assert.equal((html.match(/<input/g) || []).length, 2);
+  const quantity = walk(SubcontractLinesTable(props)).find(
+    (node) => node.type === SubcontractNumberInput,
+  );
+  SubcontractNumberInput(quantity.props).props.onChange({
+    target: { value: '7' },
+  });
+  assert.deepEqual(changes[0].quantities, [1, 2, 7, 4, 5]);
+  assert.equal(changes[0].unitPrice, 200);
+  assert.match(
+    render(SubcontractLinesTable, tableProps(changes[0], { yearIndex: 2 })),
+    /1,400.00/,
+  );
   assert.deepEqual(original.quantities, [1, 2, 3, 4, 5]);
 });
 
@@ -114,18 +125,77 @@ test('all-year view shows five quantity allocations and site mode shows per-site
   );
   assert.equal((html.match(/ROUTER Y[1-5] quantity/g) || []).length, 5);
   assert.match(html, /3,000.00/);
-  assert.equal((html.match(/<col style=/g) || []).length, 12);
-  assert.doesNotMatch(html, /<input/);
+  assert.equal((html.match(/<col style=/g) || []).length, 13);
+  assert.equal((html.match(/<input/g) || []).length, 6);
   const site = item({ unit: 'm', quantityPerSite: 2.5 });
   delete site.quantities;
   const siteHtml = render(
     SubcontractLinesTable,
     tableProps(site, { project: false }),
   );
-  assert.equal((siteHtml.match(/data-slot="table-head"/g) || []).length, 8);
+  assert.equal((siteHtml.match(/data-slot="table-head"/g) || []).length, 9);
   assert.match(siteHtml, /Qty \/ Site/);
   assert.match(siteHtml, /500.00/);
   assert.doesNotMatch(siteHtml, /Y1 Qty|Y1 Cost/);
+});
+
+test('site quantity edits accept decimal units and immediately recalculate per-site cost', () => {
+  const site = item({ unit: 'm', quantityPerSite: 2.5 });
+  delete site.quantities;
+  const changes = [];
+  const props = tableProps(site, {
+    project: false,
+    onChange: (line) => changes.push(line),
+  });
+  const input = walk(SubcontractLinesTable(props)).find(
+    (node) => node.type === SubcontractNumberInput,
+  );
+  SubcontractNumberInput(input.props).props.onChange({
+    target: { value: '3.75' },
+  });
+  assert.equal(changes[0].quantityPerSite, 3.75);
+  assert.equal(site.quantityPerSite, 2.5);
+  assert.match(
+    render(SubcontractLinesTable, tableProps(changes[0], { project: false })),
+    /750.00/,
+  );
+});
+
+test('inline quantities reject negatives, fractional PCS and excessive values', () => {
+  const changes = [],
+    messages = [];
+  const input = walk(
+    SubcontractLinesTable(
+      tableProps(item(), {
+        onChange: (line) => changes.push(line),
+        announce: (message) => messages.push(message),
+      }),
+    ),
+  ).find((node) => node.type === SubcontractNumberInput);
+  for (const value of ['-1', '2.5', '1000001', 'NaN'])
+    SubcontractNumberInput(input.props).props.onChange({ target: { value } });
+  assert.equal(changes.length, 0);
+  assert.equal(messages.length, 4);
+  SubcontractNumberInput(input.props).props.onChange({ target: { value: '' } });
+  assert.deepEqual(changes[0].quantities, [0, 2, 3, 4, 5]);
+});
+
+test('subcontract category edits preserve quantities and locks block the inline handler', () => {
+  const changes = [];
+  const field = (locked) =>
+    walk(
+      SubcontractLinesTable(
+        tableProps(item(), {
+          locked,
+          onChange: (line) => changes.push(line),
+        }),
+      ),
+    ).find((node) => node.props['aria-label'] === 'ROUTER category');
+  field(false).props.onChange({ target: { value: 'Installation' } });
+  assert.equal(changes[0].category, 'Installation');
+  assert.deepEqual(changes[0].quantities, [1, 2, 3, 4, 5]);
+  field(true).props.onChange({ target: { value: 'Changed' } });
+  assert.equal(changes.length, 1);
 });
 
 test('item editing stages text and price until Save; Cancel leaves the saved version untouched', () => {

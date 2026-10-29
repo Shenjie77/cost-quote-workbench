@@ -31,3 +31,5 @@ cost-cli masterdata update --tab resources --input change.json --expected-revisi
 全局更新不改变已有项目或历史快照。来源冲突须按用户提供的完整正确条目解决，不能仅传局部字段或猜值覆盖。
 
 Category、Pool、Level 独立于编码：internal 必须设置 LOCAL/ARP/HQ/OTHER 之一与 L0–L4；subcontract 的 pool/level 为 null 且 hqTravel 为 false。HQ 人员启用 hqTravel，LOCAL/ARP/OTHER 禁用。这些 hqTravel 标记保留历史兼容，新版成本仍必须显式启用 HQ Travel 才按 HQ 人力计费。OTHER 用于远程支持等不适用 HQ 差旅的自有人员，也可在成本版本中按实际需要选择 3% allowance，仍按本条目的人天费率及年度 uplift 正常计算；Level 仍按实际等级填写。变更分类时一次 upsert 所有依赖字段，保留用户原 code；自定义唯一 code 合法，不要求等于 Pool-Level。页面新增默认 internal/LOCAL/L1，可手动修改种类、Pool、Level 与编码，不能根据编码自动把新条目归为分包。
+
+页面 Bulk Entry 打开当前目录记录及 ID，Validate → Apply changes 更新同一记录，新记录新增、未列出的记录保留；不恢复已应用旧批次。可选文本/列表可直接清空。独立 Import XLSX 的空白字段仍保留原值；CLI 继续按稳定 ID upsert，省略字段表示保留，不能混用这三种输入语义。

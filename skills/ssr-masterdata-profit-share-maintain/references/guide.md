@@ -14,3 +14,5 @@
 ```
 
 新项目捕获创建时的比例；用户明确要求已有项目采用最新比例时，转到 [商业报价编制](../../ssr-quote-price/SKILL.md)，使用 `project apply-masterdata --project-id ID --tab profit-share --expected-revision PROJECT_R`。该动作只更新当前项目定价快照，成本已确认也可应用，不修改锁定成本或历史报价。
+
+页面 Bulk Entry 打开当前目录记录及 ID，Validate → Apply changes 更新同一记录，新记录新增、未列出的记录保留；不恢复已应用旧批次。可选文本/列表可直接清空。独立 Import XLSX 的空白字段仍保留原值；CLI 继续按稳定 ID upsert，省略字段表示保留，不能混用这三种输入语义。

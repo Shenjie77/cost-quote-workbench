@@ -301,6 +301,11 @@ Important rules are:
 - `sites` is a non-negative integer;
 - explicit `mandays` supports direct effort entry; otherwise effort derives from `sites × mdPerSite`;
 - cost rows accept optional `groupName` for group summaries;
+- cost rows and structured Subcontract lines accept optional `category` (maximum
+  120 characters) for commercial quotation grouping. It is separate from
+  `groupName` and the ResourceType `category: internal|subcontract` classifier;
+- generated quotation lines retain cost category boundaries. The label `Optional`
+  alone does not exclude an amount; inclusion follows explicit quotation settings;
 - annual allocation requires a real TD delivery start date.
 
 `workspace-state/1.0.0` is deliberately more permissive than cost export:
@@ -384,6 +389,33 @@ of trying to write the projections.
 There is no Y0 in v2. The array position never substitutes for a missing or
 incorrect `bucket` value.
 
+### Cost Category and current-data bulk edits
+
+Use a normal `cost.update` request with `changes.upsert` such as
+`[{"id":"CI-HLD","category":"Integration"}]` for an existing personnel row.
+Submit `category:""` to clear it; omitting the field retains the saved category.
+Only the intended project/version changes, using the latest `--expected-revision`.
+For Subcontract, read `cost get --section subcontract` and submit the relevant
+`set.lines` / `set.siteTypes` arrays with each line's optional `category` and
+quantities, preserving other items because arrays replace whole values.
+
+Browser Bulk Entry now opens current rows and stable IDs. Validate and Apply
+changes update matching rows and add new ones; unlisted records remain. It does
+not restore old applied batches or require a new blank batch for repeated edits.
+Master Data can also match supported business keys. There is no dedicated CLI
+command for this window: use narrow resource updates with stable IDs. File-based
+`cost import` and `boq import` retain their documented source-deduplicated append
+behavior. A revised source file is not an instruction to delete its earlier rows.
+
+The browser's **Copy Group** duplicates all selected group's personnel inputs
+with new IDs, preserves Category and five-year effort, and inserts after the
+source group. Copies are independent manual rows, without imported `source`
+identity. CLI has no dedicated Copy Group command: explicitly create complete
+new personnel rows through `upsert`, and use `order` when placement matters.
+Never submit copied `source` metadata. **Subcon → Item details** directly edits
+Quantity / site or annual quantities; its CLI equivalent remains the complete
+Subcontract object/array update described above.
+
 ### Personnel groups and row order
 
 Read only the desired version with `cost get --project-id ID --version Vn
@@ -431,6 +463,10 @@ positions are browser preferences, not cost data or CLI mutations.
 The browser's **Simple Export** applies its current group/column/year view to
 Cost Detail. CLI `cost export --format simple` keeps the standard full-year
 layout and does not read browser preferences.
+Simple / Full exports retain formula cells and cached results. Personnel effort,
+Subcon quantities and unit prices feed detail, summaries and statement totals.
+Omitted inputs remain captured; Excel edits do not update platform data. See
+[Excel export formulas](excel-export.md).
 
 ### Resource Type and rate
 

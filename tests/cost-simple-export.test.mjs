@@ -33,8 +33,9 @@ const exportFixture = async (snapshot = makeCostSnapshot()) => ({
   snapshot,
   workbook: await load(await buildSimpleCostWorkbookBytes(snapshot)),
 });
+const cached = (cell) => (cell.formula ? (cell.result ?? 0) : cell.value);
 const values = (row, columns) =>
-  Array.from({ length: columns }, (_, index) => row.getCell(index + 1).value);
+  Array.from({ length: columns }, (_, index) => cached(row.getCell(index + 1)));
 
 test('simple export serializes visible business tables and Cost Input columns', async () => {
   const snapshot = makeCostSnapshot();
@@ -50,7 +51,9 @@ test('simple export serializes visible business tables and Cost Input columns', 
   snapshot.costRows[0].id = 'PRIVATE-INPUT-ID';
   const { workbook } = await exportFixture(snapshot);
   assert.deepEqual(
-    workbook.worksheets.map((sheet) => sheet.name),
+    workbook.worksheets
+      .filter((sheet) => sheet.state !== 'hidden')
+      .map((sheet) => sheet.name),
     [
       'Cost Detail',
       'Summary Group',
@@ -62,7 +65,7 @@ test('simple export serializes visible business tables and Cost Input columns', 
     ],
   );
   const detail = workbook.getWorksheet('Cost Detail');
-  assert.equal(detail.columnCount, 22);
+  assert.equal(detail.columnCount, 23);
   assert.deepEqual(values(detail.getRow(4), 7), [
     'Scope / 服务范围',
     'BU / 业务部',
@@ -72,10 +75,10 @@ test('simple export serializes visible business tables and Cost Input columns', 
     'Total MD\n总人天',
     'Total Cost\n总成本',
   ]);
-  assert.match(detail.getCell('H4').value, /^Y1 · /);
-  assert.match(detail.getCell('T4').value, /^Y5 · /);
+  assert.match(cached(detail.getCell('H4')), /^Y1 · /);
+  assert.match(cached(detail.getCell('T4')), /^Y5 · /);
   assert.deepEqual(
-    [8, 9, 10].map((column) => detail.getCell(5, column).value),
+    [8, 9, 10].map((column) => cached(detail.getCell(5, column))),
     ['Sites / 站点数', 'Mandays / 人天', 'Cost / 成本'],
   );
   const displayed = costRowsIncludingHQTravel(
@@ -96,25 +99,26 @@ test('simple export serializes visible business tables and Cost Input columns', 
     ]);
     row.years.forEach((year, yearIndex) => {
       const firstColumn = 8 + yearIndex * 3;
-      assert.equal(actual.getCell(firstColumn).value, year.sites);
+      assert.equal(cached(actual.getCell(firstColumn)), year.sites);
       assert.equal(
-        actual.getCell(firstColumn + 1).value,
+        cached(actual.getCell(firstColumn + 1)),
         yearRowMandays(row, yearIndex),
       );
       assert.equal(
-        actual.getCell(firstColumn + 2).value,
+        cached(actual.getCell(firstColumn + 2)),
         roundMoney(year.cost),
       );
-      assert.equal(
-        actual.getCell(firstColumn + 2).type,
-        ExcelJS.ValueType.Number,
+      assert.ok(
+        [ExcelJS.ValueType.Formula, ExcelJS.ValueType.Number].includes(
+          actual.getCell(firstColumn + 2).type,
+        ),
       );
       assert.match(actual.getCell(firstColumn + 2).numFmt, /S\$.*0\.00/);
     });
   });
-  assert.equal(detail.getCell('G6').value, totalRowCost(displayed[0]));
+  assert.equal(cached(detail.getCell('G6')), totalRowCost(displayed[0]));
   assert.equal(
-    detail.getCell(detail.rowCount, 7).value,
+    cached(detail.getCell(detail.rowCount, 7)),
     roundMoney(displayed.reduce((sum, row) => sum + totalRowCost(row), 0)),
   );
   assert.equal(detail.views[0].xSplit, 3);
@@ -169,22 +173,22 @@ test('simple dimensional sheets match page sorting, percentages, mandays and Tot
     ]);
     items.forEach((item, index) => {
       const row = sheet.getRow(5 + index);
-      assert.ok(row.getCell(1).value.startsWith(item.label));
-      assert.equal(row.getCell(2).value, item.cost);
+      assert.ok(cached(row.getCell(1)).startsWith(item.label));
+      assert.equal(cached(row.getCell(2)), item.cost);
       assert.equal(row.getCell(2).numFmt, ';;;');
-      assert.equal(row.getCell(3).value, item.mandays);
-      assert.equal(row.getCell(3).type, ExcelJS.ValueType.Number);
-      assert.match(row.getCell(3).numFmt, /MD \([\d.]+%\)/);
-      assert.equal(row.getCell(4).value, item.cost);
-      assert.equal(row.getCell(5).value, item.shareRatio);
+      assert.equal(cached(row.getCell(3)), item.mandays);
+      assert.equal(row.getCell(3).type, ExcelJS.ValueType.Formula);
+      assert.match(row.getCell(3).numFmt, /MD/);
+      assert.equal(cached(row.getCell(4)), item.cost);
+      assert.equal(cached(row.getCell(5)), item.shareRatio);
       assert.equal(row.getCell(5).numFmt, '0.0%');
     });
     assert.equal(
-      sheet.getCell(sheet.rowCount, 4).value,
+      cached(sheet.getCell(sheet.rowCount, 4)),
       statement.totalWithRisk,
     );
-    assert.equal(sheet.getCell(sheet.rowCount, 5).value, 1);
-    assert.equal(sheet.conditionalFormattings.length, items.length);
+    assert.equal(cached(sheet.getCell(sheet.rowCount, 5)), 1);
+    assert.ok(sheet.conditionalFormattings.length >= items.length);
     assert.equal(sheet.conditionalFormattings[0].rules[0].type, 'dataBar');
     assert.equal(
       sheet.conditionalFormattings[0].rules[0].color.argb,
@@ -215,12 +219,16 @@ test('simple Cost Statement keeps bilingual item and account together with page 
   expected.forEach((item, index) => {
     const row = sheet.getRow(5 + index);
     assert.equal(
-      row.getCell(1).value,
+      cached(row.getCell(1)),
       `${item.code ? `${item.code}  ` : ''}${item.en} / ${item.zh}`,
     );
     assert.equal(row.getCell(1).alignment.indent || 0, item.level);
-    assert.equal(row.getCell(2).value, item.amount);
-    assert.equal(row.getCell(2).type, ExcelJS.ValueType.Number);
+    assert.equal(cached(row.getCell(2)), item.amount);
+    assert.ok(
+      [ExcelJS.ValueType.Formula, ExcelJS.ValueType.Number].includes(
+        row.getCell(2).type,
+      ),
+    );
     assert.match(row.getCell(2).numFmt, /S\$.*0\.00/);
     const expectedFill =
       item.mode === 'grand-total'
@@ -237,7 +245,10 @@ test('simple Cost Statement keeps bilingual item and account together with page 
     if (item.mode === 'grand-total')
       assert.equal(row.getCell(1).font.color.argb, 'FFFFFFFF');
   });
-  assert.equal(sheet.getCell(sheet.rowCount, 2).value, expected.at(-1).amount);
+  assert.equal(
+    cached(sheet.getCell(sheet.rowCount, 2)),
+    expected.at(-1).amount,
+  );
 });
 
 test('simple statement and dimensions use shared automatic one-percent service-cost calculation', async () => {
@@ -265,7 +276,7 @@ test('simple statement and dimensions use shared automatic one-percent service-c
   const sheet = workbook.getWorksheet('Cost Statement');
   const rowIndex = rows.findIndex((row) => row.code === '2.3.4.2');
   assert.equal(
-    sheet.getCell(rowIndex + 5, 2).value,
+    cached(sheet.getCell(rowIndex + 5, 2)),
     roundMoney(
       (statement.labour +
         statement.subcontract +
@@ -276,7 +287,7 @@ test('simple statement and dimensions use shared automatic one-percent service-c
   for (const name of ['Summary Scope', 'Summary BU', 'Summary RE Type']) {
     const summary = workbook.getWorksheet(name);
     assert.equal(
-      summary.getCell(summary.rowCount, 4).value,
+      cached(summary.getCell(summary.rowCount, 4)),
       statement.totalWithRisk,
     );
   }
@@ -291,7 +302,7 @@ test('simple export reads Confirmed and Suspended versions without mutation and 
     assert.deepEqual(snapshot, original);
     const workbook = await load(bytes);
     assert.match(
-      workbook.getWorksheet('Cost Detail').getCell('A2').value,
+      cached(workbook.getWorksheet('Cost Detail').getCell('A2')),
       new RegExp(status),
     );
   }
@@ -309,11 +320,11 @@ test('simple export reads Confirmed and Suspended versions without mutation and 
   snapshot.costRows[0].years[0].cost = 1;
   const workbook = await load(await pending);
   assert.equal(
-    workbook.getWorksheet('Cost Detail').getCell('A6').value,
+    cached(workbook.getWorksheet('Cost Detail').getCell('A6')),
     expectedName,
   );
   assert.equal(
-    workbook.getWorksheet('Cost Detail').getCell('G6').value,
+    cached(workbook.getWorksheet('Cost Detail').getCell('G6')),
     expectedCost,
   );
 });
@@ -335,10 +346,10 @@ test('simple export handles direct mandays, applies shared validation and uses a
   );
   const { workbook } = await exportFixture(snapshot);
   const detail = workbook.getWorksheet('Cost Detail');
-  assert.equal(detail.getCell('D6').value, 0);
-  assert.equal(detail.getCell('E6').value, 0);
-  assert.equal(detail.getCell('F6').value, 1.2345);
-  assert.equal(detail.getCell('U6').value, 1.2345);
+  assert.equal(cached(detail.getCell('D6')), 0);
+  assert.equal(cached(detail.getCell('E6')), 0);
+  assert.equal(cached(detail.getCell('F6')), 1.2345);
+  assert.equal(cached(detail.getCell('U6')), 1.2345);
   snapshot.costRows[0].reTypeId = 'missing';
   await assert.rejects(buildSimpleCostWorkbookBytes(snapshot), (error) => {
     assert.match(error.message, /validation error/);
@@ -361,7 +372,10 @@ const sheetValues = (sheet) =>
   Array.from({ length: sheet.rowCount }, (_, index) =>
     values(sheet.getRow(index + 1), sheet.columnCount),
   );
-const sheetNames = (workbook) => workbook.worksheets.map((sheet) => sheet.name);
+const sheetNames = (workbook) =>
+  workbook.worksheets
+    .filter((sheet) => sheet.state !== 'hidden')
+    .map((sheet) => sheet.name);
 const personnelLayout = () => ({
   grouped: true,
   yearIndex: 1,
@@ -505,7 +519,9 @@ test('explicit all, single and multiple sheet selections preserve existing repor
       sheetNames(workbook),
       names.filter((name) => requested.includes(name)),
     );
-    for (const sheet of workbook.worksheets) {
+    for (const sheet of workbook.worksheets.filter(
+      (sheet) => sheet.state !== 'hidden',
+    )) {
       const expected = baseline.getWorksheet(sheet.name);
       assert.deepEqual(sheetValues(sheet), sheetValues(expected));
       assert.deepEqual(sheet.pageSetup, expected.pageSetup);
@@ -513,9 +529,9 @@ test('explicit all, single and multiple sheet selections preserve existing repor
       sheet.eachRow((row) =>
         row.eachCell((cell) => {
           if (cell.formula) {
-            assert.equal(sheet.name, 'Cost Detail');
-            assert.doesNotMatch(cell.formula, /!/);
-            assert.equal(typeof cell.result, 'number');
+            for (const match of cell.formula.matchAll(/'([^']+)'!/g))
+              assert.ok(workbook.getWorksheet(match[1]));
+            assert.equal(typeof (cell.result ?? 0), 'number');
           }
           assert.equal(cell.numFmt, expected.getCell(cell.address).numFmt);
         }),

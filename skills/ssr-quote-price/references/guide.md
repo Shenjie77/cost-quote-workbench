@@ -28,3 +28,7 @@
 涉及 BU 分成或采用最新比例时读 [分成定价](../references/profit-share.md)；仅填 remark 无需读取。
 
 新项目默认目标 GP 45%，历史值不自动改变。settings 的 `set.pricing` 支持 `lineRemarks:{报价行ID:内部理由}`（每项最多 4000 字符）及 `discountDescription`（最多 1000 字符，空字符串用模板默认）。pricing 合并一层，lineRemarks 映射需先保留其他行；内部 remark 不进入客户 Excel。仅改目标 GP 不覆盖独立行 GP 模式。
+
+人员行和结构化分包条目的 `category`（最多 120 字符）直接作为生成报价的 Category，独立于 Group 和 RE Type 分类；同一 Scope/Group 跨 Category 时保留分类边界。修改成本分类走成本更新，不手改已锁成本或历史报价。Category 名为 Optional 只是标签，不自动排除金额；报价纳入、手工明细及组设置按用户选择维护。仅检查分类无需读取全部技能或重新导入成本。
+
+成本 Category 传入新生成的报价明细；已保存的自动布局可在页面用 Refresh from Cost 刷新。该按钮会明确提示重建行数，保留可唯一匹配行的定价/备注/分组覆盖，新增或拆分行 GP 默认 45%，并处理已移除 Scope 的风险分配。CLI 没有同名刷新命令；不能以整体覆盖 pricing 模拟保留意图，应先读取并按明确需求更新。

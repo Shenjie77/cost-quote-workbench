@@ -17,6 +17,8 @@ export type SubcontractBulkTarget =
 export type SubcontractBulkLine = SubcontractCostLine | SubcontractSiteLine;
 export type SubcontractBulkColumn =
   | 'item'
+  | 'id'
+  | 'category'
   | 'code'
   | 'description'
   | 'bu'
@@ -60,6 +62,8 @@ const normalize = (value: string) =>
     .replace(/[\s_\-./()（）*`]+/g, '');
 const aliases: Record<string, SubcontractBulkColumn> = {};
 for (const [target, names] of Object.entries({
+  id: ['row id', 'id', 'record id'],
+  category: ['category', '类别', '报价分类'],
   item: ['item', 'code or description', 'code/description', '编码或描述'],
   code: [
     'code',
@@ -355,6 +359,8 @@ export function parseSubcontractBulkEntry(
       options.mapping[index] ?? detectColumn(label, basis.actualYears);
     const allowed =
       [
+        'id',
+        'category',
         'code',
         'item',
         'description',
@@ -430,6 +436,13 @@ export function parseSubcontractBulkEntry(
     quantityColumns.some(({ target }) => target === 'quantityPerSite')
   )
     preview.issues.push('Project BOQs use annual quantities, not Qty / Site.');
+  const existingLines: SubcontractBulkLine[] =
+    basis.target.kind === 'project'
+      ? basis.value.lines
+      : (basis.value.siteTypes.find(
+          (site) => basis.target.kind === 'site' && site.id === basis.target.id,
+        )?.lines ?? []);
+  const usedIds = new Set<string>();
   for (const record of records) {
     const issues: string[] = [];
     const field = (target: SubcontractBulkColumn) => {
@@ -440,21 +453,68 @@ export function parseSubcontractBulkEntry(
     };
     if (record.cells.slice(header.cells.length).some((cell) => cell.trim()))
       issues.push('This row has extra cells beyond the header.');
-    const match = findMasterItem(
-      basis.catalog,
-      field('code'),
-      field('description'),
-      field('item'),
-    );
+    const rowId = field('id');
+    let existing = rowId
+      ? existingLines.find((line) => line.id === rowId)
+      : undefined;
+    if (rowId && !existing)
+      issues.push(
+        'Row ID no longer exists in this BOQ. Reload current data or clear the ID to add an item.',
+      );
+    const sameIdentity =
+      existing &&
+      (!field('code') ||
+        catalogKey(field('code')) === catalogKey(existing.code)) &&
+      (!field('description') ||
+        catalogKey(field('description')) === catalogKey(existing.description));
+    const match = sameIdentity
+      ? { item: undefined, issue: undefined }
+      : findMasterItem(
+          basis.catalog,
+          field('code'),
+          field('description'),
+          field('item'),
+        );
     if (match.issue) issues.push(match.issue);
     const catalog = match.item;
-    // The master is the only source of business attributes; pasted values cannot create or override them.
-    const code = catalog?.code ?? (field('code') || field('item'));
-    const description = catalog?.item ?? field('description');
-    const bu = catalog?.bu || '';
-    const unit = catalog?.unit || '';
-    const currency = (catalog?.currency || '').trim().toUpperCase();
-    const unitPrice = catalog?.unitPrice ?? null;
+    if (!rowId && catalog) {
+      const matches = existingLines.filter(
+        (line) =>
+          line.catalogItemId === catalog.id ||
+          catalogKey(line.code) === catalogKey(catalog.code),
+      );
+      if (matches.length > 1)
+        issues.push(
+          'This item appears in multiple existing rows. Keep the Row ID of the row to update.',
+        );
+      else existing = matches[0];
+    }
+    const keepSnapshot =
+      existing &&
+      (!catalog ||
+        existing.catalogItemId === catalog.id ||
+        catalogKey(existing.code) === catalogKey(catalog.code));
+    const code = keepSnapshot
+      ? existing!.code
+      : (catalog?.code ?? (field('code') || field('item')));
+    const description = keepSnapshot
+      ? existing!.description
+      : (catalog?.item ?? field('description'));
+    const bu = keepSnapshot ? existing!.bu : catalog?.bu || '';
+    const unit = keepSnapshot ? existing!.unit : catalog?.unit || '';
+    const currency = (
+      keepSnapshot ? existing!.currency : catalog?.currency || ''
+    )
+      .trim()
+      .toUpperCase();
+    const unitPrice = keepSnapshot
+      ? existing!.unitPrice
+      : (catalog?.unitPrice ?? null);
+    if (field('category').length > 120)
+      issues.push('Category must be at most 120 characters.');
+    if (existing && usedIds.has(existing.id))
+      issues.push('This row is specified more than once in the update.');
+    if (existing) usedIds.add(existing.id);
     if (catalog) {
       for (const [name, value] of [
         ['Code', code],
@@ -505,8 +565,12 @@ export function parseSubcontractBulkEntry(
     if (!hasQuantity)
       issues.push('Enter at least one quantity; zero is allowed.');
     const base = {
-      id: `SUBCON-BULK-PREVIEW-${record.sourceRow}`,
+      ...existing,
+      id: existing?.id ?? `SC-${crypto.randomUUID()}`,
       ...(catalog ? { catalogItemId: catalog.id } : {}),
+      ...(preview.columns.some((column) => column.target === 'category')
+        ? { category: field('category') }
+        : {}),
       code,
       description,
       bu,
@@ -529,7 +593,7 @@ export function parseSubcontractBulkEntry(
   }
   // Validate combined totals, including annual adjustments and existing lines, before allowing the append.
   try {
-    const next = appendSubcontractBulkLines(
+    const next = updateSubcontractBulkLines(
       basis.value,
       preview.lines,
       basis.target,
@@ -588,9 +652,51 @@ export function confirmSubcontractBulkPreview({
     announce('Resolve all preview errors before confirming this batch.');
     return false;
   }
-  const lines = preview.lines.map((line) => ({
-    ...structuredClone(line),
-    id: `SC-${crypto.randomUUID()}`,
-  }));
+  const lines = structuredClone(preview.lines);
   return onConfirm(lines, preview.basisFingerprint);
+}
+
+/** Upsert the selected BOQ by row ID; missing rows and unrelated site BOQs are retained. */
+export function updateSubcontractBulkLines(
+  value: SubcontractCost,
+  lines: SubcontractBulkLine[],
+  target: SubcontractBulkTarget,
+): SubcontractCost {
+  // Reuse the shape/target validation before updating any data.
+  appendSubcontractBulkLines(value, [], target);
+  const merge = <T extends SubcontractBulkLine>(
+    current: T[],
+    edits: T[],
+  ): T[] => {
+    const pending = new Map<string, T>();
+    for (const line of edits) {
+      if (pending.has(line.id))
+        throw new Error('Duplicate subcontract Row ID.');
+      pending.set(line.id, structuredClone(line));
+    }
+    const merged = current.map((line) => {
+      const edit = pending.get(line.id);
+      pending.delete(line.id);
+      return edit ? { ...line, ...edit } : line;
+    });
+    return [...merged, ...pending.values()];
+  };
+  if (target.kind === 'project') {
+    if (lines.some((line) => !('quantities' in line)))
+      throw new Error('Project BOQs require annual quantities.');
+    return {
+      ...value,
+      lines: merge(value.lines, lines as SubcontractCostLine[]),
+    };
+  }
+  if (lines.some((line) => !('quantityPerSite' in line)))
+    throw new Error('Site BOQs require quantities per site.');
+  return {
+    ...value,
+    siteTypes: value.siteTypes.map((site) =>
+      site.id === target.id
+        ? { ...site, lines: merge(site.lines, lines as SubcontractSiteLine[]) }
+        : site,
+    ),
+  };
 }

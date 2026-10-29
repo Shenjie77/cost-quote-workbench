@@ -23,6 +23,7 @@ export type CalculationCommands = {
 /** A durable draft, separate from approved cost data. Recovery survives a failed API save. */
 export function CalculationEditor({
   draftId,
+  persistDraft = true,
   initialDocument,
   prepareDocument,
   readOnly = false,
@@ -40,6 +41,8 @@ export function CalculationEditor({
   onReady,
 }: {
   draftId: string;
+  /** Bulk updates edit a fresh snapshot and save only through Apply changes. */
+  persistDraft?: boolean;
   initialDocument: CalculationDocument;
   prepareDocument?: (document: CalculationDocument) => CalculationDocument;
   commandsRef?: RefObject<CalculationCommands | null>;
@@ -101,6 +104,7 @@ export function CalculationEditor({
 
   const keepRecovery = useCallback(
     (document: CalculationDocument) => {
+      if (!persistDraft) return;
       try {
         localStorage.setItem(
           recoveryKey,
@@ -110,10 +114,14 @@ export function CalculationEditor({
         /* The database save remains available when browser storage is full. */
       }
     },
-    [recoveryKey],
+    [recoveryKey, persistDraft],
   );
   const persist = useCallback(
     (document: CalculationDocument, retry = false) => {
+      if (!persistDraft) {
+        if (!disposed.current) setStatus('Apply changes to save');
+        return Promise.resolve();
+      }
       if (failure.current && !retry) return pending.current;
       const captured = structuredClone(document);
       const json = JSON.stringify(captured);
@@ -153,7 +161,7 @@ export function CalculationEditor({
       });
       return pending.current;
     },
-    [draftId, recoveryKey, keepRecovery],
+    [draftId, recoveryKey, keepRecovery, persistDraft],
   );
   const changed = useCallback(
     (document: CalculationDocument) => {
@@ -179,13 +187,14 @@ export function CalculationEditor({
     failure.current = false;
     void (async () => {
       try {
-        const record = await loadCalculation(draftId);
+        const record = persistDraft ? await loadCalculation(draftId) : null;
         if (cancelled) return;
         revision.current = record?.revision ?? null;
         let document = record?.document ?? initial.current;
-        savedJson.current = record ? JSON.stringify(document) : '';
+        savedJson.current =
+          record || !persistDraft ? JSON.stringify(document) : '';
         try {
-          const raw = localStorage.getItem(recoveryKey);
+          const raw = persistDraft ? localStorage.getItem(recoveryKey) : null;
           const recovery = raw ? JSON.parse(raw) : null;
           if (recovery?.document?.workbook) {
             document = recovery.document;
@@ -222,11 +231,13 @@ export function CalculationEditor({
         setReady(true);
         callbacks.current.onReady?.();
         setStatus(
-          failure.current
-            ? 'Recovery conflict'
-            : JSON.stringify(document) !== savedJson.current
-              ? 'Recovered / unsaved draft'
-              : 'Saved locally',
+          !persistDraft
+            ? 'Edit current data · Apply changes to save'
+            : failure.current
+              ? 'Recovery conflict'
+              : JSON.stringify(document) !== savedJson.current
+                ? 'Recovered / unsaved draft'
+                : 'Saved locally',
         );
         if (!failure.current) void persist(document);
       } catch (cause) {
@@ -259,7 +270,15 @@ export function CalculationEditor({
       if (loaded.current) void persist(latest.current);
     };
     // Each editor is keyed by its stable draft identity; callbacks use refs.
-  }, [draftId, generation, recoveryKey, changed, persist, pageLayout]);
+  }, [
+    draftId,
+    generation,
+    recoveryKey,
+    changed,
+    persist,
+    pageLayout,
+    persistDraft,
+  ]);
 
   useEffect(() => {
     editor.current?.setReadOnly(readOnly);
@@ -333,7 +352,7 @@ export function CalculationEditor({
     setError('');
     clearTimeout(timer.current);
     await pending.current;
-    if (fromCosts) {
+    if (fromCosts && persistDraft) {
       try {
         const record = await loadCalculation(draftId);
         const next = await saveCalculation(
@@ -383,15 +402,17 @@ export function CalculationEditor({
           Reload from costs
         </Button>
       )}
-      <Button
-        size="sm"
-        variant="outline"
-        className={pageLayout ? 'h-7' : undefined}
-        disabled={!ready || busy}
-        onClick={() => void save()}
-      >
-        Save draft
-      </Button>
+      {persistDraft && (
+        <Button
+          size="sm"
+          variant="outline"
+          className={pageLayout ? 'h-7' : undefined}
+          disabled={!ready || busy}
+          onClick={() => void save()}
+        >
+          Save draft
+        </Button>
+      )}
     </>
   );
   const actions = (

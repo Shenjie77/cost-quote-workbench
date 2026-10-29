@@ -1,7 +1,16 @@
 /** Direct personnel spreadsheet entry with optional year focus and Pool allowances. */
 import { useState } from 'react';
-import { ClipboardPaste, ListTree, Plus, Upload } from 'lucide-react';
+import { ClipboardPaste, Copy, ListTree, Plus, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { StatusBadge } from '@/components/workbench/status-badge';
 import { formatSgd } from '@/lib/formatters';
 import {
@@ -19,7 +28,10 @@ import {
   updatePersonnelCostRows,
 } from '../personnel-cost-rows';
 import { CostImportPanel } from './cost-import-panel';
-import { personnelBulkBasisFingerprint } from '../personnel-bulk-entry';
+import {
+  mergePersonnelBulkRows,
+  personnelBulkBasisFingerprint,
+} from '../personnel-bulk-entry';
 import { PersonnelBulkEntryPage } from '@/features/bulk-entry/personnel-entry';
 import type { PersonnelTableView } from '../use-personnel-table-view';
 import { PersonnelColumnSettings } from './personnel-column-settings';
@@ -28,6 +40,8 @@ import {
   movePersonnelGroup,
   type PersonnelGroupMove,
   renamePersonnelGroup,
+  copyPersonnelGroup,
+  nextPersonnelGroupCopyName,
   type PersonnelRowMove,
   type PersonnelGroupRename,
 } from '../personnel-row-layout';
@@ -46,6 +60,10 @@ import {
 } from './personnel-input-controls';
 
 import { costRowsIncludingHQTravel } from '../group-cost-summary';
+import {
+  groupPersonnelRows,
+  UNASSIGNED_PERSONNEL_GROUP,
+} from '../personnel-table-layout';
 import type { TravelSettings } from '../domain';
 
 /** Keep cost totals compact and all year, entry and display controls directly above the grid. */
@@ -80,6 +98,11 @@ export function CostInputSheet({
 }) {
   const [showImport, setShowImport] = useState(false);
   const [showBulkEntry, setShowBulkEntry] = useState(false);
+  const [copyGroup, setCopyGroup] = useState<{
+    groupName: string;
+    nextGroupName: string;
+    rowIds: string[];
+  } | null>(null);
   const {
     layout: { grouped, yearIndex },
     columnSettings,
@@ -92,6 +115,42 @@ export function CostInputSheet({
   const resources = allResourceTypes.filter(
     (resource) => resource.category === 'internal',
   );
+  const groups = groupPersonnelRows(rows);
+  const openCopyGroup = (groupName = groups[0]?.groupName) => {
+    if (locked || (canEditCost && !canEditCost())) return;
+    const group = groups.find((entry) => entry.groupName === groupName);
+    if (!group) return;
+    setCopyGroup({
+      groupName: group.groupName,
+      nextGroupName: nextPersonnelGroupCopyName(rows, group.groupName),
+      rowIds: group.rows.map((row) => row.id),
+    });
+  };
+  const insertGroupCopy = () => {
+    if (!copyGroup || locked || (canEditCost && !canEditCost())) return;
+    const request = {
+      ...copyGroup,
+      newRowIds: copyGroup.rowIds.map(() => `CI-${crypto.randomUUID()}`),
+    };
+    setAllRows((current) => {
+      const next = copyPersonnelGroup(current, allResourceTypes, request);
+      if (!next) {
+        queueMicrotask(() =>
+          announce(
+            'The group changed or its new name already exists. Reopen Copy Group and try again.',
+          ),
+        );
+        return current;
+      }
+      queueMicrotask(() =>
+        announce(
+          `${request.rowIds.length} rows copied to ${request.nextGroupName.trim()}.`,
+        ),
+      );
+      return next;
+    });
+    setCopyGroup(null);
+  };
   const [preferredMode, setPreferredMode] = useState<'sites' | 'mandays'>(() =>
     getPersonnelMode(rows) === 'mandays' ? 'mandays' : 'sites',
   );
@@ -312,6 +371,17 @@ export function CostInputSheet({
           size="sm"
           variant="outline"
           className="h-8 gap-1 px-2 text-xs"
+          disabled={locked || !groups.length}
+          onClick={() => openCopyGroup()}
+        >
+          <Copy className="size-3" />
+          Copy Group
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1 px-2 text-xs"
           disabled={locked || !resources.some((resource) => resource.active)}
           onClick={() => setShowBulkEntry(true)}
         >
@@ -395,6 +465,7 @@ export function CostInputSheet({
         onMoveRow={applyRowLayout}
         onRenameGroup={applyRowLayout}
         onMoveGroup={applyRowLayout}
+        onCopyGroup={openCopyGroup}
         locked={locked}
         announce={announce}
         onPatch={(id, patch) => {
@@ -417,11 +488,97 @@ export function CostInputSheet({
         resource and year. MD/Site applies to all years for that row. Draft
         changes save automatically. Subcontract costs are managed in Subcon.
       </div>
+      {copyGroup && (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setCopyGroup(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Copy Group</DialogTitle>
+              <DialogDescription>
+                Copy all rows, categories and Y1–Y5 inputs into an independent
+                group.
+              </DialogDescription>
+            </DialogHeader>
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                insertGroupCopy();
+              }}
+            >
+              <label className="grid gap-1.5 text-sm font-medium">
+                Source group
+                <select
+                  aria-label="Source group"
+                  className="h-9 rounded-md border border-border bg-white px-3 text-sm"
+                  value={copyGroup.groupName}
+                  disabled={locked}
+                  onChange={(event) => openCopyGroup(event.target.value)}
+                >
+                  {groups.map((group) => (
+                    <option key={group.groupName} value={group.groupName}>
+                      {group.groupName || UNASSIGNED_PERSONNEL_GROUP} ·{' '}
+                      {group.rows.length} rows
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-sm font-medium">
+                New group name
+                <Input
+                  aria-label="New group name"
+                  value={copyGroup.nextGroupName}
+                  maxLength={200}
+                  required
+                  disabled={locked}
+                  onChange={(event) =>
+                    setCopyGroup({
+                      ...copyGroup,
+                      nextGroupName: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {copyGroup.rowIds.length} rows will be inserted. Edit the copied
+                quantities or scope as needed.
+              </p>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCopyGroup(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    locked ||
+                    !copyGroup.nextGroupName.trim() ||
+                    groups.some(
+                      (group) =>
+                        group.groupName === copyGroup.nextGroupName.trim(),
+                    )
+                  }
+                >
+                  Insert Group Copy
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
       {showBulkEntry && (
         <PersonnelBulkEntryPage
           projectId={projectId ?? 'project'}
           versionCode={versionCode ?? 'draft'}
           resources={resources}
+          rows={rows}
           rates={rateSettings}
           locked={locked}
           onClose={() => setShowBulkEntry(false)}
@@ -441,9 +598,9 @@ export function CostInputSheet({
               );
               return false;
             }
-            setAllRows((current) => [...current, ...newRows]);
+            setAllRows((current) => mergePersonnelBulkRows(current, newRows));
             setShowBulkEntry(false);
-            announce(`${newRows.length} cost rows added.`);
+            announce(`${newRows.length} cost rows saved.`);
             return true;
           }}
         />

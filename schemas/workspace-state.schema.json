@@ -696,6 +696,10 @@
       "additionalProperties": false,
       "required": ["id", "scope", "bu", "reTypeId", "mdPerSite", "years"],
       "properties": {
+        "category": {
+          "type": "string",
+          "maxLength": 120
+        },
         "groupName": {
           "type": "string",
           "maxLength": 200

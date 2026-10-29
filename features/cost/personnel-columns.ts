@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 type PersonnelYearId = 'Y1' | 'Y2' | 'Y3' | 'Y4' | 'Y5';
 export type PersonnelColumnId =
   | 'groupName'
+  | 'category'
   | 'scope'
   | 'bu'
   | 'reType'
@@ -29,6 +30,7 @@ export const PERSONNEL_COLUMNS_STORAGE_KEY =
   'cost-workbench:personnel-columns:v1';
 export const PERSONNEL_COLUMN_SPECS: readonly PersonnelColumnSpec[] = [
   { id: 'groupName', label: 'Group', hideable: true },
+  { id: 'category', label: 'Category', hideable: true },
   { id: 'scope', label: 'Scope', hideable: true },
   { id: 'bu', label: 'BU', hideable: true },
   { id: 'reType', label: 'RE Type', hideable: true },
@@ -89,6 +91,10 @@ export function normalizePersonnelColumns(
   const order: PersonnelColumnId[] = [
     ...new Set([...data.order.filter((id) => knownIds.has(id)), ...ids]),
   ].filter((id) => id !== 'action');
+  if (!data.order.includes('category')) {
+    order.splice(order.indexOf('category'), 1);
+    order.splice(order.indexOf('groupName') + 1, 0, 'category');
+  }
   order.push('action');
   let hidden = [
     ...new Set(data.hidden.filter((id) => knownIds.has(id) && id !== 'action')),

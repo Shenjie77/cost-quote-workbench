@@ -73,7 +73,8 @@ export function BulkEntryPage<T>({
   onImport: (payload: T) => boolean | Promise<boolean>;
   onClose: () => void;
 }) {
-  const [initial] = useState(() => entryWorkbook(sheets));
+  const [initial, setInitial] = useState(() => entryWorkbook(sheets));
+  const [loadedContext, setLoadedContext] = useState(contextKey);
   const [selected, setSelected] = useState([initialSheet ?? sheets[0].id]);
   const [review, setReview] = useState<{
     preview: EntryPreview<T>;
@@ -83,13 +84,7 @@ export function BulkEntryPage<T>({
   const [busy, setBusy] = useState(false),
     [ready, setReady] = useState(false),
     [message, setMessage] = useState('');
-  const [batch, setBatch] = useState(() => {
-    try {
-      return Number(localStorage.getItem('bulk-current-batch:' + draftId)) || 0;
-    } catch {
-      return 0;
-    }
-  });
+  const [generation, setGeneration] = useState(0);
   const commands = useRef<CalculationCommands | null>(null),
     root = useRef<HTMLElement | null>(null),
     errors = useRef<HTMLDivElement | null>(null),
@@ -123,6 +118,10 @@ export function BulkEntryPage<T>({
     setMessage('');
     try {
       const doc = await commands.current!.read();
+      if (loadedContext !== latest.current.contextKey)
+        throw new Error(
+          'Current data changed while this window was open. Reload current data before editing.',
+        );
       const context = latest.current.contextKey;
       const preview = await latest.current.onPreview(doc, selected);
       if (context !== latest.current.contextKey)
@@ -143,7 +142,6 @@ export function BulkEntryPage<T>({
     inFlight.current = true;
     setBusy(true);
     setMessage('');
-    const receipts: string[] = [];
     try {
       const doc = await commands.current!.read();
       const content = contentKey(doc, selected);
@@ -152,29 +150,16 @@ export function BulkEntryPage<T>({
         latest.current.contextKey !== review.context
       )
         throw new Error(
-          'Data or destination changed after validation. Validate again before importing.',
+          'Data or destination changed after validation. Validate again before applying changes.',
         );
       if (review.preview.issues.length || !review.preview.count)
-        throw new Error('Resolve validation errors before importing.');
-      const receiptKeys = selected.map(
-        (id) => `cost-workbench.bulk-import.${draftId}:${batch}:${id}`,
-      );
-      if (receiptKeys.some((key) => localStorage.getItem(key)))
-        throw new Error(
-          'A selected sheet in this batch was already imported. Start a new batch before adding more rows.',
-        );
-      for (const key of receiptKeys) {
-        localStorage.setItem(key, 'imported');
-        receipts.push(key);
-      }
+        throw new Error('Resolve validation errors before applying changes.');
       if (!(await latest.current.onImport(review.preview.payload)))
         throw new Error(
-          'Import was not applied. The destination may have changed or become locked.',
+          'Changes were not applied. The destination may have changed or become locked.',
         );
-      receipts.length = 0;
       latest.current.onClose();
     } catch (error) {
-      for (const key of receipts) localStorage.removeItem(key);
       setMessage(error instanceof Error ? error.message : String(error));
       setReview(null);
     } finally {
@@ -182,11 +167,13 @@ export function BulkEntryPage<T>({
       inFlight.current = false;
     }
   };
-  const startBatch = async () => {
+  const reloadCurrent = async () => {
     if (
       inFlight.current ||
       !ready ||
-      !window.confirm('Start a blank batch? The previous draft remains saved.')
+      !window.confirm(
+        'Discard edits in this window and reload the current saved data?',
+      )
     )
       return;
     inFlight.current = true;
@@ -194,11 +181,11 @@ export function BulkEntryPage<T>({
     setMessage('');
     try {
       await commands.current!.read();
-      const next = Date.now();
-      localStorage.setItem('bulk-current-batch:' + draftId, String(next));
+      setInitial(entryWorkbook(sheets));
+      setLoadedContext(latest.current.contextKey);
       setReady(false);
       setReview(null);
-      setBatch(next);
+      setGeneration((current) => current + 1);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -210,7 +197,17 @@ export function BulkEntryPage<T>({
     if (inFlight.current) return;
     setBusy(true);
     try {
-      if (ready) await commands.current!.read();
+      if (ready) {
+        const document = await commands.current!.read();
+        const ids = sheets.map((sheet) => sheet.id);
+        if (
+          contentKey(document, ids) !== contentKey(initial, ids) &&
+          !window.confirm(
+            'Leave without applying these edits? Current saved data will be kept.',
+          )
+        )
+          return;
+      }
       latest.current.onClose();
     } catch (error) {
       setMessage(String(error));
@@ -241,7 +238,8 @@ export function BulkEntryPage<T>({
               {target}
             </span>
             <span className="ml-auto text-xs text-muted-foreground">
-              * Required · Paste values from row 2
+              Edit current rows · Blank Row ID adds a row · Unlisted rows are
+              kept
               {sheets.some((s) => s.columns.some((c) => c.requiredTogether))
                 ? ' · Code or Description: fill either'
                 : ''}
@@ -249,10 +247,10 @@ export function BulkEntryPage<T>({
           </header>
           <div
             className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b bg-muted/30 px-3 py-2 text-xs"
-            aria-label="Sheets to import"
+            aria-label="Sheets to update"
           >
             <span className="font-medium">
-              {singleSheet ? 'Import sheet:' : 'Import sheets:'}
+              {singleSheet ? 'Update sheet:' : 'Update sheets:'}
             </span>
             {sheets.map((sheet) => (
               <label key={sheet.id} className="flex items-center gap-1.5">
@@ -347,8 +345,9 @@ export function BulkEntryPage<T>({
               fallback={<p className="p-3 text-sm">Loading spreadsheet…</p>}
             >
               <CalculationEditor
-                key={`${draftId}:${batch}`}
-                draftId={batch ? `${draftId}:batch:${batch}` : draftId}
+                key={`${draftId}:${generation}`}
+                draftId={draftId}
+                persistDraft={false}
                 initialDocument={initial}
                 prepareDocument={(document) =>
                   upgradeEntryHeaders(document, sheets)
@@ -366,9 +365,9 @@ export function BulkEntryPage<T>({
                       size="sm"
                       variant="ghost"
                       disabled={!ready || busy}
-                      onClick={() => void startBatch()}
+                      onClick={() => void reloadCurrent()}
                     >
-                      <RotateCcw aria-hidden="true" /> New batch
+                      <RotateCcw aria-hidden="true" /> Reload current data
                     </Button>
                     <Button
                       size="sm"
@@ -391,7 +390,7 @@ export function BulkEntryPage<T>({
                       onClick={() => void commit()}
                     >
                       <Upload aria-hidden="true" />{' '}
-                      {busy ? 'Working…' : 'Import'}
+                      {busy ? 'Working…' : 'Apply changes'}
                     </Button>
                   </>
                 }

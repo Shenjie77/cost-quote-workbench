@@ -7,15 +7,19 @@
 写入用本页签最新 `--expected-revision R`，不使用项目 revision；冲突后重读。局部 upsert 保留未传字段，新增须完整。核对回执 scope/tab/revision、changedIds/removedIds 和 unresolvedKeys。
 
 只操作 Master Data 的 `maintenance` 页签：
+
 ```sh
 cost-cli masterdata get --tab maintenance --id RECORD-ID
 cost-cli masterdata update --tab maintenance --input change.json --expected-revision R
 ```
+
 字段依据：maintenancePriceRecord（schemas/workspace-state.schema.json）。
 写入文件使用以下信封，`CHANGES` 替换为本业务的变更对象，`requestId` 每次操作取唯一值：
+
 ```json
 {"apiVersion":"cost-workbench/v2","kind":"OperationRequest","requestId":"unique-id","data":{"schemaVersion":"1.0.0","operation":"masterdata.update","changes":CHANGES}}
 ```
+
 全局页签是集合，只用 `{"upsert":[...],"remove":[...]}`（只提供需要的键）；不支持 set。`upsert` 仅合并已有记录的顶层字段，数组字段整项替换。
 
 每条记录保留 `id/client/service/productModel/serviceLevel/site/coverageMonths/quantity/costAmount/quotedAmount/currency/quoteDate/outcome/source`。outcome 仅为 Quoted/Won/Lost/Reference，按真实结果填写，不推断成交。
@@ -25,3 +29,5 @@ cost-cli masterdata update --tab maintenance --input change.json --expected-revi
 Excel 先 `workbook inspect` 核对真实列，再转为当前 schema 的 upsert；`maintenance validate` 只校验 MaintenancePriceRequest，并不保存。持久化必须使用本 skill 的 masterdata update。历史归档不可改写。
 
 全局更新不改变已有项目或历史快照。来源冲突须按用户提供的完整正确条目解决，不能仅传局部字段或猜值覆盖。
+
+页面 Bulk Entry 打开当前目录记录及 ID，Validate → Apply changes 更新同一记录，新记录新增、未列出的记录保留；不恢复已应用旧批次。可选文本/列表可直接清空。独立 Import XLSX 的空白字段仍保留原值；CLI 继续按稳定 ID upsert，省略字段表示保留，不能混用这三种输入语义。

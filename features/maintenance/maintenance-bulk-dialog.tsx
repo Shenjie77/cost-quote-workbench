@@ -1,6 +1,6 @@
 'use client';
 import { formatMoney } from '@/lib/money';
-/** Preview and atomically append clipboard rows using the same annual-price rules as the grid. */
+/** Preview and atomically update clipboard rows using the same annual-price rules as the grid. */
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,16 +12,20 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { parseMaintenanceBulk } from './bulk-entry';
+import { parseMaintenanceBulk, maintenanceBulkText } from './bulk-entry';
 import type { BoqLine } from './domain';
 
 export function MaintenanceBulkDialog({
   disabled,
+  rows,
   onImport,
 }: {
   disabled: boolean;
-  onImport: (rows: BoqLine[]) => boolean;
+  rows: BoqLine[];
+  onImport: (rows: BoqLine[], expected: string) => boolean;
 }) {
+  const [expected, setExpected] = useState('');
+  const [error, setError] = useState('');
   const [open, setOpen] = useState(false),
     [text, setText] = useState('');
   const [preview, setPreview] = useState<ReturnType<
@@ -33,7 +37,9 @@ export function MaintenanceBulkDialog({
       onOpenChange={(next) => {
         setOpen(next);
         if (next) {
-          setText('');
+          setText(maintenanceBulkText(rows));
+          setExpected(JSON.stringify(rows));
+          setError('');
           setPreview(null);
         }
       }}
@@ -43,11 +49,12 @@ export function MaintenanceBulkDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>批量录入维保设备</DialogTitle>
+          <DialogTitle>批量更新维保设备</DialogTitle>
           <DialogDescription>
-            从 Excel
-            复制七列：Model、CT、SPMS、QTY、Duration（年）、Remark、Description。可含表头，空白数值按
-            0；CT、SPMS 自动向上取整至两位小数。U/P、Yearly 和 Total 自动计算。
+            当前设备已载入，可直接修改。保留末列 Row ID 更新原行；清空 ID
+            添加新行。 七列 Excel 粘贴按唯一 Model
+            匹配更新。未列出的设备保留。CT、SPMS
+            自动向上取整至两位小数，合计自动计算。
           </DialogDescription>
         </DialogHeader>
         <textarea
@@ -63,6 +70,11 @@ export function MaintenanceBulkDialog({
             'Model\tCT\tSPMS\tQTY\tDuration\tRemark\tDescription\nRouter A\t100\t50\t2\t3\t'
           }
         />
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
         {preview?.errors.length ? (
           <p role="alert" className="text-sm text-destructive">
             {preview.errors.join('\n')}
@@ -86,7 +98,13 @@ export function MaintenanceBulkDialog({
           <Button
             variant="outline"
             disabled={disabled}
-            onClick={() => setPreview(parseMaintenanceBulk(text))}
+            onClick={() => {
+              setError('');
+              if (expected !== JSON.stringify(rows)) {
+                setPreview(null);
+                setError('设备数据已变化，请关闭后重新打开，载入最新数据。');
+              } else setPreview(parseMaintenanceBulk(text, rows));
+            }}
           >
             Preview
           </Button>
@@ -95,11 +113,17 @@ export function MaintenanceBulkDialog({
               disabled || !preview?.rows.length || !!preview.errors.length
             }
             onClick={() => {
-              if (preview?.rows.length && onImport(preview.rows))
+              if (expected !== JSON.stringify(rows)) {
+                setPreview(null);
+                setError('设备数据已变化，请关闭后重新打开，载入最新数据。');
+                return;
+              }
+              if (preview?.rows.length && onImport(preview.rows, expected))
                 setOpen(false);
+              else setError('未应用更新，请检查当前项目状态后重试。');
             }}
           >
-            Import rows
+            Apply changes
           </Button>
         </DialogFooter>
       </DialogContent>

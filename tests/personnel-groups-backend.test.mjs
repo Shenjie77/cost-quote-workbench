@@ -101,6 +101,65 @@ test('Group is optional, trimmed on narrow edits, case-sensitive and independent
   }
 });
 
+test('Category persists through narrow CLI/API updates and version clones without changing cost or Group', () => {
+  const repository = setup();
+  try {
+    const original = repository.get(id).workspace;
+    const summary = readResource(repository, id, 'cost', {
+      section: 'summary',
+      version: 'V1',
+    }).value;
+    update(repository, {
+      upsert: [
+        { id: 'CI-001', category: '  Engineering  ', groupName: 'Delivery' },
+      ],
+    });
+    const rows = repository.get(id).workspace.costRows;
+    assert.equal(rows[0].category, 'Engineering');
+    assert.equal(rows[0].groupName, 'Delivery');
+    assert.deepEqual(rows[0].years, original.costRows[0].years);
+    assert.deepEqual(
+      readResource(repository, id, 'cost', {
+        section: 'summary',
+        version: 'V1',
+      }).value,
+      summary,
+    );
+    const compact = readResource(repository, id, 'cost', {
+      section: 'rows',
+      version: 'V1',
+      fields: 'id,category,groupName',
+      limit: 20,
+    });
+    assert.equal(compact.items[0].category, 'Engineering');
+    for (const category of [null, 42, 'a'.repeat(121)]) {
+      const saved = repository.get(id);
+      assert.throws(
+        () => update(repository, { upsert: [{ id: 'CI-001', category }] }),
+        /category|schema|workspace/i,
+      );
+      assert.deepEqual(repository.get(id), saved);
+    }
+    createCostDraft(
+      repository,
+      id,
+      { mode: 'clone', sourceVersion: 'V1' },
+      repository.get(id).revision,
+    );
+    update(
+      repository,
+      { upsert: [{ id: 'CI-001', category: 'Implementation' }] },
+      repository.get(id).revision,
+      'V2',
+    );
+    const workspace = repository.get(id).workspace;
+    assert.equal(workspace.costVersions[0].costRows[0].category, 'Engineering');
+    assert.equal(workspace.costRows[0].category, 'Implementation');
+  } finally {
+    repository.close();
+  }
+});
+
 test('Personnel order is exact, atomic and keeps legacy Subcon in its saved slots with costs unchanged', () => {
   const repository = setup();
   try {

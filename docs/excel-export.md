@@ -10,11 +10,11 @@ Choose any non-empty subset, then select **Export**. **Select all**, **Clear** a
 **Cancel** only affect the picker; they do not change cost inputs. An export
 failure leaves the selection open for retry.
 
-The six standard sheets are `Cost Detail`, `Summary Scope`, `Summary BU`,
-`Summary RE Type`, `Summary Subcon`, and `Cost Statement`. Depending on the
+The standard sheets are `Cost Detail`, `Summary Scope`, `Summary BU`,
+`Summary RE Type`, `Summary Group`, `Summary Subcon`, and `Cost Statement`. Depending on the
 captured data, the picker also offers `Legacy Subcon`, `Subcon Rates`,
-`Subcon Detail`, and `Subcon Site Types`. Only selected sheets are written and
-archived; their original order, content and calculations are preserved.
+`Subcon Detail`, and `Subcon Site Types`. Only selected report sheets are written and archived. When Cost Detail is included,
+a hidden `Cost Calculations` sheet supports the formula chain without adding a visible report tab.
 
 The report follows the page's
 annual inputs, calculated costs, dimension totals and statement hierarchy.
@@ -82,9 +82,9 @@ resource/rate snapshot is used. Change is measured against its source version.
 for valid draft costs without a customer template; it archives under project cost
 files and does not create a customer quotation history entry.
 
-The formula chain is **captured annual cost amounts → detail totals → Cost
-Statement → allocated quotation Cost → Price / Unit → Amount → final total and
-actual GP**. Custom cost weights and all commercial inputs are captured together.
+The formula chain is **editable effort / quantities and captured rates → annual costs →
+detail and dimension totals → Cost Statement → allocated quotation Cost → Price / Unit →
+Amount → final total and actual GP**. Custom cost weights and all commercial inputs are captured together.
 Cost allocation uses largest-remainder cents, keeping the row costs equal to the
 complete statement including risk. EHS uses labour + subcontract + settlement.
 
@@ -95,14 +95,32 @@ price-basis dropdown to use GP pricing. The BU share is the captured weighted
 rate, and discount applies after summing the lines. Zero or invalid denominators
 remain visible as spreadsheet errors rather than silently producing a price.
 
-Simple Cost annual amounts are snapshot inputs, not a duplicate personnel or
-Subcon rate engine. Editing these annual amounts or manual Cost Statement
-accounts updates the quote. If a detail sheet is omitted, its cost is retained as
-a snapshot amount in Cost Statement (or the constant part of a partially linked
-account formula), so omitted tabs never create broken references. Existing Summary tabs are explicitly labelled as
-export snapshots and do not recalculate. A hidden `Pricing Calculations` sheet
-contains the cost-allocation and GP rounding steps; no external workbook links
-or macros are required. Ordinary Simple Export and customer exports are unchanged.
+Simple and combined cost workbooks use formulas for personnel effort × captured
+loaded rates, HQ travel allocation, Subcon quantities × unit prices × uplifts,
+dimension summaries and Cost Statement. Editable inputs are blue. The hidden
+`Cost Calculations` sheet preserves exact cent allocation for HQ travel;
+`Pricing Calculations` supports the combined quotation allocation and GP rounding.
+Formula outputs include cached results and the workbook requests recalculation on open.
+There are no external workbook links or macros.
+
+If a source sheet or annual input is omitted, its original input remains captured
+in the corresponding formula or statement; omitted sheets never cause broken references.
+Editing an existing exported quantity updates the linked totals. Adding new source rows
+or changing category/group membership should be done in the platform before re-exporting.
+Excel edits do not write back into the platform.
+
+Category is exported on personnel and Subcon detail. Summary Group separates the
+same group name across categories. Category is commercial classification, separate
+from RE Category and Mandatory/Optional inclusion. Automatic quotation layouts inherit
+Cost Category; existing generated quotation lines can use **Refresh from Cost**.
+
+Full Export retains its audit layout and formulas. Annual internal cost links to
+mandays and the visible captured MD rate in `08_Assumptions`; existing HQ Travel
+cost links to current exported HQ effort and travel assumptions, including enabled HQ
+travel initially at zero. Percentage-based EHS follows the recalculated labour,
+Subcon and settlement base. Subcon detail formulas
+feed its audit detail and summary sheets. Annual personnel uplift and allowance factors
+remain the version's captured inputs.
 
 ## Customer quotation workbook
 
@@ -162,6 +180,6 @@ Custom lines 的草稿独立保存，切换 Single / Scope / Item 后再切回�
 
 未绑定行按原成本比例分摊剩余来源；没有承接行时新增 Other scopes。删除一行保留其他来源绑定；手动修改 Weight 解除各行来源绑定，恢复按 Weight 分摊。来源配置仅用于内部计算，不进入客户报价文件。
 
-Quotation + Simple Cost 的 Cost Detail 复用 Simple Cost Export 生成器，采用该项目成本版本已保存的 Cost Input 列顺序、显示列、年度与分组。Cost Statement 按实际单元格建立公式引用；未显示年度与未选择明细保留快照金额。
+Quotation + Simple Cost 的 Cost Detail 复用 Simple Cost Export 生成器，采用该项目成本版本已保存的 Cost Input 列顺序、显示列、年度与分组。Cost Statement 按实际单元格建立公式引用；未显示年度与未选择明细保留已捕获的输入；可见输入修改后通过公式更新相关汇总。
 
 所有百分比输入使用手动文本输入，失焦或 Enter 时提交，显示两位小数；未主动编辑时不截断内部计算精度。

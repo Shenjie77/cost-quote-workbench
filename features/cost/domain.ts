@@ -63,6 +63,8 @@ export type YearAllocation = {
 };
 
 export type CostInputRow = {
+  /** Commercial category inherited by quotation lines; separate from RE classification. */
+  category?: string;
   /** Optional personnel grouping label, independent of Scope. Empty/absent means Unassigned Group. */
   groupName?: string;
   inputMode?: 'sites' | 'mandays';

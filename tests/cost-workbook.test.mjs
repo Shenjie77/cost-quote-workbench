@@ -8,7 +8,7 @@ import test from 'node:test';
 
 import ExcelJS from 'exceljs';
 
-import { roundMoney } from '../features/cost/domain.ts';
+import { roundMoney, recalculateCostRows } from '../features/cost/domain.ts';
 import { buildCostWorkbookBytes } from '../features/cost/export-workbook.ts';
 import { makeCostSnapshot } from './helpers.mjs';
 
@@ -104,7 +104,10 @@ test('v2 workbook has nine stable sheets and reconciles after serialization', as
   const generatedCodes = [];
   for (let row = 5; row <= detail.rowCount; row += 1) {
     if (detail.getCell(row, sourceKindColumn).value !== 'COST_INPUT') {
-      assert.ok(Number(detail.getCell(row, directCostColumn).value) > 0);
+      const direct = detail.getCell(row, directCostColumn);
+      assert.ok(
+        Number(direct.formula ? formulaResult(direct) : direct.value) > 0,
+      );
       const statementCode = detail.getCell(row, statementCodeColumn).value;
       assert.equal(typeof statementCode, 'string');
       generatedCodes.push(statementCode);
@@ -183,4 +186,96 @@ test('v2 workbook has nine stable sheets and reconciles after serialization', as
   for (const bucket of ['Y1', 'Y2', 'Y3', 'Y4', 'Y5']) {
     assert.ok(assumptions.getColumn(2).values.includes(bucket));
   }
+});
+
+test('full export links editable effort, captured rates and HQ travel into existing summary formulas', async () => {
+  const snapshot = makeCostSnapshot();
+  snapshot.costRows[0].category = 'Phase 1';
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildCostWorkbookBytes(snapshot));
+  const detail = workbook.getWorksheet('01_Cost_Detail');
+  const assumptions = workbook.getWorksheet('08_Assumptions');
+  const sourceRow = snapshot.costRows[0];
+  const row = findRow(detail, headerColumn(detail, 'Line ID'), sourceRow.id);
+  const cost = detail.getCell(row, headerColumn(detail, 'Y1 Cost'));
+  assert.ok(cost.formula.includes("'08_Assumptions'!$G$"));
+  assert.equal(formulaResult(cost), sourceRow.years[0].cost);
+  assert.equal(
+    detail.getCell(row, headerColumn(detail, 'Category')).value,
+    'Phase 1',
+  );
+  const travelRow = findRow(
+    detail,
+    headerColumn(detail, 'Source Kind'),
+    'HQ_TRAVEL',
+  );
+  assert.ok(
+    detail
+      .getCell(travelRow, headerColumn(detail, 'Direct Cost'))
+      .formula.includes("'08_Assumptions'!$C$"),
+  );
+  const months = findRow(assumptions, 2, 'Months');
+  assert.ok(
+    assumptions.getCell(months, 3).formula.includes("'01_Cost_Detail'!"),
+  );
+  const travel = findRow(assumptions, 2, 'Total travel');
+  assert.match(assumptions.getCell(travel, 3).formula, /IF\(AND/);
+  assert.equal(
+    formulaResult(assumptions.getCell(travel, 3)),
+    formulaResult(
+      detail.getCell(travelRow, headerColumn(detail, 'Direct Cost')),
+    ),
+  );
+});
+
+test('full formulas keep zero travel and rate-driven EHS connected for later quantity edits', async () => {
+  const snapshot = makeCostSnapshot();
+  snapshot.travelSettings.enabled = true;
+  snapshot.manualCosts.otherServiceRate = 0.05;
+  snapshot.manualCosts.settlement = 100;
+  snapshot.costRows = snapshot.costRows.filter(
+    (row) =>
+      snapshot.resourceTypes.find((resource) => resource.id === row.reTypeId)
+        ?.pool === 'HQ',
+  );
+  assert.ok(snapshot.costRows.length);
+  snapshot.costRows.forEach((row) => {
+    row.years.forEach((year) => {
+      year.sites = 0;
+      year.mandays = 0;
+    });
+  });
+  snapshot.costRows = recalculateCostRows(
+    snapshot.costRows,
+    snapshot.resourceTypes,
+    snapshot.rateSettings,
+  );
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildCostWorkbookBytes(snapshot));
+  const detail = workbook.getWorksheet('01_Cost_Detail');
+  const travel = findRow(
+    detail,
+    headerColumn(detail, 'Source Kind'),
+    'HQ_TRAVEL',
+  );
+  const travelCost = detail.getCell(
+    travel,
+    headerColumn(detail, 'Direct Cost'),
+  );
+  assert.equal(formulaResult(travelCost), 0);
+  assert.match(travelCost.formula, /08_Assumptions/);
+  const ehs = findRow(
+    detail,
+    headerColumn(detail, 'Statement Code'),
+    '2.3.4.2',
+  );
+  const formula = detail.getCell(
+    ehs,
+    headerColumn(detail, 'Direct Cost'),
+  ).formula;
+  assert.match(formula, /\*0\.05/);
+  assert.ok(
+    !formula.includes('06_Cost_Statement'),
+    'EHS must not create a circular statement dependency',
+  );
 });

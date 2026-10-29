@@ -2,6 +2,7 @@
 import { roundMoney, roundQuantity } from './domain.ts';
 
 export type SubcontractLineBase = {
+  category?: string;
   id: string;
   catalogItemId?: string;
   code: string;
@@ -234,6 +235,16 @@ export function validateSubcontractCost(
           'Subcontract line IDs must be present and unique within their group.',
         );
       ids.add(line.id);
+      if (
+        line.category !== undefined &&
+        (typeof line.category !== 'string' ||
+          Array.from(line.category).length > 120)
+      )
+        add(
+          'INVALID_SUBCONTRACT_CATEGORY',
+          `${itemPath}/category`,
+          'Category must be text with at most 120 characters.',
+        );
       for (const field of ['code', 'description', 'bu', 'unit'] as const) {
         if (typeof line[field] !== 'string')
           add(

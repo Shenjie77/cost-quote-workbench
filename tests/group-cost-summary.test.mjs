@@ -192,13 +192,13 @@ test('grouped export writes annual subtotal formulas and reconciled Group sheet 
   };
   const w = await buildSimpleCostWorkbook(s, layout);
   const detail = w.getWorksheet('Cost Detail');
-  assert.equal(detail.getCell('B6').formula, 'SUM(B7)');
+  assert.equal(detail.getCell('B6').formula, 'SUM(B7:B7)');
   assert.equal(
     detail.getCell('B6').result,
     roundMoney(s.costRows[0].years[0].cost + 95),
   );
   assert.equal(
-    detail.getCell('C9').value,
+    detail.getCell('C9').result,
     roundMoney(s.costRows[1].years[1].cost + 145),
   );
   const summary = w.getWorksheet('Summary Group');
@@ -210,7 +210,7 @@ test('grouped export writes annual subtotal formulas and reconciled Group sheet 
     s.subcontractCost,
     2026,
   ).totalWithRisk;
-  assert.equal(summary.getCell(summary.rowCount, 10).value, expected);
+  assert.equal(summary.getCell(summary.rowCount, 11).result, expected);
   const single = await buildSimpleCostWorkbook(s, layout, ['Summary Group']);
   assert.deepEqual(
     single.worksheets.map((sheet) => sheet.name),

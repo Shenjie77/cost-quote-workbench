@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+const cachedScalar = (value) => (value?.formula ? (value.result ?? 0) : value);
+const cachedValue = (cell) => cachedScalar(cell.value);
 import test from 'node:test';
 import ExcelJS from 'exceljs';
 import {
@@ -393,7 +395,8 @@ test('subcontract export captures configuration before asynchronous workbook cre
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await pending);
     const detail = workbook.getWorksheet('Subcon Detail');
-    assert.equal(detail.getCell(detail.rowCount, 9).value, 216050);
+    assert.match(detail.getCell(detail.rowCount, 9).formula, /SUM/);
+    assert.equal(cachedValue(detail.getCell(detail.rowCount, 9)), 216050);
   }
 });
 
@@ -414,7 +417,7 @@ test('subcontract-only costs validate and both exported workbooks contain BOQ an
     await workbook.xlsx.load(bytes);
     const boqSheet = workbook.getWorksheet('Subcon Detail');
     assert.ok(boqSheet);
-    assert.equal(boqSheet.getCell(boqSheet.rowCount, 9).value, 216050);
+    assert.equal(cachedValue(boqSheet.getCell(boqSheet.rowCount, 9)), 216050);
     assert.ok(workbook.getWorksheet('Subcon Site Types'));
     const sheet = workbook.getWorksheet(
       full ? '06_Cost_Statement' : 'Cost Statement',
@@ -440,7 +443,7 @@ test('subcontract-only costs validate and both exported workbooks contain BOQ an
       const statuses = [];
       reconciliation.eachRow((row) =>
         row.eachCell((cell) => {
-          if (cell.value?.formula?.startsWith('IF('))
+          if (cell.value?.formula?.includes('"PASS","FAIL"'))
             statuses.push(cell.value.result);
         }),
       );

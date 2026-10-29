@@ -2,7 +2,11 @@ import { QuoteGroupFields } from './quote-group-fields';
 import { groupFor } from './quotation-groups';
 /** Internal line pricing grid; customer workbooks receive only commercial line fields. */
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, RefreshCw, Trash2 } from 'lucide-react';
+import {
+  refreshCostQuoteLines,
+  refreshScopeRiskShares,
+} from './refresh-cost-lines';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -48,7 +52,7 @@ import { allocateLinePricing, lineCostAmounts } from './line-pricing';
 import { QuoteNumberInput } from './quote-number-input';
 
 const MODES: Array<{ value: QuoteLineMode; label: string }> = [
-  { value: 'single', label: 'Single line · 单行总价' },
+  { value: 'single', label: 'Total by Category · 分类总价' },
   { value: 'scope', label: 'By Scope · 按 Scope 汇总' },
   { value: 'group', label: 'By cost Group · 按成本分组' },
   { value: 'item', label: 'By cost item · 按成本条目' },
@@ -129,6 +133,7 @@ export function QuoteLinesEditor({
     next: ManualQuoteLine[],
     sourceMode: QuoteLineMode = mode,
     riskScopeShares = pricing.riskScopeShares,
+    metadataPatch?: Pick<PricingSettings, 'lineGroups' | 'lineRemarks'>,
   ) => {
     if (disabled) return;
     const bound = costSnapshot
@@ -147,6 +152,7 @@ export function QuoteLinesEditor({
       const { manualTargetPrice: _target, ...rest } = current;
       return {
         ...rest,
+        ...metadataPatch,
         lineMode: 'manual',
         manualPricingBasis: 'line-gp',
         lineSourceMode: sourceMode,
@@ -163,7 +169,47 @@ export function QuoteLinesEditor({
     });
   };
 
-  /** Regroup cost-backed rows explicitly, starting every new row at 50% GP and matching cost/quote weights. */
+  const refreshFromCost = () => {
+    if (disabled || !costSnapshot || mode === 'manual') return;
+    const source = buildQuoteLines(costSnapshot, mode, totalCost);
+    if (source.length > MAX_QUOTE_LINES) {
+      setAllocationError(
+        `Cost refresh exceeds ${MAX_QUOTE_LINES} quotation lines. Choose a grouped layout.`,
+      );
+      return;
+    }
+    const refreshed = refreshCostQuoteLines(draftLines, source, pricing);
+    const refreshedRiskShares = refreshScopeRiskShares(
+      pricing.riskScopeShares,
+      scopeOptions,
+    );
+    if (
+      !window.confirm(
+        `Refresh ${source.length} quotation lines from current costs and categories? ${refreshed.matched} matched lines keep pricing, remarks and quotation group overrides. ${refreshed.newCount} new or split lines start at 45% GP; ${refreshed.removedCount} unmatched old lines are replaced. Cost shares and totals will be recalculated; Risk is redistributed across current Scopes.`,
+      )
+    )
+      return;
+    setAllocationError('');
+    const next = refreshed.lines.map((line) => ({
+      ...line,
+      costScopeAllocations:
+        mode === 'scope' && refreshedRiskShares !== undefined
+          ? scopeOptions
+              .filter(
+                (scope) =>
+                  scope.description === line.description &&
+                  (scope.category ?? '') === (line.category ?? ''),
+              )
+              .map((scope) => ({ key: scope.key, percentage: 100 }))
+          : undefined,
+    }));
+    saveLines(next, mode, refreshedRiskShares, {
+      lineGroups: refreshed.lineGroups,
+      lineRemarks: refreshed.lineRemarks,
+    });
+  };
+
+  /** Regroup cost-backed rows explicitly, starting every new row at 45% GP and matching cost/quote weights. */
   const selectMode = (nextMode: QuoteLineMode) => {
     if (disabled) return;
     if (nextMode === mode) return;
@@ -183,7 +229,11 @@ export function QuoteLinesEditor({
         costScopeAllocations:
           nextMode === 'scope' && pricing.riskScopeShares !== undefined
             ? scopeOptions
-                .filter((scope) => scope.description === line.description)
+                .filter(
+                  (scope) =>
+                    scope.description === line.description &&
+                    (scope.category ?? '') === (line.category ?? ''),
+                )
                 .map((scope) => ({ key: scope.key, percentage: 100 }))
             : undefined,
         targetGrossMargin: 45,
@@ -339,6 +389,17 @@ export function QuoteLinesEditor({
             ))}
           </SelectContent>
         </Select>
+        {costSnapshot && mode !== 'manual' && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={refreshFromCost}
+          >
+            <RefreshCw /> Refresh from Cost
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
@@ -382,6 +443,8 @@ export function QuoteLinesEditor({
         Section and Category accept custom titles for this quotation. Structured
         templates generate matching categories automatically. Grand Total
         includes all sections; internal cost and GP include all service lines.
+        {mode !== 'manual' &&
+          ' After editing cost categories, use Refresh from Cost to update saved quotation rows.'}
       </p>
       {/* All internal pricing controls share one grid; customer previews and files omit these internal columns. */}
       <Table

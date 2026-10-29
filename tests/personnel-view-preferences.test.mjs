@@ -37,7 +37,11 @@ const configured = () => ({
   grouped: true,
   yearIndex: 2,
   columns: movePersonnelColumn(
-    setPersonnelColumnVisible(defaultPersonnelColumns(), 'Y1:cost', false),
+    movePersonnelColumn(
+      setPersonnelColumnVisible(defaultPersonnelColumns(), 'Y1:cost', false),
+      'scope',
+      'left',
+    ),
     'scope',
     'left',
   ),

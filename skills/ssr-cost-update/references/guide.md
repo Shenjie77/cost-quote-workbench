@@ -25,6 +25,10 @@ cost-cli cost update --project-id ID --version V1 --section rows --input change.
 
 `rows` 只录入人员投入，新行必须有 `id/scope/bu/reTypeId/mdPerSite/years`，参照 `schemas/cost-export.schema.json` 的 costRow。修改任一年先读取完整 years，再替换有序 Y1–Y5 全数组。默认站点模式用 Sites × MD/Site；直接人天模式设 `inputMode:"mandays"`，每年填 mandays，sites 与 mdPerSite 为零。内部 Cost 交由共享计算器生成，只选择目标版本 resources 中 category=internal 的 RE ID。分包使用下述独立入口，不能通过 category=subcontract 的 RE Type 新增或修改手输金额。`source` 证据不能手工提交或改写。
 
+人员行可选 `category`（最多 120 字符）是报价分类，`groupName` 是人员分组，两者独立；RE Type 的 `category=internal/subcontract` 则是资源分类，不可混用。已有行用 `upsert:[{id,category}]` 局部改，空字符串清空。成本 Category 带入生成报价的分类边界；名称 Optional 不自动排除金额。整组复制没有单独 CLI 命令：读取明确组的全部成员，按用户指定新组名生成全新 ID，复制 Category、Scope、BU、RE、输入模式与完整五年投入，省略 source，再用 upsert 新增；需插入指定位置时提交完整 order，不覆盖原组。
+
+页面 Bulk Entry 每次打开载入当前记录；保留 Row ID 更新、新行新增、未列出的原行保留，不再恢复已应用旧草稿。CLI 使用相同稳定 ID 的窄接口更新；不要把页面批量更新误当成 cost import 文件追加流程。
+
 分包条目、数量、站型或年度部署更新时读取 [结构化分包](../references/subcontract.md)，使用 `cost get/update --project-id ID --version Vn --section subcontract`。全局目录只提供参考；项目采用的描述、单位和价格必须复制入目标成本版本。该接口的计算结果自动汇入 2.3.2，不另写 rows/manualCosts，也不额外重复加入材料、安装或差旅。
 
 Excel 输入时读取 [TD/PM 导入](../references/import.md)。只改数值时不加载导入说明。完成后窄读目标条目/summary，并 `cost validate --project-id ID --version V1`；按任务需要 calculate 或输出文件。

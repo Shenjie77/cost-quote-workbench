@@ -412,6 +412,18 @@ export const validateCostExportSnapshot = (
         'Group must be text of at most 200 characters; blank means Unassigned Group.',
       );
     }
+    if (
+      row.category !== undefined &&
+      (typeof row.category !== 'string' ||
+        Array.from(row.category).length > 120)
+    ) {
+      add(
+        'error',
+        'INVALID_COST_CATEGORY',
+        `${path}/category`,
+        'Category must be text of at most 120 characters.',
+      );
+    }
     if (!row.scope.trim()) {
       add(
         'error',

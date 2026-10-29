@@ -44,7 +44,7 @@ import {
   SubcontractBulkEntryPage,
   subcontractEntryContext,
 } from '@/features/bulk-entry/subcontract-entry';
-import { appendSubcontractBulkLines } from '../subcontract-bulk-entry';
+import { updateSubcontractBulkLines } from '../subcontract-bulk-entry';
 import { SubcontractCatalogPicker } from './subcontract-catalog-picker';
 import {
   SubcontractLinesTable,
@@ -973,14 +973,14 @@ export function SubcontractCostSheet({
                 return false;
               let next = value;
               for (const entry of batch)
-                next = appendSubcontractBulkLines(
+                next = updateSubcontractBulkLines(
                   next,
                   entry.lines,
                   entry.target,
                 );
               change(next);
               announce(
-                `${batch.reduce((sum, b) => sum + b.lines.length, 0)} subcontract items added.`,
+                `${batch.reduce((sum, b) => sum + b.lines.length, 0)} subcontract items saved.`,
               );
               return true;
             }}

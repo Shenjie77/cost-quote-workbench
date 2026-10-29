@@ -1,6 +1,9 @@
 import { readableFileStem, exportTimestamp } from '../../lib/file-names.ts';
 import { subcontractCostDetails } from './subcontract-domain.ts';
 import { addSubcontractWorkbookSheets } from './export-subcontract-workbook.ts';
+import { isPersonnelAllowanceApplied } from './personnel-allowance.ts';
+import { linkSubcontractFormulas } from './simple-cost-formulas.ts';
+import { excelMoneyFormula } from '../../lib/excel-money.ts';
 /**
  * Excel export boundary for the cost workspace.
  *
@@ -112,6 +115,7 @@ type ExportDetailRow = {
   resourceCode: string;
   resourceName: string;
   resourceCategory: string;
+  category?: string;
   gradeId: string;
   gradeCode: string;
   gradeName: string;
@@ -144,6 +148,7 @@ type DetailColumnKey =
   | 'resourceTypeId'
   | 'resourceCode'
   | 'resourceName'
+  | 'category'
   | 'resourceCategory'
   | 'gradeId'
   | 'gradeCode'
@@ -265,6 +270,7 @@ const DETAIL_COLUMNS: readonly ColumnDefinition<DetailColumnKey>[] = [
     width: 18,
   },
   { key: 'sourceNote', header: 'Source Note', width: 34 },
+  { key: 'category', header: 'Category', width: 24 },
 ];
 
 /** Converts a one-based column index to an Excel A1 column label. */
@@ -327,8 +333,7 @@ const localRangeReference = (
 ) => `$${excelColumn(column)}$${firstRow}:$${excelColumn(column)}$${lastRow}`;
 
 /** Mirrors `roundMoney` inside generated formulas. */
-const moneyFormula = (expression: string) =>
-  `ROUNDUP(ROUND(${expression},10),2)`;
+const moneyFormula = excelMoneyFormula;
 
 const setFormula = (
   cell: import('exceljs').Cell,
@@ -464,8 +469,8 @@ const configureTableColumns = <Key extends string>(
 
 /**
  * Normalizes source and generated costs into one auditable detail stream.
- * Every monetary leaf passes through `roundMoney`; zero-value generated rows
- * are omitted so the workbook contains only meaningful synthetic entries.
+ * Every monetary leaf passes through `roundMoney`; formula-driven travel and
+ * EHS rows remain present at zero so later quantity edits can recalculate them.
  */
 const buildDetailRows = (snapshot: CostExportSnapshot): ExportDetailRow[] => {
   const rows: ExportDetailRow[] = snapshot.costRows.map((row) => {
@@ -494,6 +499,7 @@ const buildDetailRows = (snapshot: CostExportSnapshot): ExportDetailRow[] => {
       sourceKind: 'COST_INPUT',
       costLayer: 'SALES',
       statementCode,
+      category: row.category?.trim() || '',
       scope: row.scope || 'UNSPECIFIED',
       bu: row.bu || 'UNSPECIFIED',
       resourceTypeId: resource?.id || row.reTypeId || 'UNMAPPED',
@@ -538,6 +544,7 @@ const buildDetailRows = (snapshot: CostExportSnapshot): ExportDetailRow[] => {
       sourceKind: 'SUBCONTRACT_BOQ',
       costLayer: 'SALES',
       statementCode: '2.3.2',
+      category: line.category?.trim() || '',
       scope: line.scope || 'UNSPECIFIED',
       bu: line.bu || 'UNSPECIFIED',
       resourceTypeId: '__SUBCONTRACT__',
@@ -581,7 +588,7 @@ const buildDetailRows = (snapshot: CostExportSnapshot): ExportDetailRow[] => {
     snapshot.travelSettings,
   );
   const travelCost = roundMoney(travel.totalCost);
-  if (travelCost > 0) {
+  if (travelCost > 0 || (travel.enabled && travel.hqRows.length > 0)) {
     rows.push({
       id: 'AUTO-HQ-TRAVEL',
       sourceKind: 'HQ_TRAVEL',
@@ -621,7 +628,9 @@ const buildDetailRows = (snapshot: CostExportSnapshot): ExportDetailRow[] => {
     (row) =>
       row.mode === 'manual' &&
       row.manualKey !== undefined &&
-      roundMoney(row.amount) > 0,
+      (roundMoney(row.amount) > 0 ||
+        (row.code === '2.3.4.2' &&
+          snapshot.manualCosts.otherServiceRate !== undefined)),
   );
   manualRows.forEach((statementRow) => {
     const amount = roundMoney(statementRow.amount);
@@ -813,6 +822,7 @@ const addDetailSheet = (
     setCellByKey(row, columns, 'resourceTypeId', detailRow.resourceTypeId);
     setCellByKey(row, columns, 'resourceCode', detailRow.resourceCode);
     setCellByKey(row, columns, 'resourceName', detailRow.resourceName);
+    setCellByKey(row, columns, 'category', detailRow.category || '');
     setCellByKey(row, columns, 'resourceCategory', detailRow.resourceCategory);
     setCellByKey(row, columns, 'gradeId', detailRow.gradeId);
     setCellByKey(row, columns, 'gradeCode', detailRow.gradeCode);
@@ -2267,6 +2277,160 @@ const addAssumptionsSheet = (
   return sheet;
 };
 
+/** Link editable detail quantities and captured assumptions before workbook serialization. */
+function linkFullInputFormulas(
+  workbook: import('exceljs').Workbook,
+  snapshot: CostExportSnapshot,
+  detail: TableLayout<DetailColumnKey>,
+  detailRows: ExportDetailRow[],
+  assumptions: import('exceljs').Worksheet,
+) {
+  const factors = getLabourRateFactors(snapshot.rateSettings);
+  const resourceRows = new Map<string, number>();
+  const assumptionRows = new Map<string, number>();
+  assumptions.eachRow((row) => {
+    const key = row.getCell(1).value;
+    const label = row.getCell(2).value;
+    if (
+      typeof key === 'string' &&
+      snapshot.resourceTypes.some((resource) => resource.id === key)
+    )
+      resourceRows.set(key, row.number);
+    else if (key === 'HQ Travel' && typeof label === 'string')
+      assumptionRows.set(label, row.number);
+  });
+  const assumptionRef = (label: string) =>
+    absoluteCellReference(assumptions, 3, assumptionRows.get(label)!);
+  const hqMandays: string[] = [],
+    hqMonths: string[] = [];
+  detailRows.forEach((source, index) => {
+    if (source.sourceKind !== 'COST_INPUT') return;
+    const resource = snapshot.resourceTypes.find(
+      (item) => item.id === source.resourceTypeId,
+    );
+    if (!resource || resource.category !== 'internal') return;
+    const row = detail.sheet.getRow(detail.firstDataRow + index);
+    const rateRow = resourceRows.get(resource.id)!;
+    source.years.forEach((year, yearIndex) => {
+      const md = localCellReference(
+        requireColumn(detail.columns, detailYearKey(year.bucket, 'mandays')),
+        row.number,
+      );
+      const rate = absoluteCellReference(assumptions, 7, rateRow);
+      setFormulaByKey(
+        row,
+        detail.columns,
+        detailYearKey(year.bucket, 'cost'),
+        moneyFormula(
+          `${md}*${rate}*${factors[yearIndex]}*${isPersonnelAllowanceApplied(resource, snapshot.rateSettings) ? 1.03 : 1}`,
+        ),
+        year.cost,
+      );
+    });
+    if (isHQTravelResource(resource, snapshot.travelSettings)) {
+      const md = absoluteCellReference(
+        detail.sheet,
+        requireColumn(detail.columns, 'totalMandays'),
+        row.number,
+      );
+      const months = absoluteCellReference(assumptions, 8, rateRow);
+      hqMandays.push(md);
+      hqMonths.push(`${md}/MAX(IF(${months}=0,21.75,${months}),0.01)`);
+    }
+  });
+  const travel = getHQTravelSummary(
+    snapshot.costRows,
+    snapshot.resourceTypes,
+    snapshot.travelSettings,
+  );
+  setFormula(
+    assumptions.getCell(assumptionRows.get('HQ mandays')!, 3),
+    `ROUND(${hqMandays.length ? `SUM(${hqMandays.join(',')})` : '0'},4)`,
+    travel.hqMandays,
+  );
+  setFormula(
+    assumptions.getCell(assumptionRows.get('Months')!, 3),
+    `ROUND(${hqMonths.length ? `SUM(${hqMonths.join(',')})` : '0'},4)`,
+    travel.months,
+  );
+  const allowance = moneyFormula(
+    `${assumptionRef('Months')}*${moneyFormula(assumptionRef('Monthly allowance'))}`,
+  );
+  const airfare = moneyFormula(
+    `${assumptionRef('Trips')}*${moneyFormula(assumptionRef('Airfare per trip'))}`,
+  );
+  setFormula(
+    assumptions.getCell(assumptionRows.get('Total travel')!, 3),
+    `IF(AND(${assumptionRef('HQ travel enabled')}="Enabled",${assumptionRef('HQ mandays')}>0),${moneyFormula(`${allowance}+${airfare}`)},0)`,
+    travel.totalCost,
+  );
+  linkSubcontractFormulas(workbook, snapshot);
+  // Sum the source rows only: referencing the statement would introduce a circular dependency.
+  const ehsBaseRows = detailRows.flatMap((source, index) =>
+    ['2.3.1.1', '2.3.1.2', '2.3.1.3', '2.3.2', '2.3.3'].includes(
+      source.statementCode,
+    )
+      ? [detail.firstDataRow + index]
+      : [],
+  );
+  const ehsRanges: Array<[number, number]> = [];
+  for (const n of ehsBaseRows) {
+    const previous = ehsRanges.at(-1);
+    if (previous && n === previous[1] + 1) previous[1] = n;
+    else ehsRanges.push([n, n]);
+  }
+  const ehsBase = ehsRanges.length
+    ? `SUM(${ehsRanges
+        .map(([start, end]) =>
+          localRangeReference(
+            requireColumn(detail.columns, 'totalCost'),
+            start,
+            end,
+          ),
+        )
+        .join(',')})`
+    : '0';
+  let subconIndex = 0;
+  detailRows.forEach((source, index) => {
+    const row = detail.sheet.getRow(detail.firstDataRow + index);
+    if (source.sourceKind === 'HQ_TRAVEL')
+      setFormulaByKey(
+        row,
+        detail.columns,
+        'directCost',
+        assumptionRef('Total travel'),
+        source.directCost,
+      );
+    if (
+      source.statementCode === '2.3.4.2' &&
+      snapshot.manualCosts.otherServiceRate !== undefined
+    )
+      setFormulaByKey(
+        row,
+        detail.columns,
+        'directCost',
+        moneyFormula(`${ehsBase}*${snapshot.manualCosts.otherServiceRate}`),
+        source.directCost,
+      );
+    if (source.sourceKind === 'SUBCONTRACT_BOQ') {
+      const n = 5 + subconIndex++;
+      source.years.forEach((year, yearIndex) =>
+        setFormulaByKey(
+          row,
+          detail.columns,
+          detailYearKey(year.bucket, 'cost'),
+          absoluteCellReference(
+            workbook.getWorksheet('Subcon Detail')!,
+            11 + yearIndex * 2,
+            n,
+          ),
+          year.cost,
+        ),
+      );
+    }
+  });
+}
+
 /** Builds the complete nine-sheet internal-team workbook. */
 export const buildCostWorkbook = async (input: CostExportSnapshot) => {
   const snapshot = structuredClone(input);
@@ -2340,8 +2504,9 @@ export const buildCostWorkbook = async (input: CostExportSnapshot) => {
     grade,
     statement,
   );
-  addAssumptionsSheet(workbook, snapshot);
+  const assumptions = addAssumptionsSheet(workbook, snapshot);
   addSubcontractWorkbookSheets(workbook, snapshot);
+  linkFullInputFormulas(workbook, snapshot, detail, detailRows, assumptions);
   const sourced = snapshot.costRows.filter((r) => r.source);
   if (sourced.length) {
     const sheet = workbook.addWorksheet('09_Source_Trace');

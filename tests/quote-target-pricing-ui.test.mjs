@@ -1160,6 +1160,88 @@ test('cost Group mode merges different scopes, preserves per-line edits after re
   assert.equal(locked.writes, 0);
 });
 
+test('Refresh from Cost updates captured categories explicitly, preserves matched GP and remarks, and guards Cancel and locks', () => {
+  const view = quotationHarness(QuoteLinesEditor, {
+    ...legacyTerms(),
+    lineMode: 'single',
+  });
+  view.mode('scope');
+  commitNumber(view, 'Line 1 target GP', 60);
+  view
+    .label('Line 1 internal remark')
+    .props.onChange({ target: { value: 'Keep rationale' } });
+  view.props.costSnapshot.costRows[0].category = 'Engineering';
+  const before = structuredClone(view.pricing);
+  const prior = globalThis.window;
+  let accept = false,
+    prompts = 0;
+  globalThis.window = {
+    confirm: () => {
+      prompts++;
+      return accept;
+    },
+  };
+  try {
+    const refresh = () =>
+      view.find(
+        (node) =>
+          node.type?.displayName !== 'Icon' &&
+          typeof node.props.onClick === 'function' &&
+          textOf(node).includes('Refresh from Cost'),
+      );
+    refresh().props.onClick();
+    assert.deepEqual(view.pricing, before);
+    accept = true;
+    refresh().props.onClick();
+    assert.equal(view.effectiveLines[0].category, 'Engineering');
+    assert.equal(view.effectiveLines[0].targetGrossMargin, 60);
+    assert.equal(
+      view.pricing.lineRemarks[view.effectiveLines[0].id],
+      'Keep rationale',
+    );
+    assert.deepEqual(allocatedCosts(view), [25, 75]);
+    view.props.disabled = true;
+    refresh().props.onClick();
+    assert.equal(prompts, 2);
+  } finally {
+    if (prior === undefined) delete globalThis.window;
+    else globalThis.window = prior;
+  }
+});
+
+test('Refresh from Cost remains usable when a Scope merge leaves saved Risk shares below 100%', () => {
+  const view = quotationHarness(QuoteLinesEditor, {
+    ...legacyTerms(),
+    lineMode: 'single',
+    riskScopeShares: [
+      { key: 'scope:planning', percentage: 40 },
+      { key: 'scope:delivery', percentage: 60 },
+    ],
+  });
+  view.props.costSnapshot.manualCosts.riskContingency = 20;
+  view.mode('scope');
+  view.props.costSnapshot.costRows[1].scope = 'Planning';
+  const prior = globalThis.window;
+  globalThis.window = { confirm: () => true };
+  try {
+    view
+      .find(
+        (node) =>
+          typeof node.props.onClick === 'function' &&
+          textOf(node).includes('Refresh from Cost'),
+      )
+      .props.onClick();
+    assert.deepEqual(view.pricing.riskScopeShares, [
+      { key: 'scope:planning', percentage: 100 },
+    ]);
+    assert.equal(view.pricing.manualLines.length, 1);
+    assert.deepEqual(allocatedCosts(view), [100]);
+  } finally {
+    if (prior === undefined) delete globalThis.window;
+    else globalThis.window = prior;
+  }
+});
+
 test('quotation remarks save independently of line prices and render one column', () => {
   const view = quotationHarness(QuoteLinesEditor, {
     ...legacyTerms(),

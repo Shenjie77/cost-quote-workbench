@@ -23,6 +23,13 @@ export function personnelEntrySheets(rates: RateSettings): EntrySheet[] {
     name: mode === 'mandays' ? 'Personnel MD' : 'Personnel Sites',
     columns: [
       {
+        key: 'category',
+        label: 'Category',
+        kind: 'text',
+        description: 'Quotation category; blank uses Professional Service.',
+        example: 'Professional Service',
+      },
+      {
         key: 'groupName',
         label: 'Group',
         kind: 'text',
@@ -74,6 +81,13 @@ export function personnelEntrySheets(rates: RateSettings): EntrySheet[] {
             : 'Number of sites in this year; blank means zero.',
         example: mode === 'mandays' ? 10 : 3,
       })),
+      {
+        key: 'id',
+        label: 'Row ID',
+        kind: 'text',
+        description:
+          'Keep the existing ID to update; leave blank for a new row.',
+      },
     ],
   }));
 }
@@ -82,12 +96,14 @@ export function PersonnelBulkEntryPage({
   versionCode,
   resources,
   rates,
+  rows,
   locked,
   onClose,
   onConfirm,
 }: {
   projectId: string;
   versionCode: string;
+  rows: CostInputRow[];
   resources: ResourceType[];
   rates: RateSettings;
   locked: boolean;
@@ -96,6 +112,27 @@ export function PersonnelBulkEntryPage({
 }) {
   const sheets = personnelEntrySheets(rates).map((sheet) => ({
       ...sheet,
+      rows: rows
+        .filter((row) => (row.inputMode ?? 'sites') === sheet.id)
+        .map((row) => ({
+          id: row.id,
+          category: row.category ?? '',
+          groupName: row.groupName ?? '',
+          scope: row.scope,
+          bu: row.bu,
+          reType:
+            resources.find((resource) => resource.id === row.reTypeId)?.code ??
+            row.reTypeId,
+          mdPerSite: row.mdPerSite,
+          ...Object.fromEntries(
+            row.years.map((year, i) => [
+              `${sheet.id}:${i}`,
+              sheet.id === 'mandays'
+                ? (year.mandays ?? year.sites * row.mdPerSite)
+                : year.sites,
+            ]),
+          ),
+        })),
       columns: sheet.columns.map((column) =>
         column.key === 'reType'
           ? { ...column, options: resources.map((resource) => resource.code) }
@@ -106,9 +143,12 @@ export function PersonnelBulkEntryPage({
   return (
     <BulkEntryPage
       draftId={`bulk:personnel:${projectId}:${versionCode}`}
-      target={`${projectId} / ${versionCode} · Personnel · Append rows`}
+      target={`${projectId} / ${versionCode} · Personnel · Update existing rows or add new rows`}
       sheets={sheets}
-      contextKey={basis}
+      initialSheet={
+        rows.some((row) => row.inputMode === 'mandays') ? 'mandays' : 'sites'
+      }
+      contextKey={JSON.stringify([basis, rows])}
       disabled={locked}
       onClose={onClose}
       onPreview={(document, selected) => {
@@ -134,11 +174,41 @@ export function PersonnelBulkEntryPage({
             mapping: Object.fromEntries(
               sheet.columns.map((c, i) => [
                 i,
-                c.key as PersonnelBulkColumnTarget,
+                (c.key === 'id'
+                  ? 'ignore'
+                  : c.key) as PersonnelBulkColumnTarget,
               ]),
             ),
           });
-          payload.push(...result.rows);
+          for (const entry of result.entries) {
+            if (!entry.row) continue;
+            const source = read.rows.find((row) => row.row === entry.sourceRow);
+            const id = String(source?.values.id ?? '').trim();
+            const existing = rows.find((row) => row.id === id);
+            if (id && !existing) {
+              issues.push({
+                sheet: sheet.id,
+                row: entry.sourceRow,
+                message:
+                  'Row ID no longer exists. Reload current data, or clear the ID to add a new row.',
+              });
+              continue;
+            }
+            if (id && payload.some((row) => row.id === id)) {
+              issues.push({
+                sheet: sheet.id,
+                row: entry.sourceRow,
+                message:
+                  'Row ID is duplicated. Clear the ID when copying a row.',
+              });
+              continue;
+            }
+            payload.push({
+              ...existing,
+              ...entry.row,
+              id: id || `CI-${crypto.randomUUID()}`,
+            });
+          }
           issues.push(
             ...result.issues.map((message) => ({
               sheet: sheet.id,
@@ -157,16 +227,11 @@ export function PersonnelBulkEntryPage({
         return {
           payload,
           issues,
-          summary: `${payload.length} personnel rows to append`,
+          summary: `${payload.filter((row) => rows.some((current) => current.id === row.id)).length} existing rows · ${payload.filter((row) => !rows.some((current) => current.id === row.id)).length} new rows · Unlisted rows kept`,
           count: payload.length,
         };
       }}
-      onImport={(rows) =>
-        onConfirm(
-          rows.map((row) => ({ ...row, id: `CI-${crypto.randomUUID()}` })),
-          basis,
-        )
-      }
+      onImport={(edits) => onConfirm(edits, basis)}
     />
   );
 }

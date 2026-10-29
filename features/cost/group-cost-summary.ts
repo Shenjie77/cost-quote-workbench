@@ -95,6 +95,8 @@ export function costRowsIncludingHQTravel(
 export type GroupCostSummaryRow = {
   key: string;
   label: string;
+  category?: string;
+  groupName?: string;
   kind: 'Group' | 'Project';
   mandays: number;
   personnel: number;
@@ -116,6 +118,7 @@ export function buildGroupCostSummary(
   manual: ManualCostInputs,
   subcontract?: SubcontractCost,
   startYear?: number | null,
+  includeZeroAccounts = false,
 ): GroupCostSummaryRow[] {
   const travel = allocateHQTravel(rows, resources, settings);
   const empty = {
@@ -129,32 +132,45 @@ export function buildGroupCostSummary(
     total: 0,
     share: 0,
   };
-  const result: GroupCostSummaryRow[] = groupPersonnelRows(
-    rows.filter((row) => !isLegacySubcontractRow(row, resources)),
-  ).map((group) => {
-    const personnel = roundMoney(
-      group.rows.reduce((sum, row) => sum + totalRowCost(row), 0),
-    );
-    const hqTravel = roundMoney(
-      group.rows.reduce(
-        (sum, row) =>
-          sum + (travel.get(row.id) ?? []).reduce((a, b) => a + b, 0),
-        0,
-      ),
-    );
-    return {
-      ...empty,
-      key: `group:${group.groupName}`,
-      label: group.groupName || UNASSIGNED_PERSONNEL_GROUP,
-      kind: 'Group',
-      personnel,
-      travel: hqTravel,
-      total: roundMoney(personnel + hqTravel),
-      mandays: roundQuantity(
-        group.rows.reduce((sum, row) => sum + totalRowMandays(row), 0),
-      ),
-    };
-  });
+  const categories = new Map<string, CostInputRow[]>();
+  for (const row of rows.filter(
+    (row) => !isLegacySubcontractRow(row, resources),
+  )) {
+    const category = row.category?.trim() || '';
+    categories.set(category, [...(categories.get(category) ?? []), row]);
+  }
+  const result: GroupCostSummaryRow[] = [...categories]
+    .flatMap(([category, rows]) =>
+      groupPersonnelRows(rows).map((group) => ({ ...group, category })),
+    )
+    .map((group) => {
+      const personnel = roundMoney(
+        group.rows.reduce((sum, row) => sum + totalRowCost(row), 0),
+      );
+      const hqTravel = roundMoney(
+        group.rows.reduce(
+          (sum, row) =>
+            sum + (travel.get(row.id) ?? []).reduce((a, b) => a + b, 0),
+          0,
+        ),
+      );
+      return {
+        ...empty,
+        key: group.category
+          ? `category:${JSON.stringify([group.category, group.groupName])}`
+          : `group:${group.groupName}`,
+        label: group.groupName || UNASSIGNED_PERSONNEL_GROUP,
+        category: group.category,
+        groupName: group.groupName,
+        kind: 'Group',
+        personnel,
+        travel: hqTravel,
+        total: roundMoney(personnel + hqTravel),
+        mandays: roundQuantity(
+          group.rows.reduce((sum, row) => sum + totalRowMandays(row), 0),
+        ),
+      };
+    });
   const statement = buildCostStatementRows(
     rows,
     resources,
@@ -175,7 +191,7 @@ export function buildGroupCostSummary(
   ] as const;
   for (const [code, label, field] of accounts) {
     const amount = statement.find((row) => row.code === code)?.amount ?? 0;
-    if (amount || field !== 'other')
+    if (amount || field !== 'other' || includeZeroAccounts)
       result.push({
         ...empty,
         key: `account:${code}`,

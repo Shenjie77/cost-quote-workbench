@@ -365,7 +365,8 @@ test('exports show selected personnel assumptions, omit disabled travel cost, an
   );
   const simple = await load(await buildSimpleCostWorkbookBytes(s));
   const summary = simple.getWorksheet('Summary Scope');
-  assert.equal(summary.getCell(summary.rowCount, 4).value, expected);
+  assert.match(summary.getCell(summary.rowCount, 4).formula, /SUM/);
+  assert.equal(value(summary.getCell(summary.rowCount, 4)), expected);
   s.travelSettings.enabled = true;
   const enabled = await load(await buildCostWorkbookBytes(s));
   const enabledStatement = enabled.getWorksheet('06_Cost_Statement');

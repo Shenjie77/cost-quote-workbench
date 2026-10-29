@@ -1,4 +1,3 @@
-import { allocateHQTravel } from '../cost/group-cost-summary.ts';
 import { excelMoneyFormula as money } from '../../lib/excel-money.ts';
 import type { MaintenanceWorkspace } from '../maintenance/domain.ts';
 import { emptyMaintenance } from '../maintenance/domain.ts';
@@ -7,18 +6,13 @@ import { unmergeWorkbook } from '../../lib/unmerged-workbook.ts';
 import type { PersonnelTableLayout } from '../cost/personnel-table-layout.ts';
 import type { PersonnelExportReferences } from '../cost/export-simple-workbook.ts';
 /** Internal quotation review workbook with live links to the complete Simple Cost statement. */
-import type { Workbook, Worksheet } from 'exceljs';
+import type { Worksheet } from 'exceljs';
 import type { CostExportSnapshot } from '../cost/contracts.ts';
 import {
   buildSimpleCostWorkbook,
   getSimpleCostWorkbookFileName,
 } from '../cost/export-simple-workbook.ts';
-import {
-  buildCostStatementRows,
-  getHQTravelSummary,
-  getY1Year,
-  roundMoney,
-} from '../cost/domain.ts';
+import { roundMoney } from '../cost/domain.ts';
 import { calculateBuCostAllocation } from './profit-share.ts';
 import { calculatePricing, type PricingSettings } from './domain.ts';
 import { buildQuoteLines, validateQuoteLines } from './quote-lines.ts';
@@ -48,187 +42,6 @@ function formula(
   result = 0,
 ) {
   sheet.getCell(address).value = { formula: expression, result };
-}
-
-/** Link captured annual cost inputs to row totals and the canonical statement hierarchy. */
-function linkCostStatement(
-  workbook: Workbook,
-  snapshot: CostExportSnapshot,
-  personnelReferences?: PersonnelExportReferences,
-) {
-  const detail = workbook.getWorksheet('Cost Detail');
-  const statement = workbook.getWorksheet('Cost Statement')!;
-  const travel = getHQTravelSummary(
-    snapshot.costRows,
-    snapshot.resourceTypes,
-    snapshot.travelSettings,
-  ).totalCost;
-  const rows = buildCostStatementRows(
-    snapshot.costRows,
-    snapshot.resourceTypes,
-    travel,
-    snapshot.manualCosts,
-    snapshot.subcontractCost,
-    getY1Year(snapshot.rateSettings),
-  );
-  const cells = new Map(rows.map((row, index) => [row.code, `B${index + 5}`]));
-  const categoryRefs = {
-    internal: [] as string[],
-    subcontract: [] as string[],
-  };
-  const linkedCosts = { internal: 0, subcontract: 0 };
-  const travelAllocation = allocateHQTravel(
-    snapshot.costRows,
-    snapshot.resourceTypes,
-    snapshot.travelSettings,
-  );
-  snapshot.costRows.forEach((row, index) => {
-    if (!detail) return;
-    const number = index + 6;
-    const references = personnelReferences?.get(row.id);
-    const totalAddress = personnelReferences
-      ? references?.totalCost
-      : `G${number}`;
-    const annualAddresses = row.years.map((year, yearIndex) =>
-      personnelReferences
-        ? references?.[`Y${yearIndex + 1}:cost` as keyof typeof references]
-        : `${['J', 'M', 'P', 'S', 'V'][yearIndex]}${number}`,
-    );
-    const allocatedTravel = travelAllocation.get(row.id) ?? [];
-    const rowTravel = roundMoney(allocatedTravel.reduce((a, b) => a + b, 0));
-    const terms = row.years.map((year, yearIndex) =>
-      annualAddresses[yearIndex]
-        ? `'Cost Detail'!${annualAddresses[yearIndex]}`
-        : String(roundMoney(year.cost + (allocatedTravel[yearIndex] ?? 0))),
-    );
-    const amount = roundMoney(
-      row.years.reduce((sum, year) => sum + year.cost, 0),
-    );
-    if (totalAddress && annualAddresses.some(Boolean))
-      formula(
-        detail,
-        totalAddress,
-        `SUM(${(personnelReferences ? terms : annualAddresses).join(',')})`,
-        roundMoney(amount + rowTravel),
-      );
-    const reference = totalAddress
-      ? `'Cost Detail'!${totalAddress}`
-      : annualAddresses.some(Boolean)
-        ? `SUM(${terms.join(',')})`
-        : undefined;
-    const category = snapshot.resourceTypes.find(
-      (resource) => resource.id === row.reTypeId,
-    )?.category;
-    if (category && reference) {
-      categoryRefs[category].push(
-        rowTravel ? `(${reference}-${rowTravel})` : reference,
-      );
-      linkedCosts[category] = roundMoney(linkedCosts[category] + amount);
-    }
-  });
-  // Legacy default layout retains its complete annual totals; page-shaped layouts keep their rendered summary rows.
-  const totalRow = 6 + snapshot.costRows.length;
-  if (detail && !personnelReferences && snapshot.costRows.length) {
-    for (const column of ['G', 'J', 'M', 'P', 'S', 'V']) {
-      const cell = detail.getCell(`${column}${totalRow}`);
-      formula(
-        detail,
-        cell.address,
-        `SUM(${column}6:${column}${totalRow - 1})`,
-        Number(cell.value),
-      );
-    }
-  }
-  const subcon = workbook.getWorksheet('Subcon Detail');
-  if (subcon) {
-    for (let row = 5; row < subcon.rowCount; row++) {
-      const cell = subcon.getCell(`I${row}`);
-      formula(
-        subcon,
-        cell.address,
-        `SUM(K${row},M${row},O${row},Q${row},S${row})`,
-        Number(cell.value),
-      );
-    }
-    const cell = subcon.getCell(`I${subcon.rowCount}`);
-    linkedCosts.subcontract = roundMoney(
-      linkedCosts.subcontract + Number(cell.value),
-    );
-    formula(
-      subcon,
-      cell.address,
-      `SUM(I5:I${subcon.rowCount - 1})`,
-      Number(cell.value),
-    );
-    categoryRefs.subcontract.push(`'Subcon Detail'!${cell.address}`);
-    for (const column of ['K', 'M', 'O', 'Q', 'S']) {
-      const total = subcon.getCell(`${column}${subcon.rowCount}`);
-      formula(
-        subcon,
-        total.address,
-        `SUM(${column}5:${column}${subcon.rowCount - 1})`,
-        Number(total.value),
-      );
-    }
-  }
-  const ref = (code: string) => cells.get(code)!;
-  const sums: Record<string, string[]> = {
-    '2': ['2.1.2', '2.2', '2.3'],
-    '2.2': ['2.2.1'],
-    '2.2.1': ['2.2.1.2', '2.2.1.3'],
-    '2.3': ['2.3.1', '2.3.2', '2.3.3', '2.3.4'],
-    '2.3.1': ['2.3.1.1', '2.3.1.2', '2.3.1.3'],
-    '2.3.4': ['2.3.4.1', '2.3.4.2'],
-    '': ['2', '15'],
-  };
-  rows.forEach((row) => {
-    const parts = sums[row.code];
-    if (parts)
-      formula(
-        statement,
-        ref(row.code),
-        `SUM(${parts.map(ref).join(',')})`,
-        row.amount,
-      );
-    const category =
-      row.code === '2.3.1.1'
-        ? 'internal'
-        : row.code === '2.3.2'
-          ? 'subcontract'
-          : undefined;
-    // Omitted detail sheets become captured account inputs; included sources keep their live formulas.
-    if (category && categoryRefs[category].length)
-      formula(
-        statement,
-        ref(row.code),
-        `SUM(${[...categoryRefs[category], String(roundMoney(row.amount - linkedCosts[category]))].join(',')})`,
-        row.amount,
-      );
-    if (
-      row.code === '2.3.4.2' &&
-      snapshot.manualCosts.otherServiceRate !== undefined
-    ) {
-      statement.getCell('D4').value = 'EHS Rate';
-      statement.getCell('E4').value = snapshot.manualCosts.otherServiceRate;
-      statement.getCell('E4').numFmt = '0.00%';
-      formula(
-        statement,
-        ref(row.code),
-        money(`SUM(${['2.3.1', '2.3.2', '2.3.3'].map(ref).join(',')})*$E$4`),
-        row.amount,
-      );
-    }
-  });
-  // Keep existing summary tabs identifiable as captured reports, not live calculation inputs.
-  for (const sheet of workbook.worksheets.filter((sheet) =>
-    sheet.name.startsWith('Summary '),
-  ))
-    sheet.getCell('A3').value =
-      'Snapshot summary at export. Live costing: Cost Detail / Subcon Detail → Cost Statement → Quotation Details.';
-  return {
-    total: rows.at(-1)!.amount,
-    reference: `'Cost Statement'!${ref('')}`,
-  };
 }
 
 /** Build a bounded, acyclic GP calculation matching the domain’s rounding and four-decimal unit prices. */
@@ -322,7 +135,9 @@ export async function buildCombinedQuoteWorkbook(
     workbook,
     personnelReferences,
   );
-  const statement = linkCostStatement(workbook, snapshot, personnelReferences);
+  const statement = {
+    reference: `'Cost Statement'!B${workbook.getWorksheet('Cost Statement')!.rowCount}`,
+  };
   // Open on the internal quote, followed by its complete Simple Cost source sheets.
   workbook.views = [
     {
@@ -391,7 +206,7 @@ export async function buildCombinedQuoteWorkbook(
   );
   sheet.mergeCells('A6:M6');
   sheet.getCell('A6').value =
-    'Annual cost values are captured inputs. Edit them in Cost Detail / Subcon Detail, or manual accounts in Cost Statement. Summary tabs remain export snapshots. BU share is the captured weighted rate.';
+    'Edit blue quantity inputs in Cost Detail / Subcon Detail, or manual accounts in Cost Statement. Costs, summaries and quotation prices recalculate. BU share is the captured weighted rate.';
   sheet.getRow(8).values = [
     '#',
     'Description',

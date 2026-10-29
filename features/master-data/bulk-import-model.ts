@@ -937,6 +937,7 @@ export function previewBulkImport(
   input: { row: number; values: Item }[],
   current: Item[],
   related: Related = {},
+  options: { editCurrentRows?: boolean } = {},
 ): BulkImportPreview {
   const spec = bulkTabSpec(tab);
   const items = structuredClone(current);
@@ -1011,6 +1012,30 @@ export function previewBulkImport(
             message: 'Required for a new record.',
           });
     const item = existing ? { ...existing, ...values } : newItem(tab, values);
+    if (existing && options.editCurrentRows) {
+      for (const field of spec.columns) {
+        if (
+          field.key === keyField ||
+          field.computed ||
+          !Object.hasOwn(raw, field.key) ||
+          !blank(raw[field.key]) ||
+          blank(existing[field.key])
+        )
+          continue;
+        if (field.kind === 'list') item[field.key] = [];
+        else if (field.kind === 'text' || field.kind === 'date')
+          item[field.key] = '';
+        else if (!field.required && field.kind !== 'boolean')
+          delete item[field.key];
+        else if (field.required)
+          result.issues.push({
+            row,
+            column: field.key,
+            message:
+              'Required for an existing record; enter a value instead of clearing it.',
+          });
+      }
+    }
     if (tab === 'maintenance') {
       const priceChanged =
         !existing ||

@@ -278,7 +278,7 @@ test('quantity controls accept metres, reject fractional pieces, preserve blank 
   assert.equal(errors.length, 2);
 });
 
-test('item details display prices and quantities without inline inputs', () => {
+test('item details display prices and accept direct quantity editing', () => {
   const changes = [],
     errors = [];
   const item = line({
@@ -297,12 +297,12 @@ test('item details display prices and quantities without inline inputs', () => {
   const nodes = walk(SubcontractLinesTable(props));
   assert.equal(
     nodes.some((node) => node.type === SubcontractNumberInput),
-    false,
+    true,
   );
   const html = render(SubcontractLinesTable, props);
-  assert.doesNotMatch(html, /<input|<select/);
+  assert.doesNotMatch(html, /<select/);
   assert.match(html, /aria-label="CABLE unit price"[^>]*>200\.00<\/td>/);
-  assert.match(html, /aria-label="CABLE Y1 quantity"[^>]*>2\.5<\/span>/);
+  assert.match(html, /aria-label="CABLE Y1 quantity"[^>]*value="2\.5"/);
   assert.equal(changes.length, 0);
   assert.equal(item.unitPrice, 200);
 });
@@ -522,9 +522,9 @@ test('shared item details use year tabs and calculate the selected and all-year 
     announce: noop,
   };
   const selected = render(SubcontractLinesTable, { ...props, yearIndex: 1 });
-  assert.match(selected, /aria-label="ROUTER Y2 quantity"[^>]*>2<\/span>/);
+  assert.match(selected, /aria-label="ROUTER Y2 quantity"[^>]*value="2"/);
   assert.match(selected, /110\.00/);
-  assert.doesNotMatch(selected, /<input|<select/);
+  assert.doesNotMatch(selected, /<select/);
   const all = render(SubcontractLinesTable, { ...props, yearIndex: 'all' });
   assert.match(all, /160\.00/);
   for (const year of ['Y1', 'Y2', 'Y3', 'Y4', 'Y5'])

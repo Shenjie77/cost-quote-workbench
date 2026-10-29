@@ -85,6 +85,20 @@ response examples, errors, exit statuses, Agent workflow, and v1 migration.
 
 `cost update --section settings` supports `manualCosts.otherServiceRate:0.01` for 2.3.4.2 = 1% × (2.3.1 + 2.3.2 + 2.3.3). Setting only `manualCosts.otherService` switches to manual amount. Master Data resource classifications are explicit; custom RE codes are accepted with valid category/pool/level fields.
 
+## Current cost fields and bulk updates
+
+Personnel `cost update --section rows` supports `category` (optional, at most
+120 characters), distinct from `groupName` and the RE Type classification.
+Structured Subcontract lines also support `category`. These commercial labels
+carry into generated quotation categories; `Optional` is a label, not an
+instruction to exclude a price. Use stable row IDs and the latest revision.
+
+Browser Bulk Entry now loads current data and updates IDs instead of restoring
+applied import batches. CLI uses `upsert`; file-based `cost import` / `boq import`
+remain source-deduplicated append operations. Copy Group and direct Subcon
+quantity cells are UI conveniences; see the [control manual](cli-control-manual.md)
+for their existing narrow-update equivalents.
+
 ## Latest platform coverage
 
 See [the audited coverage matrix and latest quotation examples](cli-platform-coverage.md)

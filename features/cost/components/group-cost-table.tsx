@@ -38,6 +38,7 @@ export function GroupCostTable({ items }: { items: GroupCostSummaryRow[] }) {
       <Table aria-label="Group cost summary" className="min-w-[1400px]">
         <TableHeader>
           <TableRow>
+            <TableHead>Category</TableHead>
             <TableHead className="w-56">Group / Account</TableHead>
             <TableHead>Level</TableHead>
             {measures.map(([key, label]) => (
@@ -53,6 +54,7 @@ export function GroupCostTable({ items }: { items: GroupCostSummaryRow[] }) {
               key={item.key}
               className={item.kind === 'Project' ? 'bg-muted/20' : ''}
             >
+              <TableCell>{item.category || '—'}</TableCell>
               <TableCell className="font-medium">{item.label}</TableCell>
               <TableCell>{item.kind}</TableCell>
               {measures.map(([key]) => (
@@ -68,7 +70,7 @@ export function GroupCostTable({ items }: { items: GroupCostSummaryRow[] }) {
         </TableBody>
         <TableFooter>
           <TableRow>
-            <TableCell colSpan={2}>Total Cost with Risk</TableCell>
+            <TableCell colSpan={3}>Total Cost with Risk</TableCell>
             {measures.map(([key]) => (
               <TableCell key={key} className="text-right tabular-nums">
                 {display(

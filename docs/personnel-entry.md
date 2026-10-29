@@ -22,6 +22,20 @@ groups. Names are trimmed, case-sensitive and limited to 200 characters; blank
 or absent names appear under **Unassigned Group**. Existing rows are not grouped
 automatically by Scope.
 
+Use **Copy Group** in the cost toolbar or a group heading to copy every member
+into a new named group. The copy is inserted after the source group's last row,
+keeps Scope, Category, BU, RE Type, input mode and all five years of effort, and
+receives new row IDs. The copied rows are independent manual inputs; source-file
+identity remains on the originals. Costs and HQ travel allocations are recalculated.
+The new group name must be nonempty and different from existing group names.
+Copying is unavailable for locked versions.
+
+The editable **Category** column is independent of Group and RE Type. It is an
+optional commercial label of at most 120 characters, carried into generated
+quotation categories. Blank categories use the ordinary quotation default;
+calling a category `Optional` does not automatically exclude its price. Group
+still organizes related cost activities; RE Type still selects personnel rates.
+
 Use **Action → Up / Down**, or drag a row by its handle to the upper/lower half
 of another row. In grouped view, moving into another group also changes the
 row's Group. Dropping on a group heading places the row at that group's end.
@@ -84,63 +98,29 @@ reconcile to Total Cost with Risk. Simple Export also includes **Summary Subcon*
 Full Export keeps its existing Sales Cost audit/reconciliation sheets, and the
 CLI calculate summaries retain their Sales Cost basis.
 
-## Paste several rows
+## Edit several rows
 
-1. Choose **Bulk Entry** beside Groups.
-2. Choose **Auto-detect headers**, **Scope + MD · no header**, or
-   **Group + Scope + MD · no header**. Paste a table copied from Excel, or use
-   **Copy template**. Common Chinese and English headers are recognized;
-   review the detected column mappings.
-3. Check Group, Scope, BU, RE Type, mode, MD/Site and annual quantities. Select defaults
-   for omitted BU/RE Type fields and resolve unmatched or ambiguous resources.
-4. Review the calculated preview, then confirm to append the rows to the
-   current editable cost version. Existing rows remain in place.
+1. Choose **Bulk Entry** beside the cost toolbar controls. The Personnel MD and
+   Personnel Sites sheets contain the current version's rows and their Row IDs.
+2. Edit Category, Group, Scope, BU, RE Type and annual effort directly. Keep the
+   Row ID for an update; enter new rows with a blank ID to add them. Use the
+   fixed columns and Column guide rather than pasting an unrelated header layout.
+3. Select the sheets to apply, choose **Validate**, and then **Apply changes**.
+   Unlisted rows are kept. Reopening loads saved values, so a previous successful
+   update does not create duplicates or trigger an “already imported” error.
+4. Use **Reload current data** to discard edits and start from current values.
+   If another operation changes the destination while the editor is open,
+   reload before applying. Leaving edited cells prompts before discarding them.
 
-Example for Sites mode (copy as tab-separated cells):
+Personnel costs are recalculated from the version's captured RE rates, annual
+uplifts and allowance settings. The grid accepts literal values, not pasted
+formulas or authoritative cost amounts. Unknown/repeated Row IDs, missing fields
+and invalid effort block the entire selected update. There is a 1,000-row limit
+per sheet. Locked versions remain read-only.
 
-```text
-Group	Scope	BU	RE Type	MD/Site	Y1 Sites	Y2 Sites
-Deployment	Router rollout	Networks	YOUR_RE_CODE	2	10	5
-Support	Remote support	Services	YOUR_RE_CODE	0.5	4	4
-```
-
-For a short TD description, choose **Group + Scope + MD · no header** and paste:
-
-```text
-Network Design & Planning	HLD design	1 MD
-Network Design & Planning	LLD design	3days
-Network Design & Planning	Network planning	3天
-```
-
-Choose the default BU, RE Type and delivery year before previewing. The two
-fixed formats use Direct MD and do not require a header. **Scope + MD** uses
-only the last two columns of the example. The general format defaults to Direct
-MD and also supports Man-day/Man-days/人天 headings, paired year labels such as
-`Y1 · 2026`, and supported two-row Excel year headers. Ambiguous years and invalid
-effort values require correction instead of silently importing them.
-
-Markdown tables can include alignment separators, a complete Markdown code
-fence, and bold or backtick-wrapped headers. Business descriptions are preserved;
-formatting around numeric values is not treated as a number. An unclosed fence
-must be corrected before confirmation.
-
-Use an actual active personnel RE Type code, ID or name from the cost version.
-If more than one resource matches, select the intended record in the preview.
-For Direct MD, use `Mode` = `Direct MD` and `Y1 MD` through `Y5 MD` columns.
-Calendar-year headers map to the version's project years. An unqualified `Sites`
-or `MD` column uses the chosen delivery year (Y1 when opened from All Years).
-`Group`, `Group Name`, `分组` and `组名` headers map to the independent group field.
-The **Fill blank Group** option repeats the preceding group in the pasted table;
-Scope fill-down has its own separate option.
-
-The preview calculates costs from the version's captured RE rates, annual
-uplifts and selected Pool allowance. Supplied cost/price columns are ignored
-and reported, not used as authoritative costs. Invalid values block confirmation.
-Changing the table, mapping or cost basis requires a fresh preview before entry.
-The limit is 1,000 input rows per paste. Bulk Entry is unavailable for locked
-versions; create a new Draft to revise those estimates.
-
-File-based **Import** remains a separate path for importing a workbook with
-source-file records. Manually pasted rows are ordinary editable personnel rows.
+File-based **Import** is a separate TD/PM workbook mapping workflow with source
+records and duplicate-source protection. Its append semantics are unchanged;
+use explicit row updates or a new working version for revised source files.
+See [the shared Bulk Entry rules](design/bulk-entry.md).
 
 Cost Input 的表格随行数自然撑高，不设置内部纵向滚动区。鼠标在表格上滚动时由页面上下滚动；年度列仍保留横向滚动。

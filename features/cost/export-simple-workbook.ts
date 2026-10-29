@@ -6,6 +6,10 @@ import {
 import { unmergeWorkbook } from '../../lib/unmerged-workbook.ts';
 import { addSubcontractWorkbookSheets } from './export-subcontract-workbook.ts';
 import { subcontractCostDetails } from './subcontract-domain.ts';
+import {
+  linkSimpleCostFormulas,
+  simpleDimensionItems,
+} from './simple-cost-formulas.ts';
 /** Page-shaped, read-only cost reports built from one detached cost snapshot. */
 
 import type { CostExportSnapshot } from './contracts.ts';
@@ -13,8 +17,6 @@ import {
   getY1Year,
   YEAR_BUCKETS,
   buildCostStatementRows,
-  buildReconciledCostDimensionSummary,
-  buildSubcontractScopeSummary,
   getCostSummaryStatementCode,
   isCostStatementGroupRow,
   getActualYears,
@@ -199,8 +201,12 @@ export type PersonnelExportReferences = Map<
 >;
 
 /** Cost Input's business columns and two-tier Y1–Y5 header, without controls. */
-const addDetail = (workbook: Workbook, snapshot: CostExportSnapshot) => {
-  const columns = 7 + YEAR_BUCKETS.length * 3;
+const addDetail = (
+  workbook: Workbook,
+  snapshot: CostExportSnapshot,
+  references: PersonnelExportReferences,
+) => {
+  const columns = 8 + YEAR_BUCKETS.length * 3;
   const sheet = addSheet(
     workbook,
     snapshot,
@@ -237,6 +243,8 @@ const addDetail = (workbook: Workbook, snapshot: CostExportSnapshot) => {
     sheet.mergeCells(HEADER_ROW, index + 1, HEADER_ROW + 1, index + 1);
     sheet.getCell(HEADER_ROW, index + 1).value = header;
   });
+  sheet.getCell(HEADER_ROW, columns).value = 'Category';
+  sheet.getColumn(columns).width = 24;
   const actualYears = getActualYears(snapshot.rateSettings);
   const factors = getLabourRateFactors(snapshot.rateSettings);
   YEAR_BUCKETS.forEach((bucket, index) => {
@@ -302,7 +310,32 @@ const addDetail = (workbook: Workbook, snapshot: CostExportSnapshot) => {
         roundMoney(Number(year.cost)),
       ]),
     ]);
-    for (let column = 4; column <= columns; column += 1) {
+    row.getCell(columns).value = input.category || '';
+    const ids: PersonnelColumnId[] = [
+      'scope',
+      'bu',
+      'reType',
+      'mdPerSite',
+      'totalSites',
+      'totalMd',
+      'totalCost',
+      ...YEAR_BUCKETS.flatMap(
+        (bucket) =>
+          [
+            `${bucket}:sites`,
+            `${bucket}:mandays`,
+            `${bucket}:cost`,
+          ] as PersonnelColumnId[],
+      ),
+      'category',
+    ];
+    references.set(
+      input.id,
+      Object.fromEntries(
+        ids.map((id, index) => [id, row.getCell(index + 1).address]),
+      ),
+    );
+    for (let column = 4; column < columns; column += 1) {
       if (!isDetailMoneyColumn(column))
         row.getCell(column).numFmt = quantityFormat(
           Number(row.getCell(column).value),
@@ -339,7 +372,15 @@ const addDetail = (workbook: Workbook, snapshot: CostExportSnapshot) => {
       ),
     ]),
   ]);
-  for (let column = 4; column <= columns; column += 1) {
+  for (let column = 5; column < columns; column += 1) {
+    const cell = totals.getCell(column);
+    const result = Number(cell.value);
+    cell.value = {
+      formula: detailRows.length
+        ? `SUM(${sheet.getCell(6, column).address}:${sheet.getCell(totals.number - 1, column).address})`
+        : '0',
+      result,
+    };
     if (!isDetailMoneyColumn(column))
       totals.getCell(column).numFmt = quantityFormat(
         Number(totals.getCell(column).value),
@@ -359,7 +400,7 @@ const addDetail = (workbook: Workbook, snapshot: CostExportSnapshot) => {
 const personnelMoneyColumn = (id: PersonnelColumnId) =>
   id === 'totalCost' || getPersonnelAnnualColumn(id)?.field === 'cost';
 const personnelTextColumn = (id: PersonnelColumnId) =>
-  ['groupName', 'scope', 'bu', 'reType'].includes(id);
+  ['category', 'groupName', 'scope', 'bu', 'reType'].includes(id);
 const personnelColumnWidth = (id: PersonnelColumnId) =>
   id === 'scope'
     ? 36
@@ -379,6 +420,7 @@ function personnelValue(
   snapshot: CostExportSnapshot,
 ): import('exceljs').CellValue {
   if (id === 'groupName') return input.groupName?.trim() || '';
+  if (id === 'category') return input.category?.trim() || '';
   if (id === 'scope' || id === 'bu') return input[id];
   if (id === 'reType')
     return (
@@ -580,7 +622,7 @@ function addPersonnelDetail(
           cell.value = `${title} · ${group.rows.length} ${group.rows.length === 1 ? 'row' : 'rows'}`;
         else if (typeof value === 'number') {
           cell.value = {
-            formula: `SUM(${group.rows.map((row) => sheet.getCell(rowAddresses.get(row.id)!, index + 1).address).join(',')})`,
+            formula: `SUM(${sheet.getCell(rowAddresses.get(group.rows[0].id)!, index + 1).address}:${sheet.getCell(rowAddresses.get(group.rows.at(-1)!.id)!, index + 1).address})`,
             result: value,
           };
           cell.numFmt = personnelMoneyColumn(id)
@@ -608,7 +650,7 @@ function addPersonnelDetail(
         : value;
     if (typeof value === 'number') {
       // Combined exports retain the same visible layout and link totals to its actual input rows.
-      if (references && personnelMoneyColumn(id) && rows.length)
+      if (references && rows.length)
         cell.value = {
           formula: `SUM(${rows
             .map((row) => references.get(row.id)?.[id])
@@ -640,7 +682,7 @@ function addLegacySubcontractDetail(
     isLegacySubcontractRow(row, snapshot.resourceTypes),
   );
   if (!rows.length) return;
-  const columns = 4 + YEAR_BUCKETS.length;
+  const columns = 5 + YEAR_BUCKETS.length;
   const sheet = addSheet(
     workbook,
     snapshot,
@@ -656,11 +698,14 @@ function addLegacySubcontractDetail(
       'RE Type',
       'Total Cost',
       ...YEAR_BUCKETS.map((bucket) => `${bucket} Cost (SGD)`),
+      'Category',
     ],
   );
-  [36, 24, 28, 20, ...YEAR_BUCKETS.map(() => 20)].forEach((width, index) => {
-    sheet.getColumn(index + 1).width = width;
-  });
+  [36, 24, 28, 20, ...YEAR_BUCKETS.map(() => 20), 24].forEach(
+    (width, index) => {
+      sheet.getColumn(index + 1).width = width;
+    },
+  );
   rows.forEach((input, index) => {
     const row = styleRow(sheet, HEADER_ROW + 1 + index, columns);
     setRowValues(row, [
@@ -670,6 +715,7 @@ function addLegacySubcontractDetail(
         ?.name || '',
       totalRowCost(input),
       ...input.years.map((year) => roundMoney(Number(year.cost))),
+      input.category || '',
     ]);
   });
   setRowValues(
@@ -689,7 +735,7 @@ function addLegacySubcontractDetail(
       ),
     ],
   );
-  for (let column = 4; column <= columns; column++)
+  for (let column = 4; column < columns; column++)
     sheet.getColumn(column).numFmt = MONEY;
 }
 
@@ -762,23 +808,7 @@ const addBreakdown = (
     snapshot.subcontractCost,
     getY1Year(snapshot.rateSettings),
   );
-  const items = subcontractOnly
-    ? buildSubcontractScopeSummary(
-        snapshot.costRows,
-        snapshot.resourceTypes,
-        snapshot.subcontractCost,
-        getY1Year(snapshot.rateSettings),
-      )
-    : buildReconciledCostDimensionSummary(
-        snapshot.costRows,
-        dimension,
-        snapshot.resourceTypes,
-        travelCost,
-        snapshot.manualCosts,
-        snapshot.subcontractCost,
-        { includeRisk: true },
-        getY1Year(snapshot.rateSettings),
-      );
+  const items = simpleDimensionItems(snapshot, dimension, subcontractOnly);
   const totalMandays = items.reduce((sum, item) => sum + item.mandays, 0);
   const maxCost = Math.max(1, ...items.map((item) => item.cost));
   // Scope summaries may contain several catalog codes. List each captured code once without changing aggregation.
@@ -941,8 +971,10 @@ export function addGroupCostSheet(
     snapshot.manualCosts,
     snapshot.subcontractCost,
     getY1Year(snapshot.rateSettings),
+    true,
   );
   const headers = [
+    'Category',
     'Group / Account',
     'Level',
     'Mandays',
@@ -973,7 +1005,7 @@ export function addGroupCostSheet(
     }),
     headers,
   );
-  [34, 14, 14, 20, 20, 20, 20, 20, 20, 20, 14].forEach((width, index) => {
+  [24, 34, 14, 14, 20, 20, 20, 20, 20, 20, 20, 14].forEach((width, index) => {
     sheet.getColumn(index + 1).width = width;
   });
   const fields = [
@@ -992,6 +1024,7 @@ export function addGroupCostSheet(
       fill: item.kind === 'Project' ? COLORS.secondary : COLORS.white,
     });
     setRowValues(row, [
+      item.category || '',
       item.label,
       item.kind,
       ...fields.map((field) => item[field]),
@@ -1002,6 +1035,7 @@ export function addGroupCostSheet(
     bold: true,
   });
   setRowValues(total, [
+    null,
     'Total Cost with Risk',
     null,
     ...fields.map((field) =>
@@ -1014,9 +1048,9 @@ export function addGroupCostSheet(
           : roundMoney(items.reduce((sum, item) => sum + item[field], 0)),
     ),
   ]);
-  for (let col = 3; col <= headers.length; col++) {
+  for (let col = 4; col <= headers.length; col++) {
     sheet.getColumn(col).numFmt =
-      col === 3 ? QUANTITY : col === 11 ? '0.0%' : MONEY;
+      col === 4 ? QUANTITY : col === 12 ? '0.0%' : MONEY;
     for (let row = HEADER_ROW + 1; row <= total.number; row++)
       sheet.getCell(row, col).alignment = {
         horizontal: 'right',
@@ -1086,10 +1120,11 @@ export const buildSimpleCostWorkbook = async (
     snapshot.resourceTypes,
     snapshot.travelSettings,
   );
+  const cellReferences = references ?? new Map();
   if (selected.has('Cost Detail')) {
     if (layout && columns)
-      addPersonnelDetail(workbook, snapshot, layout, columns, references);
-    else addDetail(workbook, snapshot);
+      addPersonnelDetail(workbook, snapshot, layout, columns, cellReferences);
+    else addDetail(workbook, snapshot, cellReferences);
   }
   if (layout) addLegacySubcontractDetail(workbook, snapshot);
   addSubcontractWorkbookSheets(workbook, snapshot);
@@ -1128,14 +1163,14 @@ export const buildSimpleCostWorkbook = async (
     true,
   );
   addStatement(workbook, snapshot, travel.totalCost);
-  // These reports contain fixed values, so omitting sheets creates no broken formula references.
-  // Filtering after generation preserves the existing content, formatting and workbook order.
+  // Resolve formulas only after selection so no formula can reference an omitted source.
   for (const sheet of workbook.worksheets)
     if (
       !existingSheets.has(sheet.id) &&
       !selected.has(sheet.name as SimpleCostSheetId)
     )
       workbook.removeWorksheet(sheet.id);
+  linkSimpleCostFormulas(workbook, snapshot, cellReferences);
   unmergeWorkbook(workbook);
   return workbook;
 };

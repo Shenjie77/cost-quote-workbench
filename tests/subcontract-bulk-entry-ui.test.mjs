@@ -284,7 +284,7 @@ test('project and site controls have compact Bulk Entry actions and item codes a
   assert.match(table, /<strong[^>]*font-bold[^>]*>SC-NEW<\/strong>/);
   assert.match(table, /55.00/);
   assert.match(table, /25\.00/);
-  assert.doesNotMatch(table, /<input/);
+  assert.match(table, /<input[^>]*aria-label="SC-NEW Y1 quantity"/);
 });
 
 /** Retain local sheet hooks so request cancellation and refresh failures use real production callbacks. */

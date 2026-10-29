@@ -4,6 +4,8 @@ import {
   movePersonnelRow,
   movePersonnelGroup,
   renamePersonnelGroup,
+  copyPersonnelGroup,
+  nextPersonnelGroupCopyName,
 } from '../features/cost/personnel-row-layout.ts';
 
 const resources = [
@@ -256,5 +258,82 @@ test('whole-group moves preserve member order, cost values and legacy Subcon slo
       true,
     ),
     null,
+  );
+});
+
+test('group copy inserts independent raw rows with new IDs and retains all years and categories', () => {
+  const rows = [
+    makeRow('HLD', 'Design', { category: 'Network', source }),
+    makeRow('LLD', 'Design', {
+      inputMode: 'mandays',
+      years: [{ bucket: 'Y5', sites: 0, mandays: 12, cost: 1200 }],
+    }),
+    makeRow('SUB', '', { reTypeId: 'sub' }),
+    makeRow('Plan', 'Planning'),
+  ];
+  const before = structuredClone(rows);
+  const next = copyPersonnelGroup(rows, resources, {
+    groupName: 'Design',
+    nextGroupName: 'Implementation',
+    rowIds: ['HLD', 'LLD'],
+    newRowIds: ['copy-1', 'copy-2'],
+  });
+  assert.deepEqual(
+    next.map((row) => row.id),
+    ['HLD', 'LLD', 'copy-1', 'copy-2', 'SUB', 'Plan'],
+  );
+  assert.equal(next[2].category, 'Network');
+  assert.equal(next[2].groupName, 'Implementation');
+  assert.equal(next[2].source, undefined);
+  assert.equal(next[3].inputMode, 'mandays');
+  assert.deepEqual(next[3].years, rows[1].years);
+  assert.notEqual(next[3].years, rows[1].years);
+  next[3].years[0].mandays = 100;
+  assert.deepEqual(rows, before);
+  assert.equal(next[4], rows[2]);
+});
+
+test('group copying rejects stale membership, existing names, duplicate IDs and locked versions', () => {
+  const rows = [
+    makeRow('HLD', 'Design'),
+    makeRow('LLD', 'Design'),
+    makeRow('SUB', 'Design', { reTypeId: 'sub' }),
+  ];
+  const request = {
+    groupName: 'Design',
+    nextGroupName: 'Copy',
+    rowIds: ['HLD', 'LLD'],
+    newRowIds: ['new-1', 'new-2'],
+  };
+  for (const patch of [
+    { rowIds: ['HLD'] },
+    { rowIds: ['HLD', 'HLD'] },
+    { nextGroupName: 'Design' },
+    { nextGroupName: '  ' },
+    { nextGroupName: 'x'.repeat(201) },
+    { newRowIds: ['new-1', 'new-1'] },
+    { newRowIds: ['SUB', 'new-2'] },
+    { newRowIds: ['new-1', ''] },
+  ])
+    assert.equal(
+      copyPersonnelGroup(rows, resources, { ...request, ...patch }),
+      null,
+    );
+  assert.equal(copyPersonnelGroup(rows, resources, request, true), null);
+  assert.equal(copyPersonnelGroup(rows, resources, request).length, 5);
+});
+
+test('group copy names stay unique and fit the group field including unassigned groups', () => {
+  assert.equal(nextPersonnelGroupCopyName([], ''), 'Unassigned Group (copy)');
+  assert.equal(
+    nextPersonnelGroupCopyName(
+      [makeRow('1', 'Design (copy)'), makeRow('2', 'Design (copy 2)')],
+      'Design',
+    ),
+    'Design (copy 3)',
+  );
+  assert.equal(
+    Array.from(nextPersonnelGroupCopyName([], 'A'.repeat(200))).length,
+    200,
   );
 });

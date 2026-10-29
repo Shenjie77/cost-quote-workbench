@@ -48,6 +48,7 @@ export function addSubcontractWorkbookSheets(
       `${bucket} ${years[index] ?? ''} Qty`,
       `${bucket} ${years[index] ?? ''} Cost`,
     ]),
+    'Category',
   ]);
   details.forEach((line) => {
     sheet.addRow([
@@ -61,6 +62,7 @@ export function addSubcontractWorkbookSheets(
       roundQuantity(line.quantities.reduce((sum, value) => sum + value, 0)),
       line.total,
       ...line.years.flatMap((value, index) => [line.quantities[index], value]),
+      line.category || '',
     ]);
   });
   const totals = calculateSubcontractCost(
@@ -92,6 +94,7 @@ export function addSubcontractWorkbookSheets(
       18,
       22,
       ...YEAR_BUCKETS.flatMap(() => [18, 22]),
+      24,
     ],
     [6, 9, ...YEAR_BUCKETS.map((_, index) => 11 + index * 2)],
   );

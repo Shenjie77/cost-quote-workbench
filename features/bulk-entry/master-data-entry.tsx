@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { historyFieldValue } from '../master-data/history-fields';
 import { BulkEntryPage } from './bulk-entry-page';
 import { readEntrySheet, type EntryIssue, type EntrySheet } from './workbook';
 import {
@@ -53,6 +54,25 @@ export function MasterDataBulkEntryPage({
   const sheets: EntrySheet[] = tabs.map((tab) => ({
     id: tab.value,
     name: tab.label,
+    rows: store.tabs[tab.value]!.items.map((item) =>
+      Object.fromEntries(
+        bulkTabSpec(tab.value).columns.map((column) => {
+          const value = column.computed
+            ? ''
+            : historyFieldValue(tab.value, column.key, item);
+          return [
+            column.key,
+            typeof value === 'boolean' ||
+            typeof value === 'number' ||
+            typeof value === 'string'
+              ? value
+              : Array.isArray(value)
+                ? JSON.stringify(value)
+                : '',
+          ];
+        }),
+      ),
+    ),
     columns: bulkTabSpec(tab.value).columns.map((c) => ({
       ...c,
       requiredForNew: c.required,
@@ -69,7 +89,7 @@ export function MasterDataBulkEntryPage({
   return (
     <BulkEntryPage
       draftId="bulk:master-data:history-v2"
-      target="Global Master Data · Import one catalog at a time · Calculated columns may be left blank · Record ID is only needed for updates"
+      target="Global Master Data · Edit one catalog at a time · Keep Record ID to update · Calculated columns stay blank"
       sheets={sheets}
       initialSheet={initialTab}
       contextKey={contextKey}
@@ -84,7 +104,9 @@ export function MasterDataBulkEntryPage({
         const related = Object.fromEntries(
           tabs.map((t) => [t.value, store.tabs[t.value]!.items]),
         );
-        const preview = previewBulkImport(tab, rows, state.items, related);
+        const preview = previewBulkImport(tab, rows, state.items, related, {
+          editCurrentRows: true,
+        });
         const all: EntryIssue[] = [
           ...issues,
           ...preview.issues.map((i) => ({

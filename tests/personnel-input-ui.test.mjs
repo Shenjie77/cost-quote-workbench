@@ -668,7 +668,7 @@ test('group headers contain no amount rows and totals remain aligned under focus
     for (const header of headers) {
       assert.equal(
         header.props.children.props.colSpan,
-        yearIndex === 'all' ? 25 : 13,
+        yearIndex === 'all' ? 26 : 14,
       );
       assert.equal(
         walk(header).filter((node) => node.type === PersonnelNumberInput)
@@ -1059,4 +1059,51 @@ test('group movement buttons move complete membership and guard boundaries and l
   button('Move group A down', { locked: true }).props.onClick();
   button('Move group A up').props.onClick();
   assert.equal(writes.length, 1);
+});
+
+test('category is independently editable and bounded without changing group or cost inputs', () => {
+  const original = row({
+    groupName: 'Rollout',
+    category: 'Equipment',
+    source: { fileName: 'source.xlsx' },
+  });
+  let current = [original];
+  const props = tableProps(original, {
+    onPatch: (id, patch) => {
+      current = patchPersonnelRows(current, id, patch, resources, rates);
+    },
+  });
+  const field = walk(PersonnelLinesTable(props)).find(
+    (node) => node.props['aria-label'] === 'Category for CI-1',
+  );
+  assert.equal(field.props.maxLength, 120);
+  field.props.onChange({ target: { value: 'Professional Services' } });
+  assert.equal(current[0].category, 'Professional Services');
+  assert.equal(current[0].groupName, 'Rollout');
+  assert.equal(current[0].years, original.years);
+  assert.equal(current[0].source, original.source);
+  current = patchPersonnelRows(
+    current,
+    original.id,
+    { field: 'category', value: 'x'.repeat(121) },
+    resources,
+    rates,
+  );
+  assert.equal(current[0].category, 'Professional Services');
+});
+
+test('each group provides a copy entry and locked versions cannot open it', () => {
+  const requests = [];
+  const props = tableProps(row({ groupName: 'Design' }), {
+    grouped: true,
+    onCopyGroup: (name) => requests.push(name),
+  });
+  const copy = (locked) =>
+    walk(PersonnelLinesTable({ ...props, locked })).find(
+      (node) => node.props['aria-label'] === 'Copy group Design',
+    );
+  copy(false).props.onClick();
+  copy(true).props.onClick();
+  assert.deepEqual(requests, ['Design']);
+  assert.equal(copy(true).props.disabled, true);
 });

@@ -7,7 +7,12 @@ import {
   calculateManualQuoteLines,
   validateManualQuoteLines,
   validateQuoteLines,
+  quoteScopeCosts,
 } from '../features/quote/quote-lines.ts';
+import {
+  groupedLines,
+  quotationSections,
+} from '../features/quote/quotation-groups.ts';
 import { calculateBuCostAllocation } from '../features/quote/profit-share.ts';
 import { quoteHistoryRecord } from '../features/quote/history-record.ts';
 import { initialQuoteTemplates } from '../features/quote/types.ts';
@@ -95,6 +100,231 @@ const manualLine = (extra = {}) => ({
   unit: 'lot',
   unitPrice: 100,
   ...extra,
+});
+
+test('cost categories keep identical Scope and Group names separate while preserving every cent', () => {
+  const input = snapshot({
+    costRows: [
+      {
+        ...row('a', 'Installation', 100),
+        groupName: 'Rollout',
+        category: ' Hardware ',
+      },
+      {
+        ...row('b', 'Installation', 300),
+        groupName: 'Rollout',
+        category: 'Services',
+      },
+      {
+        ...row('c', 'installation', 100),
+        groupName: 'Rollout',
+        category: 'hardware',
+      },
+    ],
+  });
+  const before = structuredClone(input);
+  for (const mode of ['scope', 'group']) {
+    const lines = buildQuoteLines(input, mode, 1000.01);
+    assert.equal(lines.length, 2);
+    assert.deepEqual(
+      lines.map(({ category, amount }) => ({ category, amount })),
+      [
+        { category: 'Hardware', amount: 400 },
+        { category: 'Services', amount: 600.01 },
+      ],
+    );
+    assert.equal(new Set(lines.map((line) => line.id)).size, 2);
+    assert.deepEqual(validateQuoteLines(lines, 1000.01), []);
+  }
+  const scopes = quoteScopeCosts(input, 500.01);
+  assert.equal(scopes.length, 2);
+  assert.equal(new Set(scopes.map((scope) => scope.key)).size, 2);
+  assert.equal(scopes[0].category, 'Hardware');
+  assert.deepEqual(
+    scopes.map((scope) => scope.amount),
+    [200, 300.01],
+  );
+  assert.deepEqual(input, before);
+});
+
+test('category delimiters inside user Scope or Group labels cannot merge unrelated cost sources', () => {
+  const input = snapshot({
+    costRows: [
+      {
+        ...row('a', 'Install:category:hardware', 10),
+        groupName: 'Install:category:hardware',
+      },
+      {
+        ...row('b', 'Install', 20),
+        groupName: 'Install',
+        category: 'Hardware',
+      },
+    ],
+  });
+  for (const mode of ['scope', 'group']) {
+    const lines = buildQuoteLines(input, mode, 30);
+    assert.equal(lines.length, 2);
+    assert.deepEqual(
+      lines.map((line) => line.amount),
+      [10, 20],
+    );
+  }
+  assert.equal(
+    new Set(quoteScopeCosts(input, 30).map((line) => line.key)).size,
+    2,
+  );
+});
+
+test('single mode emits category totals and uncategorized costs keep the legacy service category', () => {
+  const input = snapshot({
+    costRows: [
+      { ...row('a', 'Design', 100), category: 'Hardware' },
+      { ...row('b', 'Build', 300), category: 'Services' },
+      row('c', 'Support', 100),
+    ],
+  });
+  const lines = buildQuoteLines(input, 'single', 1000);
+  assert.deepEqual(
+    lines.map((line) => [line.category, line.amount]),
+    [
+      ['Hardware', 200],
+      ['Services', 600],
+      ['Professional Service', 200],
+    ],
+  );
+  assert.ok(lines.every((line) => line.description === input.project.name));
+  assert.deepEqual(buildQuoteLines(input, undefined, 1000), lines);
+  input.costRows.forEach((line) => {
+    line.category = ' ';
+  });
+  assert.deepEqual(buildQuoteLines(input, 'single', 1000), [
+    {
+      id: 'service:project',
+      description: input.project.name,
+      quantity: 1,
+      unit: 'lot',
+      unitPrice: 1000,
+      amount: 1000,
+    },
+  ]);
+});
+
+test('subcontract project and per-site categories stay separate and only active site allocations count', () => {
+  const item = (id, category, extra = {}) => ({
+    id,
+    category,
+    code: id,
+    description: 'Installation',
+    bu: 'A',
+    unit: 'lot',
+    unitPrice: 10,
+    currency: 'SGD',
+    ...extra,
+  });
+  const input = snapshot({
+    subcontractCost: {
+      mode: 'site-types',
+      lines: [
+        item('project-a', 'Hardware', { quantities: [1, 0, 0, 0, 0] }),
+        item('project-b', 'Services', { quantities: [2, 0, 0, 0, 0] }),
+      ],
+      siteTypes: [
+        {
+          id: 'site-a',
+          name: 'Branch',
+          sites: [2, 0, 0, 0, 0],
+          lines: [
+            item('site-a', 'Hardware', { quantityPerSite: 1 }),
+            item('site-b', 'Services', { quantityPerSite: 2 }),
+          ],
+        },
+      ],
+    },
+  });
+  const lines = buildQuoteLines(input, 'scope', 90);
+  assert.deepEqual(
+    lines.map((line) => [line.category, line.amount]),
+    [
+      ['Hardware', 10],
+      ['Services', 20],
+      ['Hardware', 20],
+      ['Services', 40],
+    ],
+  );
+  assert.equal(
+    new Set(quoteScopeCosts(input, 90).map((line) => line.key)).size,
+    4,
+  );
+  assert.deepEqual(
+    buildQuoteLines(input, 'single', 90).map((line) => [
+      line.category,
+      line.amount,
+    ]),
+    [
+      ['Hardware', 30],
+      ['Services', 60],
+    ],
+  );
+  input.subcontractCost.mode = 'project';
+  assert.deepEqual(
+    buildQuoteLines(input, 'single', 30).map((line) => [
+      line.category,
+      line.amount,
+    ]),
+    [
+      ['Hardware', 10],
+      ['Services', 20],
+    ],
+  );
+});
+
+test('manual quote categories and sections survive pricing, while explicit quote groups override cost categories', () => {
+  const manual = manualLine({
+    category: ' Hardware ',
+    section: ' Optional supply ',
+    inclusion: 'optional',
+    costWeight: 50,
+    targetGrossMargin: 45,
+  });
+  const output = calculateManualQuoteLines([manual]);
+  assert.deepEqual(output.errors, []);
+  assert.equal(output.lines[0].category, 'Hardware');
+  assert.equal(output.lines[0].section, 'Optional supply');
+  assert.equal(output.lines[0].inclusion, 'optional');
+  assert.equal(output.lines[0].costWeight, undefined);
+  assert.equal(output.lines[0].targetGrossMargin, undefined);
+  const grouped = groupedLines(output.lines, {
+    manual: {
+      category: 'Customer equipment',
+      section: 'Equipment package',
+      inclusion: 'mandatory',
+    },
+  });
+  assert.equal(grouped[0].category, 'Customer equipment');
+  assert.equal(grouped[0].section, 'Equipment package');
+  assert.equal(grouped[0].inclusion, 'mandatory');
+  assert.equal(grouped[0].amount, 100);
+  assert.equal(quotationSections(grouped).length, 1);
+  for (const change of [
+    { category: '' },
+    { category: 'x'.repeat(121) },
+    { section: 3 },
+    { inclusion: 'invalid' },
+  ])
+    assert.notEqual(
+      validateManualQuoteLines([{ ...manual, ...change }]).length,
+      0,
+    );
+  for (const change of [
+    { category: 123 },
+    { section: {} },
+    { category: null },
+    { inclusion: 'invalid' },
+  ]) {
+    const invalid = calculateManualQuoteLines([{ ...manual, ...change }]);
+    assert.ok(invalid.errors.length > 0);
+    assert.equal(invalid.lines[0].amount, 100);
+  }
 });
 
 test('legacy single output and explicit single mode preserve all pricing results', () => {

@@ -365,7 +365,7 @@ test('all shared dimensions and serialized nine-sheet formula caches include the
     '2.3.4.2',
   );
   assert.equal(
-    detail.getCell(generatedRow, header(detail, 'Direct Cost')).value,
+    formulaResult(detail.getCell(generatedRow, header(detail, 'Direct Cost'))),
     30.1,
   );
   assert.equal(

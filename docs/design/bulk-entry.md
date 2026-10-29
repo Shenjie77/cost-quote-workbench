@@ -1,36 +1,43 @@
 # Bulk Entry workspace
 
-The Personnel, Subcontract and ordinary Master Data bulk buttons open one shared full-screen spreadsheet workspace. Returning restores the source view. Calculation Draft remains a separate free-form scratchpad.
+Personnel, Subcontract and ordinary Master Data share a full-screen spreadsheet editor. Each opening starts from the current cost version or catalog values, including their stable record IDs. Bulk Entry edits current data; Calculation Draft remains a separate persistent formula scratchpad.
 
-## Interface
+## Edit and save
 
-The UI/UX Pro Max skill's **Data-Dense Dashboard** guidance is applied within `workbench-ui-system.md`: English labels, existing navy/neutral/teal palette and system font, compact controls, fixed grid headers and restrained borders. No remote assets or new dependencies are needed.
+1. Open **Bulk Entry** and select the sheet to update. Native workbook tabs switch the editing view; the sheet selectors determine which sheets will be applied.
+2. Edit existing values or enter new rows below them. Keep **Row ID / Record ID** when updating an existing row. Leave the ID empty for new personnel or history records. For catalog-based records, an existing unique business key can still match an update.
+3. Choose **Validate**, review errors and the change summary, then **Apply changes**. All selected sheets must pass validation before changes are applied.
+4. Reopen to see the saved values. Reapplying unchanged rows updates the same IDs and does not add a second copy.
 
-The destination appears beside Back and Bulk Entry. Sheet selectors specify what will be imported; native workbook tabs switch the editing sheet. New batch, Validate and Import share the spreadsheet menu row with Save draft and Download backup. Wide spreadsheets and the toolbar scroll inside their containers. The source page is inert while editing, avoiding nested page/grid scroll capture. Back saves the draft and restores focus.
+Rows absent from the edited sheet remain in the destination. Clearing a whole spreadsheet row is not a delete operation. Use the normal row-delete action when deletion is intended. **Reload current data** discards only edits in the open Bulk Entry window and reads the current values again. Back asks before discarding edited cells.
 
-## Input formats and writes
+Old saved bulk drafts and browser import receipts are no longer restored or used to block updates. Unsaved Bulk Entry edits are not persisted as a separate calculation draft. Applying personnel or Subcontract changes uses the normal cost autosave; Master Data uses its revision-checked save API.
 
-- Personnel MD: Group, Scope, BU, RE Type, five annual MD columns.
-- Personnel Sites: the same identity fields, MD / Site and five annual Sites columns.
-- Subcontract: Shared / One-off uses five annual quantities; each site type has a separate sheet with Quantity / Site. Code or matching description resolves the active catalog item. Price, unit and BU come from Master Data.
-- Master Data: fixed fields from existing catalog import specifications; one catalog imported at a time. Existing keys update, new records append. Missing rows do not delete records. The import saves current catalog draft edits as well as imported changes, as stated in the destination line. Workflow and Status keep their existing import/publishing flow.
+## Fields
 
-Paste values below the protected first row. Up to 1,000 rows per sheet are accepted. Text codes must remain text so leading zeros are not silently lost. Formula cells, changed headers, extra populated columns, unknown references and invalid values block the whole selected import. Errors link to the affected sheet and row/cell. Column guide lists field rules and available personnel/subcontract reference codes.
+- Personnel MD: Category, Group, Scope, BU, RE Type, Y1–Y5 MD and Row ID.
+- Personnel Sites: the same fields, MD / Site and Y1–Y5 Sites.
+- Subcontract Shared / One-off: Category, Item Code, Description, Y1–Y5 Quantity and Row ID. Each site type has its own sheet with Quantity / Site.
+- Master Data: the catalog's fixed editable fields and identity. Existing rows are populated; calculated columns are left blank and recomputed on validation. Optional text/list fields can be cleared directly. New rows still require the fields defined by the catalog. Workflow and Status retain their XLSX import/publish controls.
 
-Validation captures the selected cell values and destination state. Import re-reads the saved draft and rejects changes made after validation. Cost-version locks, source revisions and business parsers remain authoritative. Cost imports append to the existing version and use its normal autosave; Master Data uses its revision-checked save API.
+**Category** is a commercial quotation category, separate from personnel **Group** and the RE Type's `internal/subcontract` classification. Category is optional and limited to 120 characters. It carries into generated quotation grouping; the name `Optional` does not itself exclude an item from quotation totals.
 
-Drafts use the existing local calculation storage and recovery mechanism. New batch saves the current draft before creating a blank one. Successful import records a browser-local receipt for each selected sheet in that batch; retrying the same sheet requires New batch. Receipts are not a cross-browser/server idempotency guarantee. Failed imports retain their draft and release receipts. A committed Master Data write remains successful if only the subsequent refresh fails.
+Personnel Row IDs identify the exact editable row, so duplicate Scope names remain independent. Unknown or repeated IDs block the update. Copying a spreadsheet row requires clearing its ID; **Copy Group** in Cost Input is the dedicated whole-group copy action.
 
-## Verification (2026-10-02)
+Subcontract first resolves an existing Row ID. Without one, a unique adopted catalog item can match an update. Ambiguous existing items require their Row ID. Quantity/category updates retain the adopted description, unit, BU, currency and price snapshot; they do not silently apply a newer catalog price. A new item requires a unique active catalog Code or Description and copies its current master attributes. Missing or conflicting identifiers block the batch.
 
-- Full suite: 1,074 tests passed. Workbook and entry UI regression subset: 27 passed.
-- TypeScript, lint and production build passed.
-- Isolated SQLite database and separate preview/API ports; real business data untouched.
-- Browser checks: personnel paste/import and persisted values; duplicate import blocked; project-tag creation saved in Master Data; Shared and site-type subcontract rows imported together using catalog price 125; unknown RE Type blocked.
-- Visual checks at 1500 × 1000 and 375 × 812; narrow document width stayed 375px. Spreadsheet/toolbar scroll locally. No browser page errors in these checks.
+## Validation and concurrency
 
-## Usability correction (2026-10-13)
+Paste literal values below the protected first row, up to 1,000 rows per sheet. Keep text codes as text to retain leading zeros. Formula cells, changed headers, extra columns, invalid identities and invalid values block the complete selected update. Errors link to the relevant sheet and cell; Column guide contains detailed rules and examples.
 
-The shared entry grid uses compact 56px headers and narrower numeric columns. Detailed rules, examples and reference codes remain in Column guide. Only unconditional required inputs receive a star in the grid; new-record requirements are labeled explicitly. Subcontract Code and Description are alternatives, with no separate required stars. Either identifier plus quantity continues to resolve the catalog item; missing, ambiguous or conflicting identifiers still block import.
+Validation captures selected cell values and destination state. Changes after validation require validation again. If destination data changes while the window is open, reload current data before editing. Cost-version locks, source revisions and business parsers remain authoritative.
 
-Recognized legacy plain and guided headers upgrade without replacing data rows. Regression coverage includes code-only and description-only rows with both fixed columns present, empty identifiers, and migration of starred legacy drafts.
+## Maintenance
+
+The Maintenance Bulk Entry dialog loads Model, CT, SPMS, QTY, Duration, Remark, Description and Row ID as TSV. Keep the eighth-column Row ID to update the same device, or explicitly clear it to add a device. A seven-column paste can update a unique model; duplicate models require the intended ID. Existing source/history metadata and unlisted devices are retained. Prices are rounded by the shared maintenance rules; invalid rows or concurrent changes block the batch.
+
+File-based TD/PM import, BOQ XLSX mapping and service-quote XLSX import are separate source-document workflows. Their append/source-deduplication behavior is unchanged; they must not be described as the Bulk Entry editor.
+
+## Regression coverage
+
+`tests/bulk-entry-update.test.mjs` checks current-row seeding, repeated apply/reopen, stable identities, new rows, omitted-row preservation, category propagation into inputs, Subcontract snapshot prices, Master Data edits and Maintenance metadata. Existing bulk parsers continue to check atomic validation and locks. Browser acceptance is recorded with the release validation rather than inferred from these model tests.

@@ -1,12 +1,16 @@
 # Master Data Excel 批量导入
 
-每个可见页签的搜索与保存工具栏均提供 **Excel Template** 和 **Bulk Import**：CPQ Catalog、RE Types、Subcontract、Supplemental、Maintenance、Assumptions、Quote Templates、Profit Share、Workflow。兼容保留的 Status 字典也有相同格式支持。
+普通主数据页签提供 **Bulk Entry**、**Excel Template** 和 **Import XLSX**，覆盖 CPQ Catalog、RE Types、Subcontract、Supplemental、Maintenance History、Service History、Assumptions、Quote Templates、Profit Share、Project Tags。Workflow 和兼容保留的 Status 使用原有 Excel Import / 发布流程。
+
+**Bulk Entry** 是当前数据编辑器：打开已载入当前记录和 ID，直接修改后 **Validate → Apply changes** 保存。稳定 ID 更新原记录，新记录新增，未列出的记录保留；可直接清空可选文本或列表。不会恢复已应用的旧批次，也不会因重复打开提示“已存在无法添加”。计算列由系统重新生成，详细规则见 [Bulk Entry](design/bulk-entry.md)。
+
+以下步骤专门描述独立的 **Import XLSX** 文件流程。其空白单元格保留已有字段的规则与直接编辑不同。
 
 ## 使用方式
 
 1. 在需要维护的页签点击 **Excel Template**，下载该页签的空白 `.xlsx` 模板。
 2. 阅读 **Guide** 中的字段说明、必填条件、选项与示例，在 **Data** 的第二行起填写。第一行为固定字段名，列可调整顺序，字段名与模板标识需要保留。Guide 的示例不会作为业务数据导入。
-3. 若需要批量修改已有记录，打开 **Bulk Import → Export Current Data**。下载的文件包含当前草稿和原始 ID，修改后重新导入。
+3. 若需要批量修改已有记录，打开 **Import XLSX / Bulk Import → Export Current Data**。下载的文件包含当前草稿和原始 ID，修改后重新导入。
 4. 选择文件后查看新增、更新、未改变的数量和逐行预览。错误会指出 Excel 行号或单元格；存在错误时整批无法应用。
 5. 点击 **Import to Draft** 导入当前页签草稿，再使用原有 **Save this tab** 保存。Workflow 继续使用 **Preview & Publish**，核对项目影响后发布。
 

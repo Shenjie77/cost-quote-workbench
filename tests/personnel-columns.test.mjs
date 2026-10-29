@@ -66,10 +66,11 @@ const walk = (node) =>
 
 test('default columns retain compact field/year order and expose editable Group with fixed Action', () => {
   const preferences = defaultPersonnelColumns();
-  assert.equal(preferences.order.length, 25);
-  assert.equal(new Set(preferences.order).size, 25);
-  assert.deepEqual(preferences.order.slice(0, 8), [
+  assert.equal(preferences.order.length, 26);
+  assert.equal(new Set(preferences.order).size, 26);
+  assert.deepEqual(preferences.order.slice(0, 9), [
     'groupName',
+    'category',
     'scope',
     'bu',
     'reType',
@@ -79,7 +80,7 @@ test('default columns retain compact field/year order and expose editable Group 
     'totalCost',
   ]);
   for (let index = 0; index < 5; index++) {
-    assert.deepEqual(preferences.order.slice(8 + index * 3, 11 + index * 3), [
+    assert.deepEqual(preferences.order.slice(9 + index * 3, 12 + index * 3), [
       `Y${index + 1}:sites`,
       `Y${index + 1}:mandays`,
       `Y${index + 1}:cost`,
@@ -174,13 +175,30 @@ test('stored preferences reject malformed structures and safely repair stale IDs
   const before = structuredClone(stored);
   const normalized = normalizePersonnelColumns(stored);
   assert.deepEqual(normalized.order.slice(0, 2), ['Y3:cost', 'scope']);
-  assert.equal(normalized.order.length, 25);
+  assert.equal(normalized.order.length, 26);
   assert.equal(normalized.order.at(-1), 'action');
   assert.deepEqual(visiblePersonnelColumns(normalized), [
     'groupName',
     'action',
   ]);
   assert.deepEqual(stored, before);
+});
+
+test('existing browser layouts gain Category beside Group without moving saved columns', () => {
+  const old = {
+    version: 1,
+    order: ['scope', 'groupName', 'bu', 'action'],
+    hidden: ['bu'],
+  };
+  const next = normalizePersonnelColumns(old);
+  assert.deepEqual(next.order.slice(0, 4), [
+    'scope',
+    'groupName',
+    'category',
+    'bu',
+  ]);
+  assert.equal(next.hidden.includes('category'), false);
+  assert.equal(next.hidden.includes('bu'), true);
 });
 
 test('preferences round-trip through one browser key independently of project/version and fail safely when storage is blocked', () => {

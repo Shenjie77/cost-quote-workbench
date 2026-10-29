@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+const cachedScalar = (value) => (value?.formula ? (value.result ?? 0) : value);
+const cachedValue = (cell) => cachedScalar(cell.value);
 import test from 'node:test';
 import ExcelJS from 'exceljs';
 import {
@@ -205,14 +207,15 @@ test('Simple Export uses named account totals including Risk and has a reconcile
   await workbook.xlsx.load(await buildSimpleCostWorkbookBytes(snapshot));
   for (const name of ['Summary Scope', 'Summary BU', 'Summary RE Type']) {
     const sheet = workbook.getWorksheet(name);
+    assert.match(sheet.getCell(sheet.rowCount, 4).formula, /SUM/);
     const data = [];
     for (let row = 5; row < sheet.rowCount; row++)
       data.push({
-        label: sheet.getCell(row, 1).value,
-        cost: sheet.getCell(row, 4).value,
+        label: cachedValue(sheet.getCell(row, 1)),
+        cost: cachedValue(sheet.getCell(row, 4)),
       });
     assert.equal(
-      sheet.getCell(sheet.rowCount, 4).value,
+      cachedValue(sheet.getCell(sheet.rowCount, 4)),
       accounts.get('').amount,
     );
     for (const code of ['2.2.1', '2.3.4', '15']) {
@@ -226,13 +229,13 @@ test('Simple Export uses named account totals including Risk and has a reconcile
   }
   const subcon = workbook.getWorksheet('Summary Subcon');
   assert.equal(
-    subcon.getCell(subcon.rowCount, 4).value,
+    cachedValue(subcon.getCell(subcon.rowCount, 4)),
     accounts.get('2.3.2').amount,
   );
-  assert.match(subcon.getCell('A3').value, /2\.3\.2/);
+  assert.match(cachedValue(subcon.getCell('A3')), /2\.3\.2/);
   const statementSheet = workbook.getWorksheet('Cost Statement');
   assert.equal(
-    statementSheet.getCell(statementSheet.rowCount, 2).value,
+    cachedValue(statementSheet.getCell(statementSheet.rowCount, 2)),
     accounts.get('').amount,
   );
   assert.deepEqual(snapshot, before);

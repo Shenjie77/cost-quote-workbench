@@ -1,5 +1,5 @@
 import { formatMoney } from '@/lib/money';
-/** Compact quantity entry with deliberate, cancellable item-detail editing. */
+/** Direct quantity entry with deliberate, cancellable item metadata editing. */
 import { useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,7 @@ const itemFingerprint = (line: ItemLine) =>
     line.catalogItemId ?? null,
     line.code,
     line.description,
+    line.category ?? '',
     line.bu,
     line.unit,
     line.unitPrice,
@@ -214,6 +215,19 @@ export function SubcontractItemForm({
         />
       </label>
       <div className="grid grid-cols-2 gap-3">
+        <label className="col-span-2 grid gap-1.5 text-xs font-medium">
+          Category
+          <Input
+            aria-label="Item category"
+            className="bg-white font-normal"
+            value={draft.category ?? ''}
+            maxLength={120}
+            disabled={locked}
+            onChange={(event) =>
+              update({ ...draft, category: event.target.value })
+            }
+          />
+        </label>
         <label className="grid gap-1.5 text-xs font-medium">
           Code
           <Input
@@ -479,6 +493,7 @@ export function SubcontractLinesTable({
   const columnWidths = [
     96,
     180,
+    140,
     90,
     64,
     100,
@@ -502,6 +517,7 @@ export function SubcontractLinesTable({
         <TableRow className="bg-muted/35 hover:bg-muted/35">
           <TableHead className="min-w-24">Code</TableHead>
           <TableHead className="min-w-40">Description</TableHead>
+          <TableHead>Category</TableHead>
           <TableHead>BU</TableHead>
           <TableHead>Unit</TableHead>
           <TableHead className="min-w-24 text-right">Unit Price</TableHead>
@@ -543,6 +559,20 @@ export function SubcontractLinesTable({
               <TableCell className="max-w-md whitespace-normal">
                 {line.description || 'Untitled item'}
               </TableCell>
+              <TableCell>
+                <Input
+                  aria-label={`${line.code} category`}
+                  className={cellInput}
+                  value={line.category ?? ''}
+                  maxLength={120}
+                  disabled={locked}
+                  placeholder="Category"
+                  onChange={(event) => {
+                    if (event.target.value.length <= 120)
+                      change({ ...line, category: event.target.value });
+                  }}
+                />
+              </TableCell>
               <TableCell>{line.bu || 'No BU'}</TableCell>
               <TableCell>{line.unit || 'No unit'}</TableCell>
               <TableCell
@@ -554,12 +584,21 @@ export function SubcontractLinesTable({
               {annual ? (
                 displayedYears.map((index) => (
                   <TableCell key={index} className="px-2">
-                    <span
-                      className="block text-right tabular-nums"
-                      aria-label={`${line.code} ${YEAR_BUCKETS[index]} quantity`}
-                    >
-                      {line.quantities[index]}
-                    </span>
+                    <SubcontractNumberInput
+                      value={line.quantities[index]}
+                      label={`${line.code} ${YEAR_BUCKETS[index]} quantity`}
+                      integer={wholeUnits(line.unit)}
+                      locked={locked}
+                      announce={announce}
+                      onChange={(quantity) =>
+                        change({
+                          ...line,
+                          quantities: line.quantities.map((value, year) =>
+                            year === index ? (quantity ?? 0) : value,
+                          ) as SubcontractCostLine['quantities'],
+                        })
+                      }
+                    />
                     {allYears && (
                       <span className="mt-1 block text-right text-xs tabular-nums text-muted-foreground">
                         {line.unitPrice === null
@@ -571,12 +610,16 @@ export function SubcontractLinesTable({
                 ))
               ) : (
                 <TableCell className="px-2">
-                  <span
-                    className="block text-right tabular-nums"
-                    aria-label={`${line.code} quantity per site`}
-                  >
-                    {line.quantityPerSite}
-                  </span>
+                  <SubcontractNumberInput
+                    value={line.quantityPerSite}
+                    label={`${line.code} quantity per site`}
+                    integer={wholeUnits(line.unit)}
+                    locked={locked}
+                    announce={announce}
+                    onChange={(quantity) =>
+                      change({ ...line, quantityPerSite: quantity ?? 0 })
+                    }
+                  />
                 </TableCell>
               )}
               <TableCell className="text-right font-semibold tabular-nums">

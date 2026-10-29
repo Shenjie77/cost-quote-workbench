@@ -10,10 +10,8 @@ import {
   totalRowCost,
 } from '../cost/domain.ts';
 import { calculateSubcontractCost } from '../cost/subcontract-domain.ts';
-import {
-  groupPersonnelRows,
-  UNASSIGNED_PERSONNEL_GROUP,
-} from '../cost/personnel-table-layout.ts';
+import { UNASSIGNED_PERSONNEL_GROUP } from '../cost/personnel-table-layout.ts';
+import { categoryKey } from './quotation-groups.ts';
 import { allocateMoneyByWeights } from './profit-share.ts';
 import type {
   ManualQuoteLine,
@@ -132,6 +130,20 @@ export function validateManualQuoteLines(
       errors.push(
         `${prefix}fix either the percentage or the unit price, not both.`,
       );
+    for (const field of ['category', 'section'] as const) {
+      if (
+        line[field] !== undefined &&
+        (typeof line[field] !== 'string' ||
+          !line[field]!.trim() ||
+          line[field]!.length > 120)
+      )
+        errors.push(`${prefix}${field} must contain 1–120 characters.`);
+    }
+    if (
+      line.inclusion !== undefined &&
+      !['mandatory', 'optional'].includes(line.inclusion)
+    )
+      errors.push(`${prefix}invalid inclusion.`);
     const amount = line.quantity * line.unitPrice;
     if (!Number.isFinite(amount) || amount > MAX_QUOTE_AMOUNT)
       errors.push(`${prefix}amount exceeds the supported range.`);
@@ -163,6 +175,15 @@ export function calculateManualQuoteLines(
         unit: line.unit,
         unitPrice: line.unitPrice,
         amount,
+        ...(typeof line.category === 'string' && line.category.trim()
+          ? { category: line.category.trim() }
+          : {}),
+        ...(typeof line.section === 'string' && line.section.trim()
+          ? { section: line.section.trim() }
+          : {}),
+        ...(line.inclusion === 'mandatory' || line.inclusion === 'optional'
+          ? { inclusion: line.inclusion }
+          : {}),
       };
     });
   const total = roundMoney(output.reduce((sum, line) => sum + line.amount, 0));
@@ -185,7 +206,36 @@ export type QuoteCostSource = Pick<
   | 'rateSettings'
 > & { project?: { name: string } };
 
-type WeightedLine = { id: string; description: string; weight: number };
+type WeightedLine = {
+  id: string;
+  description: string;
+  weight: number;
+  category?: string;
+};
+const commercialCategory = (value?: string) => value?.trim() || undefined;
+const categorySuffix = (value?: string) =>
+  value ? `:category:${categoryKey(value)}` : '';
+const scopeReference = (line: WeightedLine) =>
+  line.id.startsWith('subcontract:')
+    ? line.id
+    : line.category
+      ? `scope-category:${JSON.stringify([line.description.replace(/\s+/g, ' ').trim().toLocaleLowerCase('en'), categoryKey(line.category)])}`
+      : `scope:${line.description.replace(/\s+/g, ' ').trim().toLocaleLowerCase('en')}`;
+
+/** Preserve explicit category boundaries even when Scope or Group labels match. */
+function mergeWeighted(
+  lines: WeightedLine[],
+  key: (line: WeightedLine) => string,
+) {
+  const groups = new Map<string, WeightedLine>();
+  for (const line of lines) {
+    const id = key(line);
+    const previous = groups.get(id);
+    if (previous) previous.weight = roundMoney(previous.weight + line.weight);
+    else groups.set(id, { ...line, id });
+  }
+  return [...groups.values()];
+}
 
 /** Builds independent priced leaves; overhead/risk is included through total-price allocation. */
 function costQuoteLeaves(
@@ -215,20 +265,21 @@ function costQuoteLeaves(
   );
   const legacyIds = new Set(legacySubcon.map((row) => row.id));
   const personnel = rows.filter((row) => !legacyIds.has(row.id));
+  const personnelLeaves = personnel.map((row) => ({
+    id: `cost:${row.id}`,
+    description:
+      mode === 'group'
+        ? row.groupName?.trim() || UNASSIGNED_PERSONNEL_GROUP
+        : row.scope.trim() || 'Project services',
+    category: commercialCategory(row.category),
+    weight: totalRowCost(row),
+  }));
   const leaves: WeightedLine[] =
     mode === 'group'
-      ? groupPersonnelRows(personnel).map((group, index) => ({
-          id: `personnel-group:${index + 1}`,
-          description: group.groupName || UNASSIGNED_PERSONNEL_GROUP,
-          weight: roundMoney(
-            group.rows.reduce((sum, row) => sum + totalRowCost(row), 0),
-          ),
-        }))
-      : personnel.map((row) => ({
-          id: `cost:${row.id}`,
-          description: row.scope.trim() || 'Project services',
-          weight: totalRowCost(row),
-        }));
+      ? mergeWeighted(personnelLeaves, (line) =>
+          JSON.stringify([line.description, categoryKey(line.category ?? '')]),
+        )
+      : personnelLeaves;
   // Project-wide and legacy subcontract rows share one quote line; site BOQs remain grouped by stable site IDs.
   const subcontract = calculateSubcontractCost(
     snapshot.subcontractCost,
@@ -240,22 +291,48 @@ function costQuoteLeaves(
       : mode === 'group'
         ? 'Subcontract services'
         : 'Subcon item';
-  if (legacySubcon.length || subcontract.lines.length)
-    leaves.push({
-      id: 'subcontract:project',
-      description: subconLabel,
-      weight: roundMoney(
-        legacySubcon.reduce((sum, row) => sum + totalRowCost(row), 0) +
-          subcontract.lines.reduce((sum, line) => sum + line.total, 0),
-      ),
-    });
+  const appendSubcontract = (
+    id: string,
+    description: string,
+    entries: { category?: string; weight: number }[],
+  ) => {
+    const categories = mergeWeighted(
+      entries.map((entry) => ({
+        ...entry,
+        category: commercialCategory(entry.category),
+        id,
+        description,
+      })),
+      (line) =>
+        line.category
+          ? `subcontract:category:${JSON.stringify([id, categoryKey(line.category)])}`
+          : id,
+    );
+    leaves.push(...categories);
+  };
+  appendSubcontract('subcontract:project', subconLabel, [
+    ...legacySubcon.map((row) => ({
+      category: row.category,
+      weight: totalRowCost(row),
+    })),
+    ...subcontract.lines.map((line) => ({
+      category: snapshot.subcontractCost?.lines.find(
+        (input) => input.id === line.id,
+      )?.category,
+      weight: line.total,
+    })),
+  ]);
   for (const site of subcontract.siteTypes) {
-    if (!site.lines.length) continue;
-    leaves.push({
-      id: `subcontract:site:${site.id}`,
-      description: `${subconLabel} · ${site.name.trim() || 'Unnamed site type'}`,
-      weight: site.total,
-    });
+    appendSubcontract(
+      `subcontract:site:${site.id}`,
+      `${subconLabel} · ${site.name.trim() || 'Unnamed site type'}`,
+      site.lines.map((line) => ({
+        category: snapshot.subcontractCost?.siteTypes
+          .find((input) => input.id === site.id)
+          ?.lines.find((input) => input.id === line.id)?.category,
+        weight: line.total,
+      })),
+    );
   }
   const manual = snapshot.manualCosts;
   const supplements: Array<[string, string, number]> = [
@@ -299,7 +376,17 @@ export function buildQuoteLines(
   manualLines?: ManualQuoteLine[],
 ): QuoteLine[] {
   if (mode === 'manual') return calculateManualQuoteLines(manualLines).lines;
-  if (!mode || mode === 'single')
+  const single = !mode || mode === 'single';
+  const categorized =
+    snapshot.costRows.some((row) => commercialCategory(row.category)) ||
+    snapshot.subcontractCost?.lines.some((line) =>
+      commercialCategory(line.category),
+    ) ||
+    (snapshot.subcontractCost?.mode === 'site-types' &&
+      snapshot.subcontractCost.siteTypes.some((site) =>
+        site.lines.some((line) => commercialCategory(line.category)),
+      ));
+  if (single && !categorized)
     return [
       {
         id: 'service:project',
@@ -310,20 +397,30 @@ export function buildQuoteLines(
         amount: listPrice,
       },
     ];
-  let leaves = costQuoteLeaves(snapshot, mode);
-  if (mode === 'scope') {
-    const groups = new Map<string, WeightedLine>();
-    for (const line of leaves) {
-      const description = line.description.replace(/\s+/g, ' ').trim();
-      // A personnel scope with the same display name must not absorb subcontract or distinct site groups.
-      const key = line.id.startsWith('subcontract:')
-        ? line.id
-        : `scope:${description.toLocaleLowerCase('en')}`;
-      const group = groups.get(key);
-      if (group) group.weight = roundMoney(group.weight + line.weight);
-      else groups.set(key, { ...line, description });
-    }
-    leaves = [...groups.values()];
+  let leaves = costQuoteLeaves(
+    snapshot,
+    single ? 'item' : (mode as 'scope' | 'group' | 'item'),
+  );
+  if (single) {
+    leaves = mergeWeighted(
+      leaves.map((line) => ({
+        ...line,
+        category: line.category || 'Professional Service',
+      })),
+      (line) => `service:category:${categoryKey(line.category!)}`,
+    );
+    leaves = leaves.map((line) => ({
+      ...line,
+      description: snapshot.project?.name || 'Project services',
+    }));
+  } else if (mode === 'scope') {
+    leaves = mergeWeighted(
+      leaves.map((line) => ({
+        ...line,
+        description: line.description.replace(/\s+/g, ' ').trim(),
+      })),
+      scopeReference,
+    );
   }
   const hasPositiveWeight = leaves.some((line) => line.weight > 0);
   const amounts = allocateMoneyByWeights(
@@ -331,7 +428,10 @@ export function buildQuoteLines(
     leaves.map((line) => (hasPositiveWeight ? line.weight : 1)),
   );
   return leaves.map((line, index) => ({
-    id: `quote-item-${index + 1}`,
+    id: single
+      ? line.id
+      : `quote-item-${index + 1}${categorySuffix(line.category)}`,
+    ...(line.category ? { category: line.category } : {}),
     description: line.description,
     quantity: 1,
     unit: 'lot',
@@ -372,16 +472,20 @@ export function validateQuoteLines(
 export function quoteScopeCosts(snapshot: QuoteCostSource, totalCost: number) {
   const groups = new Map<
     string,
-    { key: string; description: string; weight: number }
+    { key: string; description: string; weight: number; category?: string }
   >();
   for (const leaf of costQuoteLeaves(snapshot, 'scope')) {
     const description = leaf.description.replace(/\s+/g, ' ').trim();
-    const key = leaf.id.startsWith('subcontract:')
-      ? leaf.id
-      : `scope:${description.toLocaleLowerCase('en')}`;
+    const key = scopeReference(leaf);
     const previous = groups.get(key);
     if (previous) previous.weight = roundMoney(previous.weight + leaf.weight);
-    else groups.set(key, { key, description, weight: leaf.weight });
+    else
+      groups.set(key, {
+        key,
+        description,
+        weight: leaf.weight,
+        ...(leaf.category ? { category: leaf.category } : {}),
+      });
   }
   const scopes = [...groups.values()];
   const positive = scopes.some((scope) => scope.weight > 0);
@@ -392,6 +496,7 @@ export function quoteScopeCosts(snapshot: QuoteCostSource, totalCost: number) {
   return scopes.map((scope, index) => ({
     key: scope.key,
     description: scope.description,
+    ...(scope.category ? { category: scope.category } : {}),
     amount: amounts[index],
   }));
 }

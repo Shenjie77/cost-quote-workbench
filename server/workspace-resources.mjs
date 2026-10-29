@@ -910,11 +910,15 @@ export function updateResource(
   if (personnelRows && Array.isArray(changes.upsert)) {
     changes = {
       ...changes,
-      upsert: changes.upsert.map((row) =>
-        typeof row.groupName === 'string'
-          ? { ...row, groupName: row.groupName.trim() }
-          : row,
-      ),
+      upsert: changes.upsert.map((row) => ({
+        ...row,
+        ...(typeof row.groupName === 'string'
+          ? { groupName: row.groupName.trim() }
+          : {}),
+        ...(typeof row.category === 'string'
+          ? { category: row.category.trim() }
+          : {}),
+      })),
     };
   }
   if (

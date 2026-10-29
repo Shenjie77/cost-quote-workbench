@@ -12,7 +12,13 @@ export type EntryColumn = GuidedColumn & {
   required?: boolean;
   options?: string[];
 };
-export type EntrySheet = { id: string; name: string; columns: EntryColumn[] };
+export type EntrySheet = {
+  id: string;
+  name: string;
+  columns: EntryColumn[];
+  /** Current saved values, captured when the editor opens. */
+  rows?: Record<string, string | number | boolean>[];
+};
 export type EntryIssue = {
   sheet: string;
   row: number;
@@ -29,8 +35,15 @@ export function entryWorkbook(sheets: EntrySheet[]): CalculationDocument {
   workbook.sheetOrder = [];
   workbook.sheets = {};
   for (const spec of sheets) {
-    const sheet = tableWorkbook(spec.name, [spec.columns.map(entryGridHeader)])
-      .sheets!.calculation;
+    const sheet = tableWorkbook(spec.name, [
+      spec.columns.map(entryGridHeader),
+      ...(spec.rows ?? []).map((row) =>
+        spec.columns.map((column) => {
+          const value = row[column.key] ?? '';
+          return typeof value === 'boolean' ? String(value) : value;
+        }),
+      ),
+    ]).sheets!.calculation;
     for (const cell of Object.values(sheet.cellData?.[0] ?? {}))
       cell.s = {
         ...(typeof cell.s === 'object' ? cell.s : {}),
@@ -76,7 +89,7 @@ export function readEntrySheet(
     fail(
       1,
       undefined,
-      'The input sheet is missing. Start a new batch to restore the format.',
+      'The input sheet is missing. Reload current data to restore the format.',
     );
     return { rows, issues };
   }

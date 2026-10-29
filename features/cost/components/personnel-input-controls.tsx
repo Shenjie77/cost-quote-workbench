@@ -1,6 +1,13 @@
 import { formatMoney } from '@/lib/money';
 /** Compact spreadsheet-style personnel entry. Mutations patch the latest raw inputs. */
-import { ArrowDown, ArrowUp, GripVertical, Save, Trash2 } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Copy,
+  GripVertical,
+  Save,
+  Trash2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BusinessUnitSelect } from '@/features/master-data/business-unit-select';
@@ -77,7 +84,10 @@ export type PersonnelGroupRename = {
 };
 export const PERSONNEL_POOLS: PersonnelPool[] = ['LOCAL', 'ARP', 'HQ', 'OTHER'];
 export type PersonnelInputPatch =
-  | { field: 'groupName' | 'scope' | 'bu' | 'reTypeId'; value: string }
+  | {
+      field: 'groupName' | 'category' | 'scope' | 'bu' | 'reTypeId';
+      value: string;
+    }
   | { field: 'mdPerSite'; value: number }
   | {
       field: 'year';
@@ -254,9 +264,13 @@ export function patchPersonnelRows(
     if (
       patch.field === 'scope' ||
       patch.field === 'bu' ||
+      patch.field === 'category' ||
       patch.field === 'groupName'
     ) {
-      if (patch.value.length > (patch.field === 'scope' ? 500 : 200))
+      if (
+        patch.value.length >
+        (patch.field === 'scope' ? 500 : patch.field === 'category' ? 120 : 200)
+      )
         return row;
       return { ...row, [patch.field]: patch.value };
     }
@@ -398,6 +412,7 @@ const columnWidth = (id: PersonnelColumnId) => {
         : 105;
   return {
     groupName: 160,
+    category: 160,
     scope: 180,
     bu: 72,
     reType: 120,
@@ -428,6 +443,7 @@ export function PersonnelLinesTable({
   onMoveRow,
   onRenameGroup,
   onMoveGroup,
+  onCopyGroup,
   locked = false,
   announce,
 }: {
@@ -443,6 +459,7 @@ export function PersonnelLinesTable({
   onMoveRow?: (move: PersonnelRowMove) => void;
   onRenameGroup?: (rename: PersonnelGroupRename) => void;
   onMoveGroup?: (move: PersonnelGroupMove) => void;
+  onCopyGroup?: (groupName: string) => void;
   locked?: boolean;
   announce: (message: string) => void;
 }) {
@@ -526,10 +543,15 @@ export function PersonnelLinesTable({
     const width = columnWidth(id);
     let content: React.ReactNode;
     let className = cell;
-    if (id === 'groupName' || id === 'scope' || id === 'bu') {
+    if (
+      id === 'groupName' ||
+      id === 'category' ||
+      id === 'scope' ||
+      id === 'bu'
+    ) {
       className =
         id === 'scope' && columns[0] === 'scope' ? scopeCell : inputCell;
-      const value = id === 'groupName' ? row.groupName || '' : row[id];
+      const value = row[id] || '';
       content = (
         <div
           style={{ width, maxWidth: width }}
@@ -557,14 +579,22 @@ export function PersonnelLinesTable({
               aria-label={
                 id === 'scope'
                   ? `Scope for row ${row.id}`
-                  : `Group for ${row.id}`
+                  : id === 'category'
+                    ? `Category for ${row.id}`
+                    : `Group for ${row.id}`
               }
               className={gridInput}
               title={value}
               value={value}
-              maxLength={id === 'scope' ? 500 : 200}
+              maxLength={id === 'scope' ? 500 : id === 'category' ? 120 : 200}
               disabled={locked}
-              placeholder={id === 'groupName' ? 'Group name' : 'Scope'}
+              placeholder={
+                id === 'groupName'
+                  ? 'Group name'
+                  : id === 'category'
+                    ? 'Category'
+                    : 'Scope'
+              }
               onChange={(event) =>
                 update(row.id, { field: id, value: event.target.value })
               }
@@ -777,8 +807,8 @@ export function PersonnelLinesTable({
       }}
     >
       <caption className="sr-only">
-        Inline cost grid. Edit Group, Scope, BU, RE Type and annual effort
-        directly.
+        Inline cost grid. Edit Group, Category, Scope, BU, RE Type and annual
+        effort directly.
       </caption>
       <TableHeader>
         <TableRow className="h-8 bg-muted">
@@ -952,6 +982,22 @@ export function PersonnelLinesTable({
                         </Button>
                       );
                     })}
+                    {onCopyGroup && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 gap-1 px-1 text-xs"
+                        aria-label={`Copy group ${title}`}
+                        disabled={locked}
+                        onClick={() => {
+                          if (!locked) onCopyGroup(entry.groupName);
+                        }}
+                      >
+                        <Copy className="size-3" />
+                        Copy Group
+                      </Button>
+                    )}
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {entry.rowIds.length}{' '}
                       {entry.rowIds.length === 1 ? 'row' : 'rows'}

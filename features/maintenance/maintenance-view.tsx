@@ -39,6 +39,7 @@ import {
 } from './component-pricing';
 import { MaintenanceGrid } from './maintenance-grid';
 import { MaintenanceBulkDialog } from './maintenance-bulk-dialog';
+import { mergeMaintenanceBulkRows } from './bulk-entry';
 /** Keeps BOQ quantities, reference selection and draft actions in one compact workspace. */
 export function MaintenanceView({
   projectId,
@@ -258,7 +259,31 @@ export function MaintenanceView({
             >
               添加设备
             </Button>
-            <MaintenanceBulkDialog disabled={busy} onImport={addRows} />
+            <MaintenanceBulkDialog
+              disabled={busy}
+              rows={value.boq}
+              onImport={(edits, expected) => {
+                if (
+                  busy ||
+                  (canApply && !canApply()) ||
+                  JSON.stringify(latest.current.boq) !== expected
+                )
+                  return false;
+                try {
+                  const boq = mergeMaintenanceBulkRows(
+                    latest.current.boq,
+                    edits,
+                  );
+                  calculateComponentMaintenance({ ...latest.current, boq });
+                  onChange({ ...latest.current, boq });
+                  announce('维保设备已更新。');
+                  return true;
+                } catch (error) {
+                  announce(String(error));
+                  return false;
+                }
+              }}
+            />
             <Button
               variant="outline"
               disabled={busy || !!calculationError}

@@ -36,15 +36,17 @@ Cost Details 的 **Subcon** 页签，与 Input、Summary、Version Delta 使用�
 
 明细默认集中显示 Item、Unit Price、Qty、Cost 和 Action，单价与数量直接编辑。Quantity year 可选择单年录入或 All years 查看五年；Code、BU、Unit 等通过 Edit 修改。若 CLI 在弹窗打开期间更新同一条目，系统提示重新载入，旧草稿不能覆盖新数据。锁定版本仍可切换年份和站型查看。
 
-## 批量录入
+## 批量更新
 
-Project Total、当前站型 BOQ 和项目共用费用区均提供 **Bulk Entry**。从 Excel 复制表格后粘贴，先预览字段匹配、金额和逐行错误，再确认添加。已有条目不会被批量替换；取消或预览失败不改变原表。
+Shared / One-off 和各站型 BOQ 的 **Bulk Entry** 打开即载入当前条目、Category、数量及 Row ID。保留 Row ID 可更新同一行；新增目录条目填写 Code 或 Description 其中一个即可。选择工作表后点击 **Validate → Apply changes**。没有出现在表中的原条目保留，不会因删空表格行而删除业务记录。
 
-只需 **Code + Quantity** 或 **Description + Quantity**；两列直接粘贴时也可省略表头。多年度可用 Y1–Y5 或对应年份列；站型 BOQ 使用 Qty / Site。
+没有 Row ID 时，唯一匹配的已采用目录条目更新原行；相同条目有多行时必须保留对应 Row ID。未知或重复的 Row ID、重名或矛盾的标识会阻止整批更新。Shared 使用 Y1–Y5 数量，站型 BOQ 使用 Quantity / Site，年度部署数量保持原值。
 
-打开 Bulk Entry 时自动读取最新 Master Data。编码按完整值匹配，保留前导零及标点；描述先完整匹配，再查找唯一包含该描述的条目。若重名、多个候选、未找到或条目停用，预览会提示改用准确编码或先去 Master Data 维护，不自动创建手工条目。主数据读取失败可重试，不使用过期目录代替。
+修改已有条目的数量或 Category 保留其已采用的描述、单位、BU、币种和单价快照，不会因为全局目录涨价而重新取价。新增条目从当前启用目录复制这些字段；缺失单价仍为未定价，0 为明确零价。目录加载失败可重试。
 
-匹配成功后，Code、Description、BU、Unit、Unit Price 和 Currency 均来自 Master Data，粘贴表中的额外 BU、单价等列只提示忽略，不覆盖主数据。新条目复制成当前成本版本的快照，不修改已存在条目。Master Data 中价格留空仍表示未定价，明确 0 表示零价；确认或导出成本前必须有有效价格。预览后若条目、费率或年份改变，必须重新预览；锁定版本不能添加。
+每次重新打开都使用当前业务数据，不恢复旧批次或“已经导入”的拦截记录。窗口打开期间业务数据变化须 **Reload current data** 后重做；校验后修改单元格须重新校验。锁定版本不接受更新。
+
+**Item details** 中可直接编辑每站数量或当前年份数量；All years 显示五个独立年度输入。Category 也可直接修改，最长 120 字符。Category 是报价分类，直接进入生成报价的分类分组，与人员 Group、RE Type 分类不同；名称写成 Optional 不会自动排除报价金额。单价或其他元数据仍通过对应编辑入口修改。
 
 ## 独立年度涨幅
 
