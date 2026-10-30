@@ -32,7 +32,10 @@ import {
   type RateSettings,
   type ResourceType,
 } from '../domain';
-import type { PersonnelGroupMove } from '../personnel-row-layout';
+import type {
+  PersonnelGroupMove,
+  PersonnelGroupCategoryChange,
+} from '../personnel-row-layout';
 import { isLegacySubcontractRow } from '../personnel-cost-rows';
 import {
   defaultPersonnelColumns,
@@ -442,6 +445,7 @@ export function PersonnelLinesTable({
   onDelete,
   onMoveRow,
   onRenameGroup,
+  onApplyGroupCategory,
   onMoveGroup,
   onCopyGroup,
   locked = false,
@@ -458,6 +462,7 @@ export function PersonnelLinesTable({
   onDelete: (row: CostInputRow) => void;
   onMoveRow?: (move: PersonnelRowMove) => void;
   onRenameGroup?: (rename: PersonnelGroupRename) => void;
+  onApplyGroupCategory?: (change: PersonnelGroupCategoryChange) => void;
   onMoveGroup?: (move: PersonnelGroupMove) => void;
   onCopyGroup?: (groupName: string) => void;
   locked?: boolean;
@@ -877,6 +882,15 @@ export function PersonnelLinesTable({
         {entries.map((entry) => {
           if (entry.kind === 'group') {
             const title = entry.groupName || UNASSIGNED_PERSONNEL_GROUP;
+            const categoryValues = [
+              ...new Set(
+                groups
+                  .find((group) => group.groupName === entry.groupName)!
+                  .rows.map((row) => row.category?.trim() || ''),
+              ),
+            ];
+            const category =
+              categoryValues.length === 1 ? categoryValues[0] : '';
             return (
               <TableRow
                 key={`group:${entry.groupName}`}
@@ -946,6 +960,57 @@ export function PersonnelLinesTable({
                     >
                       <Save className="size-3" />
                       Save / Merge
+                    </Button>
+                    <label className="ml-2 inline-flex items-center gap-1 text-xs">
+                      Category
+                      <Input
+                        key={JSON.stringify(categoryValues)}
+                        name="groupCategory"
+                        aria-label={`Category for group ${title}`}
+                        defaultValue={category}
+                        placeholder={
+                          categoryValues.length > 1
+                            ? 'Mixed / 多个分类'
+                            : 'Category'
+                        }
+                        maxLength={120}
+                        disabled={locked || !onApplyGroupCategory}
+                        className="h-8 w-40 rounded-sm bg-background px-2 text-xs"
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter') return;
+                          event.preventDefault();
+                          if (!locked)
+                            onApplyGroupCategory?.({
+                              groupName: entry.groupName,
+                              rowIds: [...entry.rowIds],
+                              category: event.currentTarget.value,
+                            });
+                        }}
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 gap-1 px-1 text-xs"
+                      disabled={locked || !onApplyGroupCategory}
+                      aria-label={`Apply category to group ${title}`}
+                      onClick={(event) => {
+                        if (locked || !onApplyGroupCategory) return;
+                        const input = event.currentTarget
+                          .closest('form')
+                          ?.elements.namedItem(
+                            'groupCategory',
+                          ) as HTMLInputElement | null;
+                        if (input)
+                          onApplyGroupCategory({
+                            groupName: entry.groupName,
+                            rowIds: [...entry.rowIds],
+                            category: input.value,
+                          });
+                      }}
+                    >
+                      Apply to group / 应用组内
                     </Button>
                     {(['up', 'down'] as const).map((direction) => {
                       const index = groups.findIndex(

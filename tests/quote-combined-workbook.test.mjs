@@ -234,8 +234,8 @@ test('combined statement links structured Subcon and the complete EHS base witho
   assert.equal(subcon.getCell('I6').formula, 'SUM(I5:I5)');
   assert.equal(subcon.getCell('K6').formula, 'SUM(K5:K5)');
   assert.ok(statement.getCell('B16').formula.includes("'Subcon Detail'!I6"));
-  assert.ok(statement.getCell('B20').formula.includes('SUM(B12,B16,B17)*$E$4'));
-  assert.equal(statement.getCell('E4').value, 0.01);
+  assert.ok(statement.getCell('B20').formula.includes('SUM(B12,B16,B17)*$B$3'));
+  assert.equal(statement.getCell('B3').value, 0.01);
 });
 
 test('generated and legacy quotation modes preserve captured prices and complete cost allocation', async () => {
@@ -311,6 +311,7 @@ test('combined export supports summary-only and mixed selections with mandatory 
         'Quotation Details',
         'Cost Statement',
         'Pricing Calculations',
+        'Category Calculations',
         ...selectedSheets,
         ...(selectedSheets.includes('Cost Detail')
           ? ['Cost Calculations']

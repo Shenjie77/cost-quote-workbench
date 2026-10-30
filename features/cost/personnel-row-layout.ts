@@ -58,6 +58,37 @@ export type PersonnelGroupRename = {
   rowIds: string[];
 };
 
+export type PersonnelGroupCategoryChange = {
+  groupName: string;
+  rowIds: string[];
+  category: string;
+};
+
+/** Apply a category to the rendered group membership, preserving newer cost inputs. */
+export function setPersonnelGroupCategory(
+  current: CostInputRow[],
+  resources: ResourceType[],
+  request: PersonnelGroupCategoryChange,
+  locked = false,
+): CostInputRow[] | null {
+  const category = request.category.trim();
+  if (locked || Array.from(category).length > 120 || !request.rowIds.length)
+    return null;
+  const ids = new Set(request.rowIds);
+  const members = current.filter(
+    (row) =>
+      !isLegacySubcontractRow(row, resources) &&
+      (row.groupName?.trim() || '') === request.groupName.trim(),
+  );
+  if (
+    ids.size !== request.rowIds.length ||
+    members.length !== ids.size ||
+    members.some((row) => !ids.has(row.id))
+  )
+    return null;
+  return current.map((row) => (ids.has(row.id) ? { ...row, category } : row));
+}
+
 const groupOf = (row: CostInputRow) => row.groupName?.trim() || '';
 const validGroup = (groupName: string) =>
   Array.from(groupName.trim()).length <= 200;

@@ -1,3 +1,10 @@
+import {
+  buildGroupCostSummary,
+  buildGroupCostSections,
+  categoryStatementAmounts,
+  overrideCategoryRiskAmount,
+} from '../group-cost-summary';
+import type { TravelSettings } from '../domain';
 import type { SubcontractCost } from '@/features/cost/subcontract-domain';
 /** Hierarchical cost statement; only leaf accounts allow manual monetary input. */
 
@@ -30,6 +37,7 @@ export function CostStatementTable({
   rows,
   resourceTypes,
   travelCost,
+  travelSettings,
   manualCosts,
   subcontractCost,
   subcontractStartYear,
@@ -39,6 +47,7 @@ export function CostStatementTable({
   rows: CostInputRow[];
   resourceTypes: ResourceType[];
   travelCost: number;
+  travelSettings?: TravelSettings;
   manualCosts: ManualCostInputs;
   subcontractCost?: SubcontractCost;
   subcontractStartYear?: number | null;
@@ -70,8 +79,27 @@ export function CostStatementTable({
     subcontractStartYear,
   );
 
+  const categories = travelSettings
+    ? buildGroupCostSections(
+        buildGroupCostSummary(
+          rows,
+          resourceTypes,
+          travelSettings,
+          manualCosts,
+          subcontractCost,
+          subcontractStartYear,
+        ),
+      ).map((section) => ({
+        ...section,
+        amounts: categoryStatementAmounts(section.items),
+      }))
+    : [];
+
   /** Commit editable amounts; changing EHS explicitly switches from percentage to manual. */
-  const updateManualCost = (key: keyof ManualCostInputs, value: number) => {
+  const updateManualCost = (
+    key: Exclude<keyof ManualCostInputs, 'categoryRiskWeights'>,
+    value: number,
+  ) => {
     if (readOnly) return;
     if (key === 'otherService') {
       setManualCosts((current) => overrideOtherServiceCost(current, value));
@@ -132,6 +160,14 @@ export function CostStatementTable({
               <TableHead className="w-[18%] px-3 text-right text-white">
                 Cost (SGD)
               </TableHead>
+              {categories.map((category) => (
+                <TableHead
+                  key={category.key}
+                  className="min-w-36 px-3 text-right text-white"
+                >
+                  {category.label} Cost (SGD)
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -194,6 +230,26 @@ export function CostStatementTable({
                     }
                   >
                     {row.source}
+                    {row.manualKey === 'riskContingency' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="ml-2 h-6 text-[9px]"
+                        disabled={
+                          readOnly || !manualCosts.categoryRiskWeights?.length
+                        }
+                        title="保留风险准备金总额，按各 Category 风险前成本金额重新分摊"
+                        onClick={() => {
+                          if (!readOnly)
+                            setManualCosts((current) => ({
+                              ...current,
+                              categoryRiskWeights: [],
+                            }));
+                        }}
+                      >
+                        Reset by proportion · 按比例重置
+                      </Button>
+                    ) : null}
                     {row.manualKey === 'otherService' ? (
                       <Button
                         size="sm"
@@ -232,7 +288,10 @@ export function CostStatementTable({
                           disabled={readOnly}
                           min="0"
                           step={
-                            row.manualKey === 'otherService' ? '0.01' : '100'
+                            row.manualKey === 'otherService' ||
+                            row.manualKey === 'riskContingency'
+                              ? '0.01'
+                              : '100'
                           }
                           className={
                             'financial-numeral h-9 rounded-none border-0 pl-7 pr-2 text-right text-xs shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-background focus-visible:ring-1 ' +
@@ -244,7 +303,10 @@ export function CostStatementTable({
                           placeholder="-"
                           onChange={(event) =>
                             updateManualCost(
-                              row.manualKey as keyof ManualCostInputs,
+                              row.manualKey as Exclude<
+                                keyof ManualCostInputs,
+                                'categoryRiskWeights'
+                              >,
                               Number(event.target.value),
                             )
                           }
@@ -255,7 +317,10 @@ export function CostStatementTable({
                             )
                               return;
                             updateManualCost(
-                              row.manualKey as keyof ManualCostInputs,
+                              row.manualKey as Exclude<
+                                keyof ManualCostInputs,
+                                'categoryRiskWeights'
+                              >,
                               roundMoney(Number(event.target.value)),
                             );
                           }}
@@ -267,6 +332,41 @@ export function CostStatementTable({
                       </span>
                     )}
                   </TableCell>
+                  {categories.map((category) => (
+                    <TableCell
+                      key={category.key}
+                      className="px-3 text-right tabular-nums"
+                    >
+                      {row.code === '15' ? (
+                        <Input
+                          money
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          disabled={readOnly}
+                          aria-label={`${category.label} risk amount in SGD`}
+                          value={category.amounts['15'] ?? 0}
+                          className="min-w-28 text-right"
+                          onChange={(event) => {
+                            if (!readOnly)
+                              setManualCosts((current) =>
+                                overrideCategoryRiskAmount(
+                                  current,
+                                  categories.map((entry) => ({
+                                    category: entry.category ?? '',
+                                    amount: entry.amounts['15'] ?? 0,
+                                  })),
+                                  category.category ?? '',
+                                  Number(event.target.value),
+                                ),
+                              );
+                          }}
+                        />
+                      ) : (
+                        formatSgd(category.amounts[row.code] ?? 0)
+                      )}
+                    </TableCell>
+                  ))}
                 </TableRow>
               );
             })}

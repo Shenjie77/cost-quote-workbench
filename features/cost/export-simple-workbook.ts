@@ -1,6 +1,7 @@
 import {
   buildGroupCostSummary,
   buildGroupCostSheetLayout,
+  categoryStatementAmounts,
   costRowsIncludingHQTravel,
   GROUP_COST_FIELDS,
   GROUP_COST_NOTE,
@@ -904,23 +905,45 @@ const addStatement = (
   snapshot: CostExportSnapshot,
   travelCost: number,
 ) => {
+  const categories = buildGroupCostSheetLayout(
+    buildGroupCostSummary(
+      snapshot.costRows,
+      snapshot.resourceTypes,
+      snapshot.travelSettings,
+      snapshot.manualCosts,
+      snapshot.subcontractCost,
+      getY1Year(snapshot.rateSettings),
+    ),
+  ).sections;
+  const categoryValues = categories.map((category) =>
+    categoryStatementAmounts(category.items),
+  );
+  const columnCount = 2 + categories.length;
   const sheet = addSheet(
     workbook,
     snapshot,
     'Cost Statement',
     'Cost Statement / 成本报表',
-    2,
+    columnCount,
   );
   sheet.getColumn(1).width = 100;
   sheet.getColumn(2).width = 25;
   sheet.getColumn(2).numFmt = STATEMENT_MONEY;
-  const header = styleRow(sheet, HEADER_ROW, 2, {
+  const header = styleRow(sheet, HEADER_ROW, columnCount, {
     fill: COLORS.total,
     whiteText: true,
     bold: true,
     height: 36,
   });
-  setRowValues(header, ['Report Item (SGD) / 报表项', 'Cost (SGD) / 成本']);
+  setRowValues(header, [
+    'Report Item (SGD) / 报表项',
+    'Cost (SGD) / 成本',
+    ...categories.map((category) => `${category.label} Cost (SGD) / 成本`),
+  ]);
+  categories.forEach((_, index) => {
+    sheet.getColumn(index + 3).width = 25;
+    sheet.getColumn(index + 3).numFmt = STATEMENT_MONEY;
+  });
   const rows = buildCostStatementRows(
     snapshot.costRows,
     snapshot.resourceTypes,
@@ -940,7 +963,7 @@ const addStatement = (
             : isCostStatementGroupRow(item)
               ? COLORS.subtotal
               : COLORS.white;
-    const row = styleRow(sheet, HEADER_ROW + 1 + index, 2, {
+    const row = styleRow(sheet, HEADER_ROW + 1 + index, columnCount, {
       fill,
       whiteText: item.mode === 'grand-total',
       bold:
@@ -951,6 +974,7 @@ const addStatement = (
     setRowValues(row, [
       `${item.code ? `${item.code}  ` : ''}${item.en} / ${item.zh}`,
       item.amount,
+      ...categoryValues.map((values) => values[item.code] ?? 0),
     ]);
     row.getCell(1).alignment = {
       indent: item.level,
@@ -973,7 +997,6 @@ export function addGroupCostSheet(
     snapshot.manualCosts,
     snapshot.subcontractCost,
     getY1Year(snapshot.rateSettings),
-    true,
   );
   const headers = [
     'Category',
@@ -988,6 +1011,7 @@ export function addGroupCostSheet(
     'Other',
     'Total Cost',
     'Share',
+    'Risk allocation %',
   ];
   const sheet = addSheet(
     workbook,
@@ -1007,9 +1031,11 @@ export function addGroupCostSheet(
     }),
     headers,
   );
-  [24, 34, 14, 14, 20, 20, 20, 20, 20, 20, 20, 14].forEach((width, index) => {
-    sheet.getColumn(index + 1).width = width;
-  });
+  [24, 34, 14, 14, 20, 20, 20, 20, 20, 20, 20, 14, 20].forEach(
+    (width, index) => {
+      sheet.getColumn(index + 1).width = width;
+    },
+  );
   const layout = buildGroupCostSheetLayout(items, HEADER_ROW + 1);
   layout.sections.forEach((section) => {
     setRowValues(
@@ -1035,7 +1061,7 @@ export function addGroupCostSheet(
       setRowValues(row, [
         section.kind === 'Category' ? section.label : '',
         item.label,
-        item.kind,
+        item.kind === 'Group' ? 'Group' : 'Project',
         ...GROUP_COST_FIELDS.map((field) => item[field]),
       ]);
     });

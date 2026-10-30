@@ -44,7 +44,84 @@ const hooks = registerHooks({
 });
 const { GroupCostTable } =
   await import('../features/cost/components/group-cost-table.tsx');
+const { CostStatementTable } =
+  await import('../features/cost/components/cost-statement-table.tsx');
+const { buildGroupCostSummary } =
+  await import('../features/cost/group-cost-summary.ts');
+const { makeCostSnapshot } = await import('./helpers.mjs');
 hooks.deregister();
+
+const walk = (node) =>
+  Array.isArray(node)
+    ? node.flatMap(walk)
+    : React.isValidElement(node)
+      ? [node, ...walk(node.props.children)]
+      : [];
+
+test('Summary risk amounts are editable and proportional reset preserves the edited total', () => {
+  for (const component of [GroupCostTable, CostStatementTable]) {
+    const s = makeCostSnapshot();
+    s.costRows.forEach(
+      (row, index) => (row.category = index % 2 ? 'Optional' : 'Mandatory'),
+    );
+    let manual = {
+      ...s.manualCosts,
+      riskContingency: 100,
+      categoryRiskWeights: [
+        { category: 'Mandatory', weight: 0.6 },
+        { category: 'Optional', weight: 0.4 },
+      ],
+    };
+    const tree = (readOnly = false) =>
+      walk(
+        component({
+          readOnly,
+          rows: s.costRows,
+          resourceTypes: s.resourceTypes,
+          travelSettings: s.travelSettings,
+          travelCost: 0,
+          manualCosts: manual,
+          setManualCosts: (change) => (manual = change(manual)),
+          items: buildGroupCostSummary(
+            s.costRows,
+            s.resourceTypes,
+            s.travelSettings,
+            manual,
+          ),
+        }),
+      );
+    const input = (label, locked = false) =>
+      tree(locked).find((node) => node.props['aria-label'] === label);
+    input('Mandatory risk amount in SGD').props.onChange({
+      target: { value: '80.01' },
+    });
+    assert.equal(manual.riskContingency, 120.01);
+    assert.equal(input('Optional risk amount in SGD').props.value, 40);
+    assert.equal(input('Mandatory risk amount in SGD').props.value, 80.01);
+    const before = structuredClone(manual);
+    input('Mandatory risk amount in SGD', true).props.onChange({
+      target: { value: '999' },
+    });
+    assert.deepEqual(manual, before);
+    tree()
+      .find(
+        (node) =>
+          typeof node.props.children === 'string' &&
+          node.props.children.includes('按比例重置'),
+      )
+      .props.onClick();
+    assert.equal(manual.riskContingency, 120.01);
+    assert.deepEqual(manual.categoryRiskWeights, []);
+    assert.equal(
+      Math.round(
+        (input('Mandatory risk amount in SGD').props.value +
+          input('Optional risk amount in SGD').props.value) *
+          100,
+      ),
+      12001,
+    );
+  }
+});
 
 const item = (key, category, kind, amount) => ({
   key,

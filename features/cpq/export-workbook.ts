@@ -87,9 +87,9 @@ export async function buildCpqWorkbook(archive: CpqArchive) {
   );
   baseline.addRow([]);
   baseline.addRow(['Manual cost / 手工成本', 'Amount']);
-  Object.entries(archive.costBaseline.manualCosts).forEach(([key, amount]) =>
-    baseline.addRow([key, amount]),
-  );
+  Object.entries(archive.costBaseline.manualCosts)
+    .filter(([key]) => key !== 'categoryRiskWeights')
+    .forEach(([key, amount]) => baseline.addRow([key, amount]));
   const rates = archive.costBaseline.resourceTypes || [];
   const travel = getHQTravelSummary(
     archive.costBaseline.costRows,

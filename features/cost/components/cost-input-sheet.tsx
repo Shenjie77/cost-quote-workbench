@@ -40,6 +40,8 @@ import {
   movePersonnelGroup,
   type PersonnelGroupMove,
   renamePersonnelGroup,
+  setPersonnelGroupCategory,
+  type PersonnelGroupCategoryChange,
   copyPersonnelGroup,
   nextPersonnelGroupCopyName,
   type PersonnelRowMove,
@@ -172,7 +174,11 @@ export function CostInputSheet({
   const totalMd = rows.reduce((sum, row) => sum + totalRowMandays(row), 0);
 
   const applyRowLayout = (
-    change: PersonnelRowMove | PersonnelGroupRename | PersonnelGroupMove,
+    change:
+      | PersonnelRowMove
+      | PersonnelGroupRename
+      | PersonnelGroupMove
+      | PersonnelGroupCategoryChange,
   ) => {
     if (locked || (canEditCost && !canEditCost())) return;
     setAllRows((current) => {
@@ -181,7 +187,9 @@ export function CostInputSheet({
           ? movePersonnelGroup(current, allResourceTypes, change)
           : 'rowId' in change
             ? movePersonnelRow(current, allResourceTypes, change)
-            : renamePersonnelGroup(current, allResourceTypes, change);
+            : 'category' in change
+              ? setPersonnelGroupCategory(current, allResourceTypes, change)
+              : renamePersonnelGroup(current, allResourceTypes, change);
       if (next === null) {
         queueMicrotask(() =>
           announce(
@@ -464,6 +472,7 @@ export function CostInputSheet({
         columns={columnSettings.columns}
         onMoveRow={applyRowLayout}
         onRenameGroup={applyRowLayout}
+        onApplyGroupCategory={applyRowLayout}
         onMoveGroup={applyRowLayout}
         onCopyGroup={openCopyGroup}
         locked={locked}

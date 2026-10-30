@@ -34,6 +34,7 @@ CLI **尚未覆盖全部界面操作**。本次按命令解析器、资源读写
 
 人员行的 `category` 与结构化分包条目的 `category` 都是可选的报价分类，最多 120 字符。
 它不同于 `groupName`，也不同于 RE Type 的 `category: internal|subcontract`。
+Cost Input 的 Groups 视图可在分组栏填写 Category，按 Enter 或“应用组内”批量应用到该组全部人员行；混合分类显示“多个分类”，清空后应用可清除组内分类。此操作保留投入、金额和其他组，不包含旧分包行。
 生成报价按成本 Category 保留分类边界；名称 `Optional` 只是标签，不自动改变纳入金额的状态。
 
 已有人员行可用 `cost.update` 的 `changes.upsert:[{"id":"CI-ROW","category":"Integration"}]`

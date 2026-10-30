@@ -23,6 +23,8 @@ import {
   allocateHQTravel,
   buildGroupCostSummary,
   buildGroupCostSheetLayout,
+  categoryStatementAmounts,
+  CATEGORY_STATEMENT_SUMS,
 } from './group-cost-summary.ts';
 import {
   getSubcontractRateFactors,
@@ -30,11 +32,15 @@ import {
 } from './subcontract-domain.ts';
 import { excelMoneyFormula as money } from '../../lib/excel-money.ts';
 
+// ExcelJS omits a zero result from cell.value, so detect formulas by type,
+// not by the presence of a result property. Number({ formula }) would be NaN.
 const value = (cell: Cell) =>
-  typeof cell.value === 'object' && cell.value && 'result' in cell.value
-    ? Number(cell.value.result)
-    : Number(cell.value ?? 0);
+  Number(cell.formula !== undefined ? (cell.result ?? 0) : (cell.value ?? 0));
 const set = (cell: Cell, formula: string, result = value(cell)) => {
+  if (!Number.isFinite(result))
+    throw new Error(
+      `Invalid formula cache at ${cell.worksheet.name}!${cell.address}`,
+    );
   cell.value = { formula, result };
 };
 const ref = (sheet: Worksheet, address: string) =>
@@ -785,14 +791,20 @@ export function linkSimpleCostFormulas(
         row.code === '2.3.4.2' &&
         snapshot.manualCosts.otherServiceRate !== undefined
       ) {
-        statement.getCell('D4').value = 'EHS Rate';
-        statement.getCell('E4').value = snapshot.manualCosts.otherServiceRate;
-        statement.getCell('E4').numFmt = '0.00%';
-        input(statement.getCell('E4'));
+        statement.getCell('A3').value = 'EHS Rate';
+        statement.getRow(3).height = 24;
+        statement.getCell('A3').alignment = { vertical: 'middle' };
+        statement.getCell('B3').alignment = {
+          vertical: 'middle',
+          horizontal: 'right',
+        };
+        statement.getCell('B3').value = snapshot.manualCosts.otherServiceRate;
+        statement.getCell('B3').numFmt = '0.00%';
+        input(statement.getCell('B3'));
         set(
           cell,
           money(
-            `SUM(${['2.3.1', '2.3.2', '2.3.3'].map((code) => cells.get(code)).join(',')})*$E$4`,
+            `SUM(${['2.3.1', '2.3.2', '2.3.3'].map((code) => cells.get(code)).join(',')})*$B$3`,
           ),
           row.amount,
         );
@@ -901,107 +913,254 @@ export function linkSimpleCostFormulas(
       `${subconOnly ? 'Cost Statement 2.3.2 · ' : ''}Live formulas use included detail sheets and Cost Statement. Omitted inputs retain their captured values.`;
   }
   const group = workbook.getWorksheet('Summary Group');
-  if (group) {
-    const items = buildGroupCostSummary(
-      snapshot.costRows,
-      snapshot.resourceTypes,
-      snapshot.travelSettings,
-      snapshot.manualCosts,
-      snapshot.subcontractCost,
-      getY1Year(snapshot.rateSettings),
-      true,
+  const items = buildGroupCostSummary(
+    snapshot.costRows,
+    snapshot.resourceTypes,
+    snapshot.travelSettings,
+    snapshot.manualCosts,
+    snapshot.subcontractCost,
+    getY1Year(snapshot.rateSettings),
+  );
+  const layout = buildGroupCostSheetLayout(items);
+  const categories = layout.sections;
+  const categoryCalc = workbook.addWorksheet('Category Calculations', {
+    state: 'hidden',
+  });
+  categoryCalc.getRow(4).values = [
+    'Category',
+    'Personnel',
+    'HQ Travel',
+    'Subcontract',
+    'Direct cost',
+    'Equipment',
+    'Inland Logistics',
+    'Warehousing',
+    'Non In-house Labour',
+    'Settlement',
+    'Car Fee',
+    'EHS base',
+    'EHS',
+    'Before risk',
+    'Default / saved risk share',
+    'Risk',
+    'Active risk weight',
+  ];
+  const lastCategory = categories.length + 4;
+  const allocations: Record<string, string> = {
+    '2.3.1.1': 'B',
+    '2.3.1.3': 'C',
+    '2.3.2': 'D',
+    '2.1.2': 'F',
+    '2.2.1.2': 'G',
+    '2.2.1.3': 'H',
+    '2.3.1.2': 'I',
+    '2.3.3': 'J',
+    '2.3.4.1': 'K',
+    '2.3.4.2': 'M',
+    '15': 'P',
+  };
+  const allocationFormula = (
+    amount: string,
+    weightColumn: string,
+    row: number,
+  ) => {
+    const totalWeight = `SUM($${weightColumn}$5:$${weightColumn}$${lastCategory})`;
+    const cumulative = (end: number) =>
+      end < 5
+        ? '0'
+        : end === lastCategory
+          ? '1'
+          : `IF(${totalWeight}>0,SUM($${weightColumn}$5:$${weightColumn}$${end})/${totalWeight},${end - 4}/${categories.length})`;
+    return `(ROUND(ROUND((${amount})*100,0)*(${cumulative(row)}),0)-ROUND(ROUND((${amount})*100,0)*(${cumulative(row - 1)}),0))/100`;
+  };
+  categories.forEach((section, index) => {
+    const n = index + 5;
+    const category = section.category ?? '';
+    const amounts = categoryStatementAmounts(section.items);
+    const categoryKey = keys.get('X')!.codes.get(category) ?? -1;
+    const criteria: [string, string][] = [
+      ['X', category],
+      ['V', 'internal'],
+    ];
+    categoryCalc.getCell(`A${n}`).value = category || 'Uncategorized';
+    set(
+      categoryCalc.getCell(`B${n}`),
+      calc ? aggregate('G', criteria) : String(amounts['2.3.1.1'] ?? 0),
+      amounts['2.3.1.1'] ?? 0,
     );
-    const layout = buildGroupCostSheetLayout(items);
-    const total = layout.totalRow;
-    const categoryLastRow = layout.sections
-      .filter((section) => section.kind === 'Category')
-      .at(-1)?.subtotalRow;
-    layout.sections
-      .flatMap((section) => section.entries)
-      .forEach(({ item, rowNumber: n }) => {
-        const rows = snapshot.costRows.filter(
-          (row) =>
-            (row.groupName?.trim() || '') === (item.groupName ?? '') &&
-            (row.category?.trim() || '') === (item.category ?? '') &&
-            snapshot.resourceTypes.find((r) => r.id === row.reTypeId)
-              ?.category !== 'subcontract',
-        );
-        if (item.kind === 'Group') {
-          const criteria: [string, string][] = [
-            ['W', item.groupName ?? ''],
-            ['X', item.category ?? ''],
-            ['V', 'internal'],
-          ];
-          set(
-            group.getCell(`D${n}`),
-            calc ? aggregate('D', criteria) : String(item.mandays),
-            item.mandays,
-          );
-          set(
-            group.getCell(`E${n}`),
-            calc ? aggregate('G', criteria) : sum(rows.map(rowBase)),
-            item.personnel,
-          );
-          set(
-            group.getCell(`F${n}`),
-            calc ? aggregate('S', criteria) : String(item.travel),
-            item.travel,
-          );
-        } else if (item.kind === 'Subcontract') {
-          const category = item.category ?? '';
-          const categoryKey = keys.get('X')!.codes.get(category) ?? -1;
-          const legacyItems = legacyRows.filter(
-            (row) => (row.category?.trim() || '') === category,
-          );
-          const structuredItems = details.flatMap((line, index) =>
-            (line.category?.trim() || '') === category
-              ? [subconRefs[index]]
-              : [],
-          );
-          set(
-            group.getCell(`G${n}`),
-            sum([
-              aggregate('G', [
-                ['V', 'subcontract'],
-                ['X', category],
-              ]),
-              legacy
-                ? `SUMIF(${ref(legacy, `M5:M${legacy.rowCount - 1}`)},${categoryKey},${ref(legacy, `D5:D${legacy.rowCount - 1}`)})`
-                : sum(
-                    legacyItems.filter((row) => !refs.has(row.id)).map(rowBase),
-                  ),
-              subcon
-                ? `SUMIF(${ref(subcon, `X5:X${subcon.rowCount - 1}`)},${categoryKey},${ref(subcon, `I5:I${subcon.rowCount - 1}`)})`
-                : sum(structuredItems),
-            ]),
-            item.subcontract,
-          );
-        } else {
-          const code = item.key.slice('account:'.length);
-          const col =
-            code === '2.3.2'
-              ? 'G'
-              : code === '2.3.4.2'
-                ? 'H'
-                : code === '15'
-                  ? 'I'
-                  : 'J';
-          set(
-            group.getCell(`${col}${n}`),
-            code === '2.3.2' && categoryLastRow
-              ? `${account(code)}-SUMIF($C$5:$C$${categoryLastRow},"Subcontract",G5:G${categoryLastRow})`
-              : account(code),
-            item.total,
-          );
-        }
-        set(group.getCell(`K${n}`), `SUM(E${n}:J${n})`, item.total);
+    set(
+      categoryCalc.getCell(`C${n}`),
+      calc ? aggregate('S', criteria) : String(amounts['2.3.1.3'] ?? 0),
+      amounts['2.3.1.3'] ?? 0,
+    );
+    const legacyItems = legacyRows.filter(
+      (row) => (row.category?.trim() || '') === category,
+    );
+    set(
+      categoryCalc.getCell(`D${n}`),
+      sum([
+        calc
+          ? aggregate('G', [
+              ['V', 'subcontract'],
+              ['X', category],
+            ])
+          : '0',
+        legacy
+          ? `SUMIF(${ref(legacy, `M5:M${legacy.rowCount - 1}`)},${categoryKey},${ref(legacy, `D5:D${legacy.rowCount - 1}`)})`
+          : sum(legacyItems.filter((row) => !refs.has(row.id)).map(rowBase)),
+        subcon
+          ? `SUMIF(${ref(subcon, `X5:X${subcon.rowCount - 1}`)},${categoryKey},${ref(subcon, `I5:I${subcon.rowCount - 1}`)})`
+          : sum(
+              details.flatMap((line, i) =>
+                (line.category?.trim() || '') === category
+                  ? [subconRefs[i]]
+                  : [],
+              ),
+            ),
+      ]),
+      amounts['2.3.2'] ?? 0,
+    );
+    const direct =
+      (amounts['2.3.1.1'] ?? 0) +
+      (amounts['2.3.1.3'] ?? 0) +
+      (amounts['2.3.2'] ?? 0);
+    set(categoryCalc.getCell(`E${n}`), `SUM(B${n}:D${n})`, direct);
+    for (const code of [
+      '2.1.2',
+      '2.2.1.2',
+      '2.2.1.3',
+      '2.3.1.2',
+      '2.3.3',
+      '2.3.4.1',
+    ])
+      set(
+        categoryCalc.getCell(`${allocations[code]}${n}`),
+        allocationFormula(account(code), 'E', n),
+        amounts[code] ?? 0,
+      );
+    set(
+      categoryCalc.getCell(`L${n}`),
+      `SUM(B${n}:D${n},I${n}:J${n})`,
+      (amounts['2.3.1'] ?? 0) +
+        (amounts['2.3.2'] ?? 0) +
+        (amounts['2.3.3'] ?? 0),
+    );
+    set(
+      categoryCalc.getCell(`M${n}`),
+      allocationFormula(account('2.3.4.2'), 'L', n),
+      amounts['2.3.4.2'] ?? 0,
+    );
+    set(
+      categoryCalc.getCell(`N${n}`),
+      `SUM(E${n}:K${n},M${n})`,
+      amounts['2'] ?? 0,
+    );
+    const riskEntry = section.entries.find(
+      ({ item }) => item.accountCode === '15',
+    )!;
+    const weight = riskEntry.item.riskWeight ?? 0;
+    const saved = snapshot.manualCosts.categoryRiskWeights;
+    const hasSaved = categories.some((item) =>
+      saved?.some(
+        (entry) => entry.category === item.category && entry.weight > 0,
+      ),
+    );
+    if (hasSaved) categoryCalc.getCell(`O${n}`).value = weight;
+    else
+      set(
+        categoryCalc.getCell(`O${n}`),
+        `IF(SUM($N$5:$N$${lastCategory})>0,N${n}/SUM($N$5:$N$${lastCategory}),1/${categories.length})`,
+        weight,
+      );
+    if (group) {
+      if (hasSaved) group.getCell(`M${riskEntry.rowNumber}`).value = weight;
+      else
         set(
-          group.getCell(`L${n}`),
-          `IF(K${total}>0,K${n}/K${total},0)`,
-          item.share,
+          group.getCell(`M${riskEntry.rowNumber}`),
+          ref(categoryCalc, `O${n}`),
+          weight,
         );
-      });
-    const totalColumns = [
+      group.getCell(`M${riskEntry.rowNumber}`).numFmt = '0.00%';
+      input(group.getCell(`M${riskEntry.rowNumber}`));
+    }
+    set(
+      categoryCalc.getCell(`Q${n}`),
+      group ? ref(group, `M${riskEntry.rowNumber}`) : `O${n}`,
+      weight,
+    );
+    set(
+      categoryCalc.getCell(`P${n}`),
+      allocationFormula(account('15'), 'Q', n),
+      amounts['15'] ?? 0,
+    );
+    if (statement) {
+      const col = statement.getColumn(index + 3).letter;
+      for (const item of statementRows) {
+        const row = Number(cells.get(item.code)!.slice(1));
+        const formula = CATEGORY_STATEMENT_SUMS[item.code]
+          ? sum(
+              CATEGORY_STATEMENT_SUMS[item.code].map(
+                (code) => `${col}${cells.get(code)!.slice(1)}`,
+              ),
+            )
+          : allocations[item.code]
+            ? ref(categoryCalc, `${allocations[item.code]}${n}`)
+            : '0';
+        set(
+          statement.getCell(`${col}${row}`),
+          formula,
+          amounts[item.code] ?? 0,
+        );
+      }
+    }
+    if (!group) return;
+    for (const { item, rowNumber: r } of section.entries) {
+      if (item.kind === 'Group') {
+        const criteria: [string, string][] = [
+          ['W', item.groupName ?? ''],
+          ['X', category],
+          ['V', 'internal'],
+        ];
+        for (const [target, source, cached] of [
+          ['D', 'D', item.mandays],
+          ['E', 'G', item.personnel],
+          ['F', 'S', item.travel],
+        ] as const)
+          set(
+            group.getCell(`${target}${r}`),
+            calc ? aggregate(source, criteria) : String(cached),
+            cached,
+          );
+      } else {
+        const code = item.accountCode!;
+        const col =
+          code === '2.3.2'
+            ? 'G'
+            : code === '2.3.4'
+              ? 'H'
+              : code === '15'
+                ? 'I'
+                : 'J';
+        set(
+          group.getCell(`${col}${r}`),
+          CATEGORY_STATEMENT_SUMS[code]
+            ? sum(
+                CATEGORY_STATEMENT_SUMS[code].map((child) =>
+                  ref(categoryCalc, `${allocations[child]}${n}`),
+                ),
+              )
+            : ref(categoryCalc, `${allocations[code]}${n}`),
+          item.total,
+        );
+      }
+      set(group.getCell(`K${r}`), `SUM(E${r}:J${r})`, item.total);
+      set(
+        group.getCell(`L${r}`),
+        `IF(K${layout.totalRow}>0,K${r}/K${layout.totalRow},0)`,
+        item.share,
+      );
+    }
+    const fields = [
       ['D', 'mandays'],
       ['E', 'personnel'],
       ['F', 'travel'],
@@ -1011,32 +1170,47 @@ export function linkSimpleCostFormulas(
       ['J', 'other'],
       ['K', 'total'],
     ] as const;
-    for (const section of layout.sections) {
-      const first = section.entries[0]?.rowNumber;
-      const last = section.entries.at(-1)?.rowNumber;
-      for (const [col, key] of totalColumns)
-        set(
-          group.getCell(`${col}${section.subtotalRow}`),
-          first && last ? `SUM(${col}${first}:${col}${last})` : '0',
-          section.totals[key],
-        );
+    for (const [col, key] of fields)
       set(
-        group.getCell(`L${section.subtotalRow}`),
-        `IF(K${total}>0,K${section.subtotalRow}/K${total},0)`,
-        section.totals.share,
+        group.getCell(`${col}${section.subtotalRow}`),
+        col === 'J'
+          ? `SUM(${ref(categoryCalc, `F${n}:J${n}`)})`
+          : col === 'K'
+            ? `SUM(E${section.subtotalRow}:J${section.subtotalRow})`
+            : `SUM(${col}${section.entries[0].rowNumber}:${col}${section.entries.at(-1)!.rowNumber})`,
+        section.totals[key],
       );
-    }
-    for (const [col, key] of totalColumns)
+    set(
+      group.getCell(`L${section.subtotalRow}`),
+      `IF(K${layout.totalRow}>0,K${section.subtotalRow}/K${layout.totalRow},0)`,
+      section.totals.share,
+    );
+  });
+  if (group) {
+    group.getCell('M4').value = 'Risk allocation %';
+    group.getColumn('M').width = 20;
+    for (const [col, key] of [
+      ['D', 'mandays'],
+      ['E', 'personnel'],
+      ['F', 'travel'],
+      ['G', 'subcontract'],
+      ['H', 'ehs'],
+      ['I', 'risk'],
+      ['J', 'other'],
+      ['K', 'total'],
+    ] as const)
       set(
-        group.getCell(`${col}${total}`),
-        layout.sections.length
-          ? `SUMIF($C$5:$C$${total - 1},"Subtotal",${col}5:${col}${total - 1})`
-          : '0',
+        group.getCell(`${col}${layout.totalRow}`),
+        `SUMIF($C$5:$C$${layout.totalRow - 1},"Subtotal",${col}5:${col}${layout.totalRow - 1})`,
         layout.totals[key],
       );
-    set(group.getCell(`L${total}`), `IF(K${total}>0,1,0)`);
+    set(
+      group.getCell(`L${layout.totalRow}`),
+      `IF(K${layout.totalRow}>0,1,0)`,
+      layout.totals.share,
+    );
     group.getCell('A3').value =
-      'Category subtotals include personnel, HQ travel and classified subcontract. Project Accounts lists unclassified subcontract, EHS, risk and other costs.';
+      'Category costs include subcontract, EHS and allocated risk. Blue Risk allocation % cells override the default cost proportions. Shares are normalized; each project account is counted once.';
   }
   workbook.calcProperties.fullCalcOnLoad = true;
   return {

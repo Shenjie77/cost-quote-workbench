@@ -179,7 +179,11 @@ test('group and project rows reconcile to statement including EHS, risk, all man
   );
   assert.equal(
     items.find((item) => item.label === 'EHS').total,
-    roundMoney((statement.labour + statement.subcontract + 4) * 0.01),
+    roundMoney((statement.labour + statement.subcontract + 4) * 0.01) + 5,
+  );
+  assert.equal(
+    items.some((item) => item.label === 'Car Fee'),
+    false,
   );
   assert.equal(
     roundMoney(items.reduce((sum, item) => sum + item.travel, 0)),
@@ -218,7 +222,7 @@ test('grouped export writes annual subtotal formulas and reconciled Group sheet 
   const single = await buildSimpleCostWorkbook(s, layout, ['Summary Group']);
   assert.deepEqual(
     single.worksheets.map((sheet) => sheet.name),
-    ['Summary Group'],
+    ['Summary Group', 'Category Calculations'],
   );
 });
 
@@ -289,20 +293,14 @@ function summarize(s) {
   );
 }
 
-test('Category subtotals include classified project/site/legacy subcontract exactly once and keep project accounts separate', () => {
+test('Category subtotals include classified project/site/legacy subcontract exactly once and allocate project accounts inside each category', () => {
   const s = categoryFixture();
   const original = structuredClone(s);
   const items = summarize(s);
   const sections = buildGroupCostSections(items);
   assert.deepEqual(
     sections.map((section) => section.label),
-    [
-      'Services',
-      'Equipment',
-      'Uncategorized',
-      'Construction',
-      'Project Accounts',
-    ],
+    ['Services', 'Equipment', 'Uncategorized', 'Construction'],
   );
   assert.deepEqual(
     sections.slice(0, 3).map((section) => section.items[0].label),
@@ -312,14 +310,12 @@ test('Category subtotals include classified project/site/legacy subcontract exac
   assert.equal(sections[0].totals.subcontract, roundMoney(50 + legacyCost));
   assert.equal(sections[1].totals.subcontract, 36);
   assert.equal(sections[3].totals.subcontract, 2.62);
-  assert.deepEqual(
-    sections[3].items.map((item) => item.kind),
-    ['Subcontract'],
-  );
-  assert.equal(sections.at(-1).totals.subcontract, 10);
-  assert.equal(
-    sections.at(-1).items.find((item) => item.key === 'account:2.3.2').label,
-    'Uncategorized Subcontract',
+  assert.ok(sections[3].items.some((item) => item.kind === 'Subcontract'));
+  assert.equal(sections[2].totals.subcontract, 10);
+  assert.ok(
+    sections.every((section) =>
+      section.items.some((item) => item.accountCode === '15'),
+    ),
   );
   const expected = getCostStatementValues(
     s.costRows,

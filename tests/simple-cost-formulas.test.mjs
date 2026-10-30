@@ -11,7 +11,13 @@ import {
 const groupRow = (sheet, category, kind = 'Group') => {
   let match;
   sheet.eachRow((row) => {
-    if (row.getCell(1).value === category && row.getCell(3).value === kind)
+    if (
+      row.getCell(1).value === category &&
+      (kind === 'Subcontract'
+        ? row.getCell(2).value === 'Subcontract' &&
+          row.getCell(3).value === 'Project'
+        : row.getCell(3).value === kind)
+    )
       match = row;
   });
   assert.ok(match, `Missing ${kind} row for ${category}`);
@@ -280,25 +286,30 @@ test('category subtotals link classified subcontract sources and grand total cou
     let project,
       subtotalCount = 0;
     group.eachRow((row) => {
-      if (row.getCell(2).value === 'Uncategorized Subcontract') project = row;
+      if (
+        row.getCell(1).value === 'Uncategorized' &&
+        row.getCell(2).value === 'Subcontract'
+      )
+        project = row;
       if (row.getCell(3).value === 'Subtotal') {
         subtotalCount++;
-        assert.match(row.getCell(11).formula, /^SUM\(K\d+:K\d+\)$/);
+        assert.equal(
+          row.getCell(11).formula,
+          `SUM(E${row.number}:J${row.number})`,
+        );
       }
     });
     assert.ok(subtotalCount >= 3);
     assert.equal(cached(project.getCell(7)), 120);
-    const exclusionEnd = Number(
-      project.getCell(7).formula.match(/\$C\$5:\$C\$(\d+)/)[1],
-    );
-    assert.ok(
-      exclusionEnd < project.number,
-      'project residual must not include itself in the SUMIF dependency',
-    );
+    assert.match(project.getCell(7).formula, /Category Calculations/);
     assert.match(group.getCell(group.rowCount, 11).formula, /"Subtotal"/);
     if (!selection) {
-      assert.match(upper.getCell(7).formula, /'Subcon Detail'!X5:X7/);
-      assert.match(lower.getCell(7).formula, /'Cost Calculations'!AE5:AE\d+/);
+      const helpers = workbook.getWorksheet('Category Calculations');
+      assert.match(helpers.getCell('D5').formula, /'Subcon Detail'!X5:X7/);
+      assert.match(
+        helpers.getCell('D6').formula,
+        /'Cost Calculations'!AE5:AE\d+/,
+      );
     }
     assertReferences(workbook);
   }
@@ -328,7 +339,58 @@ test('subcontract-only categories remain live without any personnel calculation 
   const group = workbook.getWorksheet('Summary Group');
   const item = groupRow(group, 'Subcon only', 'Subcontract');
   assert.equal(cached(item.getCell(7)), 30);
-  assert.match(item.getCell(7).formula, /SUMIF\('Subcon Detail'/);
+  assert.match(
+    workbook.getWorksheet('Category Calculations').getCell('D5').formula,
+    /SUMIF\('Subcon Detail'/,
+  );
   assert.equal(workbook.getWorksheet('Cost Calculations'), undefined);
   assertReferences(workbook);
+});
+
+test('saved personnel layouts preserve zero formula caches in serialized Excel cells', async () => {
+  const { default: JSZip } = await import('jszip');
+  const { buildCombinedQuoteWorkbook } =
+    await import('../features/quote/export-combined-workbook.ts');
+  const { initialPricingSettings } =
+    await import('../features/quote/domain.ts');
+  const snapshot = makeCostSnapshot();
+  snapshot.costRows.forEach((row) => {
+    row.groupName = 'Delivery';
+    row.years[4] = { ...row.years[4], sites: 0, mandays: 0, cost: 0 };
+  });
+  for (const grouped of [true, false]) {
+    const layout = {
+      grouped,
+      yearIndex: 'all',
+      columns: [
+        'scope',
+        'reType',
+        'totalSites',
+        'totalMd',
+        'totalCost',
+        'Y5:sites',
+        'Y5:mandays',
+        'Y5:cost',
+      ],
+    };
+    for (const combined of [false, true]) {
+      const book = combined
+        ? await buildCombinedQuoteWorkbook({
+            costSnapshot: snapshot,
+            pricing: initialPricingSettings,
+            personnelLayout: layout,
+          })
+        : await buildSimpleCostWorkbook(snapshot, layout);
+      assertReferences(book);
+      const detail = book.getWorksheet('Cost Detail');
+      for (const column of [6, 7, 8])
+        assert.equal(detail.getCell(detail.rowCount, column).result ?? 0, 0);
+      const zip = await JSZip.loadAsync(await book.xlsx.writeBuffer());
+      for (const [name, entry] of Object.entries(zip.files)) {
+        if (!/^xl\/worksheets\/sheet\d+\.xml$/.test(name)) continue;
+        const xml = await entry.async('string');
+        assert.doesNotMatch(xml, /<v>(?:NaN|[-+]?Infinity)<\/v>/, name);
+      }
+    }
+  }
 });

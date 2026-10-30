@@ -713,3 +713,5 @@ suite.
 - `cost import --project-id ID --version Vn ...`：预览和应用均可指定版本；未指定仍为 activeVersion。预览返回 revision/version；`--apply --compact` 返回窄收据，未加 compact 保留旧完整记录响应。
 - `project get --project-id ID --section workflow-plan` 读取配置节点和并行阶段；`project workflow-action --project-id ID --input request.json --expected-revision R` 应用实际 nodeCode 的动作。OperationRequest 使用 operation=project.workflow-action、action={nodeCode,action,...}。关键节点确认/字段和requiresConfirmedCost门禁均由平台检查；历史用workflow-history。
 - `workflow preview/publish --input request.json --expected-revision GLOBAL_R`：OperationRequest data.operation=workflow.preview或workflow.publish，steps为完整定义数组，migrateActiveProjectIds显式要求重算活跃SLA；publish额外传预览得到的projectRevisions。预览/发布响应及示例见[流程契约](project-workflow.md)。
+
+Category reporting: `manualCosts.categoryRiskWeights` optionally stores `[{"category":"Mandatory","weight":0.7},{"category":"Optional","weight":0.3}]`. Weights are normalized over current categories; empty weights restore allocation by pre-risk Category cost. Simple and combined Excel exports include Category Cost Statement columns and per-Category Project accounts; total project cost is unchanged by risk allocation.

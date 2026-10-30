@@ -636,6 +636,26 @@
         },
         "riskContingency": {
           "$ref": "#/$defs/moneyInput"
+        },
+        "categoryRiskWeights": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["category", "weight"],
+            "properties": {
+              "category": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
         }
       }
     },

@@ -202,6 +202,9 @@ export function CostSummaryView({
           </div>
           <TabsContent value="group">
             <GroupCostTable
+              readOnly={readOnly}
+              manualCosts={manualCosts}
+              setManualCosts={setManualCosts}
               items={buildGroupCostSummary(
                 rows,
                 resourceTypes,
@@ -250,6 +253,7 @@ export function CostSummaryView({
               rows={rows}
               resourceTypes={resourceTypes}
               travelCost={travelCost}
+              travelSettings={travelSettings}
               manualCosts={manualCosts}
               subcontractCost={subcontractCost}
               subcontractStartYear={subcontractStartYear}

@@ -110,17 +110,35 @@ or changing category/group membership should be done in the platform before re-e
 Excel edits do not write back into the platform.
 
 Category is exported on personnel, Subcon and combined quotation detail. Summary Group
-has one section per Category with its Group rows, classified Subcontract costs and a
-formula subtotal. Blank personnel categories use `Uncategorized`. Unclassified
-Subcontract and project-wide EHS, risk and other accounts have a separate
-`Project Accounts` subtotal. The grand total sums only the section subtotals; it never
-adds the underlying detail twice. Same-name groups in different categories remain separate.
-Category is commercial classification, separate
-from RE Category and Mandatory/Optional inclusion. Automatic quotation layouts inherit
-Cost Category; existing generated quotation lines can use **Refresh from Cost**.
-Existing exported files are snapshots: re-export to receive the corrected layout and formulas.
+places Group rows and Project accounts (Subcontract, EHS, Risk and shared manual costs)
+inside each Category section, followed by its own subtotal. Cost Statement has one
+column per Category next to the project total. Empty categories use `Uncategorized`.
+Group keeps the existing account presentation: no placeholder rows for zero manual
+accounts, and EHS summarizes 2.3.4 (Car Fee plus Other Service Costs). Car Fee remains
+a child account in Cost Statement, never a separate peer row in Group. Logistics
+retains its existing combined row when nonzero. The Other subtotal stays linked to
+the statement even if a previously zero manual amount is entered after export.
+Same-name groups in different categories remain separate; no project account is duplicated.
+Subcontract follows its saved Category. Manual accounts without a Category are allocated
+by direct category cost (personnel + HQ travel + subcontract). EHS uses labour including
+travel + subcontract + settlement at the captured rate (normally 1%); its rounded project
+amount is apportioned by each category's eligible base. Cumulative cent rounding keeps
+category sums equal to each project account, including any rounding residual.
+Risk defaults to pre-risk category cost proportions. Group's Risk allocation controls
+save fractions in `manualCosts.categoryRiskWeights`; changing one percentage redistributes
+the remainder among the other categories. Summary → Cost Statement → 15 Risk Contingency
+and Summary → Group both allow editing the project risk total and category risk amounts.
+Editing a category amount preserves other category amounts and updates the project total.
+Reset by proportion clears the overrides and preserves the total, redistributing it by
+pre-risk category cost. Locked versions disable these edits. Excel's blue Risk
+allocation % cells can override the linked default, and the weights are normalized.
+Excel changes remain local to that exported file and do not write back into the platform.
+Category classification changes require a fresh export. Cost Statement's EHS rate is B3.
+The hidden Category Calculations sheet supplies shared, live category allocations to
+both summary views, including selective exports. Existing exported files are snapshots:
+re-export to receive these formulas. Formula caches retain numeric zero and reject NaN.
 Category labels come from saved costs or explicit quotation overrides; the exporter does
-not infer missing categories from Group names or earlier hand-edited workbooks.
+not infer missing categories from Group names or the example template's amounts.
 
 Full Export retains its audit layout and formulas. Annual internal cost links to
 mandays and the visible captured MD rate in `08_Assumptions`; existing HQ Travel

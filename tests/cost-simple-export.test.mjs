@@ -211,7 +211,8 @@ test('simple Cost Statement keeps bilingual item and account together with page 
     snapshot.manualCosts,
   );
   const sheet = workbook.getWorksheet('Cost Statement');
-  assert.equal(sheet.columnCount, 2);
+  assert.equal(sheet.columnCount, 3);
+  assert.equal(sheet.getCell(4, 3).value, 'Uncategorized Cost (SGD) / 成本');
   assert.deepEqual(values(sheet.getRow(4), 2), [
     'Report Item (SGD) / 报表项',
     'Cost (SGD) / 成本',

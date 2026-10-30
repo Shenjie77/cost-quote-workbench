@@ -136,6 +136,41 @@ const numeric = (props, label) =>
     (node) => node.type === PersonnelNumberInput && node.props.label === label,
   );
 
+test('Category group header applies to all captured members and blocks locked changes', () => {
+  const rows = [
+    row({ id: 'a', groupName: 'Design', category: 'Mandatory' }),
+    row({ id: 'b', groupName: 'Design', category: 'Optional' }),
+  ];
+  const changes = [];
+  const props = tableProps(rows[0], {
+    rows,
+    grouped: true,
+    onApplyGroupCategory: (value) => changes.push(value),
+  });
+  const field = input(props, 'Category for group Design');
+  assert.equal(field.props.placeholder, 'Mixed / 多个分类');
+  let prevented = false;
+  field.props.onKeyDown({
+    key: 'Enter',
+    preventDefault: () => (prevented = true),
+    currentTarget: { value: 'Phase2' },
+  });
+  assert.equal(prevented, true);
+  assert.deepEqual(changes, [
+    { groupName: 'Design', rowIds: ['a', 'b'], category: 'Phase2' },
+  ]);
+  input(props, 'Apply category to group Design').props.onClick({
+    currentTarget: {
+      closest: () => ({ elements: { namedItem: () => ({ value: '' }) } }),
+    },
+  });
+  assert.equal(changes[1].category, '');
+  const locked = { ...props, locked: true };
+  assert.equal(input(locked, 'Category for group Design').props.disabled, true);
+  input(locked, 'Apply category to group Design').props.onClick({});
+  assert.equal(changes.length, 2);
+});
+
 test('inline personnel grid edits metadata and MD/Site without an edit dialog', () => {
   let rows = [row()];
   const props = tableProps(rows[0], {

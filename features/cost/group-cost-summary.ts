@@ -101,6 +101,10 @@ export type GroupCostSummaryRow = {
   category?: string;
   groupName?: string;
   kind: 'Group' | 'Subcontract' | 'Project';
+  accountCode?: string;
+  /** Statement leaf amounts retained when the Group row displays a parent account. */
+  statementAmounts?: Record<string, number>;
+  riskWeight?: number;
   mandays: number;
   personnel: number;
   travel: number;
@@ -112,7 +116,7 @@ export type GroupCostSummaryRow = {
   share: number;
 };
 export const GROUP_COST_NOTE =
-  'Each Category subtotal includes its groups and classified subcontract costs. Uncategorized groups are separate. Group costs include HQ travel: allowance by HQ person-months; airfare by HQ mandays. Unclassified subcontract, EHS, risk and other project costs have a separate Project Accounts subtotal. All years; reconciles to Cost Statement.';
+  'Each Category retains its groups and project costs. EHS includes Car Fee and Other Service Costs, following Cost Statement 2.3.4. Risk defaults to pre-risk Category cost proportions; saved percentages override this. Category totals reconcile to Cost Statement.';
 
 export const GROUP_COST_FIELDS = [
   'mandays',
@@ -161,7 +165,7 @@ export function buildGroupCostSections(
   const categories = new Map<string, GroupCostSummaryRow[]>();
   const projectItems: GroupCostSummaryRow[] = [];
   for (const item of items) {
-    if (item.kind === 'Project') {
+    if (item.kind === 'Project' && item.category === undefined) {
       projectItems.push(item);
     } else {
       const category = item.category?.trim() || '';
@@ -225,7 +229,6 @@ export function buildGroupCostSummary(
   manual: ManualCostInputs,
   subcontract?: SubcontractCost,
   startYear?: number | null,
-  includeZeroAccounts = false,
 ): GroupCostSummaryRow[] {
   const travel = allocateHQTravel(rows, resources, settings);
   const empty = {
@@ -285,12 +288,11 @@ export function buildGroupCostSummary(
       .map((row) => ({ category: row.category, total: totalRowCost(row) })),
     ...subcontractCostDetails(subcontract, startYear),
   ]) {
-    const category = item.category?.trim();
-    if (category)
-      categorizedSubcontract.set(
-        category,
-        roundMoney((categorizedSubcontract.get(category) ?? 0) + item.total),
-      );
+    const category = item.category?.trim() || '';
+    categorizedSubcontract.set(
+      category,
+      roundMoney((categorizedSubcontract.get(category) ?? 0) + item.total),
+    );
   }
   for (const [category, amount] of categorizedSubcontract)
     result.push({
@@ -298,16 +300,11 @@ export function buildGroupCostSummary(
       key: `subcontract-category:${JSON.stringify(category)}`,
       label: 'Subcontract',
       kind: 'Subcontract',
+      accountCode: '2.3.2',
       category,
       subcontract: amount,
       total: amount,
     });
-  const classifiedSubcontractTotal = roundMoney(
-    [...categorizedSubcontract.values()].reduce(
-      (sum, amount) => sum + amount,
-      0,
-    ),
-  );
   const statement = buildCostStatementRows(
     rows,
     resources,
@@ -316,39 +313,199 @@ export function buildGroupCostSummary(
     subcontract,
     startYear,
   );
+  const categoryNames = [...new Set(result.map((item) => item.category ?? ''))];
+  if (!categoryNames.length) categoryNames.push('');
+  const amount = (code: string) =>
+    statement.find((row) => row.code === code)?.amount ?? 0;
+  const direct = categoryNames.map((category) =>
+    result
+      .filter((row) => row.category === category)
+      .reduce((sum, row) => sum + row.total, 0),
+  );
+  const accountAmounts = new Map<string, number[]>();
+  for (const code of [
+    '2.1.2',
+    '2.2.1.2',
+    '2.2.1.3',
+    '2.3.1.2',
+    '2.3.3',
+    '2.3.4.1',
+  ])
+    accountAmounts.set(code, allocateCategoryAmount(amount(code), direct));
+  const ehsBases = direct.map((_, index) => {
+    const category = categoryNames[index];
+    return roundMoney(
+      result
+        .filter((row) => row.category === category)
+        .reduce(
+          (sum, row) => sum + row.personnel + row.travel + row.subcontract,
+          0,
+        ) +
+        accountAmounts.get('2.3.1.2')![index] +
+        accountAmounts.get('2.3.3')![index],
+    );
+  });
+  accountAmounts.set(
+    '2.3.4.2',
+    allocateCategoryAmount(amount('2.3.4.2'), ehsBases),
+  );
+  const beforeRisk = direct.map((cost, index) =>
+    roundMoney(
+      cost +
+        [...accountAmounts.values()].reduce(
+          (sum, values) => sum + values[index],
+          0,
+        ),
+    ),
+  );
+  const saved = new Map(
+    manual.categoryRiskWeights?.map((item) => [item.category, item.weight]),
+  );
+  const custom = categoryNames.map((category) => saved.get(category) ?? 0);
+  const riskWeights = normalizedCategoryWeights(
+    custom.some((weight) => weight > 0) ? custom : beforeRisk,
+  );
+  accountAmounts.set('15', allocateCategoryAmount(amount('15'), riskWeights));
+  for (const code of ['2.2.1', '2.3.4'])
+    accountAmounts.set(
+      code,
+      categoryNames.map((_, index) =>
+        roundMoney(
+          CATEGORY_STATEMENT_SUMS[code].reduce(
+            (sum, child) => sum + accountAmounts.get(child)![index],
+            0,
+          ),
+        ),
+      ),
+    );
   const accounts = [
-    ['2.3.2', 'Subcontract', 'subcontract'],
-    ['2.3.4.2', 'EHS', 'ehs'],
+    ['2.3.4', 'EHS', 'ehs'],
     ['15', 'Risk Contingency', 'risk'],
     ['2.1.2', 'Local Purchased Equipment', 'other'],
     ['2.2.1', 'Logistics', 'other'],
     ['2.3.1.2', 'Non In-house Labour', 'other'],
     ['2.3.3', 'Settlement', 'other'],
-    ['2.3.4.1', 'Car Fee', 'other'],
   ] as const;
-  for (const [code, label, field] of accounts) {
-    const accountAmount =
-      statement.find((row) => row.code === code)?.amount ?? 0;
-    const amount =
-      code === '2.3.2'
-        ? roundMoney(accountAmount - classifiedSubcontractTotal)
-        : accountAmount;
-    if (amount || field !== 'other' || includeZeroAccounts)
-      result.push({
-        ...empty,
-        key: `account:${code}`,
-        label:
-          code === '2.3.2' && categorizedSubcontract.size
-            ? 'Uncategorized Subcontract'
-            : label,
-        kind: 'Project',
-        [field]: amount,
-        total: amount,
-      });
-  }
+  categoryNames.forEach((category, index) => {
+    for (const [code, label, field] of accounts) {
+      const value = accountAmounts.get(code)![index];
+      if (value || field !== 'other')
+        result.push({
+          ...empty,
+          key: `account:${JSON.stringify([category, code])}`,
+          category,
+          accountCode: code,
+          ...(CATEGORY_STATEMENT_SUMS[code]
+            ? {
+                statementAmounts: Object.fromEntries(
+                  CATEGORY_STATEMENT_SUMS[code].map((child) => [
+                    child,
+                    accountAmounts.get(child)![index],
+                  ]),
+                ),
+              }
+            : {}),
+          label,
+          kind: 'Project',
+          [field]: value,
+          total: value,
+          ...(code === '15' ? { riskWeight: riskWeights[index] } : {}),
+        });
+    }
+  });
   const total = roundMoney(result.reduce((sum, row) => sum + row.total, 0));
   return result.map((row) => ({
     ...row,
     share: total ? row.total / total : 0,
   }));
+}
+
+export function normalizedCategoryWeights(weights: number[]) {
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  return weights.map((weight) =>
+    total > 0 ? weight / total : 1 / weights.length,
+  );
+}
+
+/** Editing one category amount preserves the other amounts and updates the project total. */
+export function overrideCategoryRiskAmount(
+  manual: ManualCostInputs,
+  allocations: { category: string; amount: number }[],
+  category: string,
+  amount: number,
+): ManualCostInputs {
+  if (
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    !allocations.some((item) => item.category === category)
+  )
+    return manual;
+  const next = allocations.map((item) => ({
+    ...item,
+    amount: item.category === category ? roundMoney(amount) : item.amount,
+  }));
+  const total = roundMoney(next.reduce((sum, item) => sum + item.amount, 0));
+  return {
+    ...manual,
+    riskContingency: total,
+    categoryRiskWeights: next.map((item) => ({
+      category: item.category,
+      weight: total > 0 ? item.amount / total : 0,
+    })),
+  };
+}
+
+/** Cumulative cent rounding reconciles every allocation without a floating remainder rank. */
+export function allocateCategoryAmount(amount: number, weights: number[]) {
+  const shares = normalizedCategoryWeights(weights);
+  const cents = Math.round(amount * 100);
+  let cumulative = 0,
+    previous = 0;
+  return shares.map((share, index) => {
+    cumulative += share;
+    const rounded =
+      index === shares.length - 1 ? cents : Math.round(cents * cumulative);
+    const result = (rounded - previous) / 100;
+    previous = rounded;
+    return result;
+  });
+}
+
+export const CATEGORY_STATEMENT_SUMS: Record<string, string[]> = {
+  '2': ['2.1.2', '2.2', '2.3'],
+  '2.2': ['2.2.1'],
+  '2.2.1': ['2.2.1.2', '2.2.1.3'],
+  '2.3': ['2.3.1', '2.3.2', '2.3.3', '2.3.4'],
+  '2.3.1': ['2.3.1.1', '2.3.1.2', '2.3.1.3'],
+  '2.3.4': ['2.3.4.1', '2.3.4.2'],
+  '': ['2', '15'],
+};
+export function categoryStatementAmounts(items: GroupCostSummaryRow[]) {
+  const amounts: Record<string, number> = {};
+  for (const item of items) {
+    if (item.kind === 'Group') {
+      amounts['2.3.1.1'] = roundMoney(
+        (amounts['2.3.1.1'] ?? 0) + item.personnel,
+      );
+      amounts['2.3.1.3'] = roundMoney((amounts['2.3.1.3'] ?? 0) + item.travel);
+    } else if (item.statementAmounts) {
+      for (const [code, amount] of Object.entries(item.statementAmounts))
+        amounts[code] = roundMoney((amounts[code] ?? 0) + amount);
+    } else if (item.accountCode)
+      amounts[item.accountCode] = roundMoney(
+        (amounts[item.accountCode] ?? 0) + item.total,
+      );
+  }
+  const resolve = (code: string): number =>
+    amounts[code] ??
+    (amounts[code] = CATEGORY_STATEMENT_SUMS[code]
+      ? roundMoney(
+          CATEGORY_STATEMENT_SUMS[code].reduce(
+            (sum, child) => sum + resolve(child),
+            0,
+          ),
+        )
+      : 0);
+  resolve('');
+  return amounts;
 }

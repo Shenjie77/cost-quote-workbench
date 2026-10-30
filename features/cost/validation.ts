@@ -638,6 +638,26 @@ export const validateCostExportSnapshot = (
     }
   });
   Object.entries(snapshot.manualCosts).forEach(([field, value]) => {
+    if (field === 'categoryRiskWeights') {
+      const entries = snapshot.manualCosts.categoryRiskWeights;
+      if (
+        !Array.isArray(entries) ||
+        entries.some(
+          (entry) =>
+            !entry ||
+            typeof entry.category !== 'string' ||
+            !finiteInRange(entry.weight, 0, 1),
+        ) ||
+        new Set(entries.map((entry) => entry.category)).size !== entries.length
+      )
+        add(
+          'error',
+          'INVALID_CATEGORY_RISK_WEIGHTS',
+          '/manualCosts/categoryRiskWeights',
+          'Category risk shares must be unique categories with finite fractions from 0 to 1.',
+        );
+      return;
+    }
     if (field === 'otherServiceRate') {
       if (typeof value !== 'number' || !finiteInRange(value, 0, 1))
         add(

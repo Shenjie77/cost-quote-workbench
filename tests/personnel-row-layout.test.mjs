@@ -6,6 +6,7 @@ import {
   renamePersonnelGroup,
   copyPersonnelGroup,
   nextPersonnelGroupCopyName,
+  setPersonnelGroupCategory,
 } from '../features/cost/personnel-row-layout.ts';
 
 const resources = [
@@ -23,6 +24,55 @@ const makeRow = (id, groupName, extra = {}) => ({
   ...extra,
 });
 const source = { fileName: 'td.xlsx', row: 7 };
+
+test('group Category applies atomically to its current members without changing amounts or other groups', () => {
+  const rows = [
+    makeRow('a', 'Design', { category: 'Mandatory', source }),
+    makeRow('b', 'Design', { category: 'Optional' }),
+    makeRow('sub', 'Design', { reTypeId: 'sub' }),
+    makeRow('c', 'Build'),
+  ];
+  const request = {
+    groupName: 'Design',
+    rowIds: ['a', 'b'],
+    category: ' Phase2 ',
+  };
+  const next = setPersonnelGroupCategory(rows, resources, request);
+  assert.deepEqual(
+    next.map((row) => row.category),
+    ['Phase2', 'Phase2', undefined, undefined],
+  );
+  assert.equal(next[0].years, rows[0].years);
+  assert.equal(next[0].source, source);
+  assert.equal(next[2], rows[2]);
+  assert.equal(next[3], rows[3]);
+  assert.equal(rows[0].category, 'Mandatory');
+  assert.equal(setPersonnelGroupCategory(rows, resources, request, true), null);
+  assert.equal(
+    setPersonnelGroupCategory(rows, resources, { ...request, rowIds: ['a'] }),
+    null,
+  );
+  assert.equal(
+    setPersonnelGroupCategory(rows, resources, {
+      ...request,
+      category: 'x'.repeat(121),
+    }),
+    null,
+  );
+  assert.equal(
+    setPersonnelGroupCategory(
+      [...rows, makeRow('new', 'Design')],
+      resources,
+      request,
+    ),
+    null,
+  );
+  assert.equal(
+    setPersonnelGroupCategory(rows, resources, { ...request, category: '' })[0]
+      .category,
+    '',
+  );
+});
 
 test('row ordering preserves latest values, provenance and legacy Subcon slots', () => {
   const rows = [

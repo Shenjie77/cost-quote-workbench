@@ -140,6 +140,8 @@ export type ManualCostInputs = {
   /** Absent preserves a manual amount; present applies to 2.3.1 + 2.3.2 + 2.3.3. */
   otherServiceRate?: number;
   riskContingency: number;
+  /** Optional saved Category risk shares; absent uses pre-risk category costs. */
+  categoryRiskWeights?: { category: string; weight: number }[];
 };
 
 /**
@@ -194,7 +196,7 @@ export type CostStatementRow = {
   mode: 'section' | 'subtotal' | 'auto' | 'manual' | 'grand-total';
   amount: number;
   source: string;
-  manualKey?: keyof ManualCostInputs;
+  manualKey?: Exclude<keyof ManualCostInputs, 'categoryRiskWeights'>;
 };
 
 /** Style peer service accounts alike without changing their automatic/manual input behavior. */
