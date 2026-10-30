@@ -20,4 +20,4 @@ cost-cli cost export --project-id ID --version V1 --output outputs/Cost-new.xlsx
 
 项目导出自动归档生成文件，模板导出还保留输入模板；可用 `files list --project-id ID --category cost --version Vn` 核对文件。归档失败仍返回错误，即使输出文件已生成；按已完成状态用 `files upload` 补归档，不把错误当作完整成功。上传不完成节点或解锁成本，参数按需查 [CLI 文档归档](../../../docs/cli-control-manual.md#project-documents-and-archive-location)。
 
-Simple / Full 及 Quotation + Simple Cost 导出保留 Excel 公式和缓存结果。人员数量、分包数量与单价连接明细和汇总；Simple 的隐藏 Cost Calculations 表处理 HQ 差旅分摊。Category 随明细导出，Summary Group 按 Category + Group 区分。省略明细或年度时保留该部分已捕获输入；Excel 修改不回写平台，新增来源行或变更分组后应从平台重新导出。详见 [导出公式](../../../docs/excel-export.md)。
+Simple / Full 及 Quotation + Simple Cost 导出保留 Excel 公式和缓存结果。人员数量、分包数量与单价连接明细和汇总；Simple 的隐藏 Cost Calculations 表处理 HQ 差旅分摊。Summary Group 按 Category 分段，含 Group 明细、有分类分包及分类小计；未分类人员和项目公共费用单列，总计仅汇总各段小计。空 Category 不根据 Group 猜测。省略明细或年度时保留该部分已捕获输入；Excel 修改不回写平台，新增来源行、变更分组或需要新版公式和布局时重新导出。详见 [导出公式](../../../docs/excel-export.md)。

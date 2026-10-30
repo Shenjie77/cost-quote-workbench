@@ -165,7 +165,19 @@ type DetailColumnKey =
   | 'totalCost'
   | 'currency'
   | 'allocationStatus'
-  | 'sourceNote';
+  | 'sourceNote'
+  | `${ExactDimension}Key`;
+
+type ExactDimension = 'scope' | 'bu' | 'resourceTypeId' | 'gradeId';
+const EXACT_DIMENSIONS: ExactDimension[] = [
+  'scope',
+  'bu',
+  'resourceTypeId',
+  'gradeId',
+];
+type DetailSheetHandle = TableLayout<DetailColumnKey> & {
+  exactKeys: ReadonlyMap<ExactDimension, ReadonlyMap<string, number>>;
+};
 
 type SummaryGroup = {
   key: string;
@@ -271,6 +283,11 @@ const DETAIL_COLUMNS: readonly ColumnDefinition<DetailColumnKey>[] = [
   },
   { key: 'sourceNote', header: 'Source Note', width: 34 },
   { key: 'category', header: 'Category', width: 24 },
+  ...EXACT_DIMENSIONS.map((dimension) => ({
+    key: `${dimension}Key` as const,
+    header: `${dimension} exact key`,
+    width: 12,
+  })),
 ];
 
 /** Converts a one-based column index to an Excel A1 column label. */
@@ -799,7 +816,7 @@ const addDetailSheet = (
   workbook: import('exceljs').Workbook,
   snapshot: CostExportSnapshot,
   detailRows: ExportDetailRow[],
-): TableLayout<DetailColumnKey> => {
+): DetailSheetHandle => {
   const sheet = workbook.addWorksheet('01_Cost_Detail');
   sheet.views = [
     { showGridLines: false, state: 'frozen', xSplit: 6, ySplit: HEADER_ROW },
@@ -810,6 +827,18 @@ const addDetailSheet = (
     `${snapshot.project.id} · Cost ${snapshot.costVersion.code} · Delivery buckets Y1–Y5`,
   );
   const columns = configureTableColumns(sheet, DETAIL_COLUMNS);
+  // Excel SUMIFS text criteria treat * and ? as wildcards and ignore case.
+  // Captured numeric keys keep the exact grouping used by the platform.
+  const exactKeys = new Map(
+    EXACT_DIMENSIONS.map((dimension) => [
+      dimension,
+      new Map(
+        [...new Set(detailRows.map((row) => row[dimension]))].map(
+          (value, index) => [value, index + 1],
+        ),
+      ),
+    ]),
+  );
 
   detailRows.forEach((detailRow) => {
     const row = sheet.addRow([]);
@@ -912,11 +941,26 @@ const addDetailSheet = (
     setCellByKey(row, columns, 'currency', detailRow.currency);
     setCellByKey(row, columns, 'allocationStatus', detailRow.allocationStatus);
     setCellByKey(row, columns, 'sourceNote', detailRow.sourceNote);
+    for (const dimension of EXACT_DIMENSIONS)
+      setCellByKey(
+        row,
+        columns,
+        `${dimension}Key`,
+        exactKeys.get(dimension)!.get(detailRow[dimension])!,
+      );
   });
 
   const lastDataRow = sheet.lastRow?.number ?? HEADER_ROW;
   styleBodyRows(sheet, FIRST_DATA_ROW, lastDataRow, DETAIL_COLUMNS.length);
-  return { sheet, columns, firstDataRow: FIRST_DATA_ROW, lastDataRow };
+  for (const dimension of EXACT_DIMENSIONS)
+    sheet.getColumn(requireColumn(columns, `${dimension}Key`)).hidden = true;
+  return {
+    sheet,
+    columns,
+    firstDataRow: FIRST_DATA_ROW,
+    lastDataRow,
+    exactKeys,
+  };
 };
 
 const buildSalesSummaryGroups = (
@@ -1115,7 +1159,7 @@ const addSalesSummarySheet = (
   dimension: 'scope' | 'bu' | 'resourceType',
   snapshot: CostExportSnapshot,
   detailRows: ExportDetailRow[],
-  detail: TableLayout<DetailColumnKey>,
+  detail: DetailSheetHandle,
 ): SummarySheetHandle => {
   const sheet = workbook.addWorksheet(name);
   sheet.views = [{ showGridLines: false, state: 'frozen', ySplit: HEADER_ROW }];
@@ -1138,14 +1182,12 @@ const addSalesSummarySheet = (
   const columns = configureTableColumns(sheet, definitions);
   const groups = buildSalesSummaryGroups(detailRows, dimension);
   const totalRowNumber = FIRST_DATA_ROW + groups.length;
-  const dimensionDetailKey: DetailColumnKey =
+  const dimensionDetailKey: ExactDimension =
     dimension === 'scope'
       ? 'scope'
       : dimension === 'bu'
         ? 'bu'
         : 'resourceTypeId';
-  const summaryCriteriaKey =
-    dimension === 'resourceType' ? 'resourceTypeId' : 'dimension';
   const totalCost = roundMoney(
     groups.reduce((sum, group) => sum + group.cost, 0),
   );
@@ -1171,10 +1213,15 @@ const addSalesSummarySheet = (
     ];
     if (group.allocationStatus === 'ALLOCATED') {
       criteria.push([
-        dimensionDetailKey,
-        localCellReference(
-          requireColumn(columns, summaryCriteriaKey),
-          row.number,
+        `${dimensionDetailKey}Key`,
+        String(
+          detail.exactKeys
+            .get(dimensionDetailKey)!
+            .get(
+              dimension === 'resourceType'
+                ? group.resourceTypeId!
+                : group.label,
+            )!,
         ),
       ]);
     }
@@ -1356,7 +1403,7 @@ const addGradeSummarySheet = (
   workbook: import('exceljs').Workbook,
   snapshot: CostExportSnapshot,
   detailRows: ExportDetailRow[],
-  detail: TableLayout<DetailColumnKey>,
+  detail: DetailSheetHandle,
 ): SummarySheetHandle => {
   const sheet = workbook.addWorksheet('05_Summary_RE_Level');
   sheet.views = [{ showGridLines: false, state: 'frozen', ySplit: HEADER_ROW }];
@@ -1383,8 +1430,8 @@ const addGradeSummarySheet = (
       ['costLayer', quoteFormulaText('SALES')],
       ['resourceCategory', quoteFormulaText('internal')],
       [
-        'gradeId',
-        localCellReference(requireColumn(columns, 'gradeId'), row.number),
+        'gradeIdKey',
+        String(detail.exactKeys.get('gradeId')!.get(group.gradeId!)!),
       ],
     ];
     setFormulaByKey(
@@ -2274,6 +2321,8 @@ const addAssumptionsSheet = (
   for (let column = 5; column <= 11; column += 1) {
     sheet.getColumn(column).width = 18;
   }
+  // Later hidden calculation columns may extend past the visible resource table.
+  sheet.pageSetup.printArea = `A1:K${resourceLastRow}`;
   return sheet;
 };
 
@@ -2301,8 +2350,19 @@ function linkFullInputFormulas(
   });
   const assumptionRef = (label: string) =>
     absoluteCellReference(assumptions, 3, assumptionRows.get(label)!);
-  const hqMandays: string[] = [],
-    hqMonths: string[] = [];
+  // Bounded helper ranges avoid Excel's formula/argument limits for large BOQs.
+  // Keep the nine-sheet contract and the visible assumptions layout unchanged.
+  [
+    'HQ mandays',
+    'HQ months',
+    'Rounded monthly allowance',
+    'Rounded airfare',
+    'Allowance cost',
+    'Airfare cost',
+  ].forEach((label, index) => {
+    assumptions.getCell(HEADER_ROW, 12 + index).value = label;
+    assumptions.getColumn(12 + index).hidden = true;
+  });
   detailRows.forEach((source, index) => {
     if (source.sourceKind !== 'COST_INPUT') return;
     const resource = snapshot.resourceTypes.find(
@@ -2334,8 +2394,13 @@ function linkFullInputFormulas(
         row.number,
       );
       const months = absoluteCellReference(assumptions, 8, rateRow);
-      hqMandays.push(md);
-      hqMonths.push(`${md}/MAX(IF(${months}=0,21.75,${months}),0.01)`);
+      setFormula(assumptions.getCell(row.number, 12), md, source.totalMandays);
+      setFormula(
+        assumptions.getCell(row.number, 13),
+        `${md}/MAX(IF(${months}=0,21.75,${months}),0.01)`,
+        source.totalMandays /
+          Math.max(Number(resource.mandaysPerMonth || 21.75), 0.01),
+      );
     }
   });
   const travel = getHQTravelSummary(
@@ -2345,23 +2410,38 @@ function linkFullInputFormulas(
   );
   setFormula(
     assumptions.getCell(assumptionRows.get('HQ mandays')!, 3),
-    `ROUND(${hqMandays.length ? `SUM(${hqMandays.join(',')})` : '0'},4)`,
+    `ROUND(${detailRows.length ? `SUM($L$${detail.firstDataRow}:$L$${detail.lastDataRow})` : '0'},4)`,
     travel.hqMandays,
   );
   setFormula(
     assumptions.getCell(assumptionRows.get('Months')!, 3),
-    `ROUND(${hqMonths.length ? `SUM(${hqMonths.join(',')})` : '0'},4)`,
+    `ROUND(${detailRows.length ? `SUM($M$${detail.firstDataRow}:$M$${detail.lastDataRow})` : '0'},4)`,
     travel.months,
   );
-  const allowance = moneyFormula(
-    `${assumptionRef('Months')}*${moneyFormula(assumptionRef('Monthly allowance'))}`,
+  setFormula(
+    assumptions.getCell('N5'),
+    moneyFormula(assumptionRef('Monthly allowance')),
+    roundMoney(snapshot.travelSettings.monthlyAllowance),
   );
-  const airfare = moneyFormula(
-    `${assumptionRef('Trips')}*${moneyFormula(assumptionRef('Airfare per trip'))}`,
+  setFormula(
+    assumptions.getCell('O5'),
+    moneyFormula(assumptionRef('Airfare per trip')),
+    roundMoney(snapshot.travelSettings.airfarePerTrip),
+  );
+  const travelRequired = `AND(${assumptionRef('HQ travel enabled')}="Enabled",${assumptionRef('HQ mandays')}>0)`;
+  setFormula(
+    assumptions.getCell('P5'),
+    `IF(${travelRequired},${moneyFormula(`${assumptionRef('Months')}*$N$5`)},0)`,
+    travel.allowanceCost,
+  );
+  setFormula(
+    assumptions.getCell('Q5'),
+    `IF(${travelRequired},${moneyFormula(`${assumptionRef('Trips')}*$O$5`)},0)`,
+    travel.airfareCost,
   );
   setFormula(
     assumptions.getCell(assumptionRows.get('Total travel')!, 3),
-    `IF(AND(${assumptionRef('HQ travel enabled')}="Enabled",${assumptionRef('HQ mandays')}>0),${moneyFormula(`${allowance}+${airfare}`)},0)`,
+    `IF(${travelRequired},${moneyFormula('SUM($P$5:$Q$5)')},0)`,
     travel.totalCost,
   );
   linkSubcontractFormulas(workbook, snapshot);

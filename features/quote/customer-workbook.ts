@@ -1,6 +1,7 @@
 import { quoteFieldValues } from './document-fields.ts';
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
 import { structuredBodyRows, defaultBodyTitles } from './structured-body.ts';
+import { excelMoneyFormula } from '../../lib/excel-money.ts';
 
 /** Book2-style customer schedule. Internal cost/GP/CPQ fields never enter this workbook. */
 export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
@@ -128,7 +129,7 @@ export async function buildCustomerWorkbook(input: QuoteWorkbookInput) {
         ? '#,##0'
         : '#,##0.####';
       sheet.getCell(row, 7).value = {
-        formula: `ROUND(E${row}*F${row},2)`,
+        formula: excelMoneyFormula(`E${row}*F${row}`),
         result: line.amount,
       };
     } else {

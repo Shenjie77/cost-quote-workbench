@@ -8,8 +8,15 @@ import test from 'node:test';
 
 import ExcelJS from 'exceljs';
 
-import { roundMoney, recalculateCostRows } from '../features/cost/domain.ts';
-import { buildCostWorkbookBytes } from '../features/cost/export-workbook.ts';
+import {
+  roundMoney,
+  recalculateCostRows,
+  getHQTravelSummary,
+} from '../features/cost/domain.ts';
+import {
+  buildCostWorkbook,
+  buildCostWorkbookBytes,
+} from '../features/cost/export-workbook.ts';
 import { makeCostSnapshot } from './helpers.mjs';
 
 const EXPECTED_SHEETS = [
@@ -215,9 +222,8 @@ test('full export links editable effort, captured rates and HQ travel into exist
       .formula.includes("'08_Assumptions'!$C$"),
   );
   const months = findRow(assumptions, 2, 'Months');
-  assert.ok(
-    assumptions.getCell(months, 3).formula.includes("'01_Cost_Detail'!"),
-  );
+  assert.match(assumptions.getCell(months, 3).formula, /SUM\(\$M\$/);
+  assert.ok(assumptions.getCell(row, 13).formula.includes("'01_Cost_Detail'!"));
   const travel = findRow(assumptions, 2, 'Total travel');
   assert.match(assumptions.getCell(travel, 3).formula, /IF\(AND/);
   assert.equal(
@@ -225,6 +231,113 @@ test('full export links editable effort, captured rates and HQ travel into exist
     formulaResult(
       detail.getCell(travelRow, headerColumn(detail, 'Direct Cost')),
     ),
+  );
+});
+
+test('full summaries use exact hidden numeric keys for wildcard, case and long labels', async () => {
+  const snapshot = makeCostSnapshot();
+  snapshot.costRows = snapshot.costRows.slice(0, 2);
+  const labels = [
+    'Deployment *?~' + 'A'.repeat(300),
+    'deployment *?~' + 'a'.repeat(300),
+  ];
+  snapshot.costRows.forEach((row, index) => {
+    row.scope = labels[index];
+    row.bu = labels[index];
+  });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildCostWorkbookBytes(snapshot));
+  const detail = workbook.getWorksheet('01_Cost_Detail');
+  for (const [dimension, sheetName] of [
+    ['scope', '02_Summary_Scope'],
+    ['bu', '03_Summary_BU'],
+  ]) {
+    const column = headerColumn(detail, `${dimension} exact key`);
+    assert.equal(detail.getColumn(column).hidden, true);
+    const keys = snapshot.costRows.map((source) =>
+      Number(
+        detail.getCell(
+          findRow(detail, headerColumn(detail, 'Line ID'), source.id),
+          column,
+        ).value,
+      ),
+    );
+    assert.ok(keys.every(Number.isInteger));
+    assert.notEqual(keys[0], keys[1]);
+    const summary = workbook.getWorksheet(sheetName);
+    labels.forEach((label, index) => {
+      const row = findRow(summary, 1, label);
+      const cell = summary.getCell(row, headerColumn(summary, 'Sales Cost'));
+      const keyColumn = detail.getColumn(column).letter;
+      assert.ok(
+        cell.formula.includes(
+          `'01_Cost_Detail'!$${keyColumn}$5:$${keyColumn}$${detail.rowCount},${keys[index]})`,
+        ),
+      );
+      assert.ok(
+        !cell.formula.includes(`$A${row}`),
+        'label text must never be used as a SUMIFS criterion',
+      );
+      assert.equal(
+        formulaResult(cell),
+        roundMoney(
+          snapshot.costRows[index].years.reduce(
+            (sum, year) => sum + year.cost,
+            0,
+          ),
+        ),
+      );
+    });
+  }
+});
+
+test('full HQ travel formulas stay bounded for 500 rows and cache every calculation correctly', async () => {
+  const snapshot = makeCostSnapshot();
+  const source = snapshot.costRows.find(
+    (row) =>
+      snapshot.resourceTypes.find((resource) => resource.id === row.reTypeId)
+        ?.pool === 'HQ',
+  );
+  snapshot.costRows = Array.from({ length: 500 }, (_, index) => ({
+    ...structuredClone(source),
+    id: `hq-${index}`,
+  }));
+  const workbook = await buildCostWorkbook(snapshot);
+  const assumptions = workbook.getWorksheet('08_Assumptions');
+  const expected = getHQTravelSummary(
+    snapshot.costRows,
+    snapshot.resourceTypes,
+    snapshot.travelSettings,
+  );
+  for (const [label, amount] of [
+    ['HQ mandays', expected.hqMandays],
+    ['Months', expected.months],
+    ['Total travel', expected.totalCost],
+  ])
+    assert.equal(
+      formulaResult(assumptions.getCell(findRow(assumptions, 2, label), 3)),
+      amount,
+    );
+  assert.equal(
+    formulaResult(assumptions.getCell('P5')),
+    expected.allowanceCost,
+  );
+  assert.equal(formulaResult(assumptions.getCell('Q5')), expected.airfareCost);
+  for (let column = 12; column <= 17; column++)
+    assert.equal(assumptions.getColumn(column).hidden, true);
+  for (const sheet of workbook.worksheets)
+    sheet.eachRow((row) =>
+      row.eachCell((cell) => {
+        if (cell.formula)
+          assert.ok(
+            cell.formula.length <= 8192,
+            `${sheet.name}!${cell.address} exceeds Excel's formula limit: ${cell.formula.length}`,
+          );
+      }),
+    );
+  assert.deepEqual(
+    workbook.worksheets.map((sheet) => sheet.name),
+    EXPECTED_SHEETS,
   );
 });
 

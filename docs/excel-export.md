@@ -109,10 +109,18 @@ Editing an existing exported quantity updates the linked totals. Adding new sour
 or changing category/group membership should be done in the platform before re-exporting.
 Excel edits do not write back into the platform.
 
-Category is exported on personnel and Subcon detail. Summary Group separates the
-same group name across categories. Category is commercial classification, separate
+Category is exported on personnel, Subcon and combined quotation detail. Summary Group
+has one section per Category with its Group rows, classified Subcontract costs and a
+formula subtotal. Blank personnel categories use `Uncategorized`. Unclassified
+Subcontract and project-wide EHS, risk and other accounts have a separate
+`Project Accounts` subtotal. The grand total sums only the section subtotals; it never
+adds the underlying detail twice. Same-name groups in different categories remain separate.
+Category is commercial classification, separate
 from RE Category and Mandatory/Optional inclusion. Automatic quotation layouts inherit
 Cost Category; existing generated quotation lines can use **Refresh from Cost**.
+Existing exported files are snapshots: re-export to receive the corrected layout and formulas.
+Category labels come from saved costs or explicit quotation overrides; the exporter does
+not infer missing categories from Group names or earlier hand-edited workbooks.
 
 Full Export retains its audit layout and formulas. Annual internal cost links to
 mandays and the visible captured MD rate in `08_Assumptions`; existing HQ Travel
@@ -121,6 +129,8 @@ travel initially at zero. Percentage-based EHS follows the recalculated labour,
 Subcon and settlement base. Subcon detail formulas
 feed its audit detail and summary sheets. Annual personnel uplift and allowance factors
 remain the version's captured inputs.
+Full summary keys match exact labels, including literal `*` / `?` and case differences.
+HQ travel uses bounded helper calculations so its formulas stay within Excel's length limit.
 
 ## Customer quotation workbook
 

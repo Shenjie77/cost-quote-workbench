@@ -1,6 +1,8 @@
 import {
   buildGroupCostSummary,
+  buildGroupCostSheetLayout,
   costRowsIncludingHQTravel,
+  GROUP_COST_FIELDS,
   GROUP_COST_NOTE,
 } from './group-cost-summary.ts';
 import { unmergeWorkbook } from '../../lib/unmerged-workbook.ts';
@@ -1008,45 +1010,60 @@ export function addGroupCostSheet(
   [24, 34, 14, 14, 20, 20, 20, 20, 20, 20, 20, 14].forEach((width, index) => {
     sheet.getColumn(index + 1).width = width;
   });
-  const fields = [
-    'mandays',
-    'personnel',
-    'travel',
-    'subcontract',
-    'ehs',
-    'risk',
-    'other',
-    'total',
-    'share',
-  ] as const;
-  items.forEach((item, index) => {
-    const row = styleRow(sheet, HEADER_ROW + 1 + index, headers.length, {
-      fill: item.kind === 'Project' ? COLORS.secondary : COLORS.white,
+  const layout = buildGroupCostSheetLayout(items, HEADER_ROW + 1);
+  layout.sections.forEach((section) => {
+    setRowValues(
+      styleRow(sheet, section.headerRow, headers.length, {
+        fill: COLORS.section,
+        bold: true,
+        height: 38,
+      }),
+      [
+        section.kind === 'Category'
+          ? `Category: ${section.label}`
+          : section.label,
+      ],
+    );
+    sheet.getCell(section.headerRow, 1).alignment = {
+      vertical: 'middle',
+      wrapText: false,
+    };
+    section.entries.forEach(({ item, rowNumber }) => {
+      const row = styleRow(sheet, rowNumber, headers.length, {
+        fill: item.kind === 'Project' ? COLORS.secondary : COLORS.white,
+      });
+      setRowValues(row, [
+        section.kind === 'Category' ? section.label : '',
+        item.label,
+        item.kind,
+        ...GROUP_COST_FIELDS.map((field) => item[field]),
+      ]);
     });
-    setRowValues(row, [
-      item.category || '',
-      item.label,
-      item.kind,
-      ...fields.map((field) => item[field]),
-    ]);
+    setRowValues(
+      styleRow(sheet, section.subtotalRow, headers.length, {
+        fill: COLORS.subtotal,
+        bold: true,
+      }),
+      [
+        section.kind === 'Category' ? section.label : '',
+        section.kind === 'Category'
+          ? 'Category Subtotal'
+          : 'Project Accounts Subtotal',
+        'Subtotal',
+        ...GROUP_COST_FIELDS.map((field) => section.totals[field]),
+      ],
+    );
   });
-  const total = styleRow(sheet, HEADER_ROW + 1 + items.length, headers.length, {
-    fill: COLORS.subtotal,
+  const total = styleRow(sheet, layout.totalRow, headers.length, {
+    fill: COLORS.total,
     bold: true,
+    whiteText: true,
   });
   setRowValues(total, [
     null,
     'Total Cost with Risk',
     null,
-    ...fields.map((field) =>
-      field === 'mandays'
-        ? roundQuantity(items.reduce((sum, item) => sum + item[field], 0))
-        : field === 'share'
-          ? items.some((item) => item.total)
-            ? 1
-            : 0
-          : roundMoney(items.reduce((sum, item) => sum + item[field], 0)),
-    ),
+    ...GROUP_COST_FIELDS.map((field) => layout.totals[field]),
   ]);
   for (let col = 4; col <= headers.length; col++) {
     sheet.getColumn(col).numFmt =

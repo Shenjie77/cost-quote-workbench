@@ -8,6 +8,16 @@ import {
   getY1Year,
 } from '../features/cost/domain.ts';
 
+const groupRow = (sheet, category, kind = 'Group') => {
+  let match;
+  sheet.eachRow((row) => {
+    if (row.getCell(1).value === category && row.getCell(3).value === kind)
+      match = row;
+  });
+  assert.ok(match, `Missing ${kind} row for ${category}`);
+  return match;
+};
+
 const cached = (cell) => (cell.formula ? (cell.result ?? 0) : cell.value);
 function assertReferences(workbook) {
   for (const sheet of workbook.worksheets)
@@ -49,11 +59,11 @@ test('category groups keep wildcard characters literal and live formulas use qua
   assert.match(calc.getCell('D5').formula, /Cost Detail/);
   assert.match(calc.getCell('M5').formula, /\$F\$3/);
   const group = workbook.getWorksheet('Summary Group');
-  assert.equal(group.getCell('A5').value, 'A?~');
-  assert.equal(group.getCell('A6').value, 'AB~');
-  assert.match(group.getCell('E5').formula, /AD5:AD\d+,1/);
-  assert.match(group.getCell('E5').formula, /AE5:AE\d+,1/);
-  assert.match(group.getCell('E6').formula, /AE5:AE\d+,2/);
+  const firstGroup = groupRow(group, 'A?~');
+  const secondGroup = groupRow(group, 'AB~');
+  assert.match(firstGroup.getCell(5).formula, /AD5:AD\d+,1/);
+  assert.match(firstGroup.getCell(5).formula, /AE5:AE\d+,1/);
+  assert.match(secondGroup.getCell(5).formula, /AE5:AE\d+,2/);
   const travel = getHQTravelSummary(
     snapshot.costRows,
     snapshot.resourceTypes,
@@ -81,7 +91,10 @@ test('summary criteria preserve case-sensitive labels and cannot collide through
   const workbook = await buildSimpleCostWorkbook(snapshot);
   const calc = workbook.getWorksheet('Cost Calculations');
   const groups = workbook.getWorksheet('Summary Group');
-  assert.notEqual(groups.getCell('E5').formula, groups.getCell('E6').formula);
+  assert.notEqual(
+    groupRow(groups, 'Hardware').getCell(5).formula,
+    groupRow(groups, 'hardware').getCell(5).formula,
+  );
   const categoryKeys = new Map();
   const scopeKeys = new Map();
   for (let n = 5; n <= calc.rowCount; n++) {
@@ -190,4 +203,132 @@ test('zero manual accounts remain linked and selective export never references o
     if (selection && !selection.includes('Cost Detail'))
       assert.equal(workbook.getWorksheet('Cost Calculations'), undefined);
   }
+});
+
+test('category subtotals link classified subcontract sources and grand total counts each section once', async () => {
+  const snapshot = makeCostSnapshot();
+  snapshot.costRows = snapshot.costRows.filter(
+    (row) =>
+      snapshot.resourceTypes.find((resource) => resource.id === row.reTypeId)
+        ?.category !== 'subcontract',
+  );
+  snapshot.costRows[0].category = 'Hardware';
+  const legacy = structuredClone(snapshot.costRows[0]);
+  legacy.id = 'classified-legacy';
+  legacy.reTypeId = snapshot.resourceTypes.find(
+    (resource) => resource.category === 'subcontract',
+  ).id;
+  legacy.category = 'hardware';
+  legacy.years = legacy.years.map((year, index) => ({
+    ...year,
+    cost: index ? 0 : 100,
+  }));
+  snapshot.costRows.push(legacy);
+  snapshot.subcontractCost = {
+    mode: 'project',
+    siteTypes: [],
+    lines: [
+      {
+        id: 'a',
+        category: 'Hardware',
+        code: 'a',
+        description: 'One',
+        bu: 'BU',
+        unit: 'lot',
+        currency: 'SGD',
+        unitPrice: 10,
+        quantities: [2, 0, 0, 0, 0],
+      },
+      {
+        id: 'b',
+        category: 'hardware',
+        code: 'b',
+        description: 'Two',
+        bu: 'BU',
+        unit: 'lot',
+        currency: 'SGD',
+        unitPrice: 20,
+        quantities: [3, 0, 0, 0, 0],
+      },
+      {
+        id: 'c',
+        code: 'c',
+        description: 'Three',
+        bu: 'BU',
+        unit: 'lot',
+        currency: 'SGD',
+        unitPrice: 30,
+        quantities: [4, 0, 0, 0, 0],
+      },
+    ],
+  };
+  for (const selection of [
+    undefined,
+    ['Summary Group', 'Cost Statement'],
+    ['Summary Group'],
+  ]) {
+    const workbook = await buildSimpleCostWorkbook(
+      snapshot,
+      undefined,
+      selection,
+    );
+    const group = workbook.getWorksheet('Summary Group');
+    const upper = groupRow(group, 'Hardware', 'Subcontract');
+    const lower = groupRow(group, 'hardware', 'Subcontract');
+    assert.equal(cached(upper.getCell(7)), 20);
+    assert.equal(cached(lower.getCell(7)), 160);
+    let project,
+      subtotalCount = 0;
+    group.eachRow((row) => {
+      if (row.getCell(2).value === 'Uncategorized Subcontract') project = row;
+      if (row.getCell(3).value === 'Subtotal') {
+        subtotalCount++;
+        assert.match(row.getCell(11).formula, /^SUM\(K\d+:K\d+\)$/);
+      }
+    });
+    assert.ok(subtotalCount >= 3);
+    assert.equal(cached(project.getCell(7)), 120);
+    const exclusionEnd = Number(
+      project.getCell(7).formula.match(/\$C\$5:\$C\$(\d+)/)[1],
+    );
+    assert.ok(
+      exclusionEnd < project.number,
+      'project residual must not include itself in the SUMIF dependency',
+    );
+    assert.match(group.getCell(group.rowCount, 11).formula, /"Subtotal"/);
+    if (!selection) {
+      assert.match(upper.getCell(7).formula, /'Subcon Detail'!X5:X7/);
+      assert.match(lower.getCell(7).formula, /'Cost Calculations'!AE5:AE\d+/);
+    }
+    assertReferences(workbook);
+  }
+});
+
+test('subcontract-only categories remain live without any personnel calculation sheet', async () => {
+  const snapshot = makeCostSnapshot();
+  snapshot.costRows = [];
+  snapshot.subcontractCost = {
+    mode: 'project',
+    siteTypes: [],
+    lines: [
+      {
+        id: 'a',
+        category: 'Subcon only',
+        code: '001',
+        description: 'Package',
+        bu: 'BU',
+        unit: 'lot',
+        currency: 'SGD',
+        unitPrice: 15,
+        quantities: [2, 0, 0, 0, 0],
+      },
+    ],
+  };
+  const workbook = await buildSimpleCostWorkbook(snapshot);
+  const group = workbook.getWorksheet('Summary Group');
+  const item = groupRow(group, 'Subcon only', 'Subcontract');
+  assert.equal(cached(item.getCell(7)), 30);
+  assert.match(item.getCell(7).formula, /SUMIF\('Subcon Detail'/);
+  assert.equal(workbook.getWorksheet('Cost Calculations'), undefined);
+  assertReferences(workbook);
 });

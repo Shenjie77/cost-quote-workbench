@@ -5,6 +5,7 @@ import { calculatePricing } from '../features/quote/domain.ts';
 import { buildQuoteWorkbookBuffer } from '../features/quote/export-quote-workbook.ts';
 import { initialQuoteTemplates } from '../features/quote/types.ts';
 import { emptyMaintenance } from '../features/maintenance/domain.ts';
+import { excelMoneyFormula } from '../lib/excel-money.ts';
 
 const input = () => ({
   project: {
@@ -87,7 +88,7 @@ test('customer schedule includes service, annual maintenance, exact totals and a
   sheet.eachRow((row) => rows.push(row));
   const service = rows.find((row) => row.getCell(3).text === 'Design');
   assert.deepEqual(service.getCell(7).value, {
-    formula: `ROUND(E${service.number}*F${service.number},2)`,
+    formula: excelMoneyFormula(`E${service.number}*F${service.number}`),
     result: 200,
   });
   const maintenance = rows.find((row) =>
@@ -96,9 +97,7 @@ test('customer schedule includes service, annual maintenance, exact totals and a
   assert.equal(maintenance.getCell(5).value, 75);
   assert.equal(maintenance.getCell(6).value, 2);
   assert.equal(maintenance.getCell(7).result, 150);
-  const total = rows.find(
-    (row) => row.getCell(3).text === 'Grand Total',
-  );
+  const total = rows.find((row) => row.getCell(3).text === 'Grand Total');
   assert.equal(total.getCell(7).result, 340);
   assert.equal(sheet.pageSetup.fitToHeight, 0);
   assert.doesNotMatch(
@@ -106,6 +105,37 @@ test('customer schedule includes service, annual maintenance, exact totals and a
     /targetGrossMargin|costWeight|profitShare|Cost with Risk|Optional item/,
   );
   assert.deepEqual(value, before);
+});
+
+test('fractional customer quantities retain upward cent rounding after Excel recalculation', async () => {
+  const value = input();
+  value.maintenance = emptyMaintenance();
+  value.pricing = calculatePricing(3.34, {
+    targetGrossMargin: 0,
+    discount: 0,
+    gstPercent: 0,
+  });
+  value.lines = [
+    {
+      id: 'fraction',
+      description: 'Fractional unit',
+      quantity: 0.3333,
+      unit: 'lot',
+      unitPrice: 10.0001,
+      amount: 3.34,
+    },
+  ];
+  const sheet = (await load(value)).getWorksheet('Quotation');
+  const row = sheet.getColumn(3).values.indexOf('Fractional unit');
+  assert.ok(row > 0);
+  assert.equal(sheet.getCell(row, 5).value, 10.0001);
+  assert.equal(sheet.getCell(row, 6).value, 0.3333);
+  assert.equal(sheet.getCell(row, 7).result, 3.34);
+  assert.equal(
+    sheet.getCell(row, 7).formula,
+    excelMoneyFormula(`E${row}*F${row}`),
+  );
+  assert.equal(Math.ceil(10.0001 * 0.3333 * 100) / 100, 3.34);
 });
 test('final output omits draft marking and empty maintenance while long terms remain readable', async () => {
   const value = input();
@@ -160,9 +190,8 @@ test('standard workbook groups custom category titles under Mandatory and Option
   assert.ok(values.includes('Training'));
   assert.ok(values.includes('Optional items (excluded from mandatory total)'));
   assert.equal(
-    rows
-      .find((row) => row.getCell(3).value === 'Grand Total')
-      .getCell(7).value.result,
+    rows.find((row) => row.getCell(3).value === 'Grand Total').getCell(7).value
+      .result,
     document.total,
   );
   assert.equal(

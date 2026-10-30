@@ -13,7 +13,10 @@ import {
   type TravelSettings,
   type ManualCostInputs,
 } from './domain.ts';
-import type { SubcontractCost } from './subcontract-domain.ts';
+import {
+  subcontractCostDetails,
+  type SubcontractCost,
+} from './subcontract-domain.ts';
 import {
   groupPersonnelRows,
   UNASSIGNED_PERSONNEL_GROUP,
@@ -97,7 +100,7 @@ export type GroupCostSummaryRow = {
   label: string;
   category?: string;
   groupName?: string;
-  kind: 'Group' | 'Project';
+  kind: 'Group' | 'Subcontract' | 'Project';
   mandays: number;
   personnel: number;
   travel: number;
@@ -109,7 +112,111 @@ export type GroupCostSummaryRow = {
   share: number;
 };
 export const GROUP_COST_NOTE =
-  'Group costs include HQ travel: monthly allowance by HQ person-months; airfare by HQ mandays. Subcontract, EHS, risk and other project costs are listed separately. All years; reconciles to Cost Statement.';
+  'Each Category subtotal includes its groups and classified subcontract costs. Uncategorized groups are separate. Group costs include HQ travel: allowance by HQ person-months; airfare by HQ mandays. Unclassified subcontract, EHS, risk and other project costs have a separate Project Accounts subtotal. All years; reconciles to Cost Statement.';
+
+export const GROUP_COST_FIELDS = [
+  'mandays',
+  'personnel',
+  'travel',
+  'subcontract',
+  'ehs',
+  'risk',
+  'other',
+  'total',
+  'share',
+] as const;
+export type GroupCostMeasures = Pick<
+  GroupCostSummaryRow,
+  (typeof GROUP_COST_FIELDS)[number]
+>;
+export type GroupCostSection = {
+  key: string;
+  kind: 'Category' | 'Project';
+  label: string;
+  category?: string;
+  items: GroupCostSummaryRow[];
+  totals: GroupCostMeasures;
+};
+
+function sumGroupCostMeasures(
+  items: GroupCostSummaryRow[],
+  grandTotal: number,
+): GroupCostMeasures {
+  const totals = Object.fromEntries(
+    GROUP_COST_FIELDS.map((field) => [
+      field,
+      field === 'mandays'
+        ? roundQuantity(items.reduce((sum, item) => sum + item[field], 0))
+        : roundMoney(items.reduce((sum, item) => sum + item[field], 0)),
+    ]),
+  ) as GroupCostMeasures;
+  totals.share = grandTotal ? totals.total / grandTotal : 0;
+  return totals;
+}
+
+/** Section totals stay outside the leaf rows so consumers cannot count them twice. */
+export function buildGroupCostSections(
+  items: GroupCostSummaryRow[],
+): GroupCostSection[] {
+  const categories = new Map<string, GroupCostSummaryRow[]>();
+  const projectItems: GroupCostSummaryRow[] = [];
+  for (const item of items) {
+    if (item.kind === 'Project') {
+      projectItems.push(item);
+    } else {
+      const category = item.category?.trim() || '';
+      const group = categories.get(category) ?? [];
+      group.push(item);
+      categories.set(category, group);
+    }
+  }
+  const grandTotal = roundMoney(
+    items.reduce((sum, item) => sum + item.total, 0),
+  );
+  const sections: GroupCostSection[] = [...categories].map(
+    ([category, categoryItems]) => ({
+      key: `category:${JSON.stringify(category)}`,
+      kind: 'Category',
+      label: category || 'Uncategorized',
+      category,
+      items: categoryItems,
+      totals: sumGroupCostMeasures(categoryItems, grandTotal),
+    }),
+  );
+  if (projectItems.length)
+    sections.push({
+      key: 'project-accounts',
+      kind: 'Project',
+      label: 'Project Accounts',
+      items: projectItems,
+      totals: sumGroupCostMeasures(projectItems, grandTotal),
+    });
+  return sections;
+}
+
+/** Shared worksheet positions for the visible export and its live formulas. */
+export function buildGroupCostSheetLayout(
+  items: GroupCostSummaryRow[],
+  firstRow = 5,
+) {
+  let nextRow = firstRow;
+  const sections = buildGroupCostSections(items).map((section) => {
+    const headerRow = nextRow++;
+    const entries = section.items.map((item) => ({
+      rowNumber: nextRow++,
+      item,
+    }));
+    return { ...section, headerRow, entries, subtotalRow: nextRow++ };
+  });
+  const grandTotal = roundMoney(
+    items.reduce((sum, item) => sum + item.total, 0),
+  );
+  return {
+    sections,
+    totalRow: nextRow,
+    totals: sumGroupCostMeasures(items, grandTotal),
+  };
+}
 
 export function buildGroupCostSummary(
   rows: CostInputRow[],
@@ -171,6 +278,36 @@ export function buildGroupCostSummary(
         ),
       };
     });
+  const categorizedSubcontract = new Map<string, number>();
+  for (const item of [
+    ...rows
+      .filter((row) => isLegacySubcontractRow(row, resources))
+      .map((row) => ({ category: row.category, total: totalRowCost(row) })),
+    ...subcontractCostDetails(subcontract, startYear),
+  ]) {
+    const category = item.category?.trim();
+    if (category)
+      categorizedSubcontract.set(
+        category,
+        roundMoney((categorizedSubcontract.get(category) ?? 0) + item.total),
+      );
+  }
+  for (const [category, amount] of categorizedSubcontract)
+    result.push({
+      ...empty,
+      key: `subcontract-category:${JSON.stringify(category)}`,
+      label: 'Subcontract',
+      kind: 'Subcontract',
+      category,
+      subcontract: amount,
+      total: amount,
+    });
+  const classifiedSubcontractTotal = roundMoney(
+    [...categorizedSubcontract.values()].reduce(
+      (sum, amount) => sum + amount,
+      0,
+    ),
+  );
   const statement = buildCostStatementRows(
     rows,
     resources,
@@ -190,12 +327,20 @@ export function buildGroupCostSummary(
     ['2.3.4.1', 'Car Fee', 'other'],
   ] as const;
   for (const [code, label, field] of accounts) {
-    const amount = statement.find((row) => row.code === code)?.amount ?? 0;
+    const accountAmount =
+      statement.find((row) => row.code === code)?.amount ?? 0;
+    const amount =
+      code === '2.3.2'
+        ? roundMoney(accountAmount - classifiedSubcontractTotal)
+        : accountAmount;
     if (amount || field !== 'other' || includeZeroAccounts)
       result.push({
         ...empty,
         key: `account:${code}`,
-        label,
+        label:
+          code === '2.3.2' && categorizedSubcontract.size
+            ? 'Uncategorized Subcontract'
+            : label,
         kind: 'Project',
         [field]: amount,
         total: amount,

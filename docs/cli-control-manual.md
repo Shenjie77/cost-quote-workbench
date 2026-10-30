@@ -465,6 +465,10 @@ Cost Detail. CLI `cost export --format simple` keeps the standard full-year
 layout and does not read browser preferences.
 Simple / Full exports retain formula cells and cached results. Personnel effort,
 Subcon quantities and unit prices feed detail, summaries and statement totals.
+Simple `Summary Group` contains Category sections and formula subtotals, including
+Subcontract with a saved Category. Uncategorized personnel and project accounts are
+listed separately. Grand totals include each cost once. Re-export existing files to
+receive the updated layout; blank categories are not guessed from group names.
 Omitted inputs remain captured; Excel edits do not update platform data. See
 [Excel export formulas](excel-export.md).
 

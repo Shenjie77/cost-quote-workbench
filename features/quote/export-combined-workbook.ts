@@ -17,6 +17,7 @@ import { calculateBuCostAllocation } from './profit-share.ts';
 import { calculatePricing, type PricingSettings } from './domain.ts';
 import { buildQuoteLines, validateQuoteLines } from './quote-lines.ts';
 import { lineCostAmounts } from './line-pricing.ts';
+import { groupFor } from './quotation-groups.ts';
 import { assertValidQuotePricing } from './export-validation.ts';
 import {
   getAvailableSimpleCostSheets,
@@ -45,7 +46,11 @@ function formula(
 }
 
 /** Build a bounded, acyclic GP calculation matching the domain’s rounding and four-decimal unit prices. */
-function addGpFormulas(calc: Worksheet, row: number) {
+function addGpFormulas(
+  calc: Worksheet,
+  row: number,
+  values: { cost: number; gp: number; share: number; quantity: number },
+) {
   const q = `'Quotation Details'!`;
   const cost = `${q}E${row}`,
     gp = `${q}H${row}`,
@@ -53,32 +58,70 @@ function addGpFormulas(calc: Worksheet, row: number) {
     qty = `${q}C${row}`;
   const meets = (price: string) =>
     `${money(`${price}-${cost}-${money(`${price}*${share}`)}`)}+MAX(1E-10,2.220446049250313E-16*${price}*4)>=${price}*${gp}`;
-  formula(calc, `F${row}`, `1-${gp}-${share}`);
-  formula(calc, `G${row}`, `IF(F${row}>0,${money(`${cost}/F${row}`)},0)`);
+  const denominator = 1 - values.gp - values.share;
+  let price = denominator > 0 ? roundMoney(values.cost / denominator) : 0;
+  const needsCorrection =
+    values.share > 0 && values.cost > 0 && denominator > 0;
+  const meetsTarget = (candidate: number) =>
+    roundMoney(candidate - values.cost - roundMoney(candidate * values.share)) +
+      Math.max(1e-10, Number.EPSILON * candidate * 4) >=
+    candidate * values.gp;
+  formula(calc, `F${row}`, `1-${gp}-${share}`, denominator);
+  formula(
+    calc,
+    `G${row}`,
+    `IF(F${row}>0,${money(`${cost}/F${row}`)},0)`,
+    price,
+  );
   for (let column = 8; column <= 15; column++) {
     const current = calc.getCell(row, column).address;
     const previous = calc.getCell(row, column - 1).address;
+    if (needsCorrection && !meetsTarget(price))
+      price = Math.max(
+        roundMoney(price + 0.01),
+        roundMoney(
+          (values.cost + roundMoney(price * values.share)) / (1 - values.gp),
+        ),
+      );
     formula(
       calc,
       current,
       `IF(OR(${share}=0,${cost}=0,F${row}<=0),${previous},IF(${meets(previous)},${previous},MAX(${money(`${previous}+0.01`)},${money(`(${cost}+${money(`${previous}*${share}`)})/(1-${gp})`)})))`,
+      price,
     );
   }
+  if (needsCorrection && !meetsTarget(price))
+    price = roundMoney((values.cost + 0.01) / denominator);
   formula(
     calc,
     `P${row}`,
     `IF(OR(${share}=0,${cost}=0,F${row}<=0),O${row},IF(${meets(`O${row}`)},O${row},${money(`(${cost}+0.01)/F${row}`)}))`,
+    price,
   );
+  const unitPrice =
+    values.quantity > 0
+      ? Math.trunc(
+          (Math.round(price * 100) * 1000000) /
+            Math.round(values.quantity * 10000),
+        ) / 10000
+      : 0;
   formula(
     calc,
     `Q${row}`,
     `IF(${qty}>0,ROUNDDOWN(ROUND(P${row}*100,0)*1000000/ROUND(${qty}*10000,0),0)/10000,0)`,
+    unitPrice,
   );
-  formula(calc, `R${row}`, money(`Q${row}*${qty}`));
+  formula(
+    calc,
+    `R${row}`,
+    money(`Q${row}*${qty}`),
+    roundMoney(unitPrice * values.quantity),
+  );
   formula(
     calc,
     `S${row}`,
     `IF(AND(${share}>0,${cost}>0,F${row}>0),${money(`(${cost}+0.01)/F${row}`)},P${row})`,
+    needsCorrection ? roundMoney((values.cost + 0.01) / denominator) : price,
   );
 }
 
@@ -174,6 +217,21 @@ export async function buildCombinedQuoteWorkbook(
   let weights = internalLines.map((line) => line.costWeight);
   if (!weights.some((weight) => weight > 0)) weights = weights.map(() => 1);
   const weightTotal = weights.reduce((sum, value) => sum + value, 0);
+  const normalizedWeights = weights.map((weight) => weight / weightTotal);
+  const normalizedWeightTotal = normalizedWeights.reduce(
+    (sum, weight) => sum + weight,
+    0,
+  );
+  // Remove sub-cent binary noise before ranking remainders across spreadsheet engines.
+  const rawCostCents = normalizedWeights.map((weight) =>
+    Number(
+      (
+        (weight / normalizedWeightTotal) *
+        Math.round(result.cost * 100)
+      ).toFixed(8),
+    ),
+  );
+  const costRemainders = rawCostCents.map((cents) => cents - Math.floor(cents));
   sheet.mergeCells('A1:M1');
   sheet.getCell('A1').value = 'Quotation Details + Simple Cost · Internal';
   sheet.mergeCells('A2:M2');
@@ -222,6 +280,7 @@ export async function buildCombinedQuoteWorkbook(
     'Price basis',
     'Saved price input',
     'Remark (internal)',
+    'Category',
   ];
   calc.getRow(8).values = [
     'Line',
@@ -279,18 +338,25 @@ export async function buildCombinedQuoteWorkbook(
       gpMode ? 'Target GP' : 'Saved price',
       line.unitPrice,
       pricing.lineRemarks?.[line.id] ?? '',
+      groupFor(saved, pricing.lineGroups).category,
     ];
     formula(
       calc,
       `B${row}`,
-      `IF(SUM('Quotation Details'!$F$${FIRST_LINE}:$F$${last})>0,'Quotation Details'!F${row}/SUM('Quotation Details'!$F$${FIRST_LINE}:$F$${last}),1/${lines.length})*ROUND('Quotation Details'!$C$5*100,0)`,
+      `ROUND(IF(SUM('Quotation Details'!$F$${FIRST_LINE}:$F$${last})>0,'Quotation Details'!F${row}/SUM('Quotation Details'!$F$${FIRST_LINE}:$F$${last}),1/${lines.length})*ROUND('Quotation Details'!$C$5*100,0),8)`,
+      rawCostCents[index],
     );
-    formula(calc, `C${row}`, `INT(B${row})`);
-    formula(calc, `D${row}`, `B${row}-C${row}`);
+    formula(calc, `C${row}`, `INT(B${row})`, Math.floor(rawCostCents[index]));
+    formula(calc, `D${row}`, `B${row}-C${row}`, costRemainders[index]);
     formula(
       calc,
       `E${row}`,
       `COUNTIF($D$${FIRST_LINE}:$D$${last},">"&D${row})+COUNTIF($D$${FIRST_LINE}:D${row},D${row})`,
+      costRemainders.filter(
+        (remainder, position) =>
+          remainder > costRemainders[index] ||
+          (remainder === costRemainders[index] && position <= index),
+      ).length,
     );
     formula(
       sheet,
@@ -298,7 +364,12 @@ export async function buildCombinedQuoteWorkbook(
       `('Pricing Calculations'!C${row}+IF('Pricing Calculations'!E${row}<=ROUND($C$5*100,0)-SUM('Pricing Calculations'!$C$${FIRST_LINE}:$C$${last}),1,0))/100`,
       costs[index],
     );
-    addGpFormulas(calc, row);
+    addGpFormulas(calc, row, {
+      cost: costs[index],
+      gp,
+      share: result.weightedProfitShareRate / 100,
+      quantity: line.quantity,
+    });
     formula(
       sheet,
       `I${row}`,
@@ -356,7 +427,7 @@ export async function buildCombinedQuoteWorkbook(
       `SUM(${column}${FIRST_LINE}:${column}${last})`,
       value,
     );
-  const widths = [6, 44, 12, 10, 18, 12, 12, 12, 18, 18, 12, 16, 18, 44];
+  const widths = [6, 44, 12, 10, 18, 12, 12, 12, 18, 18, 12, 16, 18, 44, 26];
   widths.forEach((width, index) => {
     sheet.getColumn(index + 1).width = width;
   });
@@ -419,8 +490,8 @@ export async function buildCombinedQuoteWorkbook(
     size: 17,
     color: { argb: 'FF173A52' },
   };
-  sheet.autoFilter = `A8:N${last}`;
-  sheet.pageSetup.printArea = `A1:N${totalRow}`;
+  sheet.autoFilter = `A8:O${last}`;
+  sheet.pageSetup.printArea = `A1:O${totalRow}`;
   unmergeWorkbook(workbook);
   const maintenance = writeMaintenanceTable(
     sheet,
@@ -447,10 +518,10 @@ export async function buildCombinedQuoteWorkbook(
     bold: true,
     color: { argb: 'FF173A52' },
   };
-  sheet.getCell('B7').value = 'Professional Service';
+  sheet.getCell('B7').value = 'Quotation Lines';
   sheet.getCell('M5').numFmt = MONEY;
   sheet.getRow(4).height = 44;
-  sheet.pageSetup.printArea = `A1:N${maintenance.totalRow}`;
+  sheet.pageSetup.printArea = `A1:O${maintenance.totalRow}`;
   workbook.calcProperties.fullCalcOnLoad = true;
   return workbook;
 }

@@ -14,6 +14,8 @@ import {
   initialPricingSettings,
 } from '../features/quote/domain.ts';
 import { lineCostAmounts } from '../features/quote/line-pricing.ts';
+import { targetPriceAfterShareRounding } from '../features/quote/target-price.ts';
+import { roundMoney } from '../features/cost/domain.ts';
 
 /** Mixed GP and saved-price rows exercise formula intent without converting commercial overrides. */
 export const combinedFixture = () => ({
@@ -45,6 +47,97 @@ export const combinedFixture = () => ({
       },
     ],
   },
+});
+
+test('combined quotation exposes inherited categories and explicit quotation overrides', async () => {
+  const input = combinedFixture();
+  input.pricing.manualLines[0].category = 'Installation';
+  input.pricing.manualLines[1].category = 'Hardware';
+  input.pricing.lineGroups = {
+    fixed: { category: 'Customer Hardware', inclusion: 'mandatory' },
+  };
+  const book = await buildCombinedQuoteWorkbook(input);
+  const sheet = book.getWorksheet('Quotation Details');
+  assert.equal(sheet.getCell('O8').value, 'Category');
+  assert.equal(sheet.getCell('O9').value, 'Installation');
+  assert.equal(sheet.getCell('O10').value, 'Customer Hardware');
+  assert.equal(sheet.getCell('B7').value, 'Quotation Lines');
+  assert.equal(sheet.autoFilter, 'A8:O10');
+  assert.match(sheet.pageSetup.printArea, /^A1:O/);
+  const automatic = combinedFixture();
+  automatic.pricing.lineMode = 'single';
+  automatic.costSnapshot.costRows[0].category = 'Hardware';
+  const autoBook = await buildCombinedQuoteWorkbook(automatic);
+  const autoSheet = autoBook.getWorksheet('Quotation Details');
+  const categories = Array.from(
+    { length: autoSheet.rowCount },
+    (_, i) => autoSheet.getCell(i + 1, 15).value,
+  );
+  assert.ok(categories.includes('Hardware'));
+  assert.ok(categories.includes('Professional Service'));
+});
+
+test('combined hidden calculation caches retain cost allocation and GP intermediates', async () => {
+  const book = await buildCombinedQuoteWorkbook(combinedFixture());
+  const sheet = book.getWorksheet('Quotation Details');
+  const calc = book.getWorksheet('Pricing Calculations');
+  const totalCost = sheet.getCell('C5').result;
+  const share = sheet.getCell('E5').value;
+  for (const row of [9, 10]) {
+    const cost = sheet.getCell(`E${row}`).result;
+    const gp = sheet.getCell(`H${row}`).value;
+    const qty = sheet.getCell(`C${row}`).value;
+    const denominator = 1 - gp - share;
+    assert.equal(
+      calc.getCell(`B${row}`).result,
+      Number(
+        (sheet.getCell(`F${row}`).value * Math.round(totalCost * 100)).toFixed(
+          8,
+        ),
+      ),
+    );
+    assert.equal(
+      calc.getCell(`C${row}`).result,
+      Math.floor(calc.getCell(`B${row}`).result),
+    );
+    assert.equal(
+      calc.getCell(`D${row}`).result,
+      calc.getCell(`B${row}`).result - calc.getCell(`C${row}`).result,
+    );
+    assert.ok(calc.getCell(`E${row}`).result >= 1);
+    assert.equal(calc.getCell(`F${row}`).result, denominator);
+    assert.equal(
+      calc.getCell(`G${row}`).result,
+      denominator > 0 ? roundMoney(cost / denominator) : 0,
+    );
+    assert.equal(
+      calc.getCell(`P${row}`).result,
+      targetPriceAfterShareRounding(cost, gp * 100, share * 100, denominator),
+    );
+    assert.equal(
+      calc.getCell(`R${row}`).result,
+      roundMoney(calc.getCell(`Q${row}`).result * qty),
+    );
+  }
+});
+
+test('whole-cent cost weights do not gain phantom remainder priority after export', async () => {
+  const input = combinedFixture();
+  const initial = await buildCombinedQuoteWorkbook(input);
+  const total = initial.getWorksheet('Quotation Details').getCell('C5').result;
+  input.pricing.manualLines[0].costWeight = total - 160;
+  input.pricing.manualLines[1].costWeight = 160;
+  const book = await buildCombinedQuoteWorkbook(input);
+  const calc = book.getWorksheet('Pricing Calculations');
+  for (const row of [9, 10]) {
+    assert.equal(calc.getCell(`D${row}`).result ?? 0, 0);
+    assert.equal(calc.getCell(`E${row}`).result, row - 8);
+    assert.match(calc.getCell(`B${row}`).formula, /^ROUND\(.*?,8\)$/);
+  }
+  assert.equal(
+    book.getWorksheet('Quotation Details').getCell('E10').result,
+    160,
+  );
 });
 
 test('combined export includes the complete Simple Cost workbook and linked quote formulas with exact cached amounts', async () => {

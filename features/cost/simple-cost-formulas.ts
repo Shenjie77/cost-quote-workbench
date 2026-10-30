@@ -22,6 +22,7 @@ import { isPersonnelAllowanceApplied } from './personnel-allowance.ts';
 import {
   allocateHQTravel,
   buildGroupCostSummary,
+  buildGroupCostSheetLayout,
 } from './group-cost-summary.ts';
 import {
   getSubcontractRateFactors,
@@ -106,7 +107,13 @@ function dimensionKeys(snapshot: CostExportSnapshot) {
       ),
     ],
     ['W', 'AD', snapshot.costRows.map((row) => row.groupName?.trim() || '')],
-    ['X', 'AE', snapshot.costRows.map((row) => row.category?.trim() || '')],
+    [
+      'X',
+      'AE',
+      [...snapshot.costRows, ...details].map(
+        (row) => row.category?.trim() || '',
+      ),
+    ],
   ];
   return new Map(
     values.map(([source, target, labels]) => [
@@ -512,8 +519,10 @@ export function linkSubcontractFormulas(
   sheet.getColumn('U').hidden = true;
   sheet.getCell('V4').value = 'Scope key';
   sheet.getCell('W4').value = 'BU key';
+  sheet.getCell('X4').value = 'Category key';
   sheet.getColumn('V').hidden = true;
   sheet.getColumn('W').hidden = true;
+  sheet.getColumn('X').hidden = true;
   details.forEach((line, index) => {
     const n = index + 5;
     const siteIndex = siteIndexes[index];
@@ -534,6 +543,9 @@ export function linkSubcontractFormulas(
     sheet.getCell(`W${n}`).value = keys
       .get('Y')!
       .codes.get(line.bu.trim() || 'UNSPECIFIED')!;
+    sheet.getCell(`X${n}`).value = keys
+      .get('X')!
+      .codes.get(line.category?.trim() || '')!;
     for (let y = 0; y < 5; y++) {
       const quantity = sheet.getCell(n, 10 + y * 2),
         cost = sheet.getCell(n, 11 + y * 2);
@@ -665,8 +677,12 @@ export function linkSimpleCostFormulas(
       legacy.getCell(`L${n}`).value = keys
         .get('Y')!
         .codes.get(row.bu.trim() || 'UNSPECIFIED')!;
+      legacy.getCell(`M${n}`).value = keys
+        .get('X')!
+        .codes.get(row.category?.trim() || '')!;
       legacy.getColumn('K').hidden = true;
       legacy.getColumn('L').hidden = true;
+      legacy.getColumn('M').hidden = true;
       links.set(row.id, {
         base: ref(legacy, `D${n}`),
         total: ref(legacy, `D${n}`),
@@ -895,64 +911,132 @@ export function linkSimpleCostFormulas(
       getY1Year(snapshot.rateSettings),
       true,
     );
-    const total = items.length + 5;
-    items.forEach((item, index) => {
-      const n = index + 5;
-      const rows = snapshot.costRows.filter(
-        (row) =>
-          (row.groupName?.trim() || '') === (item.groupName ?? '') &&
-          (row.category?.trim() || '') === (item.category ?? '') &&
-          snapshot.resourceTypes.find((r) => r.id === row.reTypeId)
-            ?.category !== 'subcontract',
-      );
-      if (item.kind === 'Group') {
-        const criteria: [string, string][] = [
-          ['W', item.groupName ?? ''],
-          ['X', item.category ?? ''],
-          ['V', 'internal'],
-        ];
-        set(
-          group.getCell(`D${n}`),
-          calc ? aggregate('D', criteria) : String(item.mandays),
-          item.mandays,
+    const layout = buildGroupCostSheetLayout(items);
+    const total = layout.totalRow;
+    const categoryLastRow = layout.sections
+      .filter((section) => section.kind === 'Category')
+      .at(-1)?.subtotalRow;
+    layout.sections
+      .flatMap((section) => section.entries)
+      .forEach(({ item, rowNumber: n }) => {
+        const rows = snapshot.costRows.filter(
+          (row) =>
+            (row.groupName?.trim() || '') === (item.groupName ?? '') &&
+            (row.category?.trim() || '') === (item.category ?? '') &&
+            snapshot.resourceTypes.find((r) => r.id === row.reTypeId)
+              ?.category !== 'subcontract',
         );
+        if (item.kind === 'Group') {
+          const criteria: [string, string][] = [
+            ['W', item.groupName ?? ''],
+            ['X', item.category ?? ''],
+            ['V', 'internal'],
+          ];
+          set(
+            group.getCell(`D${n}`),
+            calc ? aggregate('D', criteria) : String(item.mandays),
+            item.mandays,
+          );
+          set(
+            group.getCell(`E${n}`),
+            calc ? aggregate('G', criteria) : sum(rows.map(rowBase)),
+            item.personnel,
+          );
+          set(
+            group.getCell(`F${n}`),
+            calc ? aggregate('S', criteria) : String(item.travel),
+            item.travel,
+          );
+        } else if (item.kind === 'Subcontract') {
+          const category = item.category ?? '';
+          const categoryKey = keys.get('X')!.codes.get(category) ?? -1;
+          const legacyItems = legacyRows.filter(
+            (row) => (row.category?.trim() || '') === category,
+          );
+          const structuredItems = details.flatMap((line, index) =>
+            (line.category?.trim() || '') === category
+              ? [subconRefs[index]]
+              : [],
+          );
+          set(
+            group.getCell(`G${n}`),
+            sum([
+              aggregate('G', [
+                ['V', 'subcontract'],
+                ['X', category],
+              ]),
+              legacy
+                ? `SUMIF(${ref(legacy, `M5:M${legacy.rowCount - 1}`)},${categoryKey},${ref(legacy, `D5:D${legacy.rowCount - 1}`)})`
+                : sum(
+                    legacyItems.filter((row) => !refs.has(row.id)).map(rowBase),
+                  ),
+              subcon
+                ? `SUMIF(${ref(subcon, `X5:X${subcon.rowCount - 1}`)},${categoryKey},${ref(subcon, `I5:I${subcon.rowCount - 1}`)})`
+                : sum(structuredItems),
+            ]),
+            item.subcontract,
+          );
+        } else {
+          const code = item.key.slice('account:'.length);
+          const col =
+            code === '2.3.2'
+              ? 'G'
+              : code === '2.3.4.2'
+                ? 'H'
+                : code === '15'
+                  ? 'I'
+                  : 'J';
+          set(
+            group.getCell(`${col}${n}`),
+            code === '2.3.2' && categoryLastRow
+              ? `${account(code)}-SUMIF($C$5:$C$${categoryLastRow},"Subcontract",G5:G${categoryLastRow})`
+              : account(code),
+            item.total,
+          );
+        }
+        set(group.getCell(`K${n}`), `SUM(E${n}:J${n})`, item.total);
         set(
-          group.getCell(`E${n}`),
-          calc ? aggregate('G', criteria) : sum(rows.map(rowBase)),
-          item.personnel,
+          group.getCell(`L${n}`),
+          `IF(K${total}>0,K${n}/K${total},0)`,
+          item.share,
         );
+      });
+    const totalColumns = [
+      ['D', 'mandays'],
+      ['E', 'personnel'],
+      ['F', 'travel'],
+      ['G', 'subcontract'],
+      ['H', 'ehs'],
+      ['I', 'risk'],
+      ['J', 'other'],
+      ['K', 'total'],
+    ] as const;
+    for (const section of layout.sections) {
+      const first = section.entries[0]?.rowNumber;
+      const last = section.entries.at(-1)?.rowNumber;
+      for (const [col, key] of totalColumns)
         set(
-          group.getCell(`F${n}`),
-          calc ? aggregate('S', criteria) : String(item.travel),
-          item.travel,
+          group.getCell(`${col}${section.subtotalRow}`),
+          first && last ? `SUM(${col}${first}:${col}${last})` : '0',
+          section.totals[key],
         );
-      } else {
-        const code = item.key.slice('account:'.length);
-        const col =
-          code === '2.3.2'
-            ? 'G'
-            : code === '2.3.4.2'
-              ? 'H'
-              : code === '15'
-                ? 'I'
-                : 'J';
-        set(group.getCell(`${col}${n}`), account(code), item.total);
-      }
-      set(group.getCell(`K${n}`), `SUM(E${n}:J${n})`, item.total);
       set(
-        group.getCell(`L${n}`),
-        `IF(K${total}>0,K${n}/K${total},0)`,
-        item.share,
+        group.getCell(`L${section.subtotalRow}`),
+        `IF(K${total}>0,K${section.subtotalRow}/K${total},0)`,
+        section.totals.share,
       );
-    });
-    for (const col of ['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'])
+    }
+    for (const [col, key] of totalColumns)
       set(
         group.getCell(`${col}${total}`),
-        items.length ? `SUM(${col}5:${col}${total - 1})` : '0',
+        layout.sections.length
+          ? `SUMIF($C$5:$C$${total - 1},"Subtotal",${col}5:${col}${total - 1})`
+          : '0',
+        layout.totals[key],
       );
     set(group.getCell(`L${total}`), `IF(K${total}>0,1,0)`);
     group.getCell('A3').value =
-      'Category and group totals use live personnel and HQ travel formulas; project accounts follow Cost Statement.';
+      'Category subtotals include personnel, HQ travel and classified subcontract. Project Accounts lists unclassified subcontract, EHS, risk and other costs.';
   }
   workbook.calcProperties.fullCalcOnLoad = true;
   return {

@@ -4,6 +4,8 @@ import {
   allocateHQTravel,
   costRowsIncludingHQTravel,
   buildGroupCostSummary,
+  buildGroupCostSections,
+  buildGroupCostSheetLayout,
 } from '../features/cost/group-cost-summary.ts';
 import {
   getHQTravelSummary,
@@ -14,6 +16,8 @@ import {
 } from '../features/cost/domain.ts';
 import { buildSimpleCostWorkbook } from '../features/cost/export-simple-workbook.ts';
 import { makeCostSnapshot } from './helpers.mjs';
+import { buildCombinedQuoteWorkbook } from '../features/quote/export-combined-workbook.ts';
+import { initialPricingSettings } from '../features/quote/domain.ts';
 
 function fixture() {
   const s = makeCostSnapshot();
@@ -216,4 +220,200 @@ test('grouped export writes annual subtotal formulas and reconciled Group sheet 
     single.worksheets.map((sheet) => sheet.name),
     ['Summary Group'],
   );
+});
+
+function categoryFixture() {
+  const s = fixture();
+  s.costRows.forEach((row, index) => {
+    row.category = ['Services', 'Equipment', undefined][index];
+    row.groupName = 'Delivery';
+  });
+  const legacy = s.resourceTypes.find(
+    (resource) => resource.category === 'subcontract',
+  );
+  s.costRows.push({
+    ...structuredClone(s.costRows[0]),
+    id: 'legacy',
+    reTypeId: legacy.id,
+  });
+  s.subcontractCost.lines[0].category = 'Services';
+  s.subcontractCost.lines.push(
+    {
+      ...s.subcontractCost.lines[0],
+      id: 'equipment',
+      category: 'Equipment',
+      unitPrice: 12,
+      quantities: [3, 0, 0, 0, 0],
+    },
+    {
+      ...s.subcontractCost.lines[0],
+      id: 'unclassified',
+      category: undefined,
+      unitPrice: 5,
+      quantities: [2, 0, 0, 0, 0],
+    },
+  );
+  s.subcontractCost.mode = 'site-types';
+  s.subcontractCost.siteTypes = [
+    {
+      id: 'site',
+      name: 'Branch',
+      sites: [2, 0, 0, 0, 0],
+      lines: [
+        {
+          id: 'civil',
+          code: 'CIV',
+          description: 'Civil works',
+          category: 'Construction',
+          bu: 'MBB',
+          unit: 'm',
+          currency: 'SGD',
+          unitPrice: 1.005,
+          quantityPerSite: 1.3,
+        },
+      ],
+    },
+  ];
+  return s;
+}
+
+function summarize(s) {
+  return buildGroupCostSummary(
+    s.costRows,
+    s.resourceTypes,
+    s.travelSettings,
+    s.manualCosts,
+    s.subcontractCost,
+    2026,
+    true,
+  );
+}
+
+test('Category subtotals include classified project/site/legacy subcontract exactly once and keep project accounts separate', () => {
+  const s = categoryFixture();
+  const original = structuredClone(s);
+  const items = summarize(s);
+  const sections = buildGroupCostSections(items);
+  assert.deepEqual(
+    sections.map((section) => section.label),
+    [
+      'Services',
+      'Equipment',
+      'Uncategorized',
+      'Construction',
+      'Project Accounts',
+    ],
+  );
+  assert.deepEqual(
+    sections.slice(0, 3).map((section) => section.items[0].label),
+    ['Delivery', 'Delivery', 'Delivery'],
+  );
+  const legacyCost = totalRowCost(s.costRows.at(-1));
+  assert.equal(sections[0].totals.subcontract, roundMoney(50 + legacyCost));
+  assert.equal(sections[1].totals.subcontract, 36);
+  assert.equal(sections[3].totals.subcontract, 2.62);
+  assert.deepEqual(
+    sections[3].items.map((item) => item.kind),
+    ['Subcontract'],
+  );
+  assert.equal(sections.at(-1).totals.subcontract, 10);
+  assert.equal(
+    sections.at(-1).items.find((item) => item.key === 'account:2.3.2').label,
+    'Uncategorized Subcontract',
+  );
+  const expected = getCostStatementValues(
+    s.costRows,
+    s.resourceTypes,
+    240,
+    s.manualCosts,
+    s.subcontractCost,
+    2026,
+  );
+  assert.equal(
+    roundMoney(
+      sections.reduce((sum, section) => sum + section.totals.total, 0),
+    ),
+    expected.totalWithRisk,
+  );
+  assert.equal(
+    roundMoney(items.reduce((sum, item) => sum + item.subcontract, 0)),
+    expected.subcontract,
+  );
+  assert.ok(
+    Math.abs(
+      sections.reduce((sum, section) => sum + section.totals.share, 0) - 1,
+    ) < 1e-12,
+  );
+  assert.deepEqual(s, original);
+});
+
+test('section layout separates headers, details, subtotals and total without duplicating leaves', () => {
+  const items = summarize(categoryFixture());
+  const original = structuredClone(items);
+  const layout = buildGroupCostSheetLayout(items);
+  let next = 5;
+  for (const section of layout.sections) {
+    assert.equal(section.headerRow, next++);
+    for (const entry of section.entries) assert.equal(entry.rowNumber, next++);
+    assert.equal(section.subtotalRow, next++);
+  }
+  assert.equal(layout.totalRow, next);
+  assert.equal(
+    layout.sections.flatMap((section) => section.entries).length,
+    items.length,
+  );
+  assert.equal(
+    layout.totals.total,
+    roundMoney(items.reduce((sum, item) => sum + item.total, 0)),
+  );
+  assert.deepEqual(items, original);
+  assert.equal(buildGroupCostSheetLayout([]).totalRow, 5);
+  assert.equal(buildGroupCostSheetLayout([]).totals.share, 0);
+});
+
+test('Simple, selective and combined exports keep Category subtotal formulas and a single reconciled grand total', async () => {
+  const s = categoryFixture();
+  const layout = buildGroupCostSheetLayout(summarize(s));
+  const books = [
+    await buildSimpleCostWorkbook(s),
+    await buildSimpleCostWorkbook(s, undefined, ['Summary Group']),
+    await buildCombinedQuoteWorkbook({
+      costSnapshot: s,
+      pricing: initialPricingSettings,
+    }),
+  ];
+  for (const book of books) {
+    const sheet = book.getWorksheet('Summary Group');
+    for (const section of layout.sections) {
+      assert.equal(
+        sheet.getCell(section.headerRow, 1).value,
+        section.kind === 'Category'
+          ? `Category: ${section.label}`
+          : section.label,
+      );
+      assert.equal(sheet.getCell(section.subtotalRow, 3).value, 'Subtotal');
+      assert.match(sheet.getCell(section.subtotalRow, 11).formula, /^SUM\(/);
+      assert.equal(
+        sheet.getCell(section.subtotalRow, 11).result,
+        section.totals.total,
+      );
+      for (const entry of section.entries) {
+        assert.equal(sheet.getCell(entry.rowNumber, 2).value, entry.item.label);
+        assert.equal(
+          sheet.getCell(entry.rowNumber, 11).result ?? 0,
+          entry.item.total,
+        );
+      }
+    }
+    assert.equal(sheet.rowCount, layout.totalRow);
+    assert.match(
+      sheet.getCell(layout.totalRow, 11).formula,
+      /SUMIF\(.*"Subtotal"/,
+    );
+    assert.equal(
+      sheet.getCell(layout.totalRow, 11).result,
+      layout.totals.total,
+    );
+    assert.equal(sheet.getCell(layout.totalRow, 12).result, 1);
+  }
 });
