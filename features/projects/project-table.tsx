@@ -104,7 +104,7 @@ export function ProjectTable({
                     as="span"
                     tone="primary"
                     textRole="body-main"
-                    className="block whitespace-normal break-words hover:underline"
+                    className="block truncate"
                     title={project.name}
                   >
                     {project.name}
@@ -118,7 +118,8 @@ export function ProjectTable({
                     as="span"
                     tone="muted"
                     textRole="body-small"
-                    className="financial-numeral mt-1 block whitespace-normal break-words"
+                    className="financial-numeral mt-1 block truncate"
+                    title={project.client}
                   >
                     {project.client}
                   </Text>
@@ -149,8 +150,18 @@ export function ProjectTable({
               </TableCell>
               <TableCell variant="label" className="whitespace-normal">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <Text as="p" tone="primary" textRole="body-small">
+                  <div className="min-w-0 flex-1">
+                    <Text
+                      as="p"
+                      tone="primary"
+                      textRole="body-small"
+                      className="truncate"
+                      title={
+                        currentStep
+                          ? `${currentStep.name} · ${currentStep.nameZh}`
+                          : project.stage || '待登记流程'
+                      }
+                    >
                       {currentStep
                         ? `${currentStep.name} · ${currentStep.nameZh}`
                         : project.stage || '待登记流程'}
@@ -159,7 +170,8 @@ export function ProjectTable({
                       as="p"
                       tone="muted"
                       textRole="body-small"
-                      className="mt-1"
+                      className="mt-1 truncate"
+                      title={`${currentStep?.owner || '待填写负责人'} · ${currentStep?.followUpDate || '待填写跟进日期'}`}
                     >
                       {onHold
                         ? 'On Hold · Workflow monitoring paused'

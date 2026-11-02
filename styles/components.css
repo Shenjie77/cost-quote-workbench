@@ -22,6 +22,8 @@
   .ui-button {
     display: inline-flex;
     flex-shrink: 0;
+    min-width: 0;
+    max-width: 100%;
     align-items: center;
     justify-content: center;
     gap: var(--space-2);
@@ -63,9 +65,6 @@
   .ui-button-navigation[aria-current='page']:hover:not(:disabled) {
     background: var(--sidebar-primary);
     color: var(--sidebar-primary-foreground);
-  }
-  .ui-button-ghost {
-    white-space: normal;
   }
   .ui-button-ghost,
   .ui-button-link {
@@ -220,31 +219,40 @@
     background: var(--muted);
   }
   .ui-table-row {
+    --table-row-background: var(--card);
     border-bottom: var(--border-width) solid var(--grid);
     transition: background-color var(--motion-duration) var(--motion-ease);
   }
   .ui-table-row:hover {
-    background: var(--accent);
+    --table-row-background: var(--accent);
+    background: var(--table-row-background);
   }
   .ui-table-row[data-tone='section'],
   .ui-table-row[data-tone='subtotal'] {
-    background: var(--secondary);
+    --table-row-background: var(--secondary);
+    background: var(--table-row-background);
   }
   .ui-table-row[data-tone='total'],
   .ui-table-row[data-tone='header'] {
-    background: var(--primary);
+    --table-row-background: var(--primary);
+    background: var(--table-row-background);
     color: var(--primary-foreground);
   }
   .ui-table-row[data-tone='risk'] {
-    background: var(--accent);
+    --table-row-background: var(--accent);
+    background: var(--table-row-background);
   }
   .ui-table-row[data-tone='warning'] {
-    background: var(--warning-muted);
+    --table-row-background: var(--warning-muted);
+    background: var(--table-row-background);
   }
   .ui-table-head,
   .ui-table-cell {
     height: var(--control-md);
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-1) var(--space-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: var(--table-row-background, var(--muted));
     border-right: var(--border-width) solid var(--grid);
     vertical-align: middle;
     text-align: left;
@@ -254,12 +262,7 @@
     color: inherit;
   }
   .ui-table [data-personnel-column='action'] {
-    background: var(--card);
-    color: var(--foreground);
     border-left: var(--border-width) solid var(--border);
-  }
-  .ui-table [data-personnel-column='scope'] {
-    background: var(--card);
   }
   .ui-table-head:last-child,
   .ui-table-cell:last-child {
@@ -276,6 +279,7 @@
   .ui-table-cell[data-variant='label'],
   .ui-table-head[data-variant='label'] {
     white-space: normal;
+    overflow-wrap: anywhere;
   }
   .ui-dialog-overlay {
     position: fixed;
@@ -361,6 +365,10 @@
     padding-top: var(--space-4);
   }
   .ui-badge {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    overflow-wrap: anywhere;
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
@@ -423,5 +431,40 @@
     accent-color: var(--primary);
     width: var(--space-4);
     height: var(--space-4);
+  }
+}
+
+@layer components {
+  .ui-table-header .ui-table-row[data-tone='normal'] {
+    --table-row-background: var(--muted);
+  }
+  .ui-table-footer .ui-table-row[data-tone='normal'] {
+    --table-row-background: var(--muted);
+  }
+  .ui-table-row:not([data-tone='header'], [data-tone='total']):is(
+      :hover,
+      :focus-within
+    ) {
+    --table-row-background: var(--accent);
+  }
+  .ui-table-cell > :is(.ui-button, .ui-text, .ui-surface) {
+    max-width: 100%;
+  }
+  .ui-table-cell > .ui-button {
+    overflow: hidden;
+  }
+  .ui-table-cell .ui-text {
+    overflow-wrap: anywhere;
+  }
+  .ui-table :is(.ui-button, [tabindex]):focus-visible {
+    outline-offset: calc(var(--focus-width) * -1);
+  }
+}
+
+@layer components {
+  /* Action controls use the same row height as editable fields. */
+  .ui-table-cell:has(> .ui-button),
+  .ui-table-cell:has(> div > .ui-button) {
+    padding-block: var(--space-0);
   }
 }

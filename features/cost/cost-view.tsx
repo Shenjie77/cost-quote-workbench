@@ -274,6 +274,100 @@ export function CostView({
       }),
   });
 
+  const renderCostTools = (viewControls?: React.ReactNode) => (
+    <Surface
+      as="div"
+      variant="toolbar"
+      className="min-w-0"
+      aria-label="Cost tools"
+    >
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+        <Surface
+          as="fieldset"
+          variant="control-group"
+          className="min-w-0 max-w-full"
+          aria-label="Cost views"
+        >
+          {[
+            {
+              key: 'input' as CostViewKey,
+              label: 'Input Sheet',
+              title: 'Input Sheet',
+            },
+            {
+              key: 'subcontract' as CostViewKey,
+              label: 'Subcon',
+              title: 'Subcontract Cost',
+            },
+            {
+              key: 'summary' as CostViewKey,
+              label: 'Summary',
+              title: 'Summary',
+            },
+            {
+              key: 'compare' as CostViewKey,
+              label: 'Compare',
+              title: 'Version Comparison',
+            },
+          ].map((item) => (
+            <Button
+              key={item.key}
+              variant={costView === item.key ? 'default' : 'ghost'}
+              size="sm"
+
+              aria-label={item.title}
+              aria-pressed={costView === item.key}
+              title={item.title}
+              onClick={() => setCostView(item.key)}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </Surface>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {personnelTableView.isViewDirty && (
+            <Badge tone="warning">View not saved</Badge>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+
+            onClick={() => void saveConfiguration()}
+            disabled={isSavingConfiguration || !personnelTableView.ready}
+            aria-label="Save cost configuration"
+            title="Save cost inputs, allowance and travel settings, plus this version's year, grouping and column layout."
+          >
+            <Save />
+            {isSavingConfiguration ? 'Saving…' : 'Save'}
+          </Button>
+          <SimpleCostExportDialog
+            key={`${project.id}:${activeVersion}`}
+            disabled={
+              isExporting ||
+              !version ||
+              !personnelTableView.columnSettings.ready
+            }
+            getSheets={getSimpleWorkbookSheets}
+            onExport={exportSimpleWorkbook}
+          />
+          <Button
+            size="sm"
+
+            variant="outline"
+            onClick={exportWorkbook}
+            disabled={isExporting}
+            aria-label="Export Cost Workbook"
+            title="Export Cost Detail and summaries in one workbook"
+          >
+            <Download />
+            {isExporting ? 'Exporting…' : 'Full Export'}
+          </Button>
+        </div>
+        {viewControls}
+      </div>
+    </Surface>
+  );
+
   const content = (
     <Surface as="div" variant="page" className="min-w-0">
       {lockedReason && (
@@ -324,6 +418,11 @@ export function CostView({
           </Text>
           <SelectField
             aria-label="View cost version"
+            title={
+              version?.sourceVersion
+                ? `From ${version.sourceVersion}`
+                : 'Initial version'
+            }
             className="h-8 w-28"
             value={activeVersion}
             disabled={!versions.length}
@@ -335,16 +434,6 @@ export function CostView({
               </option>
             ))}
           </SelectField>
-          <Text
-            as="span"
-            tone="muted"
-            textRole="body-small"
-            className="hidden sm:inline"
-          >
-            {version?.sourceVersion
-              ? `from ${version.sourceVersion}`
-              : 'Initial version'}
-          </Text>
         </Surface>
         <Surface
           as="div"
@@ -488,98 +577,7 @@ export function CostView({
           </Button>
         </Surface>
       </Surface>
-      {/* Keep navigation and save/export actions visible when the toolbar wraps. */}
-      <Surface
-        as="div"
-        variant="panel"
-        padded
-        className="min-w-0"
-        aria-label="Cost tools"
-      >
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <Surface
-            as="fieldset"
-            variant="inset"
-            className="flex min-w-0 max-w-full flex-wrap gap-1"
-            aria-label="Cost views"
-          >
-            {[
-              {
-                key: 'input' as CostViewKey,
-                label: 'Input Sheet',
-                title: 'Input Sheet',
-              },
-              {
-                key: 'subcontract' as CostViewKey,
-                label: 'Subcon',
-                title: 'Subcontract Cost',
-              },
-              {
-                key: 'summary' as CostViewKey,
-                label: 'Summary',
-                title: 'Summary',
-              },
-              {
-                key: 'compare' as CostViewKey,
-                label: 'Compare',
-                title: 'Version Comparison',
-              },
-            ].map((item) => (
-              <Button
-                key={item.key}
-                variant={costView === item.key ? 'default' : 'ghost'}
-                size="sm"
-
-                aria-label={item.title}
-                aria-pressed={costView === item.key}
-                title={item.title}
-                onClick={() => setCostView(item.key)}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </Surface>
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            {personnelTableView.isViewDirty && (
-              <Badge tone="warning">View not saved</Badge>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-
-              onClick={() => void saveConfiguration()}
-              disabled={isSavingConfiguration || !personnelTableView.ready}
-              aria-label="Save cost configuration"
-              title="Save cost inputs, allowance and travel settings, plus this version's year, grouping and column layout."
-            >
-              <Save />
-              {isSavingConfiguration ? 'Saving…' : 'Save'}
-            </Button>
-            <SimpleCostExportDialog
-              key={`${project.id}:${activeVersion}`}
-              disabled={
-                isExporting ||
-                !version ||
-                !personnelTableView.columnSettings.ready
-              }
-              getSheets={getSimpleWorkbookSheets}
-              onExport={exportSimpleWorkbook}
-            />
-            <Button
-              size="sm"
-
-              variant="outline"
-              onClick={exportWorkbook}
-              disabled={isExporting}
-              aria-label="Export Cost Workbook"
-              title="Export Cost Detail and summaries in one workbook"
-            >
-              <Download />
-              {isExporting ? 'Exporting…' : 'Full Export'}
-            </Button>
-          </div>
-        </div>
-      </Surface>
+      {costView !== 'input' && renderCostTools()}
       {costView === 'input' ? (
         <Surface as="div" variant="page" className="min-w-0">
           <RateAssumptions
@@ -588,6 +586,7 @@ export function CostView({
             setSettings={writeIfUnlocked(setRateSettings)}
           />
           <CostInputSheet
+            renderNavigation={renderCostTools}
             projectId={project.id}
             versionCode={activeVersion}
             key={activeVersion}

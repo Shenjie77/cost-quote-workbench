@@ -530,7 +530,7 @@ export function QuoteLinesEditor({
               <TableRow key={line.id}>
                 <TableCell>{index + 1}</TableCell>
                 <TableCell>
-                  <div className="flex min-w-40 items-start gap-1">
+                  <div className="flex min-w-0 items-start gap-1">
                     {editable ? (
                       <Textarea
                         aria-label={`Line ${index + 1} description`}

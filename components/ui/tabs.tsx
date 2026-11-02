@@ -15,6 +15,7 @@ function Tabs({
     <TabsPrimitive.Root
       data-slot="tabs"
       data-orientation={orientation}
+      orientation={orientation}
       className={cn('ui-tabs', layoutClassName(className))}
       {...props}
     />

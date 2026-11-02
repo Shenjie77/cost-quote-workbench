@@ -123,3 +123,26 @@ test('loading disables both project selection and tab closing', () => {
   );
   assert.equal((html.match(/ disabled=""/g) || []).length, 4);
 });
+
+test('many long project names keep their complete accessible title and independent close targets', () => {
+  const longProjects = Array.from({ length: 12 }, (_, i) => ({
+    id: `long-${i}`,
+    name: `Project ${i} ${'Long中文'.repeat(18)}`,
+  }));
+  const html = renderToStaticMarkup(
+    React.createElement(
+      OpenProjectTabs,
+      props({
+        projects: longProjects,
+        openProjectIds: longProjects.map((p) => p.id),
+        activeProjectId: longProjects[6].id,
+      }),
+    ),
+  );
+  assert.equal((html.match(/data-variant="tab"/g) ?? []).length, 12);
+  assert.equal((html.match(/aria-current="page"/g) ?? []).length, 1);
+  for (const project of longProjects) {
+    assert.ok(html.includes(`title="${project.name}"`));
+    assert.ok(html.includes(`aria-label="Close ${project.name} tab"`));
+  }
+});

@@ -1,5 +1,7 @@
 'use client';
 
+import { WorkspaceHeader } from '@/components/workbench/workspace-header';
+
 import { Surface, Text, StatusDot } from '@/components/ui/presentation';
 /**
  * Client-side composition root. It owns session state so switching views never
@@ -2686,12 +2688,7 @@ function ProjectSessionApp({
         onDownloadBackup={downloadWorkspaceBackup}
       />
       <div className="wb-shell-main">
-        <Surface
-          data-workbench-header
-          as="header"
-          variant="shell-header"
-          className="relative z-40 lg:sticky lg:top-0"
-        >
+        <WorkspaceHeader>
           <Surface
             as="div"
             variant="body"
@@ -2862,7 +2859,7 @@ function ProjectSessionApp({
               onClose={closeProjectTab}
             />
           ) : null}
-        </Surface>
+        </WorkspaceHeader>
         <div className="wb-page-container">
           {activeView === 'workflow' && !workflowTarget && (
             <Surface

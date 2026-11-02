@@ -85,6 +85,7 @@ export function CostInputSheet({
   canEditCost,
   tableView,
   locked = false,
+  renderNavigation,
 }: {
   projectId?: string;
   versionCode?: string;
@@ -99,6 +100,7 @@ export function CostInputSheet({
   canEditCost?: () => boolean;
   tableView: PersonnelTableView;
   locked?: boolean;
+  renderNavigation?: (viewControls: React.ReactNode) => React.ReactNode;
 }) {
   const [showImport, setShowImport] = useState(false);
   const [showBulkEntry, setShowBulkEntry] = useState(false);
@@ -269,8 +271,32 @@ export function CostInputSheet({
     setPreferredMode(mode);
   };
 
+  const viewControls = (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <Button
+        type="button"
+        size="sm"
+        variant={grouped ? 'default' : 'outline'}
+        className="gap-1"
+        aria-pressed={grouped}
+        onClick={() => setGrouped((current) => !current)}
+      >
+        <ListTree className="size-3" />
+        Groups
+      </Button>
+      <PersonnelColumnSettings
+        preferences={columnSettings.preferences}
+        onSetVisible={columnSettings.setVisible}
+        onMove={columnSettings.move}
+        onReset={columnSettings.reset}
+        ready={columnSettings.ready}
+        storageAvailable={columnSettings.storageAvailable}
+      />
+    </div>
+  );
+
   return (
-    <Surface as="section" variant="panel" className="min-w-0 overflow-hidden">
+    <Surface as="section" variant="panel" className="min-w-0">
       {/* Keep cost health and totals in one scan line instead of separate metric cards. */}
       <Surface
         as="header"
@@ -349,138 +375,120 @@ export function CostInputSheet({
           onClose={() => setShowImport(false)}
         />
       )}
-      {/* One wrapping toolbar keeps year selection and entry actions next to the editable grid. */}
-      <Surface
-        as="div"
-        variant="item"
-        className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2"
-        aria-label="Cost table controls"
-      >
+      <Surface variant="sheet-controls">
+        {renderNavigation?.(viewControls)}
+        {/* One wrapping toolbar keeps year selection and entry actions next to the editable grid. */}
         <Surface
           as="div"
-          variant="inset"
-          className="flex max-w-full flex-wrap gap-1"
-          aria-label="Cost delivery year"
+          variant="item"
+          className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2"
+          aria-label="Cost table controls"
         >
-          {[
-            ...YEAR_BUCKETS.map((bucket, index) => ({
-              value: index as PersonnelYear,
-              label: bucket,
-            })),
-            { value: 'all' as PersonnelYear, label: 'All Years' },
-          ].map((year) => (
-            <Button
-              key={year.value}
-              type="button"
-              size="sm"
-              variant={yearIndex === year.value ? 'default' : 'ghost'}
-              className="gap-1"
-              aria-pressed={yearIndex === year.value}
-              onClick={() => setYearIndex(year.value)}
-            >
-              {year.label}
-            </Button>
-          ))}
-        </Surface>
-        <Button
-          type="button"
-          size="sm"
-          className="gap-1"
-          disabled={locked || !resources.some((resource) => resource.active)}
-          onClick={openNew}
-        >
-          <Plus className="size-3" />
-          Add Row
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="gap-1"
-          disabled={locked || !groups.length}
-          onClick={() => openCopyGroup()}
-        >
-          <Copy className="size-3" />
-          Copy Group
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="gap-1"
-          disabled={locked || !resources.some((resource) => resource.active)}
-          onClick={() => setShowBulkEntry(true)}
-        >
-          <ClipboardPaste className="size-3" />
-          Bulk Entry
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="gap-1"
-          disabled={locked}
-          onClick={() => {
-            if (!locked) setShowImport(!showImport);
-          }}
-        >
-          <Upload className="size-3" />
-          Import
-        </Button>
-        <fieldset
-          className="ml-auto flex min-w-0 flex-wrap items-center gap-2"
-          aria-label="Cost input mode"
-        >
-          <span className="sr-only">Mode</span>
-          <Surface as="div" variant="panel" padded className="flex gap-1">
-            {(
-              [
-                ['sites', 'Sites'],
-                ['mandays', 'Direct MD'],
-              ] as const
-            ).map(([mode, label]) => (
+          <Surface
+            as="div"
+            variant="control-group"
+            aria-label="Cost delivery year"
+          >
+            {[
+              ...YEAR_BUCKETS.map((bucket, index) => ({
+                value: index as PersonnelYear,
+                label: bucket,
+              })),
+              { value: 'all' as PersonnelYear, label: 'All Years' },
+            ].map((year) => (
               <Button
-                key={mode}
+                key={year.value}
                 type="button"
                 size="sm"
-                variant={inputMode === mode ? 'default' : 'ghost'}
-
-                aria-pressed={inputMode === mode}
-                disabled={locked}
-                title={`Set all cost rows to ${label}`}
-                onClick={() => changeMode(mode)}
+                variant={yearIndex === year.value ? 'default' : 'ghost'}
+                className="gap-1"
+                aria-pressed={yearIndex === year.value}
+                onClick={() => setYearIndex(year.value)}
               >
-                {label}
+                {year.label}
               </Button>
             ))}
           </Surface>
-          {inputMode === 'mixed' && (
-            <Text as="span" tone="muted" textRole="body-small">
-              Mixed
-            </Text>
-          )}
-        </fieldset>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Button
             type="button"
             size="sm"
-            variant={grouped ? 'default' : 'outline'}
             className="gap-1"
-            aria-pressed={grouped}
-            onClick={() => setGrouped((current) => !current)}
+            disabled={locked || !resources.some((resource) => resource.active)}
+            onClick={openNew}
           >
-            <ListTree className="size-3" />
-            Groups
+            <Plus className="size-3" />
+            Add Row
           </Button>
-          <PersonnelColumnSettings
-            preferences={columnSettings.preferences}
-            onSetVisible={columnSettings.setVisible}
-            onMove={columnSettings.move}
-            onReset={columnSettings.reset}
-            ready={columnSettings.ready}
-            storageAvailable={columnSettings.storageAvailable}
-          />
-        </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-1"
+            disabled={locked || !groups.length}
+            onClick={() => openCopyGroup()}
+          >
+            <Copy className="size-3" />
+            Copy Group
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-1"
+            disabled={locked || !resources.some((resource) => resource.active)}
+            onClick={() => setShowBulkEntry(true)}
+          >
+            <ClipboardPaste className="size-3" />
+            Bulk Entry
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-1"
+            disabled={locked}
+            onClick={() => {
+              if (!locked) setShowImport(!showImport);
+            }}
+          >
+            <Upload className="size-3" />
+            Import
+          </Button>
+          <fieldset
+            className="flex min-w-0 flex-wrap items-center gap-2"
+            aria-label="Cost input mode"
+          >
+            <span className="sr-only">Mode</span>
+            <Surface as="div" variant="control-group">
+              {(
+                [
+                  ['sites', 'Sites'],
+                  ['mandays', 'Direct MD'],
+                ] as const
+              ).map(([mode, label]) => (
+                <Button
+                  key={mode}
+                  type="button"
+                  size="sm"
+                  variant={inputMode === mode ? 'default' : 'ghost'}
+
+                  aria-pressed={inputMode === mode}
+                  disabled={locked}
+                  title={`Set all cost rows to ${label}`}
+                  onClick={() => changeMode(mode)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </Surface>
+            {inputMode === 'mixed' && (
+              <Text as="span" tone="muted" textRole="body-small">
+                Mixed
+              </Text>
+            )}
+          </fieldset>
+          {!renderNavigation && viewControls}
+        </Surface>
       </Surface>
       <PersonnelLinesTable
         rows={displayedRows}

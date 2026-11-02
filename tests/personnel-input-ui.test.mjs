@@ -184,9 +184,17 @@ test('inline personnel grid edits metadata and MD/Site without an edit dialog', 
   assert.match(html, /aria-label="BU for CI-1"/);
   assert.match(html, /aria-label="RE Type for CI-1"/);
   assert.doesNotMatch(html, /aria-label="Input mode for/);
-  assert.match(html, /w-\[72px\] max-w-\[72px\]/);
-  assert.match(html, /w-\[120px\] max-w-\[120px\]/);
-  assert.match(html, /w-\[64px\] max-w-\[64px\]/);
+  // Column resizing owns geometry: row controls must not retain a second fixed width.
+  const body = walk(PersonnelLinesTable(tableProps(row()))).find(
+    (node) => node.props['data-personnel-row'] === 'CI-1',
+  );
+  assert.ok(body);
+  assert.equal(
+    walk(body).filter((node) => typeof node.props.style?.width === 'number')
+      .length,
+    0,
+  );
+  assert.doesNotMatch(html, /<div[^>]*class="[^"]*w-\[\d+px\]/);
   assert.match(html, /Total Sites/);
   assert.match(html, /Total MD/);
   assert.match(html, /Total Cost/);
@@ -360,8 +368,18 @@ test('Action stays last and is pinned on wider screens across header, rows and t
     assert.equal(actions.length, 3);
     for (const action of actions) {
       assert.match(action.props.className, /sm:sticky sm:right-0/);
-      const styles = readFileSync(new URL('../styles/components.css', import.meta.url), 'utf8');
-      assert.match(styles, /\[data-personnel-column='action'\][\s\S]*?background: var\(--card\)[\s\S]*?border-left:/);
+      const styles = readFileSync(
+        new URL('../styles/components.css', import.meta.url),
+        'utf8',
+      );
+      assert.match(
+        styles,
+        /\.ui-table-head,[\s\S]*?\.ui-table-cell\s*\{[^}]*background: var\(--table-row-background/,
+      );
+      assert.match(
+        styles,
+        /\[data-personnel-column='action'\][^}]*border-left:/,
+      );
     }
     const body = nodes.find(
       (node) => node.props['data-personnel-row'] === 'CI-1',
@@ -857,8 +875,9 @@ test('group rename commits explicitly with captured membership, including merge 
   );
   assert.equal(field.props.onChange, undefined);
   assert.equal(updates.length, 0);
-  const submit = walk(header).find((node) => (node.type === 'form' || node.props.as === 'form')).props
-    .onSubmit;
+  const submit = walk(header).find(
+    (node) => node.type === 'form' || node.props.as === 'form',
+  ).props.onSubmit;
   const event = (value) => ({
     preventDefault: noop,
     currentTarget: { elements: { namedItem: () => ({ value }) } },
@@ -876,7 +895,7 @@ test('group rename commits explicitly with captured membership, including merge 
     (node) => node.props['data-personnel-group'] === 'Design',
   );
   walk(lockedHeader)
-    .find((node) => (node.type === 'form' || node.props.as === 'form'))
+    .find((node) => node.type === 'form' || node.props.as === 'form')
     .props.onSubmit(event('Blocked'));
   assert.equal(updates.length, 2);
   assert.match(render(PersonnelLinesTable, props), /Save \/ Merge/);
@@ -1141,4 +1160,36 @@ test('each group provides a copy entry and locked versions cannot open it', () =
   copy(true).props.onClick();
   assert.deepEqual(requests, ['Design']);
   assert.equal(copy(true).props.disabled, true);
+});
+
+test('worksheet navigation shares the grid controls and stays immediately before the cost table', () => {
+  const html = render(StandaloneCostInputSheet, {
+    rows: [row()],
+    setRows: noop,
+    rateSettings: rates,
+    setRateSettings: noop,
+    resourceTypes: resources,
+    includedTravelCost: 0,
+    travelSettings: {
+      enabled: false,
+      monthlyAllowance: 0,
+      airfarePerTrip: 0,
+      trips: 0,
+    },
+    announce: noop,
+    renderNavigation: (controls) =>
+      React.createElement(
+        'nav',
+        { 'aria-label': 'Worksheet navigation' },
+        'Input Sheet / Subcon / Summary',
+        controls,
+      ),
+  });
+  const nav = html.indexOf('aria-label="Worksheet navigation"');
+  const years = html.indexOf('aria-label="Cost delivery year"');
+  const table = html.indexOf('<table');
+  assert.ok(nav > 0 && nav < years && years < table);
+  assert.ok(html.indexOf('>Groups<', nav) < years);
+  assert.equal((html.match(/>Groups</g) ?? []).length, 1);
+  assert.equal((html.match(/data-variant="control-group"/g) ?? []).length, 2);
 });

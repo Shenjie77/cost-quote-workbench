@@ -45,9 +45,9 @@ export function RateAssumptions({
         <div
           id="delivery-date-settings"
           className={
-            annualDetailsOpen
-              ? 'order-last grid w-full grid-cols-1 gap-2 min-[480px]:grid-cols-2 sm:contents'
-              : 'hidden sm:contents'
+            annualDetailsOpen || !settings.tdStart
+              ? 'order-last grid w-full grid-cols-1 gap-2 min-[480px]:grid-cols-3'
+              : 'hidden'
           }
         >
           {(
@@ -104,7 +104,7 @@ export function RateAssumptions({
           aria-controls="annual-rate-details delivery-date-settings"
           onClick={() => setAnnualDetailsOpen(!annualDetailsOpen)}
         >
-          Rate settings
+          Delivery / Rate settings
           <Text
             as={ChevronDown}
             tone={'inherit'}

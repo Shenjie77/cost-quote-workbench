@@ -58,7 +58,7 @@ export function SubcontractSpreadsheetEntry({
             onYearChange(value === 'all' ? 'all' : Number(value))
           }
         >
-          <TabsList variant="line" aria-label="Item details year">
+          <TabsList aria-label="Item details year">
             {actualYears.map((year, index) => (
               <TabsTrigger key={index} value={String(index)}>
                 Y{index + 1}

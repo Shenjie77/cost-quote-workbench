@@ -91,10 +91,10 @@
   --type-body-small-weight: 400;
   --type-body-small-tracking: 0em;
   --page-max-width: 1600px;
-  --page-padding: var(--space-6);
-  --section-gap: var(--space-4);
-  --module-padding: var(--space-4);
-  --header-gap: var(--space-3);
+  --page-padding: var(--space-4);
+  --section-gap: var(--space-3);
+  --module-padding: var(--space-3);
+  --header-gap: var(--space-2);
   --control-sm: 28px;
   --control-md: 32px;
   --control-lg: 40px;

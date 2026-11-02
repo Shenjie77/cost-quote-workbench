@@ -108,7 +108,7 @@ const gridInput = 'w-full min-w-0';
 const gridSelect = 'w-full min-w-0';
 const cell = 'text-right tabular-nums';
 const inputCell = '';
-const scopeCell = 'sm:sticky sm:left-0 z-10 w-[180px] min-w-[180px] ';
+const scopeCell = 'sm:sticky sm:left-0 z-10';
 const amountValid = (value: number, integer = false) =>
   Number.isFinite(value) &&
   value >= 0 &&
@@ -546,7 +546,6 @@ export function PersonnelLinesTable({
     const unknown = !re || re.category !== 'internal';
     const mode = row.inputMode || 'sites';
     const annual = annualColumn(id);
-    const width = columnWidth(id);
     let content: React.ReactNode;
     let className = cell;
     if (
@@ -559,16 +558,7 @@ export function PersonnelLinesTable({
         id === 'scope' && columns[0] === 'scope' ? scopeCell : inputCell;
       const value = row[id] || '';
       content = (
-        <div
-          style={{ width, maxWidth: width }}
-          className={
-            id === 'scope'
-              ? 'w-[180px] max-w-[180px]'
-              : id === 'bu'
-                ? 'w-[72px] max-w-[72px]'
-                : 'w-[160px] max-w-[160px]'
-          }
-        >
+        <div className="w-full min-w-0">
           {id === 'bu' ? (
             <BusinessUnitSelect
               variant="grid"
@@ -613,7 +603,7 @@ export function PersonnelLinesTable({
     } else if (id === 'reType') {
       className = inputCell;
       content = (
-        <div className="w-[120px] max-w-[120px]">
+        <div className="w-full min-w-0">
           <SelectField
             variant="grid"
             aria-label={`RE Type for ${row.id}`}
@@ -652,7 +642,7 @@ export function PersonnelLinesTable({
     } else if (id === 'mdPerSite') {
       className = inputCell;
       content = (
-        <div className="w-[64px] max-w-[64px]">
+        <div className="w-full min-w-0">
           {mode === 'sites' ? (
             <PersonnelNumberInput
               label={`Mandays per site for ${row.id}`}
@@ -803,7 +793,6 @@ export function PersonnelLinesTable({
             ? 'editable'
             : 'numeric'
         }
-        style={{ width, minWidth: width, maxWidth: width }}
         className={className}
       >
         {content}

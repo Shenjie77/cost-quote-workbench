@@ -427,52 +427,62 @@ export function SubcontractCostSheet({
       </Surface>
       {
         <Surface
-          aria-label="Subcontract worksheets"
-          as="nav"
           variant="item"
-          className="flex flex-wrap items-center gap-1"
+          className="flex min-w-0 flex-wrap items-center gap-2"
         >
-          <Button
-            size="sm"
-            variant={page === 'overview' ? 'default' : 'ghost'}
-            aria-current={page === 'overview' ? 'page' : undefined}
-            onClick={() => setPage('overview')}
+          <Surface
+            aria-label="Subcontract worksheets"
+            as="nav"
+            variant="control-group"
           >
-            Overview
-          </Button>
-          {(value.mode === 'site-types' ? value.siteTypes : []).map((site) => (
             <Button
-              key={site.id}
               size="sm"
-              variant={
-                page === 'site' && selectedSite?.id === site.id
-                  ? 'default'
-                  : 'ghost'
-              }
-              aria-current={
-                page === 'site' && selectedSite?.id === site.id
-                  ? 'page'
-                  : undefined
-              }
-              onClick={() => {
-                setSelectedSiteId(site.id);
-                setPage('site');
-              }}
+              variant={page === 'overview' ? 'default' : 'ghost'}
+              aria-current={page === 'overview' ? 'page' : undefined}
+              onClick={() => setPage('overview')}
             >
-              {site.name}
-              {site.lines.some((line) => line.unitPrice === null)
-                ? ' · Unpriced'
-                : ''}
+              Overview
             </Button>
-          ))}
-          <Button
-            size="sm"
-            variant={page === 'shared' ? 'default' : 'ghost'}
-            aria-current={page === 'shared' ? 'page' : undefined}
-            onClick={() => setPage('shared')}
-          >
-            Shared / One-off Project Costs
-          </Button>
+            {(value.mode === 'site-types' ? value.siteTypes : []).map(
+              (site) => (
+                <Button
+                  key={site.id}
+                  size="sm"
+                  title={site.name}
+                  className="max-w-60 overflow-hidden"
+                  variant={
+                    page === 'site' && selectedSite?.id === site.id
+                      ? 'default'
+                      : 'ghost'
+                  }
+                  aria-current={
+                    page === 'site' && selectedSite?.id === site.id
+                      ? 'page'
+                      : undefined
+                  }
+                  onClick={() => {
+                    setSelectedSiteId(site.id);
+                    setPage('site');
+                  }}
+                >
+                  <Text as="span" className="truncate">
+                    {site.name}
+                    {site.lines.some((line) => line.unitPrice === null)
+                      ? ' · Unpriced'
+                      : ''}
+                  </Text>
+                </Button>
+              ),
+            )}
+            <Button
+              size="sm"
+              variant={page === 'shared' ? 'default' : 'ghost'}
+              aria-current={page === 'shared' ? 'page' : undefined}
+              onClick={() => setPage('shared')}
+            >
+              Shared / One-off Project Costs
+            </Button>
+          </Surface>
           <Button
             size="sm"
             variant="outline"

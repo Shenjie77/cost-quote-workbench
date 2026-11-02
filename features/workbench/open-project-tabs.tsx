@@ -47,9 +47,7 @@ export function OpenProjectTabs({
             variant="tab"
             selected={active}
             tone={active ? 'primary' : 'muted'}
-            className={
-              ' flex h-8 min-w-[120px] max-w-[240px] items-center ' + ''
-            }
+            className={'flex min-w-[120px] max-w-[240px] shrink-0 items-center'}
           >
             <Button
               variant="ghost"
@@ -62,12 +60,17 @@ export function OpenProjectTabs({
               }}
               title={project.name}
             >
-              <Text as="span" textRole="body-small" className="block truncate">
+              <Text
+                as="span"
+                textRole="body-small"
+                className="block min-w-0 flex-1 truncate"
+              >
                 {project.name}
               </Text>
             </Button>
             <Button
               variant="ghost"
+              size="icon-sm"
               type="button"
               className="flex shrink-0 items-center justify-center disabled:cursor-wait"
               disabled={disabled}

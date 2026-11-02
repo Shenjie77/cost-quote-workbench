@@ -28,9 +28,12 @@ export function Text<T extends React.ElementType = 'span'>({
   ...props
 }: ElementProps<T> & PresentationProps) {
   const Tag = as || 'span';
-  const headingRole = typeof Tag === 'string' && /^h[1-6]$/.test(Tag)
-    ? (['h1', 'h2'].includes(Tag) ? Tag as 'h1' | 'h2' : 'h3')
-    : undefined;
+  const headingRole =
+    typeof Tag === 'string' && /^h[1-6]$/.test(Tag)
+      ? ['h1', 'h2'].includes(Tag)
+        ? (Tag as 'h1' | 'h2')
+        : 'h3'
+      : undefined;
   return (
     <Tag
       data-slot="text"
@@ -46,6 +49,8 @@ export type SurfaceVariant =
   | 'shell-header'
   | 'navigation'
   | 'tab'
+  | 'control-group'
+  | 'sheet-controls'
   | 'plain'
   | 'panel'
   | 'body'
