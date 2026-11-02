@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import type { ManualCostInputs } from '../domain';
@@ -52,14 +53,18 @@ export function GroupCostTable({
   return (
     <>
       {setManualCosts && (
-        <div className="flex flex-wrap items-end gap-4 border-b p-4">
-          <div className="w-full text-sm">
+        <Surface
+          as="div"
+          variant="item"
+          className="flex flex-wrap items-end gap-4"
+        >
+          <Surface as="div" textRole="body-main" className="w-full">
             Risk allocation / 风险占比（默认按各 Category 风险前金额分摊）
-            <p className="mt-1 text-xs text-muted-foreground">
+            <Text as="p" tone="muted" textRole="body-small" className="mt-1">
               修改分类风险金额会同步更新总额；按比例重置保留总额。
-            </p>
-          </div>
-          <label className="text-xs">
+            </Text>
+          </Surface>
+          <Surface as="label" variant="field" textRole="body-small">
             Risk total (SGD) / 风险准备金总额
             <Input
               money
@@ -77,15 +82,20 @@ export function GroupCostTable({
                     riskContingency: roundMoney(value),
                   }));
               }}
-              className="mt-1 w-44"
+              className="w-44"
             />
-          </label>
+          </Surface>
           {sections.map((section) => {
             const share =
               section.items.find((item) => item.accountCode === '15')
                 ?.riskWeight ?? 0;
             return (
-              <label key={section.key} className="text-xs">
+              <Surface
+                key={section.key}
+                as="label"
+                variant="field"
+                textRole="body-small"
+              >
                 {section.label} %
                 <Input
                   type="number"
@@ -125,9 +135,9 @@ export function GroupCostTable({
                       })),
                     }));
                   }}
-                  className="mt-1 w-32"
+                  className="w-32"
                 />
-              </label>
+              </Surface>
             );
           })}
           <Button
@@ -143,7 +153,7 @@ export function GroupCostTable({
           >
             Reset by proportion / 按比例重置
           </Button>
-        </div>
+        </Surface>
       )}
       <Table aria-label="Group cost summary" className="min-w-[1400px]">
         <TableHeader>
@@ -152,7 +162,7 @@ export function GroupCostTable({
             <TableHead className="w-56">Group / Account</TableHead>
             <TableHead>Level</TableHead>
             {measures.map(([key, label]) => (
-              <TableHead key={key} className="text-right">
+              <TableHead variant="numeric" key={key} className="text-right">
                 {label}
               </TableHead>
             ))}
@@ -161,8 +171,8 @@ export function GroupCostTable({
         <TableBody>
           {sections.map((section) => (
             <Fragment key={section.key}>
-              <TableRow className="bg-muted/70">
-                <TableCell colSpan={12} className="font-semibold">
+              <TableRow tone="subtotal">
+                <TableCell colSpan={12}>
                   {section.kind === 'Category'
                     ? `Category: ${section.label}`
                     : section.label}
@@ -173,14 +183,15 @@ export function GroupCostTable({
                   <TableCell>
                     {section.kind === 'Category' ? section.label : '—'}
                   </TableCell>
-                  <TableCell className="font-medium">{item.label}</TableCell>
+                  <TableCell>{item.label}</TableCell>
                   <TableCell>
                     {item.kind === 'Group' ? 'Group' : 'Project'}
                   </TableCell>
                   {measures.map(([key]) => (
                     <TableCell
+                      variant="numeric"
                       key={key}
-                      className={`text-right tabular-nums ${key === 'total' ? 'font-semibold' : ''}`}
+                      className="text-right tabular-nums"
                     >
                       {key === 'risk' &&
                       item.accountCode === '15' &&
@@ -216,14 +227,18 @@ export function GroupCostTable({
                   ))}
                 </TableRow>
               ))}
-              <TableRow className="border-t-2 bg-muted/30 font-semibold">
+              <TableRow tone="subtotal">
                 <TableCell colSpan={3}>
                   {section.kind === 'Category'
                     ? `${section.label} — Category Subtotal`
                     : 'Project Accounts Subtotal'}
                 </TableCell>
                 {measures.map(([key]) => (
-                  <TableCell key={key} className="text-right tabular-nums">
+                  <TableCell
+                    variant="numeric"
+                    key={key}
+                    className="text-right tabular-nums"
+                  >
                     {display(key, section.totals[key])}
                   </TableCell>
                 ))}
@@ -235,16 +250,20 @@ export function GroupCostTable({
           <TableRow>
             <TableCell colSpan={3}>Total Cost with Risk</TableCell>
             {measures.map(([key]) => (
-              <TableCell key={key} className="text-right tabular-nums">
+              <TableCell
+                variant="numeric"
+                key={key}
+                className="text-right tabular-nums"
+              >
                 {display(key, totals[key])}
               </TableCell>
             ))}
           </TableRow>
         </TableFooter>
       </Table>
-      <p className="border-t px-3 py-2 text-xs leading-5 text-muted-foreground">
+      <Surface as="p" variant="footer" tone="muted" textRole="body-small">
         {GROUP_COST_NOTE}
-      </p>
+      </Surface>
     </>
   );
 }

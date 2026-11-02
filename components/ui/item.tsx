@@ -1,3 +1,4 @@
+import { layoutClassName } from '@/lib/ui-layout';
 import * as React from 'react';
 import { mergeProps } from '@base-ui/react/merge-props';
 import { useRender } from '@base-ui/react/use-render';
@@ -12,8 +13,8 @@ function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {
       role="list"
       data-slot="item-group"
       className={cn(
-        'gap-4 has-data-[size=sm]:gap-2.5 has-data-[size=xs]:gap-2 group/item-group flex w-full flex-col',
-        className,
+        'gap-4 has-data-[size=sm]:gap-3 has-data-[size=xs]:gap-2 group/item-group flex w-full flex-col',
+        layoutClassName(className),
       )}
       {...props}
     />
@@ -35,7 +36,7 @@ function ItemSeparator({
 }
 
 const itemVariants = cva(
-  '[a]:hover:bg-muted rounded-lg border text-sm group/item flex w-full flex-wrap items-center transition-colors duration-100 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 [a]:transition-colors',
+  '[a]:hover:bg-muted rounded-lg border text-body-main group/item flex w-full flex-wrap items-center transition-colors duration-(--motion-duration) outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 [a]:transition-colors',
   {
     variants: {
       variant: {
@@ -44,9 +45,9 @@ const itemVariants = cva(
         muted: 'bg-muted/50 border-transparent',
       },
       size: {
-        default: 'gap-2.5 px-3 py-2.5',
-        sm: 'gap-2.5 px-3 py-2.5',
-        xs: 'gap-2 px-2.5 py-2 in-data-[slot=dropdown-menu-content]:p-0',
+        default: 'gap-3 px-3 py-3',
+        sm: 'gap-3 px-3 py-3',
+        xs: 'gap-2 px-3 py-2 in-data-[slot=dropdown-menu-content]:p-0',
       },
     },
     defaultVariants: {
@@ -118,7 +119,7 @@ function ItemContent({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot="item-content"
       className={cn(
         'gap-1 group-data-[size=xs]/item:gap-0 flex flex-1 flex-col [&+[data-slot=item-content]]:flex-none',
-        className,
+        layoutClassName(className),
       )}
       {...props}
     />
@@ -130,8 +131,8 @@ function ItemTitle({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="item-title"
       className={cn(
-        'gap-2 text-sm leading-snug font-medium underline-offset-4 line-clamp-1 flex w-fit items-center',
-        className,
+        'gap-2 text-body-main underline-offset-4 line-clamp-1 flex w-fit items-center',
+        layoutClassName(className),
       )}
       {...props}
     />
@@ -143,8 +144,8 @@ function ItemDescription({ className, ...props }: React.ComponentProps<'p'>) {
     <p
       data-slot="item-description"
       className={cn(
-        'text-muted-foreground text-left text-sm leading-normal group-data-[size=xs]/item:text-xs line-clamp-2 font-normal [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary',
-        className,
+        'text-muted-foreground text-left text-body-main group-data-[size=xs]/item:text-body-small line-clamp-2 [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary',
+        layoutClassName(className),
       )}
       {...props}
     />
@@ -167,7 +168,7 @@ function ItemHeader({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot="item-header"
       className={cn(
         'gap-2 flex basis-full items-center justify-between',
-        className,
+        layoutClassName(className),
       )}
       {...props}
     />
@@ -180,7 +181,7 @@ function ItemFooter({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot="item-footer"
       className={cn(
         'gap-2 flex basis-full items-center justify-between',
-        className,
+        layoutClassName(className),
       )}
       {...props}
     />

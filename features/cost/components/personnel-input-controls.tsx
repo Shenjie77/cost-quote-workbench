@@ -1,3 +1,6 @@
+import { Text, Surface } from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
+import { CheckInput } from '@/components/ui/check-input';
 import { formatMoney } from '@/lib/money';
 /** Compact spreadsheet-style personnel entry. Mutations patch the latest raw inputs. */
 import {
@@ -101,14 +104,11 @@ export type PersonnelInputPatch =
 const number = (value: number) =>
   value.toLocaleString('en-SG', { maximumFractionDigits: 4 });
 const money = formatMoney;
-const gridInput =
-  'h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-2 py-0 text-xs shadow-none focus-visible:bg-white focus-visible:ring-1';
-const gridSelect =
-  'h-8 w-full min-w-0 border-0 bg-transparent px-1 text-xs outline-none focus:bg-white disabled:opacity-60';
-const cell = 'border-r border-border px-2 py-0 text-right tabular-nums';
-const inputCell = 'border-r border-border p-0';
-const scopeCell =
-  'sm:sticky sm:left-0 z-10 w-[180px] min-w-[180px] border-r border-border bg-card p-0';
+const gridInput = 'w-full min-w-0';
+const gridSelect = 'w-full min-w-0';
+const cell = 'text-right tabular-nums';
+const inputCell = '';
+const scopeCell = 'sm:sticky sm:left-0 z-10 w-[180px] min-w-[180px] ';
 const amountValid = (value: number, integer = false) =>
   Number.isFinite(value) &&
   value >= 0 &&
@@ -379,6 +379,7 @@ export function PersonnelNumberInput({
 }) {
   return (
     <Input
+      variant="grid"
       aria-label={label}
       type="number"
       min={0}
@@ -570,6 +571,7 @@ export function PersonnelLinesTable({
         >
           {id === 'bu' ? (
             <BusinessUnitSelect
+              variant="grid"
               aria-label={`BU for ${row.id}`}
               className={gridSelect}
               title={value}
@@ -581,6 +583,7 @@ export function PersonnelLinesTable({
             />
           ) : (
             <Input
+              variant="grid"
               aria-label={
                 id === 'scope'
                   ? `Scope for row ${row.id}`
@@ -588,7 +591,7 @@ export function PersonnelLinesTable({
                     ? `Category for ${row.id}`
                     : `Group for ${row.id}`
               }
-              className={gridInput}
+              className="w-full min-w-0"
               title={value}
               value={value}
               maxLength={id === 'scope' ? 500 : id === 'category' ? 120 : 200}
@@ -611,9 +614,10 @@ export function PersonnelLinesTable({
       className = inputCell;
       content = (
         <div className="w-[120px] max-w-[120px]">
-          <select
+          <SelectField
+            variant="grid"
             aria-label={`RE Type for ${row.id}`}
-            className={gridSelect}
+            className="h-8 w-full min-w-0"
             title={
               re
                 ? `${re.code} · ${re.name} · ${re.pool}${!re.active ? ' · Inactive' : ''}`
@@ -642,7 +646,7 @@ export function PersonnelLinesTable({
                   {!resource.active ? ' · Inactive' : ''}
                 </option>
               ))}
-          </select>
+          </SelectField>
         </div>
       );
     } else if (id === 'mdPerSite') {
@@ -660,9 +664,9 @@ export function PersonnelLinesTable({
               }
             />
           ) : (
-            <span className="block px-2 text-right text-muted-foreground">
+            <Text as="span" tone="muted" className="block text-right">
               —
-            </span>
+            </Text>
           )}
         </div>
       );
@@ -689,7 +693,7 @@ export function PersonnelLinesTable({
           />
         );
       } else {
-        className = `${cell} bg-muted/35`;
+        className = cell;
         content =
           field === 'sites'
             ? '—'
@@ -701,28 +705,29 @@ export function PersonnelLinesTable({
       const issue = personnelRowIssue(row, resources, rates);
       className = 'px-2 py-0 text-center';
       content = (
-        <span
+        <Text
           title={issue || 'Calculated'}
-          className={issue ? 'text-amber-800' : 'text-emerald-700'}
+          as="span"
+          tone={issue ? 'warning' : 'success'}
+          className=""
         >
           {issue ? 'Review' : 'OK'}
-        </span>
+        </Text>
       );
     } else {
       const position = displayedRows.findIndex((line) => line.id === row.id);
       const up = displayedRows[position - 1],
         down = displayedRows[position + 1];
-      className =
-        'sm:sticky sm:right-0 z-10 border-l border-border bg-card px-1 py-0 text-center';
+      className = 'sm:sticky sm:right-0 z-10 text-center';
       content = (
         <div className="flex h-8 items-center justify-center gap-0">
-          <button
+          <Button
             type="button"
             draggable={!locked && !!onMoveRow}
             disabled={locked || !onMoveRow}
             aria-label={`Drag cost row ${row.id}`}
             title="Drag above/below a row or onto a group header"
-            className="flex h-6 w-5 cursor-grab items-center justify-center rounded text-muted-foreground hover:bg-muted disabled:cursor-default disabled:opacity-40"
+            className="flex w-5 cursor-grab items-center justify-center disabled:cursor-default"
             onDragStart={(event) => {
               if (locked || !onMoveRow) {
                 event.preventDefault();
@@ -732,12 +737,12 @@ export function PersonnelLinesTable({
               event.dataTransfer.effectAllowed = 'move';
             }}
           >
-            <GripVertical className="size-3.5" />
-          </button>
+            <GripVertical className="size-4" />
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
-            className="h-6 w-5"
+            className="w-5"
             disabled={locked || !onMoveRow || !up}
             aria-label={`Move cost row ${row.id} up`}
             onClick={() => {
@@ -757,7 +762,7 @@ export function PersonnelLinesTable({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="h-6 w-5"
+            className="w-5"
             disabled={locked || !onMoveRow || !down}
             aria-label={`Move cost row ${row.id} down`}
             onClick={() => {
@@ -777,14 +782,14 @@ export function PersonnelLinesTable({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="h-6 w-5 text-destructive"
+            className="w-5"
             disabled={locked}
             aria-label={`Delete cost row ${row.scope || row.id}`}
             onClick={() => {
               if (!locked) onDelete(row);
             }}
           >
-            <Trash2 className="size-3.5" />
+            <Trash2 className="size-4" />
           </Button>
         </div>
       );
@@ -793,6 +798,11 @@ export function PersonnelLinesTable({
       <TableCell
         key={id}
         data-personnel-column={id}
+        variant={
+          className === inputCell || className === scopeCell
+            ? 'editable'
+            : 'numeric'
+        }
         style={{ width, minWidth: width, maxWidth: width }}
         className={className}
       >
@@ -802,7 +812,7 @@ export function PersonnelLinesTable({
   };
   return (
     <Table
-      className="w-max min-w-full text-xs"
+      className="w-max min-w-full"
       // Let every row extend the page; retain only horizontal scrolling for annual columns.
       containerClassName="h-auto max-h-none overflow-x-auto overflow-y-hidden overscroll-y-auto"
       onDragEnd={(event) => {
@@ -816,7 +826,7 @@ export function PersonnelLinesTable({
         effort directly.
       </caption>
       <TableHeader>
-        <TableRow className="h-8 bg-muted">
+        <TableRow tone="subtotal" className="h-8">
           {segments.map((segment, segmentIndex) =>
             segment.index === undefined ? (
               <TableHead
@@ -828,7 +838,7 @@ export function PersonnelLinesTable({
                   minWidth: columnWidth(segment.ids[0]),
                   maxWidth: columnWidth(segment.ids[0]),
                 }}
-                className={`h-8 border-r border-border px-2 ${segment.ids[0] === 'action' ? 'sm:sticky sm:right-0 z-20 border-l bg-muted' : segment.ids[0] === 'scope' && columns[0] === 'scope' ? 'sm:sticky sm:left-0 z-20 bg-muted' : ''}`}
+                className={`h-8 ${segment.ids[0] === 'action' ? 'sm:sticky sm:right-0 z-20' : segment.ids[0] === 'scope' && columns[0] === 'scope' ? 'sm:sticky sm:left-0 z-20' : ''}`}
               >
                 {getPersonnelColumnSpec(segment.ids[0])?.label}
               </TableHead>
@@ -836,28 +846,29 @@ export function PersonnelLinesTable({
               <TableHead
                 key={`year:${segmentIndex}`}
                 colSpan={segment.ids.length}
-                className="h-8 border-r border-border px-2 text-center"
+                className="h-8 text-center"
               >
                 {YEAR_BUCKETS[segment.index]}{' '}
-                <span className="font-normal text-muted-foreground">
+                <Text as="span" tone="muted">
                   · {actualYears[segment.index] ?? 'Set dates'}
-                </span>
+                </Text>
               </TableHead>
             ),
           )}
         </TableRow>
         {hasAnnual && (
-          <TableRow className="h-8 bg-muted">
+          <TableRow tone="subtotal" className="h-8">
             {columns
               .filter((id) => annualColumn(id))
               .map((id) => {
                 const annual = annualColumn(id)!;
                 return (
                   <TableHead
+                    variant="numeric"
                     key={id}
                     data-personnel-column={id}
                     style={{ minWidth: columnWidth(id) }}
-                    className="h-8 border-r border-border px-2 text-right"
+                    className="h-8 text-right"
                   >
                     {getPersonnelAnnualColumnLabel(annual.field)}
                   </TableHead>
@@ -869,10 +880,7 @@ export function PersonnelLinesTable({
       <TableBody>
         {!hasAnnual && (
           <TableRow>
-            <TableCell
-              colSpan={columns.length}
-              className="px-2 py-2 text-xs text-muted-foreground"
-            >
+            <TableCell colSpan={columns.length}>
               No columns selected for{' '}
               {yearIndex === 'all' ? 'annual effort' : YEAR_BUCKETS[yearIndex]}.
               Use Columns to show them.
@@ -893,9 +901,10 @@ export function PersonnelLinesTable({
               categoryValues.length === 1 ? categoryValues[0] : '';
             return (
               <TableRow
+                tone="subtotal"
                 key={`group:${entry.groupName}`}
                 data-personnel-group={entry.groupName}
-                className="h-8 bg-secondary hover:bg-secondary data-[drop-position=group]:bg-primary/15"
+                className="h-8"
                 onDragOver={(event) => {
                   if (allowDrop(event))
                     event.currentTarget.setAttribute?.(
@@ -919,9 +928,11 @@ export function PersonnelLinesTable({
                   });
                 }}
               >
-                <TableCell colSpan={columns.length} className="h-8 px-2 py-0">
-                  <form
-                    className="sticky left-2 inline-flex max-w-[calc(100vw-4rem)] flex-wrap items-center gap-1.5 py-1"
+                <TableCell colSpan={columns.length} className="h-8">
+                  <Surface
+                    as="form"
+                    variant="body"
+                    className="sticky left-2 inline-flex max-w-[calc(100vw-4rem)] flex-wrap items-center gap-2"
                     onSubmit={(event) => {
                       event.preventDefault();
                       if (locked || !onRenameGroup) return;
@@ -940,6 +951,7 @@ export function PersonnelLinesTable({
                     }}
                   >
                     <Input
+                      variant="grid"
                       name="groupName"
                       aria-label={`Group name ${title}`}
                       defaultValue={entry.groupName}
@@ -947,13 +959,13 @@ export function PersonnelLinesTable({
                       title={title}
                       maxLength={200}
                       disabled={locked || !onRenameGroup}
-                      className="h-8 w-[260px] rounded-sm border-transparent bg-transparent px-1 text-xs font-semibold text-primary focus-visible:bg-white"
+                      className="w-[260px]"
                     />
                     <Button
                       type="submit"
                       variant="ghost"
                       size="sm"
-                      className="h-6 gap-1 px-1 text-xs"
+                      className="gap-1"
                       disabled={locked || !onRenameGroup}
                       aria-label={`Save group name ${title}`}
                       title="Renaming to an existing group merges these rows into it."
@@ -961,7 +973,12 @@ export function PersonnelLinesTable({
                       <Save className="size-3" />
                       Save / Merge
                     </Button>
-                    <label className="ml-2 inline-flex items-center gap-1 text-xs">
+                    <Surface
+                      as="label"
+                      variant="field"
+                      textRole="body-small"
+                      className="ml-2 inline-flex items-center"
+                    >
                       Category
                       <Input
                         key={JSON.stringify(categoryValues)}
@@ -975,7 +992,7 @@ export function PersonnelLinesTable({
                         }
                         maxLength={120}
                         disabled={locked || !onApplyGroupCategory}
-                        className="h-8 w-40 rounded-sm bg-background px-2 text-xs"
+                        className="w-40"
                         onKeyDown={(event) => {
                           if (event.key !== 'Enter') return;
                           event.preventDefault();
@@ -987,12 +1004,12 @@ export function PersonnelLinesTable({
                             });
                         }}
                       />
-                    </label>
+                    </Surface>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-6 gap-1 px-1 text-xs"
+                      className="gap-1"
                       disabled={locked || !onApplyGroupCategory}
                       aria-label={`Apply category to group ${title}`}
                       onClick={(event) => {
@@ -1025,7 +1042,7 @@ export function PersonnelLinesTable({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0"
+                          className="w-6"
                           aria-label={`Move group ${title} ${direction}`}
                           title={
                             direction === 'up'
@@ -1052,7 +1069,7 @@ export function PersonnelLinesTable({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-6 gap-1 px-1 text-xs"
+                        className="gap-1"
                         aria-label={`Copy group ${title}`}
                         disabled={locked}
                         onClick={() => {
@@ -1063,27 +1080,34 @@ export function PersonnelLinesTable({
                         Copy Group
                       </Button>
                     )}
-                    <span className="shrink-0 text-xs text-muted-foreground">
+                    <Text
+                      as="span"
+                      tone="muted"
+                      textRole="body-small"
+                      className="shrink-0"
+                    >
                       {entry.rowIds.length}{' '}
                       {entry.rowIds.length === 1 ? 'row' : 'rows'}
-                    </span>
-                    <span
+                    </Text>
+                    <Text
                       aria-label={`Group totals ${title}`}
-                      className="financial-numeral inline-flex flex-wrap items-center gap-x-3 gap-y-1 border-l pl-3 text-xs"
+                      as="span"
+                      textRole="body-small"
+                      className="financial-numeral inline-flex flex-wrap items-center gap-x-3 gap-y-1"
                     >
-                      <span className="text-muted-foreground">
+                      <Text as="span" tone="muted">
                         {yearIndex === 'all'
                           ? 'All Years'
                           : YEAR_BUCKETS[yearIndex]}
-                      </span>
+                      </Text>
                       <span>
                         Cost <strong>S$ {money(entry.cost)}</strong>
                       </span>
                       <span>
                         Mandays <strong>{number(entry.mandays)} MD</strong>
                       </span>
-                    </span>
-                  </form>
+                    </Text>
+                  </Surface>
                 </TableCell>
               </TableRow>
             );
@@ -1093,7 +1117,7 @@ export function PersonnelLinesTable({
             <TableRow
               key={`row:${row.id}`}
               data-personnel-row={row.id}
-              className="h-8 data-[drop-position=before]:border-t-2 data-[drop-position=before]:border-t-primary data-[drop-position=after]:border-b-2 data-[drop-position=after]:border-b-primary"
+              className="h-8"
               onDragOver={(event) => {
                 if (!allowDrop(event)) return;
                 const rect = event.currentTarget.getBoundingClientRect();
@@ -1132,16 +1156,13 @@ export function PersonnelLinesTable({
         })}
         {!rows.length && (
           <TableRow>
-            <TableCell
-              colSpan={columns.length}
-              className="p-4 text-center text-muted-foreground"
-            >
+            <TableCell colSpan={columns.length} className="text-center">
               No cost rows. Add Row to begin.
             </TableCell>
           </TableRow>
         )}
         {!!rows.length && (
-          <TableRow className="bg-muted font-semibold">
+          <TableRow tone="subtotal">
             {columns.map((id) => {
               const annual = annualColumn(id);
               let value: string =
@@ -1180,9 +1201,9 @@ export function PersonnelLinesTable({
                   data-personnel-column={id}
                   className={
                     id === 'action'
-                      ? 'sm:sticky sm:right-0 z-10 border-l border-border bg-muted px-1 py-0'
+                      ? 'sm:sticky sm:right-0 z-10'
                       : id === 'scope' && columns[0] === 'scope'
-                        ? 'sm:sticky sm:left-0 z-10 border-r border-border bg-muted px-2 py-0'
+                        ? 'sm:sticky sm:left-0 z-10'
                         : cell
                   }
                 >
@@ -1229,12 +1250,16 @@ export function PersonnelAllowanceOptions({
   partialLegacy?: boolean;
 }) {
   return (
-    <div className="border-b border-border px-3 py-1.5">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <span className="font-medium">3% Allowance</span>
+    <Surface as="div" variant="item">
+      <Surface
+        as="div"
+        textRole="body-small"
+        className="flex flex-wrap items-center gap-x-4 gap-y-1"
+      >
+        <span>3% Allowance</span>
         {PERSONNEL_POOLS.map((pool) => (
-          <label key={pool} className="flex items-center gap-1.5">
-            <input
+          <label key={pool} className="flex items-center gap-2">
+            <CheckInput
               type="checkbox"
               aria-label={`3% allowance for ${pool}`}
               checked={selectedPools.includes(pool)}
@@ -1246,13 +1271,13 @@ export function PersonnelAllowanceOptions({
             {pool}
           </label>
         ))}
-      </div>
+      </Surface>
       {partialLegacy && (
-        <p className="mt-1 text-xs text-muted-foreground">
+        <Text as="p" tone="muted" textRole="body-small" className="mt-1">
           Existing individual selections are retained until edited. Changing
           these choices applies 3% to all RE Types in the selected Pools.
-        </p>
+        </Text>
       )}
-    </div>
+    </Surface>
   );
 }

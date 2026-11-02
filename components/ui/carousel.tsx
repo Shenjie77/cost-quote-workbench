@@ -1,5 +1,6 @@
 'use client';
 
+import { layoutClassName } from '@/lib/ui-layout';
 import * as React from 'react';
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
@@ -145,7 +146,7 @@ function CarouselContent({ className, ...props }: React.ComponentProps<'div'>) {
         className={cn(
           'flex',
           orientation === 'horizontal' ? '-ml-4' : '-mt-4 flex-col',
-          className,
+          layoutClassName(className),
         )}
         {...props}
       />
@@ -164,7 +165,7 @@ function CarouselItem({ className, ...props }: React.ComponentProps<'div'>) {
       className={cn(
         'min-w-0 shrink-0 grow-0 basis-full',
         orientation === 'horizontal' ? 'pl-4' : 'pt-4',
-        className,
+        layoutClassName(className),
       )}
       {...props}
     />
@@ -185,11 +186,11 @@ function CarouselPrevious({
       variant={variant}
       size={size}
       className={cn(
-        'rounded-full absolute touch-manipulation',
+        'rounded-lg absolute touch-manipulation',
         orientation === 'horizontal'
           ? 'inset-y-0 -left-12 my-auto'
           : '-top-12 left-1/2 -translate-x-1/2 rotate-90',
-        className,
+        layoutClassName(className),
       )}
       disabled={!canScrollPrev}
       onClick={scrollPrev}
@@ -215,11 +216,11 @@ function CarouselNext({
       variant={variant}
       size={size}
       className={cn(
-        'rounded-full absolute touch-manipulation',
+        'rounded-lg absolute touch-manipulation',
         orientation === 'horizontal'
           ? 'inset-y-0 -right-12 my-auto'
           : '-bottom-12 left-1/2 -translate-x-1/2 rotate-90',
-        className,
+        layoutClassName(className),
       )}
       disabled={!canScrollNext}
       onClick={scrollNext}

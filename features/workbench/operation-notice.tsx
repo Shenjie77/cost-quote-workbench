@@ -1,5 +1,7 @@
 'use client';
 
+import { Surface, Text } from '@/components/ui/presentation';
+import { Button } from '@/components/ui/button';
 import { useEffect, useMemo, useState } from 'react';
 import { CircleAlert, X } from 'lucide-react';
 import { createNoticeController } from './notice-controller';
@@ -20,24 +22,32 @@ export function OperationNotice({
 }) {
   if (!message) return null;
   return (
-    <output
+    <Surface
       aria-live="polite"
       aria-atomic="true"
-      className="fixed right-4 bottom-4 z-[70] flex w-fit max-w-[min(440px,calc(100vw-32px))] items-start gap-3 rounded-lg border border-primary/25 bg-primary px-4 py-3 text-[13px] leading-5 text-primary-foreground shadow-xl"
+      as="output"
+      variant="panel"
+      padded
+      tone="inverse"
+      textRole="body-small"
+      className="fixed right-4 bottom-4 z-[70] flex w-fit max-w-[min(440px,calc(100vw-32px))] items-start gap-3"
     >
-      <CircleAlert
+      <Text
         aria-hidden="true"
-        className="mt-0.5 size-4 shrink-0 text-primary-foreground/80"
+        as={CircleAlert}
+        tone="inverse"
+        className="mt-1 size-4 shrink-0"
       />
       <span className="min-w-0 whitespace-pre-wrap break-words">{message}</span>
-      <button
+      <Button
+        variant="ghost"
         type="button"
         aria-label="Close notice"
         onClick={onDismiss}
-        className="shrink-0 rounded-md p-1 text-primary-foreground/80 hover:bg-white/10 hover:text-white"
+        className="shrink-0"
       >
-        <X aria-hidden="true" className="size-3.5" />
-      </button>
-    </output>
+        <X aria-hidden="true" className="size-4" />
+      </Button>
+    </Surface>
   );
 }

@@ -1,9 +1,11 @@
+'use client';
+
+import { Surface, Text, StatusDot } from '@/components/ui/presentation';
 /**
  * Client-side composition root. It owns session state so switching views never
  * resets drafts; feature modules remain presentation/application boundaries.
  */
 
-'use client';
 import { ArchiveFolderButton } from '@/features/projects/project-files-panel';
 
 import { migrateQuoteSections } from '@/features/quote/quote-section-settings';
@@ -264,7 +266,7 @@ export function WorkbenchApp() {
   }, [masterDataOnly, masterDataTab]);
   if (masterDataOnly)
     return (
-      <main className="min-h-screen space-y-5 bg-background p-4 sm:p-6">
+      <Surface as="main" variant="inset" className="min-h-screen space-y-5">
         <Button
           variant="outline"
           onClick={() => {
@@ -284,7 +286,7 @@ export function WorkbenchApp() {
           onTabChange={setMasterDataTab}
           announce={setGlobalNotice}
         />
-      </main>
+      </Surface>
     );
   return (
     <ProjectBootstrap
@@ -2657,10 +2659,13 @@ function ProjectSessionApp({
     );
 
   return (
-    <div
+    <Surface
       inert={isProjectSwitching}
       aria-busy={isProjectSwitching}
-      className="min-h-dvh bg-background text-foreground"
+      as="div"
+      variant="inset"
+      tone="default"
+      className="min-h-dvh"
     >
       <a
         href="#workbench-content"
@@ -2680,16 +2685,22 @@ function ProjectSessionApp({
         onNavigate={navigate}
         onDownloadBackup={downloadWorkspaceBackup}
       />
-      <div className="min-h-dvh lg:pl-[216px]">
-        <header
+      <div className="wb-shell-main">
+        <Surface
           data-workbench-header
-          className="relative z-40 border-b border-border bg-card lg:sticky lg:top-0"
+          as="header"
+          variant="shell-header"
+          className="relative z-40 lg:sticky lg:top-0"
         >
-          <div className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 sm:gap-x-3 sm:px-4">
+          <Surface
+            as="div"
+            variant="body"
+            className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-x-3"
+          >
             <Button
               variant="outline"
               size="icon"
-              className="size-8 lg:hidden"
+              className="lg:hidden"
               onClick={() => setMobileNavOpen((open) => !open)}
               aria-label="Open navigation"
               aria-expanded={mobileNavOpen}
@@ -2697,48 +2708,66 @@ function ProjectSessionApp({
             >
               {mobileNavOpen ? <X /> : <Menu />}
             </Button>
-            <div className="min-w-[120px] flex-1">
+            <div className="min-w-0 basis-full">
               <p className="sr-only">{pageEyebrow}</p>
               <div className="flex min-w-0 flex-wrap items-center gap-x-2">
-                <h1 className="truncate text-base font-semibold leading-snug">
-                  {title.title}
-                </h1>
-                <span className="hidden shrink-0 text-xs text-muted-foreground xl:inline">
+                <h1 className="truncate">{title.title}</h1>
+                <Text
+                  as="span"
+                  tone="muted"
+                  textRole="body-small"
+                  className="hidden shrink-0 xl:inline"
+                >
                   {title.titleZh}
-                </span>
+                </Text>
                 {activeProjectId && activeView !== 'master-data' && (
                   <div className="flex flex-wrap items-center gap-1">
-                    {(['cost', 'quotation', 'workflow'] as const).map((category) => (
-                      <ArchiveFolderButton key={category} projectId={activeProjectId} category={category}
-                        label={category === 'cost' ? 'Cost' : category === 'quotation' ? 'Quotation' : 'Workflow'}
-                        description={`Open ${category} folder`} />
-                    ))}
+                    {(['cost', 'quotation', 'workflow'] as const).map(
+                      (category) => (
+                        <ArchiveFolderButton
+                          key={category}
+                          projectId={activeProjectId}
+                          category={category}
+                          label={
+                            category === 'cost'
+                              ? 'Cost'
+                              : category === 'quotation'
+                                ? 'Quotation'
+                                : 'Workflow'
+                          }
+                          description={`Open ${category} folder`}
+                        />
+                      ),
+                    )}
                   </div>
                 )}
                 <p className="sr-only">{pageSubtitle}</p>
               </div>
               <p className="sr-only">{pageSubtitleZh}</p>
             </div>
-            {activeView !== 'master-data' && activeView !== 'workflow' && activeView !== 'calculation' && (
-              <WorkspaceToolbar
-                persistenceStatus={persistenceStatus}
-                activeView={activeView}
-                displayDate={displayDate}
-                newVersionDisabled={!isReady || isVersionTransitioning}
-                onSave={() =>
-                  !isReady
-                    ? retryLoad()
-                    : activeView === 'cost' && costConfigurationSaveRef.current
-                      ? void costConfigurationSaveRef.current()
-                      : void saveNow()
-                }
-                onBackupAndReload={async () => {
-                  await downloadWorkspaceBackup();
-                  onEmpty();
-                }}
-                onNewVersion={createNewCostVersion}
-              />
-            )}
+            {activeView !== 'master-data' &&
+              activeView !== 'workflow' &&
+              activeView !== 'calculation' && (
+                <WorkspaceToolbar
+                  persistenceStatus={persistenceStatus}
+                  activeView={activeView}
+                  displayDate={displayDate}
+                  newVersionDisabled={!isReady || isVersionTransitioning}
+                  onSave={() =>
+                    !isReady
+                      ? retryLoad()
+                      : activeView === 'cost' &&
+                          costConfigurationSaveRef.current
+                        ? void costConfigurationSaveRef.current()
+                        : void saveNow()
+                  }
+                  onBackupAndReload={async () => {
+                    await downloadWorkspaceBackup();
+                    onEmpty();
+                  }}
+                  onNewVersion={createNewCostVersion}
+                />
+              )}
             <div className="order-last w-full min-w-0 md:order-none md:w-[230px] xl:w-[280px]">
               <ProjectSearch
                 projects={portfolioProjects}
@@ -2755,14 +2784,17 @@ function ProjectSessionApp({
               />
             </div>
             <div className="sr-only">
-              <span className="size-1.5 rounded-full bg-[#377054]" />
-              Local Data <span className="text-[10px]">本地数据</span>
+              <StatusDot tone="success" className="size-2" />
+              Local Data{' '}
+              <Text as="span" textRole="body-small">
+                本地数据
+              </Text>
             </div>
             <div className="ml-auto flex items-center gap-2 sm:ml-0">
               <Button
                 variant="outline"
                 size="icon"
-                className="size-8"
+
                 aria-label="Open project follow-up reminders"
                 onClick={() => navigate('agent')}
               >
@@ -2770,29 +2802,31 @@ function ProjectSessionApp({
               </Button>
               <Button
                 size="sm"
-                className="h-8 px-2"
+
                 onClick={() => setPanel({ type: 'new-project' })}
               >
                 <Plus aria-hidden="true" />
                 New Project{' '}
-                <span className="sr-only sm:not-sr-only sm:text-[10px] sm:opacity-70">
+                <Text as="span" className="sr-only sm:not-sr-only">
                   新建项目
-                </span>
+                </Text>
               </Button>
             </div>
-          </div>
+          </Surface>
           {mobileNavOpen ? (
-            <nav
+            <Surface
               id="mobile-workbench-navigation"
               aria-label="Main navigation"
-              className="grid grid-cols-2 gap-2 border-t border-border bg-muted/40 px-3 py-2 sm:grid-cols-3 lg:hidden"
+              as="nav"
+              variant="footer"
+              className="grid grid-cols-2 sm:grid-cols-3 lg:hidden"
             >
               {navItems.map((item) => (
                 <Button
                   key={item.key}
                   variant={activeView === item.key ? 'default' : 'outline'}
                   size="sm"
-                  className="min-h-9 justify-start px-2 text-xs"
+                  className="justify-start"
                   onClick={() => navigate(item.key)}
                   aria-current={activeView === item.key ? 'page' : undefined}
                 >
@@ -2800,7 +2834,7 @@ function ProjectSessionApp({
                   <span className="sr-only">{item.labelZh}</span>
                 </Button>
               ))}
-            </nav>
+            </Surface>
           ) : null}
           {activeView === 'project' ||
           activeView === 'cost' ||
@@ -2828,10 +2862,16 @@ function ProjectSessionApp({
               onClose={closeProjectTab}
             />
           ) : null}
-        </header>
-        <div className="relative z-0 isolate mx-auto min-w-0 w-full max-w-[1920px] px-3 py-3 sm:px-4">
+        </Surface>
+        <div className="wb-page-container">
           {activeView === 'workflow' && !workflowTarget && (
-            <div className="flex flex-wrap items-center gap-2 p-3 text-sm text-muted-foreground">
+            <Surface
+              as="div"
+              variant="body"
+              tone="muted"
+              textRole="body-main"
+              className="flex flex-wrap items-center gap-2"
+            >
               {workflowFeedback.failed ? (
                 <p role="alert">{workflowFeedback.message}</p>
               ) : (
@@ -2842,58 +2882,63 @@ function ProjectSessionApp({
                   Retry workflow loading / 重试加载
                 </Button>
               )}
-            </div>
+            </Surface>
           )}
-          <main
+          <Surface
             id="workbench-content"
             tabIndex={-1}
-            className="min-w-0 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4"
+            as="main"
+            className="min-w-0"
             inert={
-              activeView !== 'master-data' && activeView !== 'calculation' &&
+              activeView !== 'master-data' &&
+              activeView !== 'calculation' &&
               (!isReady || isVersionTransitioning)
             }
             aria-busy={
-              activeView !== 'master-data' && activeView !== 'calculation' &&
+              activeView !== 'master-data' &&
+              activeView !== 'calculation' &&
               (!isReady || isVersionTransitioning)
             }
           >
-            {activeView !== 'master-data' && activeView !== 'workflow' && activeView !== 'calculation' && (
-              <ReminderInbox
-                refreshKey={JSON.stringify(
-                  portfolioProjects.map((project) => [
-                    project.id,
-                    project.workflowVersion,
-                    project.workflowHold,
-                    project.currentWorkflowStepCode,
-                    project.workflowSteps?.map((step) => [
-                      step.code,
-                      step.state,
-                      step.updatedAt,
-                      step.reminderEnabled,
-                      step.dueAt,
-                      step.followUpDate,
+            {activeView !== 'master-data' &&
+              activeView !== 'workflow' &&
+              activeView !== 'calculation' && (
+                <ReminderInbox
+                  refreshKey={JSON.stringify(
+                    portfolioProjects.map((project) => [
+                      project.id,
+                      project.workflowVersion,
+                      project.workflowHold,
+                      project.currentWorkflowStepCode,
+                      project.workflowSteps?.map((step) => [
+                        step.code,
+                        step.state,
+                        step.updatedAt,
+                        step.reminderEnabled,
+                        step.dueAt,
+                        step.followUpDate,
+                      ]),
                     ]),
-                  ]),
-                )}
-                onOpen={(projectId, view, nodeCode) => {
-                  const project = portfolioProjects.find(
-                    (p) => p.id === projectId,
-                  );
-                  if (project) {
-                    if (
-                      view === 'project' ||
-                      view === 'ssr' ||
-                      view === 'reviews'
-                    )
-                      void openProjectWorkflow(project, nodeCode);
-                    else
-                      void selectProject(project).then((ok) => {
-                        if (ok) setActiveView(view);
-                      });
-                  }
-                }}
-              />
-            )}
+                  )}
+                  onOpen={(projectId, view, nodeCode) => {
+                    const project = portfolioProjects.find(
+                      (p) => p.id === projectId,
+                    );
+                    if (project) {
+                      if (
+                        view === 'project' ||
+                        view === 'ssr' ||
+                        view === 'reviews'
+                      )
+                        void openProjectWorkflow(project, nodeCode);
+                      else
+                        void selectProject(project).then((ok) => {
+                          if (ok) setActiveView(view);
+                        });
+                    }
+                  }}
+                />
+              )}
             {(activeView === 'cpq' || activeView === 'maintenance') && (
               <ContextBand
                 {...projectContext}
@@ -2964,7 +3009,7 @@ function ProjectSessionApp({
               </div>
             )}
             {content}
-          </main>
+          </Surface>
         </div>
       </div>
       <OperationNotice message={notice} onDismiss={() => setNotice('')} />
@@ -3083,9 +3128,9 @@ function ProjectSessionApp({
           </AlertDialogHeader>
           {deleteError && (
             <div className="space-y-2">
-              <p role="alert" className="text-sm text-destructive">
+              <Text role="alert" as="p" tone="danger" textRole="body-main">
                 {deleteError}
-              </p>
+              </Text>
               <Button
                 variant="outline"
                 onClick={async () => {
@@ -3122,6 +3167,6 @@ function ProjectSessionApp({
         onClose={() => setPanel(null)}
         onCreateProject={createProject}
       />
-    </div>
+    </Surface>
   );
 }

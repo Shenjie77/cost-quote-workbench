@@ -1,3 +1,6 @@
+import { Badge } from '@/components/ui/badge';
+import { Surface, Text } from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
 /** Cost workspace composition: versions, inputs, summaries, comparison, and export. */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -272,11 +275,17 @@ export function CostView({
   });
 
   const content = (
-    <div className="wb-page-stack min-w-0 gap-2">
+    <Surface as="div" variant="page" className="min-w-0">
       {lockedReason && (
-        <output className="block rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+        <Surface
+          as="output"
+          variant="notice"
+          tone="warning"
+          textRole="body-main"
+          className="block"
+        >
           {lockedReason} 可查看和导出。
-        </output>
+        </Surface>
       )}
       <ContextBand
         {...projectContext}
@@ -288,20 +297,34 @@ export function CostView({
         versionStatus={version?.state || 'Draft'}
       />
       {version?.calculationNote ? (
-        <output className="block rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+        <Surface
+          as="output"
+          variant="notice"
+          tone="warning"
+          textRole="body-small"
+          className="block"
+        >
           {version.calculationNote}
-        </output>
+        </Surface>
       ) : null}
       {/* A single wrapping strip keeps version selection, status and totals in view. */}
-      <section
-        className="wb-panel wb-toolbar min-w-0 sm:gap-x-4"
+      <Surface
+        as="section"
+        variant="toolbar"
+        className="min-w-0 sm:gap-x-4"
         aria-label="Cost version information"
       >
-        <div className="flex items-center gap-1.5 text-xs">
-          <span className="text-muted-foreground">Version</span>
-          <select
+        <Surface
+          as="div"
+          textRole="body-small"
+          className="flex items-center gap-2"
+        >
+          <Text as="span" tone="muted">
+            Version
+          </Text>
+          <SelectField
             aria-label="View cost version"
-            className="h-8 w-28 rounded-md border border-input bg-card px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+            className="h-8 w-28"
             value={activeVersion}
             disabled={!versions.length}
             onChange={(event) => onSelectVersion(event.target.value, costView)}
@@ -311,21 +334,30 @@ export function CostView({
                 {item.code} · {item.state}
               </option>
             ))}
-          </select>
-          <span className="hidden text-xs text-muted-foreground sm:inline">
+          </SelectField>
+          <Text
+            as="span"
+            tone="muted"
+            textRole="body-small"
+            className="hidden sm:inline"
+          >
             {version?.sourceVersion
               ? `from ${version.sourceVersion}`
               : 'Initial version'}
-          </span>
-        </div>
-        <div
-          className="flex items-center gap-1.5 text-xs"
+          </Text>
+        </Surface>
+        <Surface
+          as="div"
+          textRole="body-small"
+          className="flex items-center gap-2"
           title={`Confirmation locks Cost ${activeVersion} only.`}
         >
-          <span className="text-muted-foreground">Status</span>
-          <select
+          <Text as="span" tone="muted">
+            Status
+          </Text>
+          <SelectField
             aria-label="Current version status"
-            className="h-8 w-28 rounded-md border border-input bg-card px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:bg-muted/40 disabled:opacity-60"
+            className="h-8 w-28"
             value={version?.state || 'Draft'}
             disabled={!version || version.state === 'Confirmed'}
             onChange={(event) => {
@@ -345,12 +377,12 @@ export function CostView({
               Suspended
             </option>
             <option value="Confirmed">Confirmed</option>
-          </select>
+          </SelectField>
           {version?.state === 'Suspended' && onDeleteVersion ? (
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 text-xs text-destructive"
+
               disabled={!!versionDeletionReasons[activeVersion]}
               title={
                 versionDeletionReasons[activeVersion]
@@ -362,32 +394,45 @@ export function CostView({
               Delete Version
             </Button>
           ) : null}
-        </div>
-        <div className="flex items-baseline gap-1.5 text-xs">
-          <span className="text-muted-foreground">Version Total</span>
-          <strong className="financial-numeral text-sm font-semibold text-primary">
+        </Surface>
+        <Surface
+          as="div"
+          textRole="body-small"
+          className="flex items-baseline gap-2"
+        >
+          <Text as="span" tone="muted">
+            Version Total
+          </Text>
+          <Text
+            as="strong"
+            tone="primary"
+            textRole="body-main"
+            className="financial-numeral"
+          >
             {version ? versionTotal(version) : formatSgd(0)}
-          </strong>
-        </div>
-        <div
-          className="flex items-center gap-1.5 text-xs"
+          </Text>
+        </Surface>
+        <Surface
+          as="div"
+          textRole="body-small"
+          className="flex items-center gap-2"
           aria-label="Input Completeness"
         >
-          <span className="text-muted-foreground">Complete</span>
-          <span className="financial-numeral font-semibold">
-            {inputCompleteness}%
-          </span>
+          <Text as="span" tone="muted">
+            Complete
+          </Text>
+          <span className="financial-numeral">{inputCompleteness}%</span>
           <Progress
             value={inputCompleteness}
-            className="hidden h-1 w-10 sm:flex [&_[data-slot=progress-indicator]]:bg-primary"
+            className="hidden h-1 w-10 sm:flex"
           />
-        </div>
+        </Surface>
         {/* Keep the editing strip short on phones; secondary basis details open explicitly. */}
         <Button
           type="button"
           size="sm"
           variant="ghost"
-          className="ml-auto h-8 px-1.5 text-xs sm:hidden"
+          className="sm:hidden"
           aria-label="Cost version details"
           aria-expanded={versionDetailsOpen}
           aria-controls="cost-version-details"
@@ -395,27 +440,37 @@ export function CostView({
         >
           Details
         </Button>
-        <div
+        <Surface
           id="cost-version-details"
-          className={`${versionDetailsOpen ? 'flex' : 'hidden'} ml-auto basis-full flex-wrap items-center gap-2 text-xs sm:flex sm:basis-auto`}
+          as="div"
+          variant={'plain'}
+          tone={'inherit'}
+          textRole="body-small"
+          className={`${versionDetailsOpen ? 'flex' : 'hidden'} ml-auto basis-full flex-wrap items-center gap-2 sm:flex sm:basis-auto `}
           aria-label="Calculation Basis"
         >
-          <span className="text-xs text-muted-foreground sm:hidden">
+          <Text
+            as="span"
+            tone="muted"
+            textRole="body-small"
+            className="sm:hidden"
+          >
             {version?.sourceVersion
               ? `Cloned from ${version.sourceVersion}`
               : 'Initial version'}
-          </span>
-          <span
-            className="text-muted-foreground"
+          </Text>
+          <Text
+            as="span"
+            tone="muted"
             title={`${representativeRate?.hoursPerManday || 0}h/day · ${representativeRate?.mandaysPerMonth || 0}d/month`}
           >
             {actualYears[0] ? `FY${String(actualYears[0]).slice(-2)}` : 'FY—'} ·
             SGD
-          </span>
+          </Text>
           <Button
             size="sm"
             variant="outline"
-            className="h-8 px-2 text-xs"
+
             disabled={!!lockedReason || version?.state !== 'Draft'}
             title={
               lockedReason
@@ -431,13 +486,21 @@ export function CostView({
           >
             Apply Master Rates
           </Button>
-        </div>
-      </section>
+        </Surface>
+      </Surface>
       {/* Keep navigation and save/export actions visible when the toolbar wraps. */}
-      <div className="wb-panel min-w-0 p-2" aria-label="Cost tools">
+      <Surface
+        as="div"
+        variant="panel"
+        padded
+        className="min-w-0"
+        aria-label="Cost tools"
+      >
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <fieldset
-            className="flex min-w-0 max-w-full flex-wrap gap-0.5 rounded-md bg-muted/40 p-0.5"
+          <Surface
+            as="fieldset"
+            variant="inset"
+            className="flex min-w-0 max-w-full flex-wrap gap-1"
             aria-label="Cost views"
           >
             {[
@@ -466,7 +529,7 @@ export function CostView({
                 key={item.key}
                 variant={costView === item.key ? 'default' : 'ghost'}
                 size="sm"
-                className="h-8 px-2.5 text-xs"
+
                 aria-label={item.title}
                 aria-pressed={costView === item.key}
                 title={item.title}
@@ -475,17 +538,15 @@ export function CostView({
                 {item.label}
               </Button>
             ))}
-          </fieldset>
+          </Surface>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {personnelTableView.isViewDirty && (
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
-                View not saved
-              </span>
+              <Badge tone="warning">View not saved</Badge>
             )}
             <Button
               size="sm"
               variant="outline"
-              className="h-8 px-2.5 text-xs"
+
               onClick={() => void saveConfiguration()}
               disabled={isSavingConfiguration || !personnelTableView.ready}
               aria-label="Save cost configuration"
@@ -506,7 +567,7 @@ export function CostView({
             />
             <Button
               size="sm"
-              className="h-8 px-2.5 text-xs"
+
               variant="outline"
               onClick={exportWorkbook}
               disabled={isExporting}
@@ -518,9 +579,9 @@ export function CostView({
             </Button>
           </div>
         </div>
-      </div>
+      </Surface>
       {costView === 'input' ? (
-        <div className="wb-page-stack min-w-0 gap-2">
+        <Surface as="div" variant="page" className="min-w-0">
           <RateAssumptions
             locked={!!lockedReason}
             settings={rateSettings}
@@ -561,7 +622,7 @@ export function CostView({
               />
             </fieldset>
           ) : null}
-        </div>
+        </Surface>
       ) : null}
       {costView === 'summary' ? (
         <CostSummaryView
@@ -612,7 +673,7 @@ export function CostView({
           onUpdateVersionState={onUpdateVersionState}
         />
       ) : null}
-    </div>
+    </Surface>
   );
   // Share the saved directory and lock without copying either into persisted cost data.
   return (

@@ -1,18 +1,12 @@
+import { Text } from '@/components/ui/presentation';
+import { Textarea } from '@/components/ui/textarea';
 import { formatMoney } from '@/lib/money';
-/** Direct quantity entry with deliberate, cancellable item metadata editing. */
-import { useState } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+/** One inline editing contract for every subcontract field and annual quantity. */
+import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BusinessUnitSelect } from '@/features/master-data/business-unit-select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+
 import {
   Table,
   TableBody,
@@ -31,55 +25,40 @@ import {
 type ItemLine = SubcontractCostLine | SubcontractSiteLine;
 const wholeUnits = (unit: string) => unit.trim().toLowerCase() === 'pcs';
 const money = formatMoney;
-const cellInput =
-  'h-8 rounded-md border-border/70 bg-white px-2 text-xs shadow-none';
+const cellInput = 'w-full';
 const yearLabel = (years: (number | null)[], index: number) =>
   `${YEAR_BUCKETS[index]}${years[index] ? ` · ${years[index]}` : ''}`;
 const annualCost = (line: SubcontractCostLine, index: number, factor = 1) =>
   roundMoney((line.unitPrice ?? 0) * line.quantities[index] * factor);
 
-/** Include allocation values so metadata editing cannot restore stale quantities. */
-const itemFingerprint = (line: ItemLine) =>
-  JSON.stringify([
-    line.id,
-    line.catalogItemId ?? null,
-    line.code,
-    line.description,
-    line.category ?? '',
-    line.bu,
-    line.unit,
-    line.unitPrice,
-    line.currency,
+/** Validate the latest complete row; incomplete draft text and null prices remain supported. */
+export function subcontractItemIssues(line: ItemLine) {
+  if (
+    wholeUnits(line.unit) &&
+    ('quantities' in line ? line.quantities : [line.quantityPerSite]).some(
+      (quantity) => !Number.isInteger(quantity),
+    )
+  )
+    return [
+      'PCS requires whole quantities. Adjust quantities before changing the unit to pcs.',
+    ];
+  return validateSubcontractCost(
     'quantities' in line
-      ? ['project', ...line.quantities]
-      : ['site', line.quantityPerSite],
-  ]);
-export const createSubcontractItemEdit = (line: ItemLine) => ({
-  baseline: itemFingerprint(line),
-  draft: structuredClone(line),
-});
-
-/** A remote update must be reviewed before replacing a saved line from this editor. */
-export function saveSubcontractItemEdit({
-  line,
-  baseline,
-  draft,
-  onSave,
-  announce,
-}: {
-  line: ItemLine;
-  baseline: string;
-  draft: ItemLine;
-  onSave: (line: ItemLine) => void | boolean;
-  announce: (message: string) => void;
-}) {
-  if (itemFingerprint(line) !== baseline) {
-    announce(
-      'This item has changed. Reload the latest item before saving your edits.',
-    );
-    return false;
-  }
-  return onSave(structuredClone(draft)) !== false;
+      ? { mode: 'project', lines: [line], siteTypes: [] }
+      : {
+          mode: 'site-types',
+          lines: [],
+          siteTypes: [
+            {
+              id: 'inline',
+              name: 'Inline item',
+              sites: [0, 0, 0, 0, 0],
+              lines: [line],
+            },
+          ],
+        },
+    false,
+  ).map((issue) => issue.message);
 }
 
 export function SubcontractNumberInput({
@@ -138,233 +117,6 @@ export function SubcontractNumberInput({
   );
 }
 
-/** Stateless form keeps all proposed values outside the saved cost version. */
-export function SubcontractItemForm({
-  draft,
-  onDraftChange,
-  onSave,
-  onClose,
-  locked = false,
-  announce,
-}: {
-  draft: ItemLine;
-  onDraftChange: (line: ItemLine) => void;
-  onSave: (line: ItemLine) => void | boolean;
-  onClose: () => void;
-  locked?: boolean;
-  announce: (message: string) => void;
-}) {
-  const update = (next: ItemLine) => {
-    if (!locked) onDraftChange(next);
-  };
-  const save = () => {
-    if (locked) return;
-    if (
-      wholeUnits(draft.unit) &&
-      ('quantities' in draft ? draft.quantities : [draft.quantityPerSite]).some(
-        (quantity) => !Number.isInteger(quantity),
-      )
-    ) {
-      announce(
-        'PCS requires whole quantities. Adjust the quantities before changing this item to pcs.',
-      );
-      return;
-    }
-    const issues = validateSubcontractCost(
-      'quantities' in draft
-        ? { mode: 'project', lines: [draft], siteTypes: [] }
-        : {
-            mode: 'site-types',
-            lines: [],
-            siteTypes: [
-              {
-                id: 'item-review',
-                name: 'Item review',
-                sites: [0, 0, 0, 0, 0],
-                lines: [draft],
-              },
-            ],
-          },
-      false,
-    );
-    if (issues.length) {
-      announce(issues[0].message);
-      return;
-    }
-    if (onSave(structuredClone(draft)) !== false) onClose();
-  };
-  return (
-    <form
-      className="space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        save();
-      }}
-    >
-      <label className="grid gap-1.5 text-xs font-medium">
-        Item description
-        <textarea
-          className="min-h-20 w-full resize-y rounded-md border border-border bg-white px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
-          aria-label="Item description"
-          value={draft.description}
-          disabled={locked}
-          placeholder="Describe the work included in this item"
-          onChange={(event) =>
-            update({ ...draft, description: event.target.value })
-          }
-        />
-      </label>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="col-span-2 grid gap-1.5 text-xs font-medium">
-          Category
-          <Input
-            aria-label="Item category"
-            className="bg-white font-normal"
-            value={draft.category ?? ''}
-            maxLength={120}
-            disabled={locked}
-            onChange={(event) =>
-              update({ ...draft, category: event.target.value })
-            }
-          />
-        </label>
-        <label className="grid gap-1.5 text-xs font-medium">
-          Code
-          <Input
-            aria-label="Item code"
-            className="bg-white font-normal"
-            value={draft.code}
-            disabled={locked}
-            onChange={(event) => update({ ...draft, code: event.target.value })}
-          />
-        </label>
-        <label
-          htmlFor={`subcontract-item-bu-${draft.id}`}
-          className="grid gap-1.5 text-xs font-medium"
-        >
-          Business unit
-          <BusinessUnitSelect
-            id={`subcontract-item-bu-${draft.id}`}
-            aria-label="Item business unit"
-            className="bg-white font-normal"
-            value={draft.bu}
-            disabled={locked}
-            onChange={(event) => update({ ...draft, bu: event.target.value })}
-          />
-        </label>
-        <label className="grid gap-1.5 text-xs font-medium">
-          Unit
-          <Input
-            aria-label="Item unit"
-            className="bg-white font-normal"
-            value={draft.unit}
-            disabled={locked}
-            placeholder="pcs, m, job…"
-            onChange={(event) => update({ ...draft, unit: event.target.value })}
-          />
-        </label>
-        <div className="grid gap-1.5 text-xs font-medium">
-          <span>Unit price · SGD</span>
-          <SubcontractNumberInput
-            value={draft.unitPrice}
-            label="Item unit price"
-            price
-            locked={locked}
-            announce={announce}
-            onChange={(unitPrice) => update({ ...draft, unitPrice })}
-          />
-        </div>
-      </div>
-      <p className="text-xs leading-4 text-muted-foreground">
-        PCS uses whole quantities. Other units can use decimals. A blank price
-        remains unpriced; enter 0 for a free item.
-      </p>
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={locked}>
-          Save Item
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-}
-
-export function SubcontractItemDialog({
-  line,
-  onSave,
-  onClose,
-  title = 'Edit Item',
-  locked = false,
-  announce,
-}: {
-  line: ItemLine;
-  onSave: (line: ItemLine) => void | boolean;
-  onClose: () => void;
-  title?: string;
-  locked?: boolean;
-  announce: (message: string) => void;
-}) {
-  const [edit, setEdit] = useState(() => createSubcontractItemEdit(line));
-  const stale = itemFingerprint(line) !== edit.baseline;
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Item details and price for this cost version.
-          </DialogDescription>
-        </DialogHeader>
-        {stale && (
-          <div
-            role="alert"
-            className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
-          >
-            <p>
-              This item changed while you were editing. Your draft is still
-              here. Reloading replaces these unsaved edits with the latest
-              values.
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setEdit(createSubcontractItemEdit(line))}
-            >
-              Reload Latest
-            </Button>
-          </div>
-        )}
-        <SubcontractItemForm
-          draft={edit.draft}
-          onDraftChange={(draft) =>
-            setEdit((current) => ({ ...current, draft }))
-          }
-          onSave={(draft) =>
-            saveSubcontractItemEdit({
-              line,
-              baseline: edit.baseline,
-              draft,
-              onSave,
-              announce,
-            })
-          }
-          onClose={onClose}
-          locked={locked}
-          announce={announce}
-        />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export function SubcontractDeleteButton({
   line,
   locked = false,
@@ -381,7 +133,7 @@ export function SubcontractDeleteButton({
       type="button"
       size="icon-sm"
       variant="ghost"
-      className="size-8 text-muted-foreground hover:text-destructive"
+
       disabled={locked}
       aria-label={`Delete ${line.code}`}
       title="Remove item"
@@ -396,63 +148,8 @@ export function SubcontractDeleteButton({
           onDelete(line.id);
       }}
     >
-      <Trash2 className="size-3.5" />
+      <Trash2 className="size-4" />
     </Button>
-  );
-}
-
-function SubcontractItemActions({
-  line,
-  onChange,
-  onDelete,
-  locked,
-  announce,
-  deleteConfirmation,
-}: {
-  line: ItemLine;
-  onChange: (line: ItemLine) => void;
-  onDelete: (id: string) => void;
-  locked: boolean;
-  announce: (message: string) => void;
-  deleteConfirmation?: (line: ItemLine) => string;
-}) {
-  const [editing, setEditing] = useState(false);
-  return (
-    <>
-      <div className="flex justify-end gap-0.5">
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          className="size-8 text-muted-foreground"
-          disabled={locked}
-          aria-label={`Edit ${line.code}`}
-          title="Edit item details"
-          onClick={() => {
-            if (!locked) setEditing(true);
-          }}
-        >
-          <Pencil className="size-3.5" />
-        </Button>
-        <SubcontractDeleteButton
-          line={line}
-          locked={locked}
-          onDelete={onDelete}
-          deleteConfirmation={deleteConfirmation}
-        />
-      </div>
-      {editing && (
-        <SubcontractItemDialog
-          line={line}
-          locked={locked}
-          announce={announce}
-          onSave={(next) => {
-            if (!locked) onChange(next);
-          }}
-          onClose={() => setEditing(false)}
-        />
-      )}
-    </>
   );
 }
 
@@ -488,7 +185,13 @@ export function SubcontractLinesTable({
       ? yearIndex
       : 0;
   const change = (line: ItemLine) => {
-    if (!locked) onChange(line);
+    if (locked) return;
+    const issues = subcontractItemIssues(line);
+    if (issues.length) {
+      announce(issues[0]);
+      return;
+    }
+    onChange(line);
   };
   const columnWidths = [
     96,
@@ -505,7 +208,7 @@ export function SubcontractLinesTable({
     <Table
       key={allYears ? 'all-years' : 'single-year'}
       aria-label="Item details table"
-      className="table-fixed text-xs [&_td]:py-1 [&_td]:whitespace-normal [&_td]:break-words [&_th]:h-8 [&_th]:px-2 [&_th]:pr-3"
+      className="table-fixed [&_td]:whitespace-normal [&_td]:break-words [&_th]:h-8"
       style={{ width: columnWidths.reduce((sum, width) => sum + width, 0) }}
     >
       <colgroup>
@@ -514,35 +217,48 @@ export function SubcontractLinesTable({
         ))}
       </colgroup>
       <TableHeader>
-        <TableRow className="bg-muted/35 hover:bg-muted/35">
+        <TableRow tone="subtotal">
           <TableHead className="min-w-24">Code</TableHead>
           <TableHead className="min-w-40">Description</TableHead>
           <TableHead>Category</TableHead>
           <TableHead>BU</TableHead>
           <TableHead>Unit</TableHead>
-          <TableHead className="min-w-24 text-right">Unit Price</TableHead>
+          <TableHead variant="numeric" className="min-w-24 text-right">
+            Unit Price
+          </TableHead>
           {allYears ? (
             YEAR_BUCKETS.map((bucket, index) => (
-              <TableHead key={bucket} className="min-w-28 text-right">
+              <TableHead
+                variant="numeric"
+                key={bucket}
+                className="min-w-28 text-right"
+              >
                 {yearLabel(actualYears, index)}
-                <span className="block text-xs font-normal text-muted-foreground">
+                <Text
+                  as="span"
+                  tone="muted"
+                  textRole="body-small"
+                  className="block"
+                >
                   Qty / Cost
-                </span>
+                </Text>
               </TableHead>
             ))
           ) : (
-            <TableHead className="min-w-20 text-right">
+            <TableHead variant="numeric" className="min-w-20 text-right">
               {project ? `${YEAR_BUCKETS[selectedYear]} Qty` : 'Qty / Site'}
             </TableHead>
           )}
-          <TableHead className="min-w-24 text-right">
+          <TableHead variant="numeric" className="min-w-24 text-right">
             {allYears
               ? 'Total'
               : project
                 ? `${YEAR_BUCKETS[selectedYear]} Cost`
                 : 'Cost / Site'}
           </TableHead>
-          <TableHead className="w-16 text-right">Action</TableHead>
+          <TableHead variant="numeric" className="w-16 text-right">
+            Action
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -551,39 +267,72 @@ export function SubcontractLinesTable({
           const displayedYears = allYears ? [0, 1, 2, 3, 4] : [selectedYear];
           return (
             <TableRow key={line.id} className="group align-middle">
-              <TableCell>
-                <strong className="font-mono font-bold">
-                  {line.code || 'No code'}
-                </strong>
+              <TableCell variant="editable">
+                <Input
+                  aria-label={`${line.code} code`}
+                  value={line.code}
+                  disabled={locked}
+                  onChange={(event) =>
+                    change({ ...line, code: event.target.value })
+                  }
+                />
               </TableCell>
-              <TableCell className="max-w-md whitespace-normal">
-                {line.description || 'Untitled item'}
+              <TableCell variant="editable">
+                <Textarea
+                  aria-label={`${line.code} description`}
+                  value={line.description}
+                  rows={1}
+                  disabled={locked}
+                  onChange={(event) =>
+                    change({ ...line, description: event.target.value })
+                  }
+                />
               </TableCell>
-              <TableCell>
+              <TableCell variant="editable">
                 <Input
                   aria-label={`${line.code} category`}
-                  className={cellInput}
                   value={line.category ?? ''}
                   maxLength={120}
                   disabled={locked}
                   placeholder="Category"
-                  onChange={(event) => {
-                    if (event.target.value.length <= 120)
-                      change({ ...line, category: event.target.value });
-                  }}
+                  onChange={(event) =>
+                    change({ ...line, category: event.target.value })
+                  }
                 />
               </TableCell>
-              <TableCell>{line.bu || 'No BU'}</TableCell>
-              <TableCell>{line.unit || 'No unit'}</TableCell>
-              <TableCell
-                className="text-right tabular-nums"
-                aria-label={`${line.code} unit price`}
-              >
-                {line.unitPrice === null ? 'Not priced' : money(line.unitPrice)}
+              <TableCell variant="editable">
+                <BusinessUnitSelect
+                  aria-label={`${line.code} business unit`}
+                  value={line.bu}
+                  disabled={locked}
+                  onChange={(event) =>
+                    change({ ...line, bu: event.target.value })
+                  }
+                />
+              </TableCell>
+              <TableCell variant="editable">
+                <Input
+                  aria-label={`${line.code} unit`}
+                  value={line.unit}
+                  disabled={locked}
+                  onChange={(event) =>
+                    change({ ...line, unit: event.target.value })
+                  }
+                />
+              </TableCell>
+              <TableCell variant="editable">
+                <SubcontractNumberInput
+                  value={line.unitPrice}
+                  label={`${line.code} unit price`}
+                  price
+                  locked={locked}
+                  announce={announce}
+                  onChange={(unitPrice) => change({ ...line, unitPrice })}
+                />
               </TableCell>
               {annual ? (
                 displayedYears.map((index) => (
-                  <TableCell key={index} className="px-2">
+                  <TableCell key={index}>
                     <SubcontractNumberInput
                       value={line.quantities[index]}
                       label={`${line.code} ${YEAR_BUCKETS[index]} quantity`}
@@ -600,16 +349,21 @@ export function SubcontractLinesTable({
                       }
                     />
                     {allYears && (
-                      <span className="mt-1 block text-right text-xs tabular-nums text-muted-foreground">
+                      <Text
+                        as="span"
+                        tone="muted"
+                        textRole="body-small"
+                        className="mt-1 block text-right tabular-nums"
+                      >
                         {line.unitPrice === null
                           ? 'Not priced'
                           : money(annualCost(line, index, rateFactors[index]))}
-                      </span>
+                      </Text>
                     )}
                   </TableCell>
                 ))
               ) : (
-                <TableCell className="px-2">
+                <TableCell>
                   <SubcontractNumberInput
                     value={line.quantityPerSite}
                     label={`${line.code} quantity per site`}
@@ -622,11 +376,11 @@ export function SubcontractLinesTable({
                   />
                 </TableCell>
               )}
-              <TableCell className="text-right font-semibold tabular-nums">
+              <TableCell variant="numeric" className="text-right tabular-nums">
                 {line.unitPrice === null ? (
-                  <span className="text-xs font-medium text-amber-800">
+                  <Text as="span" tone="warning" textRole="body-small">
                     Not priced
-                  </span>
+                  </Text>
                 ) : (
                   money(
                     annual
@@ -648,13 +402,11 @@ export function SubcontractLinesTable({
                   )
                 )}
               </TableCell>
-              <TableCell className="px-1">
-                <SubcontractItemActions
+              <TableCell>
+                <SubcontractDeleteButton
                   line={line}
-                  onChange={change}
                   onDelete={onDelete}
                   locked={locked}
-                  announce={announce}
                   deleteConfirmation={deleteConfirmation}
                 />
               </TableCell>
@@ -663,10 +415,7 @@ export function SubcontractLinesTable({
         })}
         {!lines.length && (
           <TableRow>
-            <TableCell
-              colSpan={allYears ? 12 : 8}
-              className="py-8 text-center text-xs text-muted-foreground"
-            >
+            <TableCell colSpan={columnWidths.length} className="text-center">
               Add items from Master Data or use Bulk Entry to begin.
             </TableCell>
           </TableRow>

@@ -48,6 +48,7 @@ const hooks = registerHooks({
     return { format: 'module', source, shortCircuit: true };
   },
 });
+const { SelectField } = await import('../components/ui/select-field.tsx');
 
 const { MasterDataView, ResourceIdentityCells } =
   await import('../features/master-data/master-data-view.tsx');
@@ -138,7 +139,7 @@ test('actual RE controls update category and dependents in one event without cha
   const change = (field, value) => {
     const select = walk(tree()).find(
       (node) =>
-        node.type === 'select' &&
+        node.type === SelectField &&
         node.props['aria-label'].endsWith(` ${field}`),
     );
     assert.ok(select);
@@ -160,14 +161,14 @@ test('actual RE controls update category and dependents in one event without cha
   assert.deepEqual([row.pool, row.level, row.hqTravel], [null, null, false]);
   for (const control of walk(tree()).filter(
     (node) =>
-      node.type === 'select' && / (pool|level)$/.test(node.props['aria-label']),
+      node.type === SelectField && / (pool|level)$/.test(node.props['aria-label']),
   ))
     assert.equal(control.props.disabled, true);
   change('category', 'internal');
   assert.deepEqual([row.pool, row.level, row.hqTravel], ['LOCAL', 'L1', false]);
   for (const control of walk(tree()).filter(
     (node) =>
-      node.type === 'select' && / (pool|level)$/.test(node.props['aria-label']),
+      node.type === SelectField && / (pool|level)$/.test(node.props['aria-label']),
   ))
     assert.equal(control.props.disabled, false);
 });

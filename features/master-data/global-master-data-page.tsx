@@ -1,4 +1,11 @@
 'use client';
+
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
 import { MasterDataBulkEntryPage } from '@/features/bulk-entry/master-data-entry';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -232,19 +239,23 @@ export function GlobalConflictFields({
     hidden.add('pricingBasis');
   }
   return (
-    <dl className="my-3 grid gap-x-5 gap-y-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
+    <Surface
+      as="dl"
+      textRole="body-small"
+      className="my-3 grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3"
+    >
       {Object.entries(item)
         .filter(([key]) => !hidden.has(key))
         .map(([key, value]) => (
           <div key={key}>
-            <dt className="text-muted-foreground">
+            <Text as="dt" tone="muted">
               {(tab === 'workflow'
                 ? workflowFieldLabels
                 : tab === 'quote-templates'
                   ? quoteTemplateFieldLabels
                   : fieldLabels)[key] || key}
-            </dt>
-            <dd className="mt-0.5 whitespace-pre-wrap break-words font-medium">
+            </Text>
+            <dd className="mt-1 whitespace-pre-wrap break-words">
               {displayValue(
                 value,
                 tab === 'workflow' || tab === 'quote-templates',
@@ -252,7 +263,7 @@ export function GlobalConflictFields({
             </dd>
           </div>
         ))}
-    </dl>
+    </Surface>
   );
 }
 
@@ -307,7 +318,7 @@ export function GlobalMasterDataPage({
     (change) =>
       store.setItems(tab, change);
   return (
-    <div className="wb-page-stack gap-2" data-master-data-scope="global">
+    <Surface as="div" variant="page" data-master-data-scope="global">
       {publication && (
         <WorkflowPublishDialog
           steps={publication.steps}
@@ -323,11 +334,16 @@ export function GlobalMasterDataPage({
           }}
         />
       )}
-      <output className="flex flex-wrap items-center gap-2 border-b px-1 py-1.5 text-xs">
-        <strong className="mr-auto font-medium text-muted-foreground">
+      <Surface
+        as="output"
+        variant="item"
+        textRole="body-small"
+        className="flex flex-wrap items-center gap-2"
+      >
+        <Text as="strong" tone="muted" className="mr-auto">
           {workflow ? 'Global Master Data' : 'Global Master Data / 全局主数据'}
-        </strong>
-        <span className="px-1 font-medium text-muted-foreground">
+        </Text>
+        <Text as="span" tone="muted">
           {state.loading
             ? workflow
               ? 'Loading'
@@ -341,11 +357,11 @@ export function GlobalMasterDataPage({
                 : workflow
                   ? 'Not loaded'
                   : 'Not loaded / 尚未载入'}
-        </span>
+        </Text>
         {isGlobalTabDirty(state) && (
-          <span className="rounded px-1.5 py-0.5 font-medium text-amber-800">
+          <Text as="span" tone="warning">
             {workflow ? 'Unsaved changes' : 'Unsaved changes / 未保存修改'}
-          </span>
+          </Text>
         )}
         <Button
           size="sm"
@@ -365,18 +381,21 @@ export function GlobalMasterDataPage({
         >
           {workflow ? 'Reload Template' : 'Reload this tab / 重新加载'}
         </Button>
-      </output>
+      </Surface>
       {(state.error || dependencyState?.error) && (
-        <div
+        <Surface
           role="alert"
-          className="rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive"
+          as="div"
+          variant="notice"
+          tone="danger"
+          textRole="body-main"
         >
           {state.error || dependencyState?.error}
-          <p className="mt-1 text-xs">
+          <Text as="p" textRole="body-small" className="mt-1">
             {workflow
               ? 'Your edits are retained. If another operation updated the template, reload it and reapply your changes. Newer data will not be overwritten.'
               : '修改仍保留。若其他操作已更新此页签，请重新加载后重新编辑；不会覆盖新数据。'}
-          </p>
+          </Text>
           {dependencyState?.error && dependency && (
             <Button
               size="sm"
@@ -386,40 +405,43 @@ export function GlobalMasterDataPage({
               Retry related global catalog / 重试关联全局目录
             </Button>
           )}
-        </div>
+        </Surface>
       )}
       {!!state.record?.conflicts.length && (
-        <section className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
-          <h2 className="font-semibold">
+        <Surface
+          as="section"
+          variant="notice"
+          tone="warning"
+          textRole="body-main"
+          className="space-y-2"
+        >
+          <h2>
             {workflow
               ? 'Resolve Source Differences'
               : 'Resolve source differences / 确认全局数据来源'}
           </h2>
-          <p className="text-xs">
+          <Text as="p" textRole="body-small">
             {workflow
               ? 'Migration retained values from different sources. Review and select the template values, then preview the project impact before publishing. Completed history and cost snapshots are retained.'
               : '迁移保留了不同来源的值。请核对并选择未来项目采用的值，然后保存当前页签；已有项目快照保持不变。'}
-          </p>
+          </Text>
           {state.record.conflicts.map((conflict) => (
-            <details
-              key={conflict.key}
-              className="rounded-lg border bg-card p-3"
-            >
-              <summary className="cursor-pointer font-medium focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
+            <Disclosure key={conflict.key}>
+              <DisclosureSummary className="cursor-pointer">
                 {globalConflictTitle(conflict, activeTab)} ·{' '}
                 {conflict.variants.length}{' '}
                 {workflow ? 'source values' : 'source values / 个来源值'}
-              </summary>
+              </DisclosureSummary>
               {conflict.variants.map((variant, index) => (
-                <div key={index} className="mt-2 border-t pt-2">
-                  <p className="text-xs text-muted-foreground">
+                <Surface key={index} as="div" variant="footer" className="mt-2">
+                  <Text as="p" tone="muted" textRole="body-small">
                     {variant.sources
                       .map(
                         (source) =>
                           `${source.projectName || source.projectId || 'Initial defaults'}${source.revision === undefined ? '' : ` · r${source.revision}`}`,
                       )
                       .join(' / ')}
-                  </p>
+                  </Text>
                   <GlobalConflictFields item={variant.item} tab={activeTab} />
                   <Button
                     size="sm"
@@ -451,11 +473,11 @@ export function GlobalMasterDataPage({
                         ? 'Use This Value'
                         : 'Use this value / 采用此值'}
                   </Button>
-                </div>
+                </Surface>
               ))}
-            </details>
+            </Disclosure>
           ))}
-        </section>
+        </Surface>
       )}
       {bulkEntry && (
         <MasterDataBulkEntryPage
@@ -531,6 +553,6 @@ export function GlobalMasterDataPage({
           announce={announce}
         />
       </div>
-    </div>
+    </Surface>
   );
 }

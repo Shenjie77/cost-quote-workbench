@@ -1,3 +1,4 @@
+import { Surface } from '@/components/ui/presentation';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,14 +45,20 @@ export function ServiceHistoryEditor({
     );
   return (
     <section aria-label="Service quotation history">
-      <div className="wb-toolbar justify-between border-b text-xs text-muted-foreground">
+      <Surface
+        as="div"
+        variant="toolbar"
+        tone="muted"
+        textRole="body-small"
+        className="justify-between"
+      >
         <span>
           {visible.length} records · SGD · Quoted Amount = Quantity × Unit Price
           · GP% = (Quoted Amount − Cost) / Quoted Amount
         </span>
         <Button
           size="sm"
-          className="h-8 text-xs"
+
           onClick={() =>
             setRows((current) => [
               ...current,
@@ -74,11 +81,8 @@ export function ServiceHistoryEditor({
         >
           <Plus /> Add row
         </Button>
-      </div>
-      <Table
-        aria-label="Service history grid"
-        className="min-w-[1500px] text-xs [&_td]:border [&_th]:border"
-      >
+      </Surface>
+      <Table aria-label="Service history grid" className="min-w-[1500px]">
         <TableHeader>
           <TableRow>
             {serviceHistoryColumns.map((column) => (
@@ -110,13 +114,12 @@ export function ServiceHistoryEditor({
                 );
                 return (
                   <TableCell
+                    variant="editable"
                     key={column.key}
                     className={
                       column.kind === 'text'
-                        ? 'p-0'
-                        : column.computed
-                          ? 'financial-numeral text-right'
-                          : 'p-0 financial-numeral text-right'
+                        ? ''
+                        : 'financial-numeral text-right'
                     }
                   >
                     {column.computed ? (
@@ -130,8 +133,9 @@ export function ServiceHistoryEditor({
                       )
                     ) : (
                       <Input
+                        variant="grid"
                         aria-label={`${row.id} ${column.label}`}
-                        className={`h-8 min-w-0 w-full rounded-none border-transparent bg-transparent px-2 text-xs shadow-none md:text-xs ${column.kind === 'text' ? '' : 'text-right'}`}
+                        className={`h-8 min-w-0 w-full ${column.kind === 'text' ? '' : 'text-right'}`}
                         type={column.kind === 'text' ? 'text' : 'number'}
                         min={column.min}
                         max={column.max}

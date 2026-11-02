@@ -94,7 +94,7 @@ function CustomerPreviewArticle(props) {
     (node) => node.type === QuotePreviewDialog,
   );
   const dialog = QuotePreviewDialog(preview.props);
-  return elements(dialog).find((node) => node.type === 'article');
+  return elements(dialog).find((node) => (node.type === 'article' || node.props.as === 'article'));
 }
 
 test('quotation template entry renders a named selector and explicit Apply button', () => {

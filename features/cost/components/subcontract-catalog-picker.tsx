@@ -1,3 +1,5 @@
+import { Badge } from '@/components/ui/badge';
+import { Surface, Text } from '@/components/ui/presentation';
 /** Bulk catalogue selection stages current references before copying them into a BOQ. */
 import { useState } from 'react';
 import { Check, PackageOpen, Plus, RefreshCw, Search, X } from 'lucide-react';
@@ -171,21 +173,23 @@ export function SubcontractCatalogSelection({
   ).length;
   const hasActiveItems = uniqueCatalog(catalog).some((item) => item.active);
   return (
-    <section
-      className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-white"
+    <Surface
+      as="section"
+      variant="panel"
+      className="flex min-h-0 flex-col overflow-hidden"
       aria-label="Subcontract catalogue selection"
       aria-busy={refreshing}
     >
-      <header className="space-y-3 border-b border-border/60 bg-muted/30 px-4 py-3">
+      <Surface as="header" variant="header">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-slate-900">
+            <Text as="h3" tone="default">
               Choose Catalog Items
-            </h3>
-            <p className="mt-1 text-xs leading-5 text-slate-600">
+            </Text>
+            <Text as="p" tone="muted" textRole="body-small" className="mt-1">
               Select multiple items, then add them to your BOQ. Saved BOQ prices
               stay unchanged.
-            </p>
+            </Text>
           </div>
           {onRefresh && (
             <Button
@@ -194,11 +198,11 @@ export function SubcontractCatalogSelection({
               size="sm"
               disabled={refreshing}
               onClick={onRefresh}
-              className="shrink-0 bg-white"
+              className="shrink-0"
               aria-label="Refresh subcontract catalogue"
             >
               <RefreshCw
-                className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`}
+                className={`size-4 ${refreshing ? 'animate-spin' : ''}`}
               />
               <span className="hidden sm:inline">
                 {refreshing ? 'Refreshing…' : 'Refresh'}
@@ -207,9 +211,14 @@ export function SubcontractCatalogSelection({
           )}
         </div>
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+          <Text
+            as={Search}
+            tone="muted"
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2"
+          />
           <Input
-            className="h-10 rounded-lg border-border bg-white pl-9 pr-9 text-sm"
+            variant="search"
+
             aria-label="Search subcontract catalogue"
             placeholder="Search item, code or BU"
             value={query}
@@ -220,20 +229,25 @@ export function SubcontractCatalogSelection({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500"
+              className="absolute right-2 top-1/2 -translate-y-1/2"
               aria-label="Clear catalogue search"
               onClick={() => onQueryChange('')}
             >
-              <X className="size-3.5" />
+              <X className="size-4" />
             </Button>
           )}
         </div>
-      </header>
-      <div className="flex min-h-10 items-center justify-between gap-2 border-b border-border/60 px-4 py-1.5 text-xs">
-        <span className="text-slate-500">
+      </Surface>
+      <Surface
+        as="div"
+        variant="item"
+        textRole="body-small"
+        className="flex min-h-10 items-center justify-between gap-2"
+      >
+        <Text as="span" tone="muted">
           {matches.length} {matches.length === 1 ? 'item' : 'items'}
           {query.trim() ? ' found' : ' available'}
-        </span>
+        </Text>
         <div className="flex items-center gap-1">
           {selected.length > 0 && (
             <Button
@@ -265,10 +279,14 @@ export function SubcontractCatalogSelection({
             {allVisibleSelected ? 'Deselect Visible' : 'Select Visible'}
           </Button>
         </div>
-      </div>
-      <div className="max-h-[min(48vh,420px)] min-h-36 overflow-y-auto overscroll-contain p-2">
+      </Surface>
+      <Surface
+        as="div"
+        variant="body"
+        className="max-h-[min(48vh,420px)] min-h-36 overflow-y-auto overscroll-contain"
+      >
         {matches.length > 0 ? (
-          <ul className="space-y-1.5">
+          <ul className="space-y-2">
             {matches.map((item) => (
               <li key={item.id}>
                 <SubcontractCatalogOption
@@ -294,49 +312,67 @@ export function SubcontractCatalogSelection({
             ))}
           </ul>
         ) : (
-          <div className="flex min-h-44 flex-col items-center justify-center px-5 py-6 text-center">
-            <PackageOpen className="mb-3 size-8 text-slate-300" />
-            <p className="text-sm font-medium text-slate-700">
+          <Surface
+            as="div"
+            variant="body"
+            className="flex min-h-44 flex-col items-center justify-center text-center"
+          >
+            <Text as={PackageOpen} tone="muted" className="mb-3 size-8" />
+            <Text as="p" tone="default" textRole="body-main">
               {hasActiveItems
                 ? 'No matching items'
                 : 'No active catalogue items'}
-            </p>
-            <p className="mt-1 max-w-sm text-xs leading-5 text-slate-500">
+            </Text>
+            <Text
+              as="p"
+              tone="muted"
+              textRole="body-small"
+              className="mt-1 max-w-sm"
+            >
               {hasActiveItems
                 ? 'Try a different item, code or BU. Your current selection is kept when you search.'
                 : 'Refresh the catalogue, or add subcontract items in Master Data.'}
-            </p>
+            </Text>
             {query.trim() && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="mt-3"
+
                 onClick={() => onQueryChange('')}
               >
                 Clear Search
               </Button>
             )}
-          </div>
+          </Surface>
         )}
-      </div>
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-slate-50/80 px-4 py-3">
-        <output className="min-w-0 text-xs">
-          <span className="flex items-center gap-1.5 font-semibold text-slate-800">
-            <Check className="size-3.5 text-teal-700" />
+      </Surface>
+      <Surface
+        as="footer"
+        variant="footer"
+        className="flex flex-wrap items-center justify-between"
+      >
+        <Text as="output" textRole="body-small" className="min-w-0">
+          <Text as="span" tone="default" className="flex items-center gap-2">
+            <Text as={Check} className="size-4" />
             {selected.length} selected
             {outsideSearch > 0 && (
-              <span className="font-normal text-slate-500">
+              <Text as="span" tone="muted">
                 · {outsideSearch} outside this search
-              </span>
+              </Text>
             )}
-          </span>
+          </Text>
           {unpriced > 0 && (
-            <span className="mt-1 block text-xs text-amber-700">
+            <Text
+              as="span"
+              tone="warning"
+              textRole="body-small"
+              className="mt-1 block"
+            >
               {unpriced} unpriced · Add as draft and set prices in the BOQ.
-            </span>
+            </Text>
           )}
-        </output>
+        </Text>
         <div className="ml-auto flex items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={onClose}>
             Cancel
@@ -344,18 +380,18 @@ export function SubcontractCatalogSelection({
           <Button
             type="button"
             size="sm"
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
+
             disabled={refreshing || disabled || selected.length === 0}
             onClick={() => {
               if (!refreshing && !disabled && selected.length > 0) onAdd();
             }}
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-4" />
             Add {selected.length} {selected.length === 1 ? 'Item' : 'Items'}
           </Button>
         </div>
-      </footer>
-    </section>
+      </Surface>
+    </Surface>
   );
 }
 
@@ -377,12 +413,17 @@ export function SubcontractCatalogOption({
   const unavailable = !!restriction || !!disabled;
   const unpriced = item.unitPrice === null || item.unitPrice === undefined;
   return (
-    <label
-      className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 rounded-lg border px-3 py-3 transition-colors sm:grid-cols-[auto_minmax(0,1fr)_auto] ${restriction ? 'cursor-not-allowed border-border/60 bg-slate-50/70' : selected ? 'border-teal-600/40 bg-teal-50/70 ring-1 ring-teal-600/10' : 'border-border bg-white hover:border-teal-400/70 hover:bg-teal-50/30'}`}
+    <Surface
+      selected={selected}
+      aria-disabled={Boolean(restriction)}
+      as="label"
+      variant={'field'}
+      tone={'inherit'}
+      className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 sm:grid-cols-[auto_minmax(0,1fr)_auto]  ${restriction ? 'cursor-not-allowed' : selected ? '' : ''}`}
     >
       <Checkbox
         aria-label={`Select ${item.code} from catalogue`}
-        className="mt-0.5 border-slate-300 data-checked:border-teal-700 data-checked:bg-teal-700"
+        className="mt-1"
         checked={selected}
         disabled={unavailable}
         onCheckedChange={(checked) => {
@@ -390,31 +431,49 @@ export function SubcontractCatalogOption({
         }}
       />
       <span className="min-w-0">
-        <span
-          className={`block break-words text-[13px] font-medium leading-5 ${restriction ? 'text-slate-500' : 'text-slate-900'}`}
+        <Text
+          as="span"
+          tone={restriction ? 'muted' : 'default'}
+          textRole="body-small"
+          className="block break-words"
         >
           {item.item}
-        </span>
-        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
-          <strong className="break-all rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-bold text-slate-900">
+        </Text>
+        <Text
+          as="span"
+          tone="muted"
+          textRole="body-small"
+          className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1"
+        >
+          <Surface
+            as="strong"
+            variant="inset"
+            tone="default"
+            textRole="body-small"
+            className="break-all"
+          >
             {item.code}
-          </strong>
-          {alreadyAdded && (
-            <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-xs font-medium text-slate-600">
-              Added
-            </span>
-          )}
+          </Surface>
+          {alreadyAdded && <Badge tone="neutral">Added</Badge>}
           <span>{item.bu}</span>
-        </span>
+        </Text>
         {restriction && (
-          <span className="mt-1.5 block text-xs leading-4 text-amber-700">
+          <Text
+            as="span"
+            tone="warning"
+            textRole="body-small"
+            className="mt-2 block"
+          >
             {restriction}
-          </span>
+          </Text>
         )}
       </span>
       <span className="col-start-2 mt-1 flex flex-wrap items-baseline gap-1 text-left sm:col-start-auto sm:mt-0 sm:block sm:min-w-28 sm:text-right">
-        <span
-          className={`block whitespace-nowrap text-sm font-semibold tabular-nums ${unpriced ? 'text-amber-700' : 'text-slate-800'}`}
+        <Text
+          as="span"
+          tone={unpriced ? 'warning' : 'default'}
+          textRole="body-main"
+          className="block whitespace-nowrap tabular-nums"
         >
           {unpriced
             ? 'Not priced'
@@ -422,11 +481,11 @@ export function SubcontractCatalogOption({
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
-        </span>
-        <span className="block text-xs text-slate-500">
+        </Text>
+        <Text as="span" tone="muted" textRole="body-small" className="block">
           {item.currency} / {item.unit || 'unit not set'}
-        </span>
+        </Text>
       </span>
-    </label>
+    </Surface>
   );
 }

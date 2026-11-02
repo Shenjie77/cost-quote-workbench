@@ -1,3 +1,4 @@
+import { SelectField } from '@/components/ui/select-field';
 /** One saved BU directory serves every cost input, including dialogs rendered in portals. */
 import {
   createContext,
@@ -34,6 +35,7 @@ type BusinessUnitSelectProps = Omit<
   SelectHTMLAttributes<HTMLSelectElement>,
   'value' | 'defaultValue' | 'children' | 'multiple'
 > & {
+  variant?: 'default' | 'grid';
   value?: string;
   placeholder?: string;
 };
@@ -51,14 +53,12 @@ export function BusinessUnitSelectField({
   const hasSavedValue =
     !!value && !options.some((option) => option.value === value);
   return (
-    <select
+    <SelectField
+      variant="grid"
       {...props}
       value={value}
       disabled={disabled}
-      className={cn(
-        'h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50',
-        className,
-      )}
+      className={cn('h-9 w-full min-w-0', className)}
       onChange={(event) => {
         const next = event.target.value;
         if (
@@ -81,7 +81,7 @@ export function BusinessUnitSelectField({
         </option>
       ))}
       {!options.length && <option disabled>No active BU in Master Data</option>}
-    </select>
+    </SelectField>
   );
 }
 

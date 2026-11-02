@@ -1,3 +1,5 @@
+import { Badge } from '@/components/ui/badge';
+import { Surface, Text, StatusDot } from '@/components/ui/presentation';
 /** Persisted review queue with deadline/status filters and follow-up history. */
 
 import { useMemo, useState } from 'react';
@@ -74,17 +76,21 @@ export function ReviewsView({
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
   return (
-    <div className="wb-page-stack">
-      <section className="wb-panel flex flex-wrap items-start justify-between gap-3 bg-muted/20 px-3 py-2.5">
+    <Surface as="div" variant="page">
+      <Surface
+        as="section"
+        variant="panel"
+        padded
+        className="flex flex-wrap items-start justify-between gap-3"
+      >
         <BiText
           en="One persisted queue for owners, deadlines, blockers, evidence, and follow-up records."
           zh="统一维护负责人、期限、阻塞项、完成依据和每次跟进记录。"
-          className="text-[11px] font-medium text-accent-foreground"
         />
         <StatusBadge tone="green">
           <BiInline en="Live SQLite data" zh="实时本地数据" />
         </StatusBadge>
-      </section>
+      </Surface>
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <KpiCard
           label="Open Gates"
@@ -123,7 +129,7 @@ export function ReviewsView({
         />
       </div>
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.45fr)_390px]">
-        <section className="wb-panel">
+        <Surface as="section" variant="panel">
           <SectionHeading
             index="01"
             title="Review Gates"
@@ -171,14 +177,15 @@ export function ReviewsView({
               </div>
             }
           />
-          <div className="divide-y divide-border">
+          <Surface as="div" variant="list">
             {visible.length ? (
               visible.map((review) => {
                 const project = projectById.get(review.projectId);
                 const timing = getReviewTiming(review);
                 const status = reviewStatusLabels[review.status];
                 return (
-                  <button
+                  <Button
+                    variant="ghost"
                     key={review.id}
                     onClick={() =>
                       setPanel({
@@ -187,62 +194,85 @@ export function ReviewsView({
                         projectId: review.projectId,
                       })
                     }
-                    className="grid w-full grid-cols-[12px_minmax(0,1fr)_120px_110px_18px] items-center gap-4 px-3 py-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:bg-accent/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-sm:grid-cols-[12px_minmax(0,1fr)_18px]"
+                    className="grid w-full grid-cols-[12px_minmax(0,1fr)_120px_110px_18px] items-center gap-4 text-left focus-visible:-outline-offset-2 max-sm:grid-cols-[12px_minmax(0,1fr)_18px]"
                   >
-                    <span
-                      className={`size-2.5 rounded-full ${timing.tone === 'red' ? 'bg-destructive' : timing.tone === 'amber' ? 'bg-amber-600' : timing.tone === 'blue' ? 'bg-blue-600' : timing.tone === 'green' ? 'bg-emerald-600' : 'bg-muted-foreground'}`}
+                    <StatusDot
+                      tone={
+                        timing.tone === 'red'
+                          ? 'danger'
+                          : timing.tone === 'amber'
+                            ? 'warning'
+                            : timing.tone === 'blue'
+                              ? 'info'
+                              : timing.tone === 'green'
+                                ? 'success'
+                                : 'inherit'
+                      }
+                      className="size-3"
                     />
                     <span className="min-w-0">
                       <span className="flex items-center gap-2">
-                        <strong className="truncate text-xs">
+                        <Text
+                          as="strong"
+                          textRole="body-small"
+                          className="truncate"
+                        >
                           {review.gate}
-                        </strong>
+                        </Text>
                         <StatusBadge tone={status.tone}>
                           <BiInline en={status.en} zh={status.zh} />
                         </StatusBadge>
                       </span>
-                      <span className="mt-1 block truncate text-[11px] text-muted-foreground">
+                      <Text
+                        as="span"
+                        tone="muted"
+                        textRole="body-small"
+                        className="mt-1 block truncate"
+                      >
                         {review.gateZh} · {project?.name || review.projectId}
                         {review.costVersion
                           ? ` · 成本 ${review.costVersion}`
                           : ''}
-                      </span>
+                      </Text>
                     </span>
                     <span className="max-sm:hidden">
-                      <BiText
-                        en="Owner"
-                        zh="负责人"
-                        className="text-[11px] text-muted-foreground"
-                      />
-                      <span className="mt-1 block text-xs font-medium">
+                      <BiText en="Owner" zh="负责人" />
+                      <Text
+                        as="span"
+                        textRole="body-small"
+                        className="mt-1 block"
+                      >
                         {review.owner}
-                      </span>
+                      </Text>
                     </span>
                     <span className="text-right max-sm:hidden">
                       <BiText
                         en={timing.en}
                         zh={timing.zh}
-                        className="items-end text-[11px] text-muted-foreground"
+                        className="items-end"
                       />
-                      <span
-                        className={`financial-numeral mt-1 block text-xs font-medium ${timing.overdue ? 'text-destructive' : ''}`}
+                      <Text
+                        as="span"
+                        tone={timing.overdue ? 'danger' : 'inherit'}
+                        textRole="body-small"
+                        className="financial-numeral mt-1 block"
                       >
                         {review.dueDate}
-                      </span>
+                      </Text>
                     </span>
-                    <ChevronRight className="size-4 text-muted-foreground" />
-                  </button>
+                    <Text as={ChevronRight} tone="muted" className="size-4" />
+                  </Button>
                 );
               })
             ) : (
-              <div className="wb-empty-state">
+              <Surface as="div" variant="empty">
                 No review gates match this filter. Use “New Gate” to create one.
                 / 当前筛选无评审节点，可点击“新增”。
-              </div>
+              </Surface>
             )}
-          </div>
-        </section>
-        <section className="wb-panel">
+          </Surface>
+        </Surface>
+        <Surface as="section" variant="panel">
           <SectionHeading
             index="02"
             title="Follow-up Rhythm"
@@ -250,22 +280,32 @@ export function ReviewsView({
             description="Rules used by the live Agent Digest and CLI output."
             descriptionZh="实时 Agent 摘要与 CLI 输出使用的规则。"
           />
-          <div className="space-y-3 p-3">
+          <Surface as="div" variant="body" className="space-y-3">
             <div className="flex items-center gap-3">
-              <span className="flex size-9 items-center justify-center rounded-md bg-secondary text-primary">
+              <Badge
+                tone="primary"
+                className="flex items-center justify-center"
+              >
                 <Bell className="size-4" />
-              </span>
+              </Badge>
               <div>
-                <p className="text-xs font-semibold">Daily Digest Ready</p>
-                <p className="financial-numeral mt-1 text-[11px] text-muted-foreground">
+                <Text as="p" textRole="body-small">
+                  Daily Digest Ready
+                </Text>
+                <Text
+                  as="p"
+                  tone="muted"
+                  textRole="body-small"
+                  className="financial-numeral mt-1"
+                >
                   Agent/CLI may query at any scheduled time / Agent 可按计划查询
-                </p>
+                </Text>
               </div>
               <StatusBadge tone="green">
                 <BiInline en="Live" zh="已启用" />
               </StatusBadge>
             </div>
-            <div className="space-y-2 border-t border-border pt-4 text-xs">
+            <Surface as="div" variant="footer" textRole="body-small">
               {[
                 ['Overdue gates', '逾期节点'],
                 ['Due today or within 3 days', '今日与未来 3 天到期'],
@@ -277,21 +317,27 @@ export function ReviewsView({
                 ],
               ].map(([en, zh]) => (
                 <div key={en} className="flex items-center gap-2">
-                  <Check className="size-3.5 text-emerald-700" />
+                  <Text as={Check} tone="success" className="size-4" />
                   <BiText en={en} zh={zh} />
                 </div>
               ))}
-            </div>
-            <div className="rounded-lg border border-border bg-accent/60 p-4 text-xs leading-5 text-accent-foreground">
+            </Surface>
+            <Surface
+              as="div"
+              variant="panel"
+              padded
+              tone="primary"
+              textRole="body-small"
+            >
               The Agent never invents progress. With no new record, it reports
               “Status confirmation required.”
-              <span className="block text-[11px]">
+              <Text as="span" textRole="body-small" className="block">
                 Agent 不会推断真实进展；没有新记录时只标记“状态待确认”。
-              </span>
-            </div>
-          </div>
-        </section>
+              </Text>
+            </Surface>
+          </Surface>
+        </Surface>
       </div>
-    </div>
+    </Surface>
   );
 }

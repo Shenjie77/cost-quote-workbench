@@ -1,4 +1,6 @@
 'use client';
+
+import { Surface, Text } from '@/components/ui/presentation';
 import { formatMoney } from '@/lib/money';
 /** Reusable workbook-column mapping; no changes are applied until preview succeeds. */
 import { useState, useRef, useEffect } from 'react';
@@ -96,9 +98,15 @@ export function CostImportPanel({
     setPreview(null);
   };
   return (
-    <section className="wb-panel m-3 min-w-0 space-y-3 bg-muted/20 p-3 text-sm">
+    <Surface
+      as="section"
+      variant="panel"
+      padded
+      textRole="body-main"
+      className="m-3 min-w-0 space-y-3"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <h3 className="font-semibold">TD / PM Excel Import · 字段映射与预览</h3>
+        <h3>TD / PM Excel Import · 字段映射与预览</h3>
         <Button variant="ghost" onClick={onClose}>
           关闭
         </Button>
@@ -274,10 +282,10 @@ export function CostImportPanel({
               </Select>
             </label>
           </div>
-          <p className="text-muted-foreground">
+          <Text as="p" tone="muted">
             使用列编号（A=1，B=2）；0 表示未映射。原表有公式时需先在 Excel
             计算并保存。内部人力按当前版本费率计算，分包保留原表成本。
-          </p>
+          </Text>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {fields.map((key, i) => (
               <label key={key}>
@@ -309,13 +317,13 @@ export function CostImportPanel({
               </label>
             ))}
           </div>
-          <p className="text-muted-foreground">
+          <Text as="p" tone="muted">
             最近预览表头列名：
             {info.sheets
               .find((s) => s.name === mapping.sheet)
               ?.columns.map((c) => `${c.column}: ${c.header}`)
               .join(' · ')}
-          </p>
+          </Text>
           <Button
             disabled={busy || !file}
             onClick={async () => {
@@ -370,9 +378,9 @@ export function CostImportPanel({
               </p>
             ))}
             {preview.issues.map((issue) => (
-              <p className="text-red-700" key={issue}>
+              <Text as="p" tone="danger" key={issue}>
                 {issue}
-              </p>
+              </Text>
             ))}
           </div>
           <Button
@@ -440,10 +448,10 @@ export function CostImportPanel({
         </div>
       )}
       {error && (
-        <p role="alert" className="text-red-700">
+        <Text role="alert" as="p" tone="danger">
           {error}
-        </p>
+        </Text>
       )}
-    </section>
+    </Surface>
   );
 }

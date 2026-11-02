@@ -1,3 +1,5 @@
+import { Badge } from '@/components/ui/badge';
+import { Text, Surface } from '@/components/ui/presentation';
 import {
   useEffect,
   useRef,
@@ -93,15 +95,18 @@ export function ArchiveFolderButton({
         title={description}
         onClick={() => void open()}
       >
-        <FolderOpen className="size-3.5" /> {opening ? 'Opening…' : label}
+        <FolderOpen className="size-4" /> {opening ? 'Opening…' : label}
       </Button>
       {error && (
-        <p
+        <Text
           role="alert"
-          className="max-w-xs break-words text-xs text-destructive"
+          as="p"
+          tone="danger"
+          textRole="body-small"
+          className="max-w-xs break-words"
         >
           {error}
-        </p>
+        </Text>
       )}
     </div>
   );
@@ -179,17 +184,28 @@ export function ArchiveSettingsPanel({
     }
   };
   return (
-    <section aria-label="Archive Settings" className="wb-panel space-y-2 p-3">
+    <Surface
+      aria-label="Archive Settings"
+      as="section"
+      variant="panel"
+      padded
+      className="space-y-2"
+    >
       <div>
-        <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+        <h3 className="flex flex-wrap items-center gap-2">
           <FolderArchive className="size-4" /> Project Archive Folder
         </h3>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <Text as="p" tone="muted" textRole="body-small" className="mt-1">
           A project folder is created here when you create a project. Each
           workflow round and step keeps its own documents.
-        </p>
+        </Text>
       </div>
-      <label className="block space-y-1.5 text-xs font-medium">
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         Server folder · absolute path
         <Input
           aria-label="Project archive root folder"
@@ -204,9 +220,8 @@ export function ArchiveSettingsPanel({
             setRootPath(event.target.value);
             setNotice('');
           }}
-          className="h-8 bg-white font-mono text-xs"
         />
-      </label>
+      </Surface>
       <div className="flex flex-wrap items-center gap-2">
         <ArchiveFolderButton
           description="Open saved project archive root folder"
@@ -248,24 +263,31 @@ export function ArchiveSettingsPanel({
           <RefreshCw /> {error ? 'Retry / Reload' : 'Reload'}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <Text as="p" tone="muted" textRole="body-small">
         Changes apply to new projects only. Existing project folders remain in
         their original location.
-      </p>
+      </Text>
       {dirty && (
-        <p className="text-xs text-amber-800">
+        <Text as="p" tone="warning" textRole="body-small">
           Save or reset the folder change before creating a project.
-        </p>
+        </Text>
       )}
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <Text role="alert" as="p" tone="danger" textRole="body-small">
           {error}
-        </p>
+        </Text>
       )}
       {notice && (
-        <output className="block text-xs text-emerald-700">{notice}</output>
+        <Text
+          as="output"
+          tone="success"
+          textRole="body-small"
+          className="block"
+        >
+          {notice}
+        </Text>
       )}
-    </section>
+    </Surface>
   );
 }
 
@@ -287,28 +309,39 @@ export function ProjectFileList({
 }) {
   if (!files.length)
     return (
-      <p className="px-3 py-3 text-xs text-muted-foreground">
+      <Surface as="p" variant="body" tone="muted" textRole="body-small">
         No documents archived yet.
-      </p>
+      </Surface>
     );
   return (
-    <ul
-      className="max-h-80 divide-y divide-border overflow-y-auto border-t border-border bg-white"
+    <Surface
+      as="ul"
+      variant="footer"
+      className="max-h-80 overflow-y-auto"
       aria-label="Archived documents"
     >
       {files.map((file) => (
-        <li
+        <Surface
           key={file.id}
-          className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-2 py-2 transition-colors hover:bg-muted/20"
+          as="li"
+          variant="body"
+          className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"
         >
           <div className="min-w-0 flex-1 basis-52">
-            <p
-              className="break-words text-sm font-medium leading-5"
+            <Text
+              as="p"
+              textRole="body-main"
+              className="break-words"
               title={file.relativePath}
             >
               {file.originalName}
-            </p>
-            <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            </Text>
+            <Text
+              as="p"
+              tone="muted"
+              textRole="body-small"
+              className="mt-1 flex flex-wrap gap-x-3 gap-y-1"
+            >
               <span>{projectFileSizeLabel(file.sizeBytes)}</span>
               <time dateTime={file.createdAt}>
                 {dateLabel(file.createdAt)} SGT
@@ -324,17 +357,21 @@ export function ProjectFileList({
                     .join(' · ')}
                 </span>
               )}
-            </p>
+            </Text>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-1">
-            <a
+            <Surface
               href={projectFileDownloadUrl(projectId, file.id)}
               download={file.originalName}
-              className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-ring"
+              as="a"
+              variant="body"
+              tone="primary"
+              textRole="body-small"
+              className="inline-flex min-h-8 shrink-0 items-center gap-2"
               aria-label={`Download ${file.originalName}`}
             >
-              <Download className="size-3.5" /> Download
-            </a>
+              <Download className="size-4" /> Download
+            </Surface>
             <ArchiveFolderButton
               key={JSON.stringify([projectId, file.id])}
               projectId={projectId}
@@ -346,18 +383,18 @@ export function ProjectFileList({
               type="button"
               size="sm"
               variant="ghost"
-              className="text-destructive hover:bg-destructive/5 hover:text-destructive"
+
               aria-label={`Delete ${file.originalName}`}
               disabled={disabled || Boolean(deletingFileId) || !onDelete}
               onClick={() => onDelete?.(file)}
             >
-              <Trash2 className="size-3.5" />{' '}
+              <Trash2 className="size-4" />{' '}
               {deletingFileId === file.id ? 'Deleting…' : 'Delete'}
             </Button>
           </div>
-        </li>
+        </Surface>
       ))}
-    </ul>
+    </Surface>
   );
 }
 
@@ -422,9 +459,14 @@ export function ProjectFileDropzone({
   };
   return (
     // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- The native picker button provides the keyboard equivalent of this region's file drop.
-    <section
+    <Surface
       aria-label={node ? 'Workflow Step Documents' : 'Project File Archive'}
-      className={`wb-panel min-w-0 space-y-2 p-3 transition-colors ${dragging && !unavailable ? 'border-primary bg-primary/5 ring-2 ring-primary/15' : 'border-border bg-card'}`}
+      as="section"
+      variant="panel"
+      selected={dragging && !unavailable}
+      tone={'inherit'}
+      className="min-w-0 space-y-2"
+      padded
       onDragEnter={dragOver}
       onDragOver={dragOver}
       onDragLeave={(event) => {
@@ -447,34 +489,36 @@ export function ProjectFileDropzone({
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1 basis-48">
-          <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+          <h3 className="flex flex-wrap items-center gap-2">
             {title}
-            {versionCode && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
-                {versionCode}
-              </span>
-            )}
+            {versionCode && <Badge tone="neutral">{versionCode}</Badge>}
           </h3>
-          <p className="mt-1 break-all font-mono text-xs leading-5 text-muted-foreground">
+          <Text
+            as="p"
+            tone="muted"
+            textRole="body-small"
+            className="mt-1 break-all"
+          >
             {target}
-          </p>
+          </Text>
         </div>
         {/* Browse and refresh remain adjacent to the document list they affect. */}
         <div className="flex shrink-0 items-center gap-2">
-          <button
+          <Button
+            variant="ghost"
             type="button"
             aria-label={`Choose files for ${target}`}
             disabled={unavailable}
             onClick={onBrowse}
-            className={`inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-left text-xs transition-colors disabled:cursor-wait disabled:opacity-60 ${dragging && !unavailable ? 'border-primary bg-white/70' : 'border-input bg-muted/20 hover:border-primary hover:bg-primary/5'} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`}
+            className="inline-flex h-8 shrink-0 items-center justify-center gap-2 text-left disabled:cursor-wait"
           >
-            <Upload className="size-3.5" aria-hidden="true" />
+            <Upload className="size-4" aria-hidden="true" />
             {uploading
               ? 'Uploading files…'
               : dragging && !disabled
                 ? 'Release to upload'
                 : 'Browse files'}
-          </button>
+          </Button>
           <Button
             type="button"
             size="icon-sm"
@@ -490,15 +534,15 @@ export function ProjectFileDropzone({
           </Button>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <Text as="p" tone="muted" textRole="body-small">
         {uploading
           ? 'Files are being archived'
           : disabled
             ? 'Wait for the current update'
             : 'Drop files here · or click to browse · 50 MiB per file'}
-      </p>
+      </Text>
       {children}
-    </section>
+    </Surface>
   );
 }
 
@@ -698,7 +742,7 @@ function ProjectFilesController({
         setReload((value) => value + 1);
       }}
     >
-      <input
+      <Input
         ref={selectionRef}
         type="file"
         multiple
@@ -712,12 +756,15 @@ function ProjectFilesController({
       />
       {!isNode && archive && (
         <div className="flex flex-wrap items-center gap-2">
-          <p
-            className="min-w-0 flex-1 basis-72 break-all rounded-md bg-muted/20 px-2 py-1.5 font-mono text-xs leading-5"
+          <Surface
+            as="p"
+            variant="inset"
+            textRole="body-small"
+            className="min-w-0 flex-1 basis-72 break-all"
             title="Project archive folder"
           >
             {archive.projectPath}
-          </p>
+          </Surface>
           <ArchiveFolderButton
             key={projectId}
             projectId={projectId}
@@ -729,14 +776,18 @@ function ProjectFilesController({
         </div>
       )}
       {loading && (
-        <output className="block text-xs text-muted-foreground">
+        <Text as="output" tone="muted" textRole="body-small" className="block">
           Loading documents…
-        </output>
+        </Text>
       )}
       {error && (
-        <div
+        <Surface
           role="alert"
-          className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+          as="div"
+          variant="notice"
+          tone="danger"
+          textRole="body-small"
+          className="flex flex-wrap items-center gap-2"
         >
           <span>{error}</span>
           <Button
@@ -751,7 +802,7 @@ function ProjectFilesController({
           >
             Retry
           </Button>
-        </div>
+        </Surface>
       )}
       {archive && (
         <ProjectFileList
@@ -766,18 +817,22 @@ function ProjectFilesController({
       {queue.length > 0 && (
         <ul className="space-y-2" aria-label="Upload queue">
           {queue.map((item) => (
-            <li
+            <Surface
               key={item.requestId}
-              className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs"
+              as="li"
+              variant="panel"
+              padded
+              textRole="body-small"
+              className="flex flex-wrap items-center gap-2"
             >
               <span className="min-w-0 flex-1 break-words">
                 {item.file.name} · {projectFileSizeLabel(item.file.size)}
               </span>
               {item.status === 'failed' ? (
                 <>
-                  <span role="alert" className="w-full text-destructive">
+                  <Text role="alert" as="span" tone="danger" className="w-full">
                     {item.error}
-                  </span>
+                  </Text>
                   <Button
                     type="button"
                     size="sm"
@@ -812,12 +867,19 @@ function ProjectFilesController({
                   {item.status === 'uploading' ? 'Uploading…' : 'Waiting…'}
                 </span>
               )}
-            </li>
+            </Surface>
           ))}
         </ul>
       )}
       {notice && (
-        <output className="block text-xs text-emerald-700">{notice}</output>
+        <Text
+          as="output"
+          tone="success"
+          textRole="body-small"
+          className="block"
+        >
+          {notice}
+        </Text>
       )}
     </ProjectFileDropzone>
   );

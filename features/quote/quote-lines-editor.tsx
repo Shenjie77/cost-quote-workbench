@@ -1,3 +1,5 @@
+import { Surface, Text } from '@/components/ui/presentation';
+import { CheckInput } from '@/components/ui/check-input';
 import { QuoteGroupFields } from './quote-group-fields';
 import { groupFor } from './quotation-groups';
 /** Internal line pricing grid; customer workbooks receive only commercial line fields. */
@@ -16,7 +18,6 @@ import {
   resolveQuoteCostBindings,
 } from './scope-allocation';
 import { QuoteScopeDialog } from './quote-scope-dialog';
-import { QuoteDescriptionDialog } from './quote-description-dialog';
 import {
   Select,
   SelectContent,
@@ -357,16 +358,23 @@ export function QuoteLinesEditor({
     : calculateManualQuoteLines(draftLines).errors;
 
   return (
-    <section
-      className={embedded ? 'border-y' : 'wb-panel'}
+    <Surface
+      as="section"
+      variant={embedded ? 'plain' : 'panel'}
+      tone={'inherit'}
+      className=""
       aria-label="Quotation details"
     >
-      <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-        <h2 className="mr-auto text-sm font-semibold">
+      <Surface
+        as="div"
+        variant="item"
+        className="flex flex-wrap items-center gap-2"
+      >
+        <h2 className="mr-auto">
           Quotation details{' '}
-          <span className="ml-1 text-xs font-normal text-muted-foreground">
+          <Text as="span" tone="muted" textRole="body-small" className="ml-1">
             报价明细
-          </span>
+          </Text>
         </h2>
         <Select
           value={mode}
@@ -375,7 +383,7 @@ export function QuoteLinesEditor({
         >
           <SelectTrigger
             aria-label="Quotation detail mode"
-            className="h-8 w-[230px]"
+            className="w-[230px]"
           >
             <SelectValue>
               {MODES.find((entry) => entry.value === mode)?.label}
@@ -408,11 +416,16 @@ export function QuoteLinesEditor({
         >
           <Plus /> Add line
         </Button>
-        <span className="text-xs tabular-nums text-muted-foreground">
+        <Text
+          as="span"
+          tone="muted"
+          textRole="body-small"
+          className="tabular-nums"
+        >
           {lines.length} {lines.length === 1 ? 'line' : 'lines'}
-        </span>
-      </div>
-      <p className="px-3 py-2 text-xs text-muted-foreground">
+        </Text>
+      </Surface>
+      <Surface as="p" variant="body" tone="muted" textRole="body-small">
         Weight = cost share. Quote share starts at cost weight and can be
         adjusted. Line GP and Price determine the total; GP includes BU profit
         share, before discount.
@@ -423,16 +436,19 @@ export function QuoteLinesEditor({
           分配比例，成本更新后自动重算。手动调整 Weight 后解除来源与 Risk
           绑定，恢复按成本权重分摊。
         </span>
-      </p>
+      </Surface>
       {(allocationError || lineErrors[0]) && (
-        <p
+        <Surface
           role="alert"
-          className="border-t border-destructive/20 px-3 py-2 text-xs text-destructive"
+          as="p"
+          variant="footer"
+          tone="danger"
+          textRole="body-small"
         >
           {allocationError || lineErrors[0]}
-        </p>
+        </Surface>
       )}
-      <p className="text-xs text-muted-foreground">
+      <Text as="p" tone="muted" textRole="body-small">
         {mode === 'group' && (
           <>
             Cost Groups follow the Group field in Personnel costs. Blank groups
@@ -440,42 +456,55 @@ export function QuoteLinesEditor({
             separate.{' '}
           </>
         )}
-        Section and Category accept custom titles for this quotation. Structured
-        templates generate matching categories automatically. Grand Total
+        Category follows cost categories. Section is an optional customer-facing
+        quotation chapter, available under each category field. Grand Total
         includes all sections; internal cost and GP include all service lines.
+        分类沿用成本 Category；Section 仅用于客户报价章节，可按需展开设置。
         {mode !== 'manual' &&
-          ' After editing cost categories, use Refresh from Cost to update saved quotation rows.'}
-      </p>
+          ' After editing cost categories, use Refresh from Cost to update saved quotation rows. 旧报价中已保存的默认分类不会自动覆盖，请通过 Refresh from Cost 同步。'}
+      </Text>
       {/* All internal pricing controls share one grid; customer previews and files omit these internal columns. */}
       <Table
         containerClassName="max-h-[360px]"
         aria-label="Quotation details grid"
-        className="min-w-[1340px] text-xs [&_td]:p-1.5"
+        className="min-w-[1340px]"
       >
-        <TableHeader className="sticky top-0 z-10 bg-muted">
+        <TableHeader className="sticky top-0 z-10">
           <TableRow>
             <TableHead className="w-10">#</TableHead>
             <TableHead>Description</TableHead>
-            <TableHead>Section / Category</TableHead>
-            <TableHead className="w-20 text-right">Quantity</TableHead>
+            <TableHead>Category / 成本分类</TableHead>
+            <TableHead variant="numeric" className="w-20 text-right">
+              Quantity
+            </TableHead>
             <TableHead className="w-16">Unit</TableHead>
-            <TableHead className="w-28 text-right">Cost</TableHead>
+            <TableHead variant="numeric" className="w-28 text-right">
+              Cost
+            </TableHead>
             <TableHead
+              variant="numeric"
               className="w-20 text-right"
               title="Allocated cost / total project cost"
             >
               Weight %
             </TableHead>
-            <TableHead className="w-24 text-right">Quote share %</TableHead>
-            <TableHead className="w-24 text-right">Target GP %</TableHead>
+            <TableHead variant="numeric" className="w-24 text-right">
+              Quote share %
+            </TableHead>
+            <TableHead variant="numeric" className="w-24 text-right">
+              Target GP %
+            </TableHead>
             <TableHead
+              variant="numeric"
               className="w-28 text-right"
               title="Selling price per unit"
             >
               Price / Unit
             </TableHead>
             <TableHead className="w-12 text-center">Lock</TableHead>
-            <TableHead className="w-28 text-right">Amount</TableHead>
+            <TableHead variant="numeric" className="w-28 text-right">
+              Amount
+            </TableHead>
             <TableHead className="min-w-48">Remark (internal)</TableHead>
             <TableHead className="w-10">
               <span className="sr-only">Remove</span>
@@ -499,9 +528,7 @@ export function QuoteLinesEditor({
                 : actualGp;
             return (
               <TableRow key={line.id}>
-                <TableCell className="text-muted-foreground">
-                  {index + 1}
-                </TableCell>
+                <TableCell>{index + 1}</TableCell>
                 <TableCell>
                   <div className="flex min-w-40 items-start gap-1">
                     {editable ? (
@@ -515,23 +542,14 @@ export function QuoteLinesEditor({
                             description: event.target.value,
                           })
                         }
-                        rows={3}
-                        className="min-h-8 max-h-[calc(3lh+1rem+2px)] min-w-0 resize-none overflow-hidden rounded-none border-transparent bg-transparent py-2 leading-5 shadow-none [overflow-wrap:anywhere]"
+                        rows={1}
+                        className="min-w-0 whitespace-pre-wrap"
                       />
                     ) : (
-                      <span className="min-w-0 flex-1 line-clamp-3 whitespace-pre-wrap break-words leading-5 [overflow-wrap:anywhere]">
+                      <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
                         {line.description}
                       </span>
                     )}
-                    <QuoteDescriptionDialog
-                      value={line.description}
-                      lineNumber={index + 1}
-                      editable={editable}
-                      disabled={disabled}
-                      onSave={(description) =>
-                        updateLine(line.id, { description })
-                      }
-                    />
                   </div>
                 </TableCell>
                 <TableCell>
@@ -557,7 +575,10 @@ export function QuoteLinesEditor({
                     }
                   />
                 </TableCell>
-                <TableCell className="financial-numeral text-right">
+                <TableCell
+                  variant="numeric"
+                  className="financial-numeral text-right"
+                >
                   {editable ? (
                     <QuoteNumberInput
                       key={`qty-${line.quantity}`}
@@ -575,6 +596,7 @@ export function QuoteLinesEditor({
                 <TableCell>
                   {editable ? (
                     <Input
+                      variant="grid"
                       aria-label={`Line ${index + 1} unit`}
                       value={line.unit}
                       maxLength={40}
@@ -582,13 +604,15 @@ export function QuoteLinesEditor({
                       onChange={(event) =>
                         updateLine(line.id, { unit: event.target.value })
                       }
-                      className="h-8 rounded-none border-transparent bg-transparent shadow-none"
                     />
                   ) : (
                     line.unit
                   )}
                 </TableCell>
-                <TableCell className="financial-numeral bg-muted/30 text-right">
+                <TableCell
+                  variant="numeric"
+                  className="financial-numeral text-right"
+                >
                   {costSnapshot ? (
                     <QuoteScopeDialog
                       lineNumber={index + 1}
@@ -638,7 +662,10 @@ export function QuoteLinesEditor({
                     formatSgd(costs[index] ?? 0)
                   )}
                 </TableCell>
-                <TableCell className="financial-numeral bg-muted/30 text-right">
+                <TableCell
+                  variant="numeric"
+                  className="financial-numeral text-right"
+                >
                   {mode === 'manual' ? (
                     <QuoteNumberInput
                       key={`cost-weight-${saved?.costWeight}-${costs[index]}`}
@@ -711,7 +738,7 @@ export function QuoteLinesEditor({
                   />
                 </TableCell>
                 <TableCell className="text-center">
-                  <input
+                  <CheckInput
                     type="checkbox"
                     aria-label={`Lock allocation for line ${index + 1}`}
                     title="Preserve the locked price or quote share when adjusting quotation proportions"
@@ -729,7 +756,10 @@ export function QuoteLinesEditor({
                     className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
                   />
                 </TableCell>
-                <TableCell className="financial-numeral text-right font-medium">
+                <TableCell
+                  variant="numeric"
+                  className="financial-numeral text-right"
+                >
                   {formatSgd(line.amount)}
                 </TableCell>
                 <TableCell>
@@ -740,7 +770,7 @@ export function QuoteLinesEditor({
                     disabled={disabled}
                     rows={2}
                     placeholder="Reason for price / GP"
-                    className="min-w-48 text-xs"
+                    className="min-w-48"
                     onChange={(e) =>
                       setPricing((current) => ({
                         ...current,
@@ -759,9 +789,9 @@ export function QuoteLinesEditor({
                     aria-label={`Remove quotation line ${index + 1}`}
                     disabled={disabled}
                     onClick={() => removeLine(line.id)}
-                    className="h-8 w-8"
+                    className="w-8"
                   >
-                    <Trash2 className="size-3.5" />
+                    <Trash2 className="size-4" />
                   </Button>
                 </TableCell>
               </TableRow>
@@ -769,8 +799,11 @@ export function QuoteLinesEditor({
           })}
         </TableBody>
       </Table>
-      <div
-        className="flex flex-wrap justify-end gap-5 border-t bg-muted px-3 py-2 text-xs financial-numeral"
+      <Surface
+        as="div"
+        variant="footer"
+        textRole="body-small"
+        className="flex flex-wrap justify-end financial-numeral"
         aria-live="polite"
       >
         <span>
@@ -779,13 +812,13 @@ export function QuoteLinesEditor({
         <span>
           Line Total <strong>{formatSgd(currentTotal)}</strong>
         </span>
-      </div>
+      </Surface>
       {!lines.length && (
-        <p className="p-3 text-xs text-muted-foreground">
+        <Surface as="p" variant="body" tone="muted" textRole="body-small">
           Add a quotation line to set its description, quantity and selling
           price.
-        </p>
+        </Surface>
       )}
-    </section>
+    </Surface>
   );
 }

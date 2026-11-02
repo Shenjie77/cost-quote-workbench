@@ -1,3 +1,4 @@
+import { Text, Surface } from '@/components/ui/presentation';
 /** Compact, version-owned Subcon rates; personnel assumptions are never copied. */
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
@@ -8,7 +9,7 @@ import {
   type SubcontractRateSettings,
 } from '../subcontract-domain';
 
-const inputClass = 'h-8 min-w-0 rounded-md bg-card px-2 text-xs shadow-none';
+const inputClass = 'min-w-0';
 
 /** Commit complete percentages on blur so typing a minus sign cannot erase saved rates. */
 export function SubcontractUpliftInput({
@@ -73,9 +74,15 @@ export function SubcontractUpliftInput({
         }}
       />
       {invalid && (
-        <span role="alert" className="block text-xs text-destructive">
+        <Text
+          role="alert"
+          as="span"
+          tone="danger"
+          textRole="body-small"
+          className="block"
+        >
           Enter -100% to 1000%.
-        </span>
+        </Text>
       )}
     </>
   );
@@ -104,7 +111,13 @@ export function SubcontractBaseYearInput({
     if (year !== value) onChange(year);
   };
   return (
-    <label className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+    <Surface
+      as="label"
+      variant="inline-field"
+      tone="muted"
+      textRole="body-small"
+      className="flex min-w-0 flex-wrap items-center"
+    >
       Base Year
       <Input
         aria-label="Subcon base year"
@@ -128,11 +141,11 @@ export function SubcontractBaseYearInput({
         }}
       />
       {invalid && (
-        <span role="alert" className="text-destructive">
+        <Text role="alert" as="span" tone="danger">
           Enter 2000–2200.
-        </span>
+        </Text>
       )}
-    </label>
+    </Surface>
   );
 }
 
@@ -171,12 +184,18 @@ export function SubcontractRateAssumptions({
     );
   };
   return (
-    <section
-      className="wb-panel min-w-0 overflow-hidden"
+    <Surface
+      as="section"
+      variant="panel"
+      className="min-w-0 overflow-hidden"
       aria-label="Subcon annual rate assumptions"
     >
-      <header className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
-        <h2 className="text-xs font-semibold">Subcon Rates</h2>
+      <Surface
+        as="header"
+        variant="header"
+        className="flex min-w-0 flex-wrap items-center"
+      >
+        <h2>Subcon Rates</h2>
         <SubcontractBaseYearInput
           key={settings?.baseYear ?? 'unset'}
           value={settings?.baseYear}
@@ -194,32 +213,42 @@ export function SubcontractRateAssumptions({
               );
           }}
         />
-        <span className="text-xs text-muted-foreground">
+        <Text as="span" tone="muted" textRole="body-small">
           {settings
             ? 'Independent of personnel rates'
             : 'Flat prices until rates are set'}
-        </span>
+        </Text>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="ml-auto h-8 gap-1 px-2 text-xs"
+          className="gap-1"
           aria-expanded={expanded}
           aria-controls="subcon-annual-rates"
           onClick={() => setExpanded(!expanded)}
         >
           Rate settings{' '}
-          <ChevronDown
-            className={`size-3 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          <Text
+            as={ChevronDown}
+            tone={'inherit'}
+            className={`size-3  ${expanded ? 'rotate-180' : ''}`}
           />
         </Button>
-      </header>
+      </Surface>
       {expanded && (
-        <div id="subcon-annual-rates" className="border-t">
-          <div className="flex flex-wrap items-center gap-3 border-b bg-muted/10 px-3 py-2">
-            <label
+        <Surface id="subcon-annual-rates" as="div" variant="footer">
+          <Surface
+            as="div"
+            variant="item"
+            className="flex flex-wrap items-center gap-3"
+          >
+            <Surface
               htmlFor="subcon-default-uplift"
-              className="flex items-center gap-2 text-xs font-medium text-muted-foreground"
+              as="label"
+              variant="inline-field"
+              tone="muted"
+              textRole="body-small"
+              className="flex items-center"
             >
               Default Uplift %
               <SubcontractUpliftInput
@@ -231,22 +260,30 @@ export function SubcontractRateAssumptions({
                 disabled={locked || !settings}
                 onChange={(value) => changeUplift(value)}
               />
-            </label>
-            <p className="text-xs text-muted-foreground">
+            </Surface>
+            <Text as="p" tone="muted" textRole="body-small">
               {!settings
                 ? 'Enter the Subcon base year first.'
                 : 'Default fills all five years; each year can be adjusted below.'}
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-3 px-3 py-2 sm:grid-cols-5">
+            </Text>
+          </Surface>
+          <Surface
+            as="div"
+            variant="body"
+            className="grid grid-cols-2 gap-3 sm:grid-cols-5"
+          >
             {actualYears.map((year, index) => {
               const baseYear =
                 year != null && settings != null && year <= settings.baseYear;
               return (
-                <label
+                <Surface
                   key={index}
                   htmlFor={`subcon-year-uplift-${index}`}
-                  className="min-w-0 text-xs font-medium text-muted-foreground"
+                  as="label"
+                  variant="field"
+                  tone="muted"
+                  textRole="body-small"
+                  className="min-w-0"
                 >
                   Y{index + 1}
                   {year ? ` · ${year}` : ''} · %
@@ -264,17 +301,17 @@ export function SubcontractRateAssumptions({
                       ? `${factors[index].toFixed(4)}×`
                       : 'Set project start'}
                   </span>
-                </label>
+                </Surface>
               );
             })}
-          </div>
-          <p className="border-t bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+          </Surface>
+          <Surface as="p" variant="footer" tone="muted" textRole="body-small">
             Annual uplift adjusts Subcon BOQ costs only. Years through the base
             year keep the base price; later years compound in sequence. Y1
             includes any gap after the base year.
-          </p>
-        </div>
+          </Surface>
+        </Surface>
       )}
-    </section>
+    </Surface>
   );
 }

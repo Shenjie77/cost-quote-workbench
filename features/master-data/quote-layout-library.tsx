@@ -1,3 +1,6 @@
+import { Surface, Text } from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
+import { Input } from '@/components/ui/input';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -86,21 +89,27 @@ export function QuoteLayoutLibrary({
       if (alive.current) setBusy(false);
     }
   }
-  const control =
-    'h-8 min-w-0 rounded border bg-background px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring';
+  const control = 'h-8 min-w-0';
   return (
-    <fieldset
+    <Surface
       disabled={disabled || busy}
-      className="space-y-2 border-b pb-3"
+      as="fieldset"
+      variant="item"
+      className="space-y-2"
       aria-label="Saved structured layouts"
     >
-      <legend className="mb-2 text-xs font-medium">
+      <Surface as="legend" textRole="body-small" className="mb-2">
         Saved structured layouts
-      </legend>
+      </Surface>
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex min-w-52 flex-1 items-center gap-2 text-xs">
+        <Surface
+          as="label"
+          variant="inline-field"
+          textRole="body-small"
+          className="flex min-w-52 flex-1 items-center"
+        >
           Layout
-          <select
+          <SelectField
             aria-label="Saved layout"
             className={`${control} flex-1`}
             value={selected}
@@ -116,8 +125,8 @@ export function QuoteLayoutLibrary({
                 {layout.name}
               </option>
             ))}
-          </select>
-        </label>
+          </SelectField>
+        </Surface>
         <Button
           size="sm"
           variant="outline"
@@ -152,16 +161,21 @@ export function QuoteLayoutLibrary({
         </Button>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex min-w-52 flex-1 items-center gap-2 text-xs">
+        <Surface
+          as="label"
+          variant="inline-field"
+          textRole="body-small"
+          className="flex min-w-52 flex-1 items-center"
+        >
           Name
-          <input
+          <Input
             aria-label="Layout name"
             className={`${control} flex-1`}
             maxLength={120}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-        </label>
+        </Surface>
         <Button
           size="sm"
           variant="outline"
@@ -180,20 +194,20 @@ export function QuoteLayoutLibrary({
         </Button>
       </div>
       {busy && (
-        <output className="block text-xs text-muted-foreground">
+        <Text as="output" tone="muted" textRole="body-small" className="block">
           Validating and saving layout…
-        </output>
+        </Text>
       )}
       {message && (
-        <output className="block text-xs text-muted-foreground">
+        <Text as="output" tone="muted" textRole="body-small" className="block">
           {message}
-        </output>
+        </Text>
       )}
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <Text role="alert" as="p" tone="danger" textRole="body-small">
           {error}
-        </p>
+        </Text>
       )}
-    </fieldset>
+    </Surface>
   );
 }

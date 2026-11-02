@@ -1,5 +1,6 @@
 'use client';
 
+import { Text, Surface } from '@/components/ui/presentation';
 import { useId, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -107,27 +108,26 @@ export function SimpleCostExportDialog({
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger
-        render={<Button size="sm" className="h-8 px-2.5 text-xs" />}
+        render={<Button size="sm" />}
         disabled={disabled}
         title={`Choose the worksheets to include in ${title}`}
       >
         <Download /> {triggerLabel}
       </DialogTrigger>
       <DialogContent
-        className="flex flex-col gap-3 overflow-hidden sm:max-w-[560px]"
+        size="md"
+        className="flex flex-col gap-3 overflow-hidden"
         showCloseButton={!exporting}
         aria-busy={exporting}
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="text-xs">
-            {description}
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <output className="text-xs text-muted-foreground">
+          <Text as="output" tone="muted" textRole="body-small">
             {selected.length} / {options.length} selected
-          </output>
+          </Text>
           <div className="flex gap-1">
             <Button
               size="sm"
@@ -154,14 +154,16 @@ export function SimpleCostExportDialog({
           </div>
         </div>
         {/* A regular scroll container clips fieldset content reliably above the fixed footer. */}
-        <div className="min-h-0 overflow-y-auto rounded-md border">
+        <Surface as="div" variant="panel" className="min-h-0 overflow-y-auto">
           <fieldset className="min-w-0" disabled={exporting}>
             <legend className="sr-only">Worksheets to export</legend>
             {options.map((sheet, index) => (
-              <label
+              <Surface
                 key={sheet.id}
                 htmlFor={`${id}-sheet-${index}`}
-                className="grid cursor-pointer grid-cols-[1rem_1fr] items-center gap-x-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 focus-within:bg-muted/50"
+                as="label"
+                variant="field"
+                className="grid cursor-pointer grid-cols-[1rem_1fr] items-center"
               >
                 <Checkbox
                   id={`${id}-sheet-${index}`}
@@ -172,34 +174,42 @@ export function SimpleCostExportDialog({
                   onCheckedChange={(checked) => toggleSheet(sheet.id, checked)}
                 />
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium">
+                  <Text as="span" textRole="body-main" className="block">
                     {sheet.label}
                     {requiredSheets.includes(sheet.id) && (
-                      <span className="ml-2 text-xs text-muted-foreground">
+                      <Text
+                        as="span"
+                        tone="muted"
+                        textRole="body-small"
+                        className="ml-2"
+                      >
                         Required / 必选
-                      </span>
+                      </Text>
                     )}
-                  </span>
-                  <span
+                  </Text>
+                  <Text
                     id={`${id}-description-${index}`}
-                    className="block text-xs text-muted-foreground"
+                    as="span"
+                    tone="muted"
+                    textRole="body-small"
+                    className="block"
                   >
                     {sheet.description}
-                  </span>
+                  </Text>
                 </span>
-              </label>
+              </Surface>
             ))}
           </fieldset>
-        </div>
+        </Surface>
         {!selected.length && !error && (
-          <output className="text-xs text-muted-foreground">
+          <Text as="output" tone="muted" textRole="body-small">
             Select at least one worksheet. / 请至少选择一个页签。
-          </output>
+          </Text>
         )}
         {error && (
-          <p role="alert" className="text-xs text-destructive">
+          <Text role="alert" as="p" tone="danger" textRole="body-small">
             {error}
-          </p>
+          </Text>
         )}
         <DialogFooter className="shrink-0">
           <Button

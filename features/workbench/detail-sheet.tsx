@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 /** Project creation; progress is edited in the dedicated ProjectWorkflowPage. */
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -38,7 +39,7 @@ export function DetailSheet({
       }}
     >
       <SheetContent className="w-[min(560px,94vw)] sm:max-w-[560px]">
-        <SheetHeader className="shrink-0 border-b border-border p-4 pr-12">
+        <SheetHeader className="shrink-0">
           <SheetTitle>New Project / 新建项目</SheetTitle>
           <SheetDescription>
             创建项目并采用当前 Master Data；后续在 Project Workflow
@@ -77,7 +78,11 @@ export function DetailSheet({
             }
           }}
         >
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
+          <Surface
+            as="div"
+            variant="body"
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain"
+          >
             <NewProjectIdField
               inputId="new-project-id"
               value={projectId}
@@ -87,7 +92,12 @@ export function DetailSheet({
               }}
               disabled={busy}
             />
-            <label className="block space-y-2 text-sm">
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-main"
+              className="block"
+            >
               Project Name / 项目名称
               <Input
                 value={name}
@@ -95,8 +105,13 @@ export function DetailSheet({
                 required
                 disabled={busy}
               />
-            </label>
-            <label className="block space-y-2 text-sm">
+            </Surface>
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-main"
+              className="block"
+            >
               Client / 客户名称
               <Input
                 value={client}
@@ -104,26 +119,31 @@ export function DetailSheet({
                 required
                 disabled={busy}
               />
-            </label>
-            <label className="block space-y-2 text-sm">
+            </Surface>
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-main"
+              className="block"
+            >
               Project Owner / 项目负责人
               <Input
                 value={owner}
                 onChange={(event) => setOwner(event.target.value)}
                 disabled={busy}
               />
-            </label>
+            </Surface>
             <ArchiveSettingsPanel
               disabled={busy}
               onBlockedChange={setArchiveBlocked}
             />
             {error && (
-              <p role="alert" className="text-sm text-destructive">
+              <Text role="alert" as="p" tone="danger" textRole="body-main">
                 {error}
-              </p>
+              </Text>
             )}
-          </div>
-          <SheetFooter className="shrink-0 border-t border-border p-4">
+          </Surface>
+          <SheetFooter className="shrink-0">
             <Button
               type="submit"
               disabled={

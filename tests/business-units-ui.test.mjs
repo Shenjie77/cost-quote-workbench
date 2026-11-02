@@ -52,7 +52,7 @@ const { PersonnelLinesTable, blankPersonnelRow } =
   await import('../features/cost/components/personnel-input-controls.tsx');
 const { PersonnelBulkEntryForm } =
   await import('../features/cost/components/personnel-bulk-entry-dialog.tsx');
-const { SubcontractItemForm } =
+const { SubcontractLinesTable } =
   await import('../features/cost/components/subcontract-lines-table.tsx');
 const { AdditionalTravelTable } =
   await import('../features/cost/components/additional-travel-table.tsx');
@@ -206,10 +206,10 @@ test('personnel, bulk, subcontract and travel inputs use the common directory wi
       }),
     ],
     [
-      'Item business unit',
-      SubcontractItemForm({
-        draft: subcontract,
-        onDraftChange: (value) => writes.push(['subcontract', value.bu]),
+      `${subcontract.code} business unit`,
+      SubcontractLinesTable({
+        lines: [subcontract], project: true, actualYears: [2026,2027,2028,2029,2030], onDelete: noop,
+        onChange: (value) => writes.push(['subcontract', value.bu]),
         onSave: noop,
         onClose: noop,
         announce: noop,

@@ -1,3 +1,4 @@
+import { Text } from '@/components/ui/presentation';
 /** Keep incomplete numeric typing local until the user commits a valid commercial value. */
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,7 @@ export function QuoteNumberInput({
   disabled,
   onCommit,
   commitUnchanged = false,
-  className = 'h-8 w-full min-w-20 rounded-none border-transparent bg-transparent text-right shadow-none focus-visible:border-ring',
+  className = 'w-full min-w-20 text-right',
 }: {
   id?: string;
   value: number;
@@ -93,9 +94,15 @@ export function QuoteNumberInput({
         }}
       />
       {invalid && (
-        <span role="alert" className="block text-xs text-destructive">
+        <Text
+          role="alert"
+          as="span"
+          tone="danger"
+          textRole="body-small"
+          className="block"
+        >
           Enter {min}–{max}, up to {decimals} decimals.
-        </span>
+        </Text>
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 /** One compact project identity strip shared by cost, quotation and workflow pages. */
 import type React from 'react';
 import { useState } from 'react';
@@ -62,22 +63,32 @@ export function ContextBand({
   };
   const historical = latestCostVersion && latestCostVersion !== costVersion;
   return (
-    <section aria-label="Project information" className="wb-panel min-w-0">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-xs">
-        <div
-          className="flex min-w-0 max-w-full items-center gap-1.5 font-semibold text-primary"
+    <Surface
+      aria-label="Project information"
+      as="section"
+      variant="panel"
+      className="min-w-0"
+    >
+      <Surface
+        as="div"
+        variant="body"
+        textRole="body-small"
+        className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1"
+      >
+        <Surface
+          as="div"
+          tone="primary"
+          className="flex min-w-0 max-w-full items-center gap-2"
           title={project.name}
         >
-          <Briefcase className="size-3.5 shrink-0" aria-hidden="true" />
+          <Briefcase className="size-4 shrink-0" aria-hidden="true" />
           <span className="break-words">{project.name || 'Project'}</span>
-        </div>
+        </Surface>
         <div className="flex min-w-0 items-baseline gap-2">
-          <span className="shrink-0 text-muted-foreground">
+          <Text as="span" tone="muted" className="shrink-0">
             Proposal Number
-          </span>
-          <span className="break-all font-medium">
-            {proposalNumber || 'Not set'}
-          </span>
+          </Text>
+          <span className="break-all">{proposalNumber || 'Not set'}</span>
         </div>
         <div className="flex items-center gap-1">
           <ReferenceLink label="iSales" value={companyUrl} />
@@ -89,7 +100,7 @@ export function ContextBand({
             disabled={opening || !project.id}
             aria-label="Open project folder"
           >
-            <FolderOpen className="size-3.5" aria-hidden="true" />
+            <FolderOpen className="size-4" aria-hidden="true" />
             {opening ? 'Opening…' : 'Folder'}
           </Button>
         </div>
@@ -99,12 +110,20 @@ export function ContextBand({
             historical ? `Latest Version: ${latestCostVersion}` : undefined
           }
         >
-          <span className="text-muted-foreground">{versionLabel}</span>
-          <span className="financial-numeral font-semibold">{costVersion}</span>
-          {historical && <span className="text-amber-700">Historical</span>}
+          <Text as="span" tone="muted">
+            {versionLabel}
+          </Text>
+          <span className="financial-numeral">{costVersion}</span>
+          {historical && (
+            <Text as="span" tone="warning">
+              Historical
+            </Text>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">Status</span>
+          <Text as="span" tone="muted">
+            Status
+          </Text>
           <StatusBadge
             tone={
               versionStatus === 'Confirmed' || versionStatus === 'Completed'
@@ -126,16 +145,22 @@ export function ContextBand({
             disabled={editDisabled || !onEdit}
             aria-label="Edit project information"
           >
-            <Pencil className="size-3.5" aria-hidden="true" />
+            <Pencil className="size-4" aria-hidden="true" />
             Edit
           </Button>
         </div>
-      </div>
+      </Surface>
       {error && (
-        <p role="alert" className="border-t px-3 py-2 text-xs text-destructive">
+        <Surface
+          role="alert"
+          as="p"
+          variant="footer"
+          tone="danger"
+          textRole="body-small"
+        >
           {error}
-        </p>
+        </Surface>
       )}
-    </section>
+    </Surface>
   );
 }

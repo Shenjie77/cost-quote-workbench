@@ -1,3 +1,5 @@
+import { Surface, Text } from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
 /**
  * Portfolio-first project page. Workflow details remain in each persisted
  * workspace, while day-to-day navigation happens from this compact list.
@@ -60,7 +62,7 @@ export function ProjectView({
   );
 
   return (
-    <section className="wb-panel overflow-hidden">
+    <Surface as="section" variant="panel" className="overflow-hidden">
       <SectionHeading
         index="01"
         title="Project List"
@@ -69,11 +71,11 @@ export function ProjectView({
         descriptionZh="集中查看项目、流程、成本和报价。"
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <SelectField
               aria-label="Filter projects by tag"
               value={activeTag}
               onChange={(event) => setTag(event.target.value)}
-              className="h-8 max-w-48 rounded-md border border-input bg-background px-2 text-xs"
+              className="h-8 max-w-48"
             >
               <option value="">All tags / 全部标签</option>
               {tags.map((item) => (
@@ -81,16 +83,24 @@ export function ProjectView({
                   {item}
                 </option>
               ))}
-            </select>
+            </SelectField>
             <Button size="sm" onClick={onCreateProject}>
               <FolderPlus />
-              New Project <span className="text-xs opacity-60">新建项目</span>
+              New Project{' '}
+              <Text as="span" textRole="body-small">
+                新建项目
+              </Text>
             </Button>
           </div>
         }
       />
       {/* Portfolio totals remain visible in one wrapping strip above the project rows. */}
-      <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-b border-border bg-muted/15 px-3 py-2 text-xs">
+      <Surface
+        as="dl"
+        variant="item"
+        textRole="body-small"
+        className="flex flex-wrap items-baseline gap-x-6 gap-y-1"
+      >
         {[
           ['Projects', '项目数', visibleProjects.length],
           ['Portfolio Cost', '项目总成本', formatSgd(totals.cost)],
@@ -102,15 +112,15 @@ export function ProjectView({
           ['Portfolio Quote', '项目总报价', formatSgd(totals.quote)],
         ].map(([label, translation, value]) => (
           <div key={label} className="flex items-baseline gap-2">
-            <dt className="text-muted-foreground" title={String(translation)}>
+            <Text as="dt" tone="muted" title={String(translation)}>
               {label}
-            </dt>
-            <dd className="financial-numeral font-semibold text-primary">
+            </Text>
+            <Text as="dd" tone="primary" className="financial-numeral">
               {value}
-            </dd>
+            </Text>
           </div>
         ))}
-      </dl>
+      </Surface>
       <ProjectTable
         projects={visibleProjects}
         onTagSelect={setTag}
@@ -123,6 +133,6 @@ export function ProjectView({
         onWorkflowChange={onWorkflowChange}
         onTrackWorkflow={onTrackWorkflow}
       />
-    </section>
+    </Surface>
   );
 }

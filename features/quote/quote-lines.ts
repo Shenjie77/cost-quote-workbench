@@ -11,6 +11,10 @@ import {
 } from '../cost/domain.ts';
 import { calculateSubcontractCost } from '../cost/subcontract-domain.ts';
 import { UNASSIGNED_PERSONNEL_GROUP } from '../cost/personnel-table-layout.ts';
+import {
+  buildGroupCostSummary,
+  buildGroupCostSections,
+} from '../cost/group-cost-summary.ts';
 import { categoryKey } from './quotation-groups.ts';
 import { allocateMoneyByWeights } from './profit-share.ts';
 import type {
@@ -402,15 +406,21 @@ export function buildQuoteLines(
     single ? 'item' : (mode as 'scope' | 'group' | 'item'),
   );
   if (single) {
-    leaves = mergeWeighted(
-      leaves.map((line) => ({
-        ...line,
-        category: line.category || 'Professional Service',
-      })),
-      (line) => `service:category:${categoryKey(line.category!)}`,
-    );
-    leaves = leaves.map((line) => ({
-      ...line,
+    // Category pricing consumes the same reconciled costs as Summary. Shared travel,
+    // EHS and risk must not create an invented "Professional Service" category.
+    leaves = buildGroupCostSections(
+      buildGroupCostSummary(
+        snapshot.costRows,
+        snapshot.resourceTypes,
+        snapshot.travelSettings,
+        snapshot.manualCosts,
+        snapshot.subcontractCost,
+        getY1Year(snapshot.rateSettings),
+      ),
+    ).map((section) => ({
+      id: `service:category:${categoryKey(section.category || 'Uncategorized')}`,
+      category: section.category || 'Uncategorized',
+      weight: section.totals.total,
       description: snapshot.project?.name || 'Project services',
     }));
   } else if (mode === 'scope') {

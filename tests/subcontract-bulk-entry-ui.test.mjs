@@ -241,7 +241,7 @@ test('oversized input keeps an invalid sentinel and copies never overwrite the p
   );
 });
 
-test('project and site controls have compact Bulk Entry actions and item codes are bold', () => {
+test('project and site controls have compact Bulk Entry actions and item codes are directly editable', () => {
   const line = parsed().lines[0];
   const siteLine = { ...line, quantityPerSite: 2 };
   delete siteLine.quantities;
@@ -281,9 +281,9 @@ test('project and site controls have compact Bulk Entry actions and item codes a
       announce: noop,
     }),
   );
-  assert.match(table, /<strong[^>]*font-bold[^>]*>SC-NEW<\/strong>/);
+  assert.match(table, /aria-label="SC-NEW code"[^>]*value="SC-NEW"/);
   assert.match(table, /55.00/);
-  assert.match(table, /25\.00/);
+  assert.match(table, /aria-label="SC-NEW unit price"[^>]*value="25"/);
   assert.match(table, /<input[^>]*aria-label="SC-NEW Y1 quantity"/);
 });
 

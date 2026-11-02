@@ -233,7 +233,7 @@ test('controlled fields retain other references and only submit save intent, nev
   assert.equal(saves, 0);
   let prevented = false;
   fields()
-    .find((node) => node.type === 'form')
+    .find((node) => (node.type === 'form' || node.props.as === 'form'))
     .props.onSubmit({
       preventDefault() {
         prevented = true;
@@ -280,7 +280,7 @@ test('busy, clean and invalid editor states all prevent save submission', () => 
       true,
     );
     fields
-      .find((node) => node.type === 'form')
+      .find((node) => (node.type === 'form' || node.props.as === 'form'))
       .props.onSubmit({ preventDefault: noop });
     assert.equal(saves, 0);
   }

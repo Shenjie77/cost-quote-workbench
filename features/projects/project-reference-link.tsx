@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 /** Safe external links shared across project context bars. */
 import { ArrowUpRight } from 'lucide-react';
 /** References may contain legacy notes; only explicit web addresses are links. */
@@ -29,23 +30,29 @@ export function ReferenceLink({
 }) {
   const href = safeProjectReferenceUrl(value);
   return href ? (
-    <a
+    <Surface
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`Open ${label} in a new tab`}
       title={href}
-      className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary underline-offset-4 hover:bg-primary/5 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+      as="a"
+      variant="body"
+      tone="primary"
+      textRole="body-small"
+      className="inline-flex min-h-8 items-center gap-1 underline-offset-4 hover:underline"
     >
       {label}
       <ArrowUpRight className="size-3" aria-hidden="true" />
-    </a>
+    </Surface>
   ) : (
-    <span
-      className="px-1.5 py-0.5 text-xs text-muted-foreground"
+    <Text
+      as="span"
+      tone="muted"
+      textRole="body-small"
       title={value?.trim() || `${label} link is not set`}
     >
       {label}: {value?.trim() ? 'Reference only' : 'Not set'}
-    </span>
+    </Text>
   );
 }

@@ -1,36 +1,32 @@
-/** Compact English-first labels with subordinate Chinese helper text. */
-
+/** Labels inherit selected-row contrast; helper text uses the same role everywhere. */
+import { Text, type Tone } from '@/components/ui/presentation';
 export function BiText({
   en,
   zh,
-  className = '',
-  zhClassName = '',
+  className,
+  zhTone = 'muted',
 }: {
   en: string;
   zh: string;
   className?: string;
-  zhClassName?: string;
+  zhTone?: Tone;
 }) {
   return (
-    <span className={'flex min-w-0 flex-col ' + className}>
+    <Text className={`flex min-w-0 flex-col ${className || ''}`}>
       <span>{en}</span>
-      <span
-        className={
-          'mt-0.5 text-xs font-normal leading-4 text-muted-foreground ' +
-          zhClassName
-        }
-      >
+      <Text className="mt-1" textRole="body-small" tone={zhTone}>
         {zh}
-      </span>
-    </span>
+      </Text>
+    </Text>
   );
 }
-
 export function BiInline({ en, zh }: { en: string; zh: string }) {
   return (
-    <span>
+    <Text>
       {en}
-      <span className="ml-1 text-xs font-normal opacity-70">/ {zh}</span>
-    </span>
+      <Text className="ml-1" textRole="body-small" tone="inherit">
+        / {zh}
+      </Text>
+    </Text>
   );
 }

@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 /** Real version comparison calculated from each independent input snapshot. */
 
 import { ArrowRight } from 'lucide-react';
@@ -95,7 +96,7 @@ export function VersionComparisonView({
   });
 
   return (
-    <section className="wb-panel min-w-0 overflow-hidden">
+    <Surface as="section" variant="panel" className="min-w-0 overflow-hidden">
       <SectionHeading
         index="03"
         title="Version Comparison"
@@ -105,8 +106,8 @@ export function VersionComparisonView({
       />
       <Table className="min-w-[840px]">
         <TableHeader>
-          <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead className="px-4">
+          <TableRow tone="subtotal">
+            <TableHead>
               <BiText en="Version" zh="版本" />
             </TableHead>
             <TableHead>
@@ -115,20 +116,20 @@ export function VersionComparisonView({
             <TableHead>
               <BiText en="Source" zh="来源版本" />
             </TableHead>
-            <TableHead className="text-right">
+            <TableHead variant="numeric" className="text-right">
               <BiText en="Mandays" zh="总人天" className="items-end" />
             </TableHead>
-            <TableHead className="text-right">
+            <TableHead variant="numeric" className="text-right">
               <BiText en="Total Cost" zh="总成本" className="items-end" />
             </TableHead>
-            <TableHead className="pr-4 text-right">
+            <TableHead variant="numeric" className="text-right">
               <BiText
                 en="Change vs Source"
                 zh="相对来源版本变化"
                 className="items-end"
               />
             </TableHead>
-            <TableHead className="w-48 pr-4 text-right">
+            <TableHead variant="numeric" className="w-48 text-right">
               <BiText en="Action" zh="操作" className="items-end" />
             </TableHead>
           </TableRow>
@@ -136,12 +137,17 @@ export function VersionComparisonView({
         <TableBody>
           {records.map((record) => (
             <TableRow key={record.code} className="h-12">
-              <TableCell className="financial-numeral px-4 font-semibold text-primary">
+              <TableCell className="financial-numeral">
                 {record.code}
                 {record.code === activeVersion ? (
-                  <span className="ml-2 text-[8px] text-primary">
+                  <Text
+                    as="span"
+                    tone="primary"
+                    textRole="body-small"
+                    className="ml-2"
+                  >
                     ACTIVE · 当前
-                  </span>
+                  </Text>
                 ) : null}
               </TableCell>
               <TableCell>
@@ -163,7 +169,7 @@ export function VersionComparisonView({
                 >
                   <SelectTrigger
                     size="sm"
-                    className="min-w-[122px] bg-background text-xs"
+                    className="min-w-[122px]"
                     aria-label={`${record.code} version status`}
                   >
                     <SelectValue />
@@ -194,28 +200,30 @@ export function VersionComparisonView({
                   </SelectContent>
                 </Select>
               </TableCell>
-              <TableCell className="financial-numeral text-xs text-muted-foreground">
+              <TableCell className="financial-numeral">
                 {record.sourceVersion || '—'}
               </TableCell>
-              <TableCell className="financial-numeral text-right">
+              <TableCell
+                variant="numeric"
+                className="financial-numeral text-right"
+              >
                 {record.mandays.toLocaleString('en-SG')}
               </TableCell>
-              <TableCell className="financial-numeral text-right font-semibold">
+              <TableCell
+                variant="numeric"
+                className="financial-numeral text-right"
+              >
                 {formatSgd(record.total)}
               </TableCell>
               <TableCell
-                className={
-                  'financial-numeral pr-4 text-right font-semibold ' +
-                  (Number(record.delta || 0) > 0
-                    ? 'text-amber-700'
-                    : 'text-emerald-700')
-                }
+                variant="numeric"
+                className="financial-numeral text-right"
               >
                 {record.delta === null
                   ? '—'
                   : `${record.delta > 0 ? '+' : ''}${formatSgd(record.delta)}`}
               </TableCell>
-              <TableCell className="pr-4 text-right">
+              <TableCell variant="numeric" className="text-right">
                 <div className="flex justify-end gap-2">
                   <Button
                     type="button"
@@ -227,9 +235,9 @@ export function VersionComparisonView({
                     onClick={() => onSelectVersion(record.code)}
                   >
                     {record.code === activeVersion ? 'Current' : 'Open'}
-                    <span className="text-[8px] opacity-60">
+                    <Text as="span" textRole="body-small">
                       {record.code === activeVersion ? '当前' : '查看'}
-                    </span>
+                    </Text>
                     {record.code === activeVersion ? null : <ArrowRight />}
                   </Button>
                   {record.state === 'Suspended' && onDeleteVersion ? (
@@ -237,7 +245,7 @@ export function VersionComparisonView({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="text-red-700"
+
                       disabled={!!deletionReasons[record.code]}
                       title={
                         deletionReasons[record.code] ||
@@ -245,7 +253,10 @@ export function VersionComparisonView({
                       }
                       onClick={() => onDeleteVersion(record.code)}
                     >
-                      Delete <span className="text-[8px] opacity-60">删除</span>
+                      Delete{' '}
+                      <Text as="span" textRole="body-small">
+                        删除
+                      </Text>
                     </Button>
                   ) : null}
                 </div>
@@ -254,6 +265,6 @@ export function VersionComparisonView({
           ))}
         </TableBody>
       </Table>
-    </section>
+    </Surface>
   );
 }

@@ -175,7 +175,7 @@ test('category delimiters inside user Scope or Group labels cannot merge unrelat
   );
 });
 
-test('single mode emits category totals and uncategorized costs keep the legacy service category', () => {
+test('single mode emits cost categories and labels genuinely unassigned costs explicitly', () => {
   const input = snapshot({
     costRows: [
       { ...row('a', 'Design', 100), category: 'Hardware' },
@@ -189,7 +189,7 @@ test('single mode emits category totals and uncategorized costs keep the legacy 
     [
       ['Hardware', 200],
       ['Services', 600],
-      ['Professional Service', 200],
+      ['Uncategorized', 200],
     ],
   );
   assert.ok(lines.every((line) => line.description === input.project.name));
@@ -689,4 +689,30 @@ test('cost Group quoting follows personnel groups rather than Scope and retains 
     validateQuoteLines(buildQuoteLines(snapshot(), 'group', 10), 10),
     [],
   );
+});
+
+test('category prices include shared EHS and preserve explicit risk distribution without inventing a service category', () => {
+  const input = snapshot({
+    costRows: [
+      { ...row('a', 'Design', 100), category: 'Mandatory' },
+      { ...row('b', 'Delivery', 300), category: 'Optional' },
+    ],
+  });
+  input.manualCosts.otherServiceRate = 0.01;
+  input.manualCosts.riskContingency = 100;
+  input.manualCosts.categoryRiskWeights = [
+    { category: 'Mandatory', weight: 0.8 },
+    { category: 'Optional', weight: 0.2 },
+  ];
+  const before = structuredClone(input);
+  const lines = buildQuoteLines(input, 'single', 504);
+  assert.deepEqual(
+    lines.map((line) => [line.category, line.amount]),
+    [
+      ['Mandatory', 181],
+      ['Optional', 323],
+    ],
+  );
+  assert.deepEqual(input, before);
+  assert.equal(validateQuoteLines(lines, 504).length, 0);
 });

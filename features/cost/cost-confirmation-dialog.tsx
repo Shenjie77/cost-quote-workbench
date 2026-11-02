@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 /** Explicit user consent before a version is finalized or submitted to DRB. */
 import { Button } from '@/components/ui/button';
 import {
@@ -29,42 +30,54 @@ export function CostConfirmationBody({
 }) {
   return (
     <div className="space-y-4">
-      <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-x-4 gap-y-3 rounded-xl border border-border bg-muted/30 p-4 text-sm [&_dt]:text-muted-foreground [&_dd]:min-w-0 [&_dd]:break-words">
+      <Surface
+        as="dl"
+        variant="panel"
+        padded
+        textRole="body-main"
+        className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-x-4 gap-y-3 [&_dd]:min-w-0 [&_dd]:break-words"
+      >
         <dt>项目</dt>
         <dd>
           {details.projectName} · {details.projectId}
         </dd>
         <dt>成本版本</dt>
-        <dd className="font-semibold">{details.versionCode}</dd>
+        <dd>{details.versionCode}</dd>
         <dt>计算后总成本</dt>
-        <dd className="font-semibold">{formatSgd(details.totalCost)}</dd>
+        <dd>{formatSgd(details.totalCost)}</dd>
         <dt>总人天</dt>
         <dd>{details.totalMandays.toLocaleString('en-SG')} MD</dd>
-      </dl>
-      <p className="text-sm">
+      </Surface>
+      <Text as="p" textRole="body-main">
         确认后仅将成本 {details.versionCode}{' '}
         定稿，不能再修改本版成本；后续变化请新建版本。{action}
         。此操作不会替代公司的评审结果。
-      </p>
+      </Text>
       {details.issues.length > 0 && (
-        <ul className="max-h-40 space-y-2 overflow-auto rounded-lg border border-border p-3 text-sm">
+        <Surface
+          as="ul"
+          variant="panel"
+          padded
+          textRole="body-main"
+          className="max-h-40 space-y-2 overflow-auto"
+        >
           {details.issues.map((issue, index) => (
-            <li
+            <Text
               key={index}
-              className={
-                issue.severity === 'error' ? 'text-red-700' : 'text-amber-800'
-              }
+              as="li"
+              tone={issue.severity === 'error' ? 'danger' : 'warning'}
+              className=""
             >
               {issue.severity === 'error' ? '需修正' : '请核对'}：
               {issue.message}
-            </li>
+            </Text>
           ))}
-        </ul>
+        </Surface>
       )}
       {error && (
-        <p role="alert" className="text-sm text-red-700">
+        <Text role="alert" as="p" tone="danger" textRole="body-main">
           {error}
-        </p>
+        </Text>
       )}
       <div className="flex flex-wrap justify-end gap-2">
         <Button variant="ghost" disabled={busy} onClick={onCancel}>

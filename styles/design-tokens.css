@@ -1,0 +1,150 @@
+/* The only visual values owned by the application. Business views consume semantic roles. */
+:root {
+  color-scheme: light;
+  --font-workbench-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', Arial, sans-serif;
+  --font-workbench-mono: var(--font-workbench-sans);
+  --background: #f4f6f8;
+  --foreground: #203142;
+  --card: #ffffff;
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --primary: #183c51;
+  --primary-foreground: #ffffff;
+  --primary-hover: #234f67;
+  --secondary: #edf2f6;
+  --secondary-foreground: var(--foreground);
+  --muted: #f0f3f6;
+  --muted-foreground: #536779;
+  --accent: #e7f3f2;
+  --accent-foreground: #126a70;
+  --destructive: #b5454d;
+  --danger-muted: #fceeed;
+  --border: #dfe6ed;
+  --input: #8a99a6;
+  --ring: #177c80;
+  --grid: var(--border);
+  --success: #256044;
+  --success-muted: #edf5f0;
+  --warning: #87530d;
+  --warning-muted: #fff5e5;
+  --info: #2d617e;
+  --info-muted: #edf3f8;
+  --overlay: #142d3e66;
+  --sidebar: #142d3e;
+  --sidebar-foreground: #eaf0f2;
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--primary);
+  --sidebar-accent: #213e50;
+  --sidebar-accent-foreground: var(--primary-foreground);
+  --sidebar-border: #2a4659;
+  --sidebar-ring: #77a8aa;
+  --chart-1: var(--primary);
+  --chart-2: var(--ring);
+  --chart-3: var(--warning);
+  --chart-4: var(--success);
+  --chart-5: var(--muted-foreground);
+  --space-unit: 4px;
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius: var(--radius-md);
+  --shadow-card: 0 1px 2px #142d3e0a;
+  --shadow-dropdown: 0 8px 24px #142d3e26;
+  --border-width: 1px;
+  --focus-width: 2px;
+  --focus-offset: 4px;
+  --motion-duration: 200ms;
+  --motion-ease: ease-in-out;
+  --motion-reduced: 0.01ms;
+  --disabled-opacity: 0.5;
+  --type-h1-size: 24px;
+  --type-h1-line: 32px;
+  --type-h1-weight: 600;
+  --type-h1-tracking: -0.02em;
+  --type-h2-size: 20px;
+  --type-h2-line: 28px;
+  --type-h2-weight: 600;
+  --type-h2-tracking: -0.01em;
+  --type-h3-size: 16px;
+  --type-h3-line: 24px;
+  --type-h3-weight: 600;
+  --type-h3-tracking: 0em;
+  --type-body-main-size: 14px;
+  --type-body-main-line: 20px;
+  --type-body-main-weight: 400;
+  --type-body-main-tracking: 0em;
+  --type-body-small-size: 12px;
+  --type-body-small-line: 16px;
+  --type-body-small-weight: 400;
+  --type-body-small-tracking: 0em;
+  --page-max-width: 1600px;
+  --page-padding: var(--space-6);
+  --section-gap: var(--space-4);
+  --module-padding: var(--space-4);
+  --header-gap: var(--space-3);
+  --control-sm: 28px;
+  --control-md: 32px;
+  --control-lg: 40px;
+  --control-touch: 44px;
+  --sidebar-width: 216px;
+  --dialog-sm: 400px;
+  --dialog-md: 640px;
+  --dialog-lg: 960px;
+  --dialog-xl: 1280px;
+  --layer-sticky: 20;
+  --layer-navigation: 40;
+  --layer-overlay: 50;
+  --layer-editor: 90;
+  --layer-announcement: 100;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #17212a;
+  --foreground: #eaf0f2;
+  --card: #202e3a;
+  --primary: #b6d8e6;
+  --primary-foreground: #17212a;
+  --primary-hover: #c8e3ed;
+  --secondary: #2a3c4a;
+  --muted: #263745;
+  --muted-foreground: #b3c2ce;
+  --accent: #234548;
+  --accent-foreground: #a9dcda;
+  --destructive: #ffb4ba;
+  --danger-muted: #48272d;
+  --border: #3d5060;
+  --input: #7c94a5;
+  --ring: #83cfcb;
+  --success: #99d5b0;
+  --success-muted: #20392b;
+  --warning: #f4c879;
+  --warning-muted: #3c301c;
+  --info: #a9cbe5;
+  --info-muted: #233747;
+  --overlay: #071119aa;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --page-padding: var(--space-3);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration: var(--motion-reduced);
+  }
+}

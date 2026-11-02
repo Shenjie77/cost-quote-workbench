@@ -1,3 +1,4 @@
+import { layoutClassName } from '@/lib/ui-layout';
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
@@ -27,7 +28,7 @@ function PaginationContent({
   return (
     <ul
       data-slot="pagination-content"
-      className={cn('gap-0.5 flex items-center', className)}
+      className={cn('gap-1 flex items-center', className)}
       {...props}
     />
   );
@@ -75,7 +76,7 @@ function PaginationPrevious({
     <PaginationLink
       aria-label="Go to previous page"
       size="default"
-      className={cn('pl-1.5!', className)}
+      className={cn('pl-2!', className)}
       {...props}
     >
       <ChevronLeftIcon data-icon="inline-start" className="cn-rtl-flip" />
@@ -93,7 +94,7 @@ function PaginationNext({
     <PaginationLink
       aria-label="Go to next page"
       size="default"
-      className={cn('pr-1.5!', className)}
+      className={cn('pr-2!', className)}
       {...props}
     >
       <span className="hidden sm:block">{text}</span>
@@ -112,7 +113,7 @@ function PaginationEllipsis({
       data-slot="pagination-ellipsis"
       className={cn(
         "size-8 [&_svg:not([class*='size-'])]:size-4 flex items-center justify-center",
-        className,
+        layoutClassName(className),
       )}
       {...props}
     >

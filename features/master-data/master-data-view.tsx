@@ -1,3 +1,11 @@
+import { Badge } from '@/components/ui/badge';
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
 import {
   maintenanceHistoryColumns,
   historyFieldValue,
@@ -122,8 +130,7 @@ type Props = {
 };
 
 /** Editable cells stay compact while exposing a clear hover and keyboard-focus target. */
-const denseInput =
-  'h-8 min-w-20 rounded-sm border border-transparent bg-transparent px-2 text-xs shadow-none hover:border-input hover:bg-background focus-visible:relative focus-visible:z-20 focus-visible:bg-background focus-visible:ring-2';
+const denseInput = 'min-w-20 focus-visible:relative focus-visible:z-20';
 
 /** Browser-generated IDs remain unique after rows are deleted and re-added. */
 const newRecordId = (prefix: string) =>
@@ -159,6 +166,7 @@ function EditCell({
 }) {
   return (
     <Input
+      variant="grid"
       money={
         type === 'number' && /price|cost|amount|manday rate/i.test(ariaLabel)
       }
@@ -189,22 +197,23 @@ export function ResourceIdentityCells({
   const issue = resourceClassificationIssue(row);
   return (
     <>
-      <TableCell className="font-semibold">
+      <TableCell variant="editable">
         <EditCell
           value={row.code}
           ariaLabel={`${row.code} code`}
           onChange={(value) => onChange('code', value)}
         />
       </TableCell>
-      <TableCell>
+      <TableCell variant="editable">
         <EditCell
           value={row.name}
           ariaLabel={`${row.code} name`}
           onChange={(value) => onChange('name', value)}
         />
       </TableCell>
-      <TableCell>
-        <select
+      <TableCell variant="editable">
+        <SelectField
+          variant="grid"
           className={`${denseInput} min-w-36`}
           value={row.category}
           aria-label={`${row.code} category`}
@@ -219,16 +228,24 @@ export function ResourceIdentityCells({
           )}
           <option value="internal">Internal / 自有</option>
           <option value="subcontract">Subcontract / 分包</option>
-        </select>
+        </SelectField>
         {issue && (
-          <p role="alert" className="max-w-60 px-2 text-xs text-red-700">
+          <Surface
+            role="alert"
+            as="p"
+            variant="body"
+            tone="danger"
+            textRole="body-small"
+            className="max-w-60"
+          >
             {issue}
-          </p>
+          </Surface>
         )}
       </TableCell>
-      <TableCell>
-        <select
-          className={denseInput}
+      <TableCell variant="editable">
+        <SelectField
+          variant="grid"
+          className="h-8 min-w-20 focus-visible:relative focus-visible:z-20"
           value={row.pool ?? ''}
           disabled={!internal}
           aria-label={`${row.code} pool`}
@@ -250,11 +267,12 @@ export function ResourceIdentityCells({
               {pool}
             </option>
           ))}
-        </select>
+        </SelectField>
       </TableCell>
-      <TableCell>
-        <select
-          className={denseInput}
+      <TableCell variant="editable">
+        <SelectField
+          variant="grid"
+          className="h-8 min-w-20 focus-visible:relative focus-visible:z-20"
           value={row.level ?? ''}
           disabled={!internal}
           aria-label={`${row.code} level`}
@@ -276,7 +294,7 @@ export function ResourceIdentityCells({
               {level}
             </option>
           ))}
-        </select>
+        </SelectField>
       </TableCell>
     </>
   );
@@ -674,8 +692,8 @@ export function MasterDataView(props: Props) {
   };
 
   return (
-    <div className="wb-page-stack min-w-0 gap-2">
-      <section className="wb-panel min-w-0 overflow-hidden">
+    <Surface as="div" variant="page" className="min-w-0">
+      <Surface as="section" variant="panel" className="min-w-0 overflow-hidden">
         <Tabs
           value={activeTab === 'status' ? 'workflow' : activeTab}
           onValueChange={(value) => {
@@ -684,12 +702,12 @@ export function MasterDataView(props: Props) {
             setQuery('');
           }}
         >
-          <div className="border-b border-border px-2 py-1.5">
+          <Surface as="div" variant="item">
             <div className="wb-table-scroll">
               <TabsList
                 variant="line"
                 aria-label="Master Data libraries"
-                className="min-w-max justify-start gap-1 rounded-none bg-transparent p-0 group-data-horizontal/tabs:h-auto"
+                className="min-w-max justify-start gap-1 group-data-horizontal/tabs:h-auto"
               >
                 {masterDataTabs
                   .filter((tab) => tab.value !== 'status')
@@ -697,22 +715,22 @@ export function MasterDataView(props: Props) {
                     <TabsTrigger
                       key={tab.value}
                       value={tab.value}
-                      className="h-8 flex-none gap-1.5 rounded px-2 text-xs data-active:bg-accent data-active:text-primary"
+                      className="h-8 flex-none gap-2"
                     >
                       {tab.label}
-                      <span className="text-xs opacity-70">
+                      <Text as="span" textRole="body-small">
                         {workflow && tab.value === 'workflow'
                           ? ''
                           : tab.labelZh}
-                      </span>
-                      <span className="financial-numeral rounded-md bg-current/10 px-1.5 py-0.5 text-xs">
+                      </Text>
+                      <Badge className="financial-numeral">
                         {tabCounts[tab.value]}
-                      </span>
+                      </Badge>
                     </TabsTrigger>
                   ))}
               </TabsList>
             </div>
-          </div>
+          </Surface>
           {/* Keep the active library tools directly above its editable grid. */}
           <SectionHeading
             title={
@@ -728,9 +746,14 @@ export function MasterDataView(props: Props) {
             action={
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Text
+                    as={Search}
+                    tone="muted"
+                    className="absolute left-3 top-1/2 size-4 -translate-y-1/2"
+                  />
                   <Input
-                    className="h-8 bg-background pl-8 text-sm"
+                    variant="search"
+
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     aria-label="Search current master-data tab"
@@ -760,18 +783,20 @@ export function MasterDataView(props: Props) {
               </div>
             }
           />
-          <fieldset
+          <Surface
             disabled={editingDisabled}
-            className="min-w-0 border-0 p-0 [&_td:first-child_input]:font-semibold"
+            as="fieldset"
+            variant="body"
+            className="min-w-0"
           >
-            <TabsContent value="cpq-catalog" className="mt-0">
+            <TabsContent value="cpq-catalog">
               <GlobalCpqCatalog
                 items={catalog}
                 setItems={setCatalog}
                 query={query}
               />
             </TabsContent>
-            <TabsContent value="workflow" className="mt-0">
+            <TabsContent value="workflow">
               <WorkflowTemplateEditor
                 steps={processSteps}
                 setSteps={setProcessSteps}
@@ -780,8 +805,14 @@ export function MasterDataView(props: Props) {
                 announce={announce}
               />
             </TabsContent>
-            <TabsContent value="status" className="mt-0">
-              <div className="wb-toolbar justify-between border-b text-xs text-muted-foreground">
+            <TabsContent value="status">
+              <Surface
+                as="div"
+                variant="toolbar"
+                tone="muted"
+                textRole="body-small"
+                className="justify-between"
+              >
                 <span>Default status definitions / 默认项目状态字典</span>
                 <div className="flex items-center gap-2">
                   <StatusBadge tone="blue">
@@ -789,18 +820,18 @@ export function MasterDataView(props: Props) {
                   </StatusBadge>
                   <Button
                     size="sm"
-                    className="h-8 text-xs"
+
                     onClick={addProjectStatusDefinition}
                   >
                     <Plus />
                     Add row / 新增
                   </Button>
                 </div>
-              </div>
+              </Surface>
               <div className="min-w-0">
-                <Table className="min-w-[820px] text-xs">
+                <Table className="min-w-[820px]">
                   <TableHeader>
-                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                    <TableRow tone="subtotal">
                       <TableHead className="w-60">Code / 系统编码</TableHead>
                       <TableHead>Status Name / 英文名称</TableHead>
                       <TableHead>中文名称</TableHead>
@@ -814,11 +845,11 @@ export function MasterDataView(props: Props) {
                     {statuses.map((status) => (
                       <TableRow key={status.code} className="h-9">
                         <TableCell>
-                          <code className="text-xs text-muted-foreground">
+                          <Surface as="code" tone="muted" textRole="body-small">
                             {status.code}
-                          </code>
+                          </Surface>
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={status.name}
                             ariaLabel={`${status.code} English status name`}
@@ -831,7 +862,7 @@ export function MasterDataView(props: Props) {
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={status.nameZh}
                             ariaLabel={`${status.code} Chinese status name`}
@@ -845,7 +876,8 @@ export function MasterDataView(props: Props) {
                           />
                         </TableCell>
                         <TableCell>
-                          <button
+                          <Button
+                            variant="ghost"
                             type="button"
                             onClick={() =>
                               updateProjectStatusDefinition(
@@ -860,7 +892,7 @@ export function MasterDataView(props: Props) {
                             >
                               {status.active ? 'Active' : 'Inactive'}
                             </StatusBadge>
-                          </button>
+                          </Button>
                         </TableCell>
                         <TableCell className="text-center">
                           <DeleteRowButton
@@ -875,16 +907,27 @@ export function MasterDataView(props: Props) {
                   </TableBody>
                 </Table>
               </div>
-              <p className="border-t bg-muted/30 px-4 py-3 text-xs leading-5 text-muted-foreground">
+              <Surface
+                as="p"
+                variant="footer"
+                tone="muted"
+                textRole="body-small"
+              >
                 English and Chinese names are editable. The code stays stable
                 for CLI and Agent operations; inactive options are hidden from
                 new selections. /
                 中英文名称可编辑，系统编码保持稳定；停用状态不再供新选择。
-              </p>
+              </Surface>
             </TabsContent>
-            <TabsContent value="resources" className="mt-0">
+            <TabsContent value="resources">
               <div className="min-w-0">
-                <div className="wb-toolbar justify-between border-b text-xs text-muted-foreground">
+                <Surface
+                  as="div"
+                  variant="toolbar"
+                  tone="muted"
+                  textRole="body-small"
+                  className="justify-between"
+                >
                   <span>
                     Internal / 自有 · Subcontract / 分包 · LOCAL / ARP / HQ /
                     OTHER · L0–L4 · SGD/MD
@@ -893,7 +936,7 @@ export function MasterDataView(props: Props) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-8 text-xs"
+
                       onClick={addResource}
                     >
                       <Plus />
@@ -901,7 +944,7 @@ export function MasterDataView(props: Props) {
                     </Button>
                     <Button
                       size="sm"
-                      className="h-8 text-xs"
+
                       onClick={async () =>
                         announce(
                           (await onSave())
@@ -914,11 +957,11 @@ export function MasterDataView(props: Props) {
                       Save rates
                     </Button>
                   </div>
-                </div>
+                </Surface>
                 <div className="min-w-0">
-                  <Table className="min-w-[1480px] text-xs">
+                  <Table className="min-w-[1480px]">
                     <TableHeader>
-                      <TableRow className="bg-muted/60">
+                      <TableRow tone="subtotal">
                         {[
                           'Code / 编码',
                           'Name / 名称',
@@ -937,7 +980,7 @@ export function MasterDataView(props: Props) {
                         ].map((label) => (
                           <TableHead
                             key={label}
-                            className="h-9 whitespace-nowrap px-2 text-xs"
+                            className="h-9 whitespace-nowrap"
                           >
                             {label}
                           </TableHead>
@@ -955,7 +998,7 @@ export function MasterDataView(props: Props) {
                                 updateResource(row.id, key, value)
                               }
                             />
-                            <TableCell>
+                            <TableCell variant="editable">
                               <EditCell
                                 type="number"
                                 value={row.mandayRate}
@@ -969,7 +1012,7 @@ export function MasterDataView(props: Props) {
                                 }
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell variant="editable">
                               <EditCell
                                 type="number"
                                 value={row.mandaysPerMonth}
@@ -983,7 +1026,7 @@ export function MasterDataView(props: Props) {
                                 }
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell variant="editable">
                               <EditCell
                                 type="number"
                                 value={row.hoursPerManday}
@@ -1003,7 +1046,7 @@ export function MasterDataView(props: Props) {
                             <TableCell className="financial-numeral">
                               {formatSgd(rate.perHour)}
                             </TableCell>
-                            <TableCell>
+                            <TableCell variant="editable">
                               <EditCell
                                 type="date"
                                 value={row.effectiveFrom}
@@ -1013,7 +1056,7 @@ export function MasterDataView(props: Props) {
                                 }
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell variant="editable">
                               <EditCell
                                 type="date"
                                 value={row.effectiveTo}
@@ -1024,7 +1067,8 @@ export function MasterDataView(props: Props) {
                               />
                             </TableCell>
                             <TableCell>
-                              <button
+                              <Button
+                                variant="ghost"
                                 type="button"
                                 onClick={() =>
                                   updateResource(row.id, 'active', !row.active)
@@ -1035,7 +1079,7 @@ export function MasterDataView(props: Props) {
                                 >
                                   {row.active ? 'Active' : 'Inactive'}
                                 </StatusBadge>
-                              </button>
+                              </Button>
                             </TableCell>
                             <TableCell className="text-center">
                               <DeleteRowButton
@@ -1049,22 +1093,27 @@ export function MasterDataView(props: Props) {
                     </TableBody>
                   </Table>
                 </div>
-                <p className="border-t bg-muted/30 px-4 py-3 text-xs leading-5 text-muted-foreground">
+                <Surface
+                  as="p"
+                  variant="footer"
+                  tone="muted"
+                  textRole="body-small"
+                >
                   MM rate = MD rate × MD/MM. Hour rate = MD rate ÷ Hour/MD. HQ
                   rows automatically enable travel. Classification changes keep
                   the code unchanged. / 人月、人时汇率自动换算；自有人员可选择
                   Pool 和 Level，HQ 自动启用差旅；OTHER（如远程支持）不计 HQ
                   差旅，也不适用 3% allowance。分包不使用人员 Pool 和
                   Level。修改分类不会改写编码。
-                </p>
+                </Surface>
               </div>
             </TabsContent>
-            <TabsContent value="subcontract" className="mt-0">
+            <TabsContent value="subcontract">
               <TableToolbar count={subcontract.length} onAdd={addSubcontract} />
               <div className="min-w-0">
                 <Table className="min-w-[1000px]">
                   <TableHeader>
-                    <TableRow className="bg-muted/60">
+                    <TableRow tone="subtotal">
                       {[
                         'Code',
                         'Item / 条目',
@@ -1082,7 +1131,7 @@ export function MasterDataView(props: Props) {
                   <TableBody>
                     {subcontract.map((row) => (
                       <TableRow key={row.id}>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={row.code}
                             ariaLabel="Subcontract code"
@@ -1091,7 +1140,7 @@ export function MasterDataView(props: Props) {
                             }
                           />
                         </TableCell>
-                        <TableCell className="min-w-[260px]">
+                        <TableCell variant="editable" className="min-w-[260px]">
                           <EditCell
                             value={row.item}
                             ariaLabel="Subcontract item"
@@ -1100,14 +1149,14 @@ export function MasterDataView(props: Props) {
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={row.bu}
                             ariaLabel="Subcontract BU"
                             onChange={(v) => updateSubcontract(row.id, 'bu', v)}
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={row.unit ?? ''}
                             ariaLabel={`${row.code} unit`}
@@ -1117,7 +1166,7 @@ export function MasterDataView(props: Props) {
                             }
                           />
                         </TableCell>
-                        <TableCell className="tabular-nums">
+                        <TableCell variant="editable" className="tabular-nums">
                           <EditCell
                             value={row.unitPrice ?? ''}
                             type="number"
@@ -1144,7 +1193,8 @@ export function MasterDataView(props: Props) {
                         </TableCell>
                         <TableCell>{row.currency}</TableCell>
                         <TableCell>
-                          <button
+                          <Button
+                            variant="ghost"
                             type="button"
                             onClick={() =>
                               updateSubcontract(row.id, 'active', !row.active)
@@ -1153,7 +1203,7 @@ export function MasterDataView(props: Props) {
                             <StatusBadge tone={row.active ? 'green' : 'gray'}>
                               {row.active ? 'Active' : 'Inactive'}
                             </StatusBadge>
-                          </button>
+                          </Button>
                         </TableCell>
                         <TableCell className="text-center">
                           <DeleteRowButton
@@ -1174,16 +1224,21 @@ export function MasterDataView(props: Props) {
                     ))}
                   </TableBody>
                 </Table>
-                <p className="border-t bg-muted/30 px-4 py-3 text-xs leading-5 text-muted-foreground">
+                <Surface
+                  as="p"
+                  variant="footer"
+                  tone="muted"
+                  textRole="body-small"
+                >
                   Unit Price is a reference price in the listed currency. Blank
                   means not priced; 0 means zero cost. Catalogue edits do not
                   create or update project costs. /
                   单价按本行币种填写；留空为未定价， 0
                   为零成本。目录更新不会自动生成或修改项目成本。
-                </p>
+                </Surface>
               </div>
             </TabsContent>
-            <TabsContent value="supplemental" className="mt-0">
+            <TabsContent value="supplemental">
               <TableToolbar
                 count={supplemental.length}
                 onAdd={addSupplemental}
@@ -1191,7 +1246,7 @@ export function MasterDataView(props: Props) {
               <div className="min-w-0">
                 <Table className="min-w-[900px]">
                   <TableHeader>
-                    <TableRow className="bg-muted/60">
+                    <TableRow tone="subtotal">
                       {[
                         'Code',
                         'Name / 名称',
@@ -1209,7 +1264,7 @@ export function MasterDataView(props: Props) {
                   <TableBody>
                     {supplemental.map((row) => (
                       <TableRow key={row.id}>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={row.code}
                             ariaLabel="Supplemental code"
@@ -1218,7 +1273,7 @@ export function MasterDataView(props: Props) {
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={row.name}
                             ariaLabel="Supplemental name"
@@ -1227,7 +1282,7 @@ export function MasterDataView(props: Props) {
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={row.statementCode}
                             ariaLabel="Statement code"
@@ -1236,7 +1291,7 @@ export function MasterDataView(props: Props) {
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             type="number"
                             value={row.defaultAmount}
@@ -1250,7 +1305,7 @@ export function MasterDataView(props: Props) {
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={row.owner}
                             ariaLabel="Owner"
@@ -1259,7 +1314,7 @@ export function MasterDataView(props: Props) {
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={row.sourceNote}
                             ariaLabel="Source"
@@ -1269,7 +1324,8 @@ export function MasterDataView(props: Props) {
                           />
                         </TableCell>
                         <TableCell>
-                          <button
+                          <Button
+                            variant="ghost"
                             type="button"
                             onClick={() =>
                               updateSupplemental(row.id, 'active', !row.active)
@@ -1278,7 +1334,7 @@ export function MasterDataView(props: Props) {
                             <StatusBadge tone={row.active ? 'green' : 'gray'}>
                               {row.active ? 'Active' : 'Inactive'}
                             </StatusBadge>
-                          </button>
+                          </Button>
                         </TableCell>
                         <TableCell className="text-center">
                           <DeleteRowButton
@@ -1301,13 +1357,19 @@ export function MasterDataView(props: Props) {
                 </Table>
               </div>
             </TabsContent>
-            <TabsContent value="maintenance" className="mt-0">
-              <div className="wb-toolbar justify-between border-b text-xs text-muted-foreground">
+            <TabsContent value="maintenance">
+              <Surface
+                as="div"
+                variant="toolbar"
+                tone="muted"
+                textRole="body-small"
+                className="justify-between"
+              >
                 <span>{maintenance.length} records / 条记录</span>
                 <div className="flex gap-2">
                   {!props.bulkActions && (
                     <>
-                      <input
+                      <Input
                         ref={maintenanceImportRef}
                         type="file"
                         accept=".json,.xlsx"
@@ -1321,24 +1383,20 @@ export function MasterDataView(props: Props) {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-8 text-xs"
+
                         onClick={() => maintenanceImportRef.current?.click()}
                       >
                         <Upload /> Import JSON/XLSX / 导入
                       </Button>
                     </>
                   )}
-                  <Button
-                    size="sm"
-                    className="h-8 text-xs"
-                    onClick={addMaintenance}
-                  >
+                  <Button size="sm" onClick={addMaintenance}>
                     <Plus /> Add row / 新增
                   </Button>
                 </div>
-              </div>
+              </Surface>
               <div className="min-w-0">
-                <Table className="min-w-[900px] [&_td]:border [&_th]:border">
+                <Table className="min-w-[900px]">
                   <TableHeader>
                     <TableRow>
                       {[
@@ -1354,7 +1412,7 @@ export function MasterDataView(props: Props) {
                   <TableBody>
                     {maintenance.map((row) => (
                       <TableRow key={row.id}>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={row.productModel}
                             ariaLabel="Product model"
@@ -1363,7 +1421,7 @@ export function MasterDataView(props: Props) {
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={row.client}
                             ariaLabel="Client"
@@ -1415,7 +1473,7 @@ export function MasterDataView(props: Props) {
                         <TableCell className="financial-numeral">
                           {formatSgd(unitAnnualMaintenanceQuote(row) ?? 0)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             type="number"
                             value={
@@ -1444,7 +1502,7 @@ export function MasterDataView(props: Props) {
                             }}
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell variant="editable">
                           <EditCell
                             value={row.project ?? row.source}
                             ariaLabel="Project"
@@ -1476,14 +1534,14 @@ export function MasterDataView(props: Props) {
                 </Table>
               </div>
             </TabsContent>
-            <TabsContent value="service-history" className="mt-0">
+            <TabsContent value="service-history">
               <ServiceHistoryEditor
                 rows={servicePriceRecords}
                 setRows={setServicePriceRecords}
                 query={query}
               />
             </TabsContent>
-            <TabsContent value="assumptions" className="mt-0">
+            <TabsContent value="assumptions">
               <AssumptionLibraryView
                 library={assumptionLibrary}
                 setLibrary={setAssumptionLibrary}
@@ -1492,7 +1550,7 @@ export function MasterDataView(props: Props) {
                 announce={announce}
               />
             </TabsContent>
-            <TabsContent value="quote-templates" className="mt-0">
+            <TabsContent value="quote-templates">
               <QuoteTemplatesView
                 templates={quoteTemplates}
                 setTemplates={setQuoteTemplates}
@@ -1501,52 +1559,58 @@ export function MasterDataView(props: Props) {
                 announce={announce}
               />
             </TabsContent>
-            <TabsContent value="project-tags" className="mt-0">
+            <TabsContent value="project-tags">
               <ProjectTagsEditor
                 items={projectTags}
                 onChange={setProjectTags}
                 query={query}
               />
             </TabsContent>
-            <TabsContent value="profit-share" className="mt-0">
+            <TabsContent value="profit-share">
               <ProfitShareEditor
                 items={profitShareRates}
                 setItems={setProfitShareRates}
                 query={query}
               />
             </TabsContent>
-          </fieldset>
+          </Surface>
         </Tabs>
-        <details className="border-t px-3 py-1.5 text-xs text-muted-foreground">
-          <summary className="cursor-pointer">
+        <Disclosure>
+          <DisclosureSummary className="cursor-pointer">
             Scope & update rules{workflow ? '' : ' / 适用范围与更新规则'}
-          </summary>
-          <p className="mt-1 leading-5">
+          </DisclosureSummary>
+          <p className="mt-1">
             {workflow
               ? 'Configure the global workflow and preview changes before publishing to ongoing projects.'
               : 'Global reference data for future projects. Existing project and cost-version snapshots stay unchanged. 全局主数据供未来项目使用；已有项目及成本版本保留采用时的数据快照。'}
           </p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-small" className="mt-1">
             {workflow
               ? 'Publishing updates pending steps in ongoing projects. Active deadlines are retained unless explicitly recalculated; completed history and cost snapshots remain unchanged.'
               : 'Global / 全局共享 · 新项目取得独立副本。已有 Draft 也不会自动更新汇率；如需采用新汇率，请在目标成本版本明确应用。'}
-          </p>
-        </details>
-      </section>
-    </div>
+          </Text>
+        </Disclosure>
+      </Surface>
+    </Surface>
   );
 }
 
 /** Shared compact toolbar for editable reference tables. */
 function TableToolbar({ count, onAdd }: { count: number; onAdd: () => void }) {
   return (
-    <div className="wb-toolbar justify-between border-b text-xs text-muted-foreground">
+    <Surface
+      as="div"
+      variant="toolbar"
+      tone="muted"
+      textRole="body-small"
+      className="justify-between"
+    >
       <span>{count} records / 条记录</span>
-      <Button size="sm" className="h-8 text-xs" onClick={onAdd}>
+      <Button size="sm" onClick={onAdd}>
         <Plus />
         Add row / 新增
       </Button>
-    </div>
+    </Surface>
   );
 }
 
@@ -1563,7 +1627,7 @@ function DeleteRowButton({
       type="button"
       variant="ghost"
       size="icon-sm"
-      className="text-muted-foreground hover:bg-red-50 hover:text-red-700"
+
       aria-label={`Delete ${label}`}
       title={`Delete ${label} / 删除`}
       onClick={onDelete}

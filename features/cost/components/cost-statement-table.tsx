@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 import {
   buildGroupCostSummary,
   buildGroupCostSections,
@@ -113,57 +114,67 @@ export function CostStatementTable({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+      <Surface
+        as="div"
+        variant="item"
+        tone="muted"
+        textRole="body-small"
+        className="flex flex-wrap items-center justify-between gap-2"
+      >
         <span>
           EHS 1% = (2.3.1 + 2.3.2 + 2.3.3) × 1%.
-          <span className="ml-1 text-[9px]">
+          <Text as="span" textRole="body-small" className="ml-1">
             人力、合作及结算成本合计的 1%，也可手动录入金额。
-          </span>
+          </Text>
         </span>
-        <span className="financial-numeral font-semibold text-primary">
+        <Text as="span" tone="primary" className="financial-numeral">
           Total with risk ·{' '}
           {values.totalWithRisk ? formatSgd(values.totalWithRisk) : '-'}
-        </span>
-      </div>
+        </Text>
+      </Surface>
       {unmappedRows.length > 0 ? (
-        <div
+        <Surface
           role="alert"
-          className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900"
+          as="div"
+          variant="item"
+          tone="warning"
+          textRole="body-small"
         >
           {unmappedRows.length} cost line(s) totaling {formatSgd(unmappedCost)}
           have no valid RE Type and are excluded from this statement. /{' '}
           {unmappedRows.length} 条成本缺少有效资源类型，合计{' '}
           {formatSgd(unmappedCost)}，暂未计入本报表。
-        </div>
+        </Surface>
       ) : null}
       <div className="min-w-0 max-w-full">
-        <Table className="min-w-[760px] text-xs">
+        <Table className="min-w-[760px]">
           <caption className="sr-only">
             Cost statement hierarchy based on the supplied report template.
             Auto-linked values come from Cost Input and HQ Travel; remaining
             leaf rows are manually editable.
           </caption>
           <TableHeader>
-            <TableRow className="h-9 bg-primary text-white hover:bg-primary">
-              <TableHead className="w-[55%] border-r border-primary-foreground/20 px-3 text-white">
+            <TableRow tone="total" className="h-9">
+              <TableHead className="w-[55%]">
                 Report Item (SGD){' '}
-                <span className="text-[9px] font-normal text-primary-foreground/70">
+                <Text as="span" tone="inverse" textRole="body-small">
                   报表项
-                </span>
+                </Text>
               </TableHead>
-              <TableHead className="w-[27%] border-r border-primary-foreground/20 px-3 text-white">
+              <TableHead className="w-[27%]">
                 Source{' '}
-                <span className="text-[9px] font-normal text-primary-foreground/70">
+                <Text as="span" tone="inverse" textRole="body-small">
                   来源
-                </span>
+                </Text>
               </TableHead>
-              <TableHead className="w-[18%] px-3 text-right text-white">
+              <TableHead variant="numeric" className="w-[18%] text-right">
                 Cost (SGD)
               </TableHead>
               {categories.map((category) => (
                 <TableHead
+                  variant="numeric"
                   key={category.key}
-                  className="min-w-36 px-3 text-right text-white"
+                  className="min-w-36 text-right"
                 >
                   {category.label} Cost (SGD)
                 </TableHead>
@@ -181,60 +192,54 @@ export function CostStatementTable({
                   : row.manualKey
                     ? manualCosts[row.manualKey]
                     : 0;
-              const rowClass =
-                row.mode === 'grand-total'
-                  ? 'bg-primary text-white hover:bg-primary'
-                  : row.mode === 'section'
-                    ? 'bg-secondary hover:bg-secondary'
-                    : row.code === '15'
-                      ? 'bg-primary/10 hover:bg-primary/10'
-                      : isGroupRow
-                        ? 'bg-secondary/70 hover:bg-secondary/70'
-                        : 'bg-card hover:bg-muted/30';
               return (
                 <TableRow
                   key={row.code || row.en}
-                  className={'h-9 ' + rowClass}
+                  tone={
+                    row.mode === 'grand-total'
+                      ? 'total'
+                      : row.mode === 'section'
+                        ? 'section'
+                        : row.code === '15'
+                          ? 'risk'
+                          : isGroupRow
+                            ? 'subtotal'
+                            : 'normal'
+                  }
                 >
-                  <TableCell className="border-r border-border p-0">
-                    <div
-                      className="flex min-h-9 items-center gap-2 pr-3"
-                      style={{ paddingLeft: 12 + row.level * 22 }}
-                    >
+                  <TableCell variant="editable">
+                    <div className="ui-statement-label" data-level={row.level}>
                       {row.code ? (
-                        <span className="financial-numeral w-[58px] shrink-0 text-xs font-semibold">
+                        <Text
+                          as="span"
+                          textRole="body-small"
+                          className="financial-numeral w-[58px] shrink-0"
+                        >
                           {row.code}
-                        </span>
+                        </Text>
                       ) : null}
-                      <span className="min-w-0 font-medium">
+                      <span className="min-w-0">
                         {row.en}
-                        <span
-                          className={
-                            'ml-1 text-[9px] font-normal ' +
-                            (row.mode === 'grand-total'
-                              ? 'text-primary-foreground/75'
-                              : 'text-muted-foreground')
+                        <Text
+                          as="span"
+                          tone={
+                            row.mode === 'grand-total' ? 'inverse' : 'muted'
                           }
+                          textRole="body-small"
+                          className={' ml-1 ' + ''}
                         >
                           {row.zh}
-                        </span>
+                        </Text>
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell
-                    className={
-                      'border-r px-3 text-[9px] ' +
-                      (row.mode === 'grand-total'
-                        ? 'border-primary-foreground/20 text-primary-foreground/75'
-                        : 'border-border text-muted-foreground')
-                    }
-                  >
+                  <TableCell>
                     {row.source}
                     {row.manualKey === 'riskContingency' ? (
                       <Button
                         size="sm"
                         variant="outline"
-                        className="ml-2 h-6 text-[9px]"
+
                         disabled={
                           readOnly || !manualCosts.categoryRiskWeights?.length
                         }
@@ -254,7 +259,7 @@ export function CostStatementTable({
                       <Button
                         size="sm"
                         variant="outline"
-                        className="ml-2 h-6 text-[9px]"
+
                         disabled={
                           readOnly || manualCosts.otherServiceRate === 0.01
                         }
@@ -273,15 +278,21 @@ export function CostStatementTable({
                       </Button>
                     ) : null}
                   </TableCell>
-                  <TableCell className="p-0 text-right">
+                  <TableCell variant="editable" className="text-right">
                     {isManual && row.manualKey ? (
                       <div className="relative">
                         {!!manualAmount && (
-                          <span className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 text-[9px] text-muted-foreground">
+                          <Text
+                            as="span"
+                            tone="muted"
+                            textRole="body-small"
+                            className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2"
+                          >
                             S$
-                          </span>
+                          </Text>
                         )}
                         <Input
+                          variant="grid"
                           money
                           aria-label={`${row.en} cost in SGD`}
                           type="number"
@@ -293,12 +304,7 @@ export function CostStatementTable({
                               ? '0.01'
                               : '100'
                           }
-                          className={
-                            'financial-numeral h-9 rounded-none border-0 pl-7 pr-2 text-right text-xs shadow-none focus-visible:relative focus-visible:z-20 focus-visible:bg-background focus-visible:ring-1 ' +
-                            (isGroupRow
-                              ? 'bg-transparent font-semibold disabled:bg-transparent'
-                              : 'bg-background disabled:bg-muted/40')
-                          }
+                          className="financial-numeral text-right focus-visible:relative focus-visible:z-20"
                           value={manualAmount || ''}
                           placeholder="-"
                           onChange={(event) =>
@@ -327,15 +333,16 @@ export function CostStatementTable({
                         />
                       </div>
                     ) : (
-                      <span className="financial-numeral block px-3 py-2 font-semibold">
+                      <Text as="span" className="financial-numeral block">
                         {row.amount ? formatSgd(row.amount) : '-'}
-                      </span>
+                      </Text>
                     )}
                   </TableCell>
                   {categories.map((category) => (
                     <TableCell
+                      variant="numeric"
                       key={category.key}
-                      className="px-3 text-right tabular-nums"
+                      className="text-right tabular-nums"
                     >
                       {row.code === '15' ? (
                         <Input
@@ -373,12 +380,12 @@ export function CostStatementTable({
           </TableBody>
         </Table>
       </div>
-      <div className="border-t border-border bg-muted/30 px-4 py-3 text-xs leading-5 text-muted-foreground">
+      <Surface as="div" variant="footer" tone="muted" textRole="body-small">
         Non-in-house labour and Subcontract Cost are mutually exclusive: use
         Non-in-house for time-and-material external people, and Subcontract for
         deliverable or fixed-price packages. /
         外包人力与合作成本不可重复计入：外部人力按工时计入外包人力，成果包或固定价合同计入合作成本。
-      </div>
+      </Surface>
     </div>
   );
 }

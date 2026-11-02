@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 import { PercentageInput } from '@/components/ui/percentage-input';
 /** Optional non-HQ travel table; kept outside the governed export snapshot for now. */
 
@@ -75,8 +76,7 @@ export function AdditionalTravelTable({
       reimbursable: 0,
       excluded: 0,
     });
-  const inputClass =
-    'h-8 rounded-sm border-input bg-background px-2 text-xs shadow-none focus-visible:ring-1';
+  const inputClass = 'w-full';
 
   const updateText = (
     id: string,
@@ -136,7 +136,7 @@ export function AdditionalTravelTable({
     ]);
 
   return (
-    <section className="wb-panel min-w-0 overflow-hidden">
+    <Surface as="section" variant="panel" className="min-w-0 overflow-hidden">
       <SectionHeading
         index="03"
         title="Travel & Expenses"
@@ -146,69 +146,74 @@ export function AdditionalTravelTable({
         action={
           <Button size="sm" onClick={addTravelRow}>
             <Plus /> Add Travel Row{' '}
-            <span className="text-[9px] opacity-60">新增差旅行</span>
+            <Text as="span" textRole="body-small">
+              新增差旅行
+            </Text>
           </Button>
         }
       />
-      <div className="grid gap-px border-b border-border bg-border sm:grid-cols-2 xl:grid-cols-4">
-        <div className="bg-muted/30 px-3 py-2.5">
-          <BiText
-            en="Included Travel"
-            zh="计入固定价成本"
-            className="text-xs text-muted-foreground"
-          />
-          <p className="financial-numeral mt-1 text-lg font-semibold">
+      <Surface
+        as="div"
+        variant="item"
+        className="grid gap-px sm:grid-cols-2 xl:grid-cols-4"
+      >
+        <Surface as="div" variant="inset">
+          <BiText en="Included Travel" zh="计入固定价成本" />
+          <Text as="p" textRole="h3" className="financial-numeral mt-1">
             {formatSgd(treatmentTotals.included)}
-          </p>
-        </div>
-        <div className="bg-muted/30 px-3 py-2.5">
-          <BiText
-            en="Reimbursable"
-            zh="实报实销"
-            className="text-xs text-muted-foreground"
-          />
-          <p className="financial-numeral mt-1 text-lg font-semibold text-primary">
+          </Text>
+        </Surface>
+        <Surface as="div" variant="inset">
+          <BiText en="Reimbursable" zh="实报实销" />
+          <Text
+            as="p"
+            tone="primary"
+            textRole="h3"
+            className="financial-numeral mt-1"
+          >
             {formatSgd(treatmentTotals.reimbursable)}
-          </p>
-        </div>
-        <div className="bg-muted/30 px-3 py-2.5">
-          <BiText
-            en="Excluded"
-            zh="报价排除"
-            className="text-xs text-muted-foreground"
-          />
-          <p className="financial-numeral mt-1 text-lg font-semibold text-muted-foreground">
+          </Text>
+        </Surface>
+        <Surface as="div" variant="inset">
+          <BiText en="Excluded" zh="报价排除" />
+          <Text
+            as="p"
+            tone="muted"
+            textRole="h3"
+            className="financial-numeral mt-1"
+          >
             {formatSgd(treatmentTotals.excluded)}
-          </p>
-        </div>
-        <label className="bg-secondary/50 px-3 py-2.5" htmlFor="travel-uplift">
-          <BiText
-            en="Travel Annual Uplift"
-            zh="差旅年度浮动"
-            className="text-xs text-muted-foreground"
-          />
+          </Text>
+        </Surface>
+        <Surface as="label" variant="field" htmlFor="travel-uplift">
+          <BiText en="Travel Annual Uplift" zh="差旅年度浮动" />
           <div className="relative mt-2 max-w-[140px]">
             <PercentageInput
               id="travel-uplift"
               step="0.1"
-              className="h-8 rounded-sm border-input bg-white pr-7 text-right text-xs shadow-none focus-visible:ring-1"
+              className="text-right"
               value={travelUplift}
               onChange={(event) => setTravelUplift(Number(event.target.value))}
             />
-            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+            <Text
+              as="span"
+              tone="muted"
+              textRole="body-small"
+              className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+            >
               %
-            </span>
+            </Text>
           </div>
-          <p className="mt-1 text-[8px] text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-small" className="mt-1">
             Separate from labour / 与人力浮动分开
-          </p>
-        </label>
-      </div>
+          </Text>
+        </Surface>
+      </Surface>
       <div className="workbench-scrollbar overflow-x-auto">
         <Table className="min-w-[1660px]">
           <TableHeader>
-            <TableRow className="bg-muted hover:bg-muted">
-              <TableHead className="w-[190px] min-w-[190px] px-3">
+            <TableRow tone="subtotal">
+              <TableHead className="w-[190px] min-w-[190px]">
                 <BiText en="Scope" zh="服务范围" />
               </TableHead>
               <TableHead className="w-[180px] min-w-[180px]">
@@ -223,20 +228,27 @@ export function AdditionalTravelTable({
               <TableHead className="w-[135px] min-w-[135px]">
                 <BiText en="Unit Basis" zh="计价单位" />
               </TableHead>
-              <TableHead className="w-[120px] min-w-[120px] text-right">
+              <TableHead
+                variant="numeric"
+                className="w-[120px] min-w-[120px] text-right"
+              >
                 <BiText
                   en="Base Unit Rate"
                   zh="基础单价"
                   className="items-end"
                 />
               </TableHead>
-              <TableHead className="w-[90px] min-w-[90px] text-right">
+              <TableHead
+                variant="numeric"
+                className="w-[90px] min-w-[90px] text-right"
+              >
                 <BiText en="Base Year" zh="基准年" className="items-end" />
               </TableHead>
               {actualYears.map((year, index) => (
                 <TableHead
+                  variant="numeric"
                   key={year + '-' + index}
-                  className="w-[100px] min-w-[100px] border-l border-border text-right"
+                  className="w-[100px] min-w-[100px] text-right"
                 >
                   <BiText
                     en={'Y' + (index + 1) + ' · ' + year}
@@ -245,10 +257,13 @@ export function AdditionalTravelTable({
                   />
                 </TableHead>
               ))}
-              <TableHead className="w-[160px] min-w-[160px] border-l border-border">
+              <TableHead className="w-[160px] min-w-[160px]">
                 <BiText en="Treatment" zh="报价处理" />
               </TableHead>
-              <TableHead className="w-[130px] min-w-[130px] text-right">
+              <TableHead
+                variant="numeric"
+                className="w-[130px] min-w-[130px] text-right"
+              >
                 <BiText en="Total Cost" zh="总成本" className="items-end" />
               </TableHead>
             </TableRow>
@@ -257,12 +272,12 @@ export function AdditionalTravelTable({
             {rows.map((row) => {
               const treatment = treatmentLabels[row.treatment];
               return (
-                <TableRow key={row.id} className="bg-card hover:bg-muted/20">
-                  <TableCell className="px-3">
+                <TableRow tone="subtotal" key={row.id}>
+                  <TableCell>
                     <Input
                       aria-label={'Travel scope for ' + row.id}
                       title={row.scope}
-                      className={inputClass}
+
                       value={row.scope}
                       onChange={(event) =>
                         updateText(row.id, 'scope', event.target.value)
@@ -283,7 +298,7 @@ export function AdditionalTravelTable({
                   <TableCell>
                     <Input
                       aria-label={'Destination for ' + row.id}
-                      className={inputClass}
+
                       value={row.destination}
                       onChange={(event) =>
                         updateText(row.id, 'destination', event.target.value)
@@ -293,7 +308,7 @@ export function AdditionalTravelTable({
                   <TableCell>
                     <Input
                       aria-label={'Expense type for ' + row.id}
-                      className={inputClass}
+
                       value={row.expenseType}
                       onChange={(event) =>
                         updateText(row.id, 'expenseType', event.target.value)
@@ -303,7 +318,7 @@ export function AdditionalTravelTable({
                   <TableCell>
                     <Input
                       aria-label={'Unit basis for ' + row.id}
-                      className={inputClass}
+
                       value={row.unitBasis}
                       onChange={(event) =>
                         updateText(row.id, 'unitBasis', event.target.value)
@@ -316,7 +331,7 @@ export function AdditionalTravelTable({
                         money
                         aria-label={'Base unit rate for ' + row.id}
                         type="number"
-                        className={inputClass + ' pl-8 text-right'}
+                        className={inputClass + ' text-right '}
                         value={row.baseUnitRate}
                         onChange={(event) =>
                           updateNumber(
@@ -333,16 +348,21 @@ export function AdditionalTravelTable({
                           )
                         }
                       />
-                      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[8px] text-muted-foreground">
+                      <Text
+                        as="span"
+                        tone="muted"
+                        textRole="body-small"
+                        className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2"
+                      >
                         {row.currency}
-                      </span>
+                      </Text>
                     </div>
                   </TableCell>
                   <TableCell>
                     <Input
                       aria-label={'Travel rate base year for ' + row.id}
                       type="number"
-                      className={inputClass + ' text-right'}
+                      className={inputClass + ' text-right '}
                       value={row.rateBaseYear}
                       onChange={(event) =>
                         updateNumber(
@@ -354,16 +374,13 @@ export function AdditionalTravelTable({
                     />
                   </TableCell>
                   {row.quantities.map((quantity, yearIndex) => (
-                    <TableCell
-                      key={row.id + '-travel-' + yearIndex}
-                      className="border-l border-border"
-                    >
+                    <TableCell key={row.id + '-travel-' + yearIndex}>
                       <Input
                         aria-label={
                           'Y' + (yearIndex + 1) + ' quantity for ' + row.id
                         }
                         type="number"
-                        className={inputClass + ' text-right'}
+                        className={inputClass + ' text-right '}
                         value={quantity}
                         onChange={(event) =>
                           updateQuantity(
@@ -373,7 +390,12 @@ export function AdditionalTravelTable({
                           )
                         }
                       />
-                      <span className="financial-numeral mt-1 block text-right text-[8px] text-muted-foreground">
+                      <Text
+                        as="span"
+                        tone="muted"
+                        textRole="body-small"
+                        className="financial-numeral mt-1 block text-right"
+                      >
                         {formatSgd(
                           getTravelYearCost(
                             row,
@@ -382,10 +404,10 @@ export function AdditionalTravelTable({
                             travelUplift,
                           ),
                         )}
-                      </span>
+                      </Text>
                     </TableCell>
                   ))}
-                  <TableCell className="border-l border-border">
+                  <TableCell>
                     <Select
                       value={row.treatment}
                       onValueChange={(value) =>
@@ -393,7 +415,7 @@ export function AdditionalTravelTable({
                       }
                     >
                       <SelectTrigger
-                        className="w-full rounded-sm bg-background text-xs"
+                        className="w-full"
                         aria-label={'Treatment for ' + row.id}
                       >
                         <SelectValue />
@@ -416,7 +438,10 @@ export function AdditionalTravelTable({
                       </StatusBadge>
                     </div>
                   </TableCell>
-                  <TableCell className="financial-numeral text-right font-semibold">
+                  <TableCell
+                    variant="numeric"
+                    className="financial-numeral text-right"
+                  >
                     {formatSgd(
                       getTravelRowTotal(row, rateSettings, travelUplift),
                     )}
@@ -427,19 +452,28 @@ export function AdditionalTravelTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-3">
-        <div className="flex items-center gap-2 text-xs leading-4 text-muted-foreground">
-          <Plane className="size-4 text-primary" />
+      <Surface
+        as="div"
+        variant="footer"
+        className="flex flex-wrap items-center justify-between"
+      >
+        <Surface
+          as="div"
+          tone="muted"
+          textRole="body-small"
+          className="flex items-center gap-2"
+        >
+          <Text as={Plane} tone="primary" className="size-4" />
           Included travel enters the cost baseline; reimbursable and excluded
           items remain separate.
-          <span className="text-[9px]">
+          <Text as="span" textRole="body-small">
             计入型差旅汇入成本基线，实报实销和排除项单独展示。
-          </span>
-        </div>
-        <span className="financial-numeral text-xs font-semibold">
+          </Text>
+        </Surface>
+        <Text as="span" textRole="body-small" className="financial-numeral">
           Included total · {formatSgd(treatmentTotals.included)}
-        </span>
-      </div>
-    </section>
+        </Text>
+      </Surface>
+    </Surface>
   );
 }

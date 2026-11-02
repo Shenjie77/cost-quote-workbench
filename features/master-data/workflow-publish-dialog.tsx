@@ -1,3 +1,5 @@
+import { Text, Surface } from '@/components/ui/presentation';
+import { CheckInput } from '@/components/ui/check-input';
 /** A concrete project-impact preview precedes every workflow publication. */
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -31,56 +33,84 @@ export function WorkflowPublishImpact({
 }) {
   return (
     <div className="space-y-3">
-      <p className="text-sm">
+      <Text as="p" textRole="body-main">
         Template Revision {preview.revision} → {preview.nextRevision} ·{' '}
         {preview.projects.length} projects in preview
-      </p>
-      <p className="text-xs text-muted-foreground">
+      </Text>
+      <Text as="p" tone="muted" textRole="body-small">
         New steps in phases a project has already passed are automatically
         passed with a skip record. Steps in current or future phases remain
         pending. Completed projects retain their recorded workflow.
-      </p>
+      </Text>
       {!preview.projects.length && (
-        <p className="text-xs text-muted-foreground">
+        <Text as="p" tone="muted" textRole="body-small">
           No ongoing projects need synchronization. New projects will use the
           published template.
-        </p>
+        </Text>
       )}
       {preview.projects.map((project) => (
-        <article key={project.projectId} className="rounded-lg border p-3">
-          <p className="text-sm font-semibold">{project.name}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
+        <Surface key={project.projectId} as="article" variant="panel" padded>
+          <Text as="p" textRole="body-main">
+            {project.name}
+          </Text>
+          <Text as="p" tone="muted" textRole="body-small" className="mt-1">
             {project.changed
               ? 'Template changes will be applied'
               : 'Current records will be retained'}
-          </p>
+          </Text>
           {!!project.changes.length && (
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
+            <Surface
+              as="ul"
+              variant="body"
+              textRole="body-small"
+              className="mt-2 list-disc space-y-1"
+            >
               {project.changes.map((text, index) => (
                 <li key={index}>{text}</li>
               ))}
-            </ul>
+            </Surface>
           )}
           {!!project.retained.length && (
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+            <Surface
+              as="ul"
+              variant="body"
+              tone="muted"
+              textRole="body-small"
+              className="mt-2 list-disc space-y-1"
+            >
               {project.retained.map((text, index) => (
                 <li key={index}>{text}</li>
               ))}
-            </ul>
+            </Surface>
           )}
           {!!project.blockers.length && (
-            <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-              <p className="font-medium">Resolve Before Publishing</p>
-              <ul className="mt-1 list-disc space-y-1 pl-4">
+            <Surface
+              as="div"
+              variant="notice"
+              tone="warning"
+              textRole="body-small"
+              className="mt-2"
+            >
+              <p>Resolve Before Publishing</p>
+              <Surface
+                as="ul"
+                variant="body"
+                className="mt-1 list-disc space-y-1"
+              >
                 {project.blockers.map((text, index) => (
                   <li key={index}>{text}</li>
                 ))}
-              </ul>
-            </div>
+              </Surface>
+            </Surface>
           )}
           {!project.completed && (
-            <label className="mt-3 flex items-start gap-2 text-xs">
-              <input
+            <Surface
+              as="label"
+              variant="inline-field"
+              textRole="body-small"
+              className="mt-3 flex items-start"
+            >
+              <CheckInput
                 type="checkbox"
                 aria-label={`Recalculate SLA for active steps in ${project.name}`}
                 checked={migratedIds.includes(project.projectId)}
@@ -95,14 +125,14 @@ export function WorkflowPublishImpact({
               />
               <span>
                 Apply the new rules and recalculate SLA for active steps
-                <span className="mt-1 block text-muted-foreground">
+                <Text as="span" tone="muted" className="mt-1 block">
                   Selecting this refreshes the impact preview. Leave unchecked
                   to retain the original deadlines for active steps.
-                </span>
+                </Text>
               </span>
-            </label>
+            </Surface>
           )}
-        </article>
+        </Surface>
       ))}
     </div>
   );
@@ -205,7 +235,8 @@ export function WorkflowPublishDialog({
       }}
     >
       <DialogContent
-        className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"
+        size="lg"
+        className="overflow-y-auto"
         showCloseButton={!publishing}
       >
         <DialogHeader>
@@ -217,9 +248,9 @@ export function WorkflowPublishDialog({
           </DialogDescription>
         </DialogHeader>
         {busy && (
-          <p className="text-sm text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-main">
             Checking template and project revisions…
-          </p>
+          </Text>
         )}
         {preview && (
           <WorkflowPublishImpact
@@ -230,9 +261,9 @@ export function WorkflowPublishDialog({
           />
         )}
         {error && (
-          <p role="alert" className="text-sm text-destructive">
+          <Text role="alert" as="p" tone="danger" textRole="body-main">
             {error}
-          </p>
+          </Text>
         )}
         <DialogFooter>
           <Button

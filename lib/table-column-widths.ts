@@ -106,8 +106,9 @@ export function attachColumnResizing(table: HTMLTableElement): () => void {
     handle.setAttribute('aria-valuemax', '1600');
     handle.setAttribute('aria-valuenow', String(widths[index]));
     handle.tabIndex = 0;
-    handle.className =
-      'absolute inset-y-0 right-0 z-20 w-2 cursor-col-resize touch-none hover:bg-primary/20 focus-visible:bg-primary/20';
+    handle.className = 'ui-resize-handle';
+    handle.dataset.slot = 'resize-handle';
+    handle.dataset.axis = 'x';
     if (getComputedStyle(cell).position === 'static')
       cell.style.position = 'relative';
     let start: { x: number; width: number } | null = null;

@@ -1,3 +1,5 @@
+import { Surface, Text } from '@/components/ui/presentation';
+import { CheckInput } from '@/components/ui/check-input';
 import { PercentageInput } from '@/components/ui/percentage-input';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -39,13 +41,18 @@ export function ProfitShareEditor({
   const errors = validateProfitShareRates(items);
   return (
     <>
-      <div className="wb-toolbar justify-between border-b text-xs">
+      <Surface
+        as="div"
+        variant="toolbar"
+        textRole="body-small"
+        className="justify-between"
+      >
         <div>
-          <p className="font-medium">BU Profit Share Rates</p>
-          <p className="mt-1 text-muted-foreground">
+          <p>BU Profit Share Rates</p>
+          <Text as="p" tone="muted" className="mt-1">
             Share is deducted from the net quotation price. Existing quotations
             retain their applied rates.
-          </p>
+          </Text>
         </div>
         <Button
           size="sm"
@@ -64,14 +71,14 @@ export function ProfitShareEditor({
         >
           <Plus /> Add BU
         </Button>
-      </div>
+      </Surface>
       <div className="min-w-0">
-        <Table className="min-w-[580px] text-xs">
+        <Table className="min-w-[580px]">
           <TableHeader>
-            <TableRow className="bg-muted/60">
+            <TableRow tone="subtotal">
               <TableHead>BU</TableHead>
               <TableHead className="w-48">BU Code</TableHead>
-              <TableHead className="w-48 text-right">
+              <TableHead variant="numeric" className="w-48 text-right">
                 Profit Share Rate (%)
               </TableHead>
               <TableHead className="w-24 text-center">Active</TableHead>
@@ -83,7 +90,6 @@ export function ProfitShareEditor({
               <TableRow key={row.id}>
                 <TableCell>
                   <Input
-                    className="h-8 text-xs"
                     aria-label={`${row.bu || 'New BU'} business unit`}
                     value={row.bu}
                     placeholder="Enter the BU used in cost inputs"
@@ -95,7 +101,6 @@ export function ProfitShareEditor({
                 </TableCell>
                 <TableCell>
                   <Input
-                    className="h-8 text-xs"
                     aria-label={`${row.bu || 'New BU'} BU code`}
                     value={row.buCode || ''}
                     placeholder="Company code (optional)"
@@ -107,7 +112,7 @@ export function ProfitShareEditor({
                 </TableCell>
                 <TableCell>
                   <PercentageInput
-                    className="financial-numeral h-8 text-right text-xs"
+                    className="financial-numeral h-8 text-right"
                     aria-label={`${row.bu || 'New BU'} profit share rate`}
                     value={row.ratePercent}
                     min={0}
@@ -121,7 +126,7 @@ export function ProfitShareEditor({
                   />
                 </TableCell>
                 <TableCell className="text-center">
-                  <input
+                  <CheckInput
                     type="checkbox"
                     aria-label={`${row.bu || 'New BU'} active`}
                     checked={row.active}
@@ -154,10 +159,7 @@ export function ProfitShareEditor({
             ))}
             {!rows.length && (
               <TableRow>
-                <TableCell
-                  colSpan={5}
-                  className="h-24 text-center text-muted-foreground"
-                >
+                <TableCell colSpan={5} className="h-24 text-center">
                   {items.length
                     ? 'No matching BU.'
                     : 'No profit share rates configured. Add a BU and its rate, then save this tab.'}
@@ -168,21 +170,24 @@ export function ProfitShareEditor({
         </Table>
       </div>
       {!!errors.length && (
-        <div
+        <Surface
           role="alert"
-          className="border-t bg-red-50 px-3 py-2 text-xs text-red-800"
+          as="div"
+          variant="footer"
+          tone="danger"
+          textRole="body-small"
         >
           {errors.map((error) => (
             <p key={error}>{error}</p>
           ))}
-        </div>
+        </Surface>
       )}
-      <p className="border-t px-3 py-2 text-xs text-muted-foreground">
+      <Surface as="p" variant="footer" tone="muted" textRole="body-small">
         BU Code is for manual comparison with company records only. Cost inputs
         and profit sharing continue to use BU names. Unconfigured or inactive
         BUs use 0% and are flagged in Pricing Parameters. Apply updated rates
         explicitly from the quotation page.
-      </p>
+      </Surface>
     </>
   );
 }

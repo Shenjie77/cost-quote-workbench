@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 /** Explicit cross-project reuse without hidden global writes or ID collisions. */
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -58,14 +59,14 @@ export function QuoteCatalogImport({
     };
   }, []);
   return (
-    <div className="wb-toolbar border-b text-xs">
+    <Surface as="div" variant="toolbar" textRole="body-small">
       <span>Project-owned library / 当前项目库 · Copy from / 复制来源</span>
       <Select
         value={sourceId}
         onValueChange={(value) => value && setSourceId(value)}
       >
         <SelectTrigger
-          className="h-8 w-64 text-xs"
+          className="w-64"
           aria-label="Select source project / 选择项目"
         >
           <SelectValue placeholder="Select source project / 选择项目" />
@@ -113,10 +114,10 @@ export function QuoteCatalogImport({
         {busy ? 'Copying…' : 'Copy catalog / 复制假设与模板'}
       </Button>
       {error && (
-        <span role="alert" className="text-red-700">
+        <Text role="alert" as="span" tone="danger">
           {error}
-        </span>
+        </Text>
       )}
-    </div>
+    </Surface>
   );
 }

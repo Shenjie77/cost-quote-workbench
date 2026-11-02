@@ -20,6 +20,26 @@ export function migrateQuoteSections<
     }),
   };
   const discountAllocation = pricing.discountAllocation;
+  const migrateKey = (key: string) => {
+    try {
+      const parts = JSON.parse(key);
+      if (
+        Array.isArray(parts) &&
+        [1, 2].includes(parts.length) &&
+        ['mandatory', 'optional'].includes(parts[0]) &&
+        parts.every((s) => typeof s === 'string') &&
+        !parts[1]?.startsWith('section:')
+      )
+        return discountGroupKey(
+          parts[0],
+          parts[1],
+          sectionNames[parts[0] as 'mandatory' | 'optional'],
+        );
+    } catch {
+      // Stale or malformed keys remain visible to allocation validation.
+    }
+    return key;
+  };
   return {
     ...pricing,
     sectionNames,
@@ -27,30 +47,21 @@ export function migrateQuoteSections<
       ? {
           discountAllocation: {
             ...discountAllocation,
+            ...(discountAllocation.descriptions
+              ? {
+                  descriptions: Object.fromEntries(
+                    Object.entries(discountAllocation.descriptions).map(
+                      ([key, value]) => [migrateKey(key), value],
+                    ),
+                  ),
+                }
+              : {}),
             ...(discountAllocation.shares
               ? {
-                  shares: discountAllocation.shares.map((share) => {
-                    try {
-                      const parts = JSON.parse(share.key);
-                      if (
-                        Array.isArray(parts) &&
-                        [1, 2].includes(parts.length) &&
-                        ['mandatory', 'optional'].includes(parts[0]) &&
-                        parts.every((s) => typeof s === 'string')
-                      )
-                        return {
-                          ...share,
-                          key: discountGroupKey(
-                            parts[0],
-                            parts[1],
-                            sectionNames[parts[0] as 'mandatory' | 'optional'],
-                          ),
-                        };
-                    } catch {
-                      /* Stale or malformed keys remain visible to allocation validation. */
-                    }
-                    return { ...share };
-                  }),
+                  shares: discountAllocation.shares.map((share) => ({
+                    ...share,
+                    key: migrateKey(share.key),
+                  })),
                 }
               : {}),
           },

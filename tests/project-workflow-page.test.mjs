@@ -43,6 +43,7 @@ const hooks = registerHooks({
     };
   },
 });
+const { SelectField } = await import('../components/ui/select-field.tsx');
 const {
   ProjectWorkflowPage,
   WorkflowTaskFields,
@@ -368,7 +369,7 @@ test('pending parallel start and paused resume submit current inline inputs; bus
 test('narrow page uses a compact grouped selector while the long navigator is desktop-only', () => {
   const w = workspace();
   const html = renderPage(w);
-  assert.match(html, /aria-label="Workflow Steps" class="hidden [^"]*lg:block/);
+  assert.match(html, /class="[^"]*hidden [^"]*lg:block[^>]*aria-label="Workflow Steps"|aria-label="Workflow Steps"[^>]*class="[^"]*hidden [^"]*lg:block/);
   assert.match(html, /lg:hidden[^>]*><label[^>]*>Workflow Step/);
   assert.match(html, /aria-label="Select Workflow Step"/);
   assert.match(html, /<optgroup label="Domain Review · Parallel">/);
@@ -384,7 +385,7 @@ test('narrow page uses a compact grouped selector while the long navigator is de
       },
     }),
   );
-  const select = nodes.find((node) => node.type === 'select');
+  const select = nodes.find((node) => node.type === SelectField);
   select.props.onChange({ target: { value: 'DELIVERY' } });
   assert.equal(selected, 'DELIVERY');
   const delivery = nodes.find(

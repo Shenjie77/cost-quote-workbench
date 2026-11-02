@@ -1,3 +1,5 @@
+import { Text, Surface } from '@/components/ui/presentation';
+import { CheckInput } from '@/components/ui/check-input';
 /** Show/hide and left/right ordering are local view preferences, including on locked costs. */
 import { ArrowLeft, ArrowRight, Columns3, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -39,23 +41,35 @@ export function PersonnelColumnSettingsPanel({
   );
   return (
     <div className="space-y-2" aria-label="Cost column settings">
-      <p className="text-xs leading-4 text-muted-foreground">
+      <Text as="p" tone="muted" textRole="body-small">
         List order matches the table from left to right. Each year field can
         move independently.
-      </p>
-      <div className="max-h-[min(55vh,420px)] space-y-0.5 overflow-y-auto pr-1">
+      </Text>
+      <Surface
+        as="div"
+        variant="body"
+        className="max-h-[min(55vh,420px)] space-y-1 overflow-y-auto"
+      >
         {preferences.order.map((id, index) => {
           const spec = getPersonnelColumnSpec(id);
           const checked = !preferences.hidden.includes(id);
           const lastData =
             checked && visibleData.length === 1 && visibleData[0] === id;
           return (
-            <div
+            <Surface
               key={id}
-              className={`flex min-w-0 items-center gap-2 rounded px-1.5 py-1 ${checked ? 'bg-muted/35' : ''}`}
+              as="div"
+              variant={checked ? 'inset' : 'plain'}
+              tone={'inherit'}
+              className="flex min-w-0 items-center gap-2"
             >
-              <label className="flex min-w-0 flex-1 items-center gap-2 text-xs">
-                <input
+              <Surface
+                as="label"
+                variant="inline-field"
+                textRole="body-small"
+                className="flex min-w-0 flex-1 items-center"
+              >
+                <CheckInput
                   type="checkbox"
                   aria-label={`Show ${spec.label} column`}
                   checked={checked}
@@ -71,16 +85,18 @@ export function PersonnelColumnSettingsPanel({
                   }}
                 />
                 <span className="truncate">{spec.label}</span>
-              </label>
+              </Surface>
               {id === 'action' ? (
-                <span className="text-xs text-muted-foreground">Fixed</span>
+                <Text as="span" tone="muted" textRole="body-small">
+                  Fixed
+                </Text>
               ) : (
-                <div className="flex gap-0.5">
+                <div className="flex gap-1">
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-6"
+
                     aria-label={`Move ${spec.label} left`}
                     title="Move left"
                     disabled={!ready || index === 0}
@@ -94,7 +110,7 @@ export function PersonnelColumnSettingsPanel({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-6"
+
                     aria-label={`Move ${spec.label} right`}
                     title="Move right"
                     disabled={!ready || index >= preferences.order.length - 2}
@@ -107,21 +123,25 @@ export function PersonnelColumnSettingsPanel({
                   </Button>
                 </div>
               )}
-            </div>
+            </Surface>
           );
         })}
-      </div>
-      <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
-        <span className="text-xs text-muted-foreground">
+      </Surface>
+      <Surface
+        as="div"
+        variant="footer"
+        className="flex items-center justify-between"
+      >
+        <Text as="span" tone="muted" textRole="body-small">
           {storageAvailable
             ? 'Use Save to keep this version’s layout in this browser.'
             : 'Browser storage unavailable; preferences apply to this view.'}
-        </span>
+        </Text>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 px-2.5 text-xs"
+
           disabled={!ready}
           onClick={() => {
             if (ready) onReset();
@@ -130,7 +150,7 @@ export function PersonnelColumnSettingsPanel({
           <RotateCcw className="size-3" />
           Reset
         </Button>
-      </div>
+      </Surface>
     </div>
   );
 }
@@ -144,7 +164,7 @@ export function PersonnelColumnSettings(props: PersonnelColumnSettingsProps) {
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 gap-1 px-2 text-xs"
+            className="gap-1"
             disabled={props.ready === false}
           />
         }
@@ -154,7 +174,7 @@ export function PersonnelColumnSettings(props: PersonnelColumnSettingsProps) {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[min(360px,90vw)]">
         <PopoverTitle>Cost Columns</PopoverTitle>
-        <PopoverDescription className="text-xs">
+        <PopoverDescription>
           Show, hide or reorder columns. Simple Export follows this layout.
         </PopoverDescription>
         <PersonnelColumnSettingsPanel {...props} />

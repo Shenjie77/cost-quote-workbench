@@ -1,3 +1,5 @@
+import { Surface, Text } from '@/components/ui/presentation';
+import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import type { Project } from '@/features/projects/types';
 
@@ -20,30 +22,39 @@ export function OpenProjectTabs({
   disabled = false,
 }: OpenProjectTabsProps) {
   return (
-    <nav
+    <Surface
       aria-label="Open Projects"
-      className="workbench-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto border-t border-border/70 bg-muted/30 px-3 py-1 sm:px-4"
+      as="nav"
+      variant="footer"
+      className="workbench-scrollbar flex min-w-0 items-center overflow-x-auto"
     >
-      <span className="mr-2 shrink-0 text-xs font-medium text-muted-foreground">
+      <Text
+        as="span"
+        tone="muted"
+        textRole="body-small"
+        className="mr-2 shrink-0"
+      >
         Projects <span className="sr-only">已打开项目</span>
-      </span>
+      </Text>
       {openProjectIds.map((projectId) => {
         const project = projects.find((item) => item.id === projectId);
         if (!project) return null;
         const active = projectId === activeProjectId;
         return (
-          <div
+          <Surface
             key={projectId}
+            as="div"
+            variant="tab"
+            selected={active}
+            tone={active ? 'primary' : 'muted'}
             className={
-              'flex h-8 min-w-[120px] max-w-[240px] items-center rounded border transition-colors ' +
-              (active
-                ? 'border-ring/40 bg-card text-primary shadow-[inset_0_-2px_0_var(--ring)]'
-                : 'border-transparent bg-transparent text-muted-foreground hover:border-border hover:bg-card/80')
+              ' flex h-8 min-w-[120px] max-w-[240px] items-center ' + ''
             }
           >
-            <button
+            <Button
+              variant="ghost"
               type="button"
-              className="flex h-full min-w-0 flex-1 items-center px-2 text-left disabled:cursor-wait disabled:opacity-60"
+              className="flex min-w-0 flex-1 items-center text-left disabled:cursor-wait"
               disabled={disabled}
               aria-current={active ? 'page' : undefined}
               onClick={() => {
@@ -51,13 +62,14 @@ export function OpenProjectTabs({
               }}
               title={project.name}
             >
-              <span className="block truncate text-xs font-medium">
+              <Text as="span" textRole="body-small" className="block truncate">
                 {project.name}
-              </span>
-            </button>
-            <button
+              </Text>
+            </Button>
+            <Button
+              variant="ghost"
               type="button"
-              className="mr-1 flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-muted disabled:cursor-wait disabled:opacity-60"
+              className="flex shrink-0 items-center justify-center disabled:cursor-wait"
               disabled={disabled}
               onClick={() => {
                 if (!disabled) void onClose(projectId);
@@ -66,10 +78,10 @@ export function OpenProjectTabs({
               title="Close tab only / 仅关闭标签"
             >
               <X aria-hidden="true" className="size-3" />
-            </button>
-          </div>
+            </Button>
+          </Surface>
         );
       })}
-    </nav>
+    </Surface>
   );
 }

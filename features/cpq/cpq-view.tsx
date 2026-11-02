@@ -1,4 +1,6 @@
 'use client';
+
+import { Surface, Text } from '@/components/ui/presentation';
 import { formatMoney } from '@/lib/money';
 /** Human-selected catalog mapping, deterministic allocation and local archive. */
 import { useMemo, useState } from 'react';
@@ -115,34 +117,34 @@ export function CpqView({
       ),
     });
   return (
-    <div className="wb-page-stack text-sm">
-      <div className="wb-toolbar justify-between rounded-md border">
-        <p className="text-xs text-muted-foreground">
+    <Surface as="div" variant="page" textRole="body-main">
+      <Surface as="div" variant="toolbar" className="justify-between">
+        <Text as="p" tone="muted" textRole="body-small">
           输入简短范围，筛选条目后计算服务数量。设备数量保持固定。
-        </p>
+        </Text>
         <Button variant="outline" onClick={() => setShowCatalog(!showCatalog)}>
           Catalog / 条目目录 ({value.catalog.length})
         </Button>
-      </div>
+      </Surface>
       {showCatalog && (
-        <section className="wb-panel space-y-3 p-3">
+        <Surface as="section" variant="panel" padded className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-primary">
+            <Text as="h2">
               Captured CPQ catalog / 项目采用的 CPQ 目录快照
-            </h3>
+            </Text>
             {onOpenCatalog && (
               <Button variant="outline" onClick={onOpenCatalog}>
                 Maintain global catalog / 维护全局目录
               </Button>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-small">
             当前配置使用本项目保存的目录
             {catalogRevision === undefined
               ? ''
               : `（全局来源版本 r${catalogRevision}）`}
             ；全局维护不会自动改变该目录、配置数量或归档结果。
-          </p>
+          </Text>
           {onApplyCatalog && (
             <Button
               variant="outline"
@@ -172,12 +174,18 @@ export function CpqView({
               <TableBody>
                 {value.catalog.map((row) => (
                   <TableRow key={row.code}>
-                    <TableCell className="font-semibold">{row.code}</TableCell>
-                    <TableCell className="max-w-xl whitespace-normal">
+                    <TableCell>{row.code}</TableCell>
+                    <TableCell
+                      variant="label"
+                      className="max-w-xl whitespace-normal"
+                    >
                       {row.scope}
                     </TableCell>
                     <TableCell>{row.unit}</TableCell>
-                    <TableCell className="financial-numeral text-right">
+                    <TableCell
+                      variant="numeric"
+                      className="financial-numeral text-right"
+                    >
                       {money(row.unitCost)}
                     </TableCell>
                     <TableCell>{row.kind}</TableCell>
@@ -188,15 +196,15 @@ export function CpqView({
               </TableBody>
             </Table>
           </div>
-        </section>
+        </Surface>
       )}
       {/* Keep selection and calculation side by side on desktop, in process order on smaller screens. */}
       <div className="grid min-w-0 items-start gap-3 lg:grid-cols-[minmax(0,1.65fr)_minmax(340px,1fr)]">
         <div className="min-w-0 space-y-3">
-          <section className="wb-panel space-y-3 p-3">
-            <h3 className="text-sm font-semibold text-primary">
+          <Surface as="section" variant="panel" padded className="space-y-3">
+            <Text as="h2">
               1. Brief & candidates / 简述与候选
-            </h3>
+            </Text>
             <Textarea
               aria-label="Brief scope"
               placeholder="例如：10 台设备部署，含联调和验收"
@@ -209,11 +217,16 @@ export function CpqView({
                   ? 'Recommended / 返回候选'
                   : 'Browse catalog / 浏览全部目录'}
               </Button>
-              <span className="self-center text-xs text-muted-foreground">
+              <Text
+                as="span"
+                tone="muted"
+                textRole="body-small"
+                className="self-center"
+              >
                 按范围推荐条目，也可浏览目录自行选择。
-              </span>
+              </Text>
             </div>
-            <div className="min-w-0 border-y border-border">
+            <Surface as="div" className="min-w-0">
               <Table
                 className="min-w-[680px]"
                 containerClassName="max-h-80"
@@ -224,7 +237,9 @@ export function CpqView({
                     <TableHead>选择</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Scope</TableHead>
-                    <TableHead className="text-right">Unit cost</TableHead>
+                    <TableHead variant="numeric" className="text-right">
+                      Unit cost
+                    </TableHead>
                     <TableHead>Qty rule</TableHead>
                     <TableHead>Reason</TableHead>
                   </TableRow>
@@ -243,13 +258,17 @@ export function CpqView({
                           aria-label={`Select ${row.code}`}
                         />
                       </TableCell>
-                      <TableCell className="font-semibold">
-                        {row.code}
-                      </TableCell>
-                      <TableCell className="max-w-md whitespace-normal">
+                      <TableCell>{row.code}</TableCell>
+                      <TableCell
+                        variant="label"
+                        className="max-w-md whitespace-normal"
+                      >
                         {row.scope}
                       </TableCell>
-                      <TableCell className="financial-numeral text-right">
+                      <TableCell
+                        variant="numeric"
+                        className="financial-numeral text-right"
+                      >
                         {money(row.unitCost)} / {row.unit}
                       </TableCell>
                       <TableCell>
@@ -257,7 +276,10 @@ export function CpqView({
                           ? 'Fixed / 固定'
                           : 'Service / 可调服务'}
                       </TableCell>
-                      <TableCell className="max-w-sm whitespace-normal text-muted-foreground">
+                      <TableCell
+                        variant="label"
+                        className="max-w-sm whitespace-normal"
+                      >
                         {reason}
                       </TableCell>
                     </TableRow>
@@ -273,17 +295,21 @@ export function CpqView({
                   )}
                 </TableBody>
               </Table>
-            </div>
-          </section>
-          <section className="wb-panel space-y-3 p-3">
+            </Surface>
+          </Surface>
+          <Surface as="section" variant="panel" padded className="space-y-3">
             {/* Confirmation stays next to the selected rows, including on long lists. */}
-            <div className="wb-toolbar -mx-3 -mt-3 justify-between border-b">
-              <h3 className="text-sm font-semibold text-primary">
+            <Surface
+              as="div"
+              variant="toolbar"
+              className="-mx-3 -mt-3 justify-between"
+            >
+              <Text as="h2">
                 2. Confirm items / 确认条目与固定数量
-              </h3>
+              </Text>
               <div className="flex flex-wrap items-center gap-2">
                 <Input
-                  className="h-8 max-w-40 text-xs"
+                  className="max-w-40"
                   aria-label="Confirmed by"
                   placeholder="Confirmed by / 确认人"
                   value={confirmer}
@@ -303,7 +329,7 @@ export function CpqView({
                     : '待用户确认'}
                 </span>
               </div>
-            </div>
+            </Surface>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -320,8 +346,11 @@ export function CpqView({
                   const fixed = !row?.adjustable || row?.kind === 'equipment';
                   return (
                     <TableRow key={s.code}>
-                      <TableCell className="max-w-xs whitespace-normal">
-                        <strong className="font-semibold">{s.code}</strong> ·{' '}
+                      <TableCell
+                        variant="label"
+                        className="max-w-xs whitespace-normal"
+                      >
+                        <strong>{s.code}</strong> ·{' '}
                         {row?.scope || 'Missing catalog item / 条目缺失'}
                         <Button
                           size="sm"
@@ -350,7 +379,7 @@ export function CpqView({
                       <TableCell>
                         <Input
                           aria-label={`Quantity ${s.code}`}
-                          className="financial-numeral h-8 min-w-24 text-right text-xs"
+                          className="financial-numeral min-w-24 text-right"
                           type="number"
                           min="0"
                           step={row?.step || 1}
@@ -390,16 +419,21 @@ export function CpqView({
                 })}
               </TableBody>
             </Table>
-          </section>
+          </Surface>
         </div>
-        <section className="wb-panel min-w-0 space-y-3 p-3">
-          <h3 className="text-sm font-semibold text-primary">
+        <Surface
+          as="section"
+          variant="panel"
+          padded
+          className="min-w-0 space-y-3"
+        >
+          <Text as="h2">
             3. Calculate & archive / 计算与归档
-          </h3>
+          </Text>
           {/* Calculation and archive actions remain visible while candidates are reviewed alongside them. */}
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Button
-              className="h-auto min-h-8 max-w-full whitespace-normal text-xs"
+              className="max-w-full whitespace-normal"
               disabled={!confirmed || busy}
               onClick={() =>
                 run(() => {
@@ -412,7 +446,7 @@ export function CpqView({
             </Button>
             {draft.result && (
               <Button
-                className="h-auto min-h-8 max-w-full whitespace-normal text-xs"
+                className="max-w-full whitespace-normal"
                 disabled={!fresh || !draft.result.acceptable}
                 onClick={() =>
                   run(() => {
@@ -426,20 +460,28 @@ export function CpqView({
             )}
           </div>
           {error && (
-            <p
+            <Surface
               role="alert"
-              className="rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs text-destructive"
+              as="p"
+              variant="notice"
+              tone="danger"
+              textRole="body-small"
             >
               {error}
-            </p>
+            </Surface>
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <label className="col-span-2 flex min-w-0 flex-wrap items-center gap-2 text-xs font-medium">
+            <Surface
+              as="label"
+              variant="inline-field"
+              textRole="body-small"
+              className="col-span-2 flex min-w-0 flex-wrap items-center"
+            >
               Cost version / 成本版本
-              <Input readOnly value={draft.costVersion} className="h-8 w-16" />
+              <Input readOnly value={draft.costVersion} className="w-16" />
               <Button
-                className="h-auto min-h-8 max-w-full whitespace-normal text-xs"
+                className="max-w-full whitespace-normal"
                 size="sm"
                 variant="outline"
                 onClick={() =>
@@ -452,8 +494,13 @@ export function CpqView({
               >
                 Use {baseline.code} · {money(totalCost)}
               </Button>
-            </label>
-            <label className="block space-y-1 text-xs font-medium">
+            </Surface>
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="block"
+            >
               Target cost / 目标成本
               <Input
                 money
@@ -463,8 +510,13 @@ export function CpqView({
                 value={draft.targetCost}
                 onChange={(e) => update({ targetCost: Number(e.target.value) })}
               />
-            </label>
-            <label className="block space-y-1 text-xs font-medium">
+            </Surface>
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="block"
+            >
               Tolerance / 允许差额
               <Input
                 type="number"
@@ -473,25 +525,40 @@ export function CpqView({
                 value={draft.tolerance}
                 onChange={(e) => update({ tolerance: Number(e.target.value) })}
               />
-            </label>
-            <label className="col-span-2 block space-y-1 text-xs font-medium">
+            </Surface>
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="col-span-2 block"
+            >
               Target basis / 目标口径
               <Input
                 value={draft.targetBasis}
                 onChange={(e) => update({ targetBasis: e.target.value })}
               />
-            </label>
-            <label className="col-span-2 block space-y-1 text-xs font-medium">
+            </Surface>
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="col-span-2 block"
+            >
               Allocation basis / 数量分配依据
               <Input
                 value={draft.allocationBasis}
                 onChange={(e) => update({ allocationBasis: e.target.value })}
               />
-            </label>
+            </Surface>
           </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-md bg-muted/20 p-2 text-xs">
+          <Surface
+            as="div"
+            variant="inset"
+            textRole="body-small"
+            className="flex min-w-0 flex-wrap items-center gap-2"
+          >
             <Button
-              className="h-auto min-h-8 max-w-full whitespace-normal text-xs"
+              className="max-w-full whitespace-normal"
               variant="outline"
               onClick={() =>
                 update({
@@ -520,11 +587,11 @@ export function CpqView({
               />
               按行四舍五入到分（默认向上到分）
             </label>
-          </div>
+          </Surface>
 
           {draft.result && (
             <div className="space-y-3">
-              <p className={fresh ? 'font-medium' : 'text-amber-700'}>
+              <Text as="p" tone={fresh ? 'inherit' : 'warning'} className="">
                 {!fresh
                   ? '输入或成本已变化，需要重算。'
                   : draft.result.difference === 0
@@ -532,30 +599,38 @@ export function CpqView({
                     : `差额 ${money(draft.result.difference)} · ${draft.result.acceptable ? '在容差内' : '待处理'}`}
                 {!draft.result.searchComplete &&
                   ' · 已到搜索上限，未证明分配最优或无精确解'}
-              </p>
+              </Text>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Code</TableHead>
                     <TableHead>Qty</TableHead>
-                    <TableHead className="text-right">Unit cost</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
+                    <TableHead variant="numeric" className="text-right">
+                      Unit cost
+                    </TableHead>
+                    <TableHead variant="numeric" className="text-right">
+                      Cost
+                    </TableHead>
                     <TableHead>Fixed</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {draft.result.lines.map((line) => (
                     <TableRow key={line.item.code}>
-                      <TableCell className="font-semibold">
-                        {line.item.code}
-                      </TableCell>
+                      <TableCell>{line.item.code}</TableCell>
                       <TableCell>
                         {line.quantity} {line.item.unit}
                       </TableCell>
-                      <TableCell className="financial-numeral text-right">
+                      <TableCell
+                        variant="numeric"
+                        className="financial-numeral text-right"
+                      >
                         {money(line.item.unitCost)}
                       </TableCell>
-                      <TableCell className="financial-numeral text-right">
+                      <TableCell
+                        variant="numeric"
+                        className="financial-numeral text-right"
+                      >
                         {money(line.amount)}
                       </TableCell>
                       <TableCell>{line.locked ? '固定' : '可调'}</TableCell>
@@ -569,19 +644,22 @@ export function CpqView({
               </p>
             </div>
           )}
-        </section>
+        </Surface>
       </div>
-      <section className="wb-panel space-y-3 p-3">
-        <h3 className="text-sm font-semibold text-primary">
+      <Surface as="section" variant="panel" padded className="space-y-3">
+        <Text as="h2">
           Archived configurations / 历史配置 ({value.archives.length})
-        </h3>
+        </Text>
         {value.archives
           .slice()
           .reverse()
           .map((archive) => (
-            <div
+            <Surface
               key={archive.id}
-              className="wb-toolbar justify-between border-b text-xs last:border-b-0"
+              as="div"
+              variant="toolbar"
+              textRole="body-small"
+              className="justify-between"
             >
               <span>
                 {archive.costVersion} · {archive.draft.brief} ·{' '}
@@ -604,9 +682,9 @@ export function CpqView({
               >
                 Excel
               </Button>
-            </div>
+            </Surface>
           ))}
-      </section>
-    </div>
+      </Surface>
+    </Surface>
   );
 }

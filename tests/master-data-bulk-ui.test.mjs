@@ -79,6 +79,7 @@ const hooks = registerHooks({
     };
   },
 });
+const { Input } = await import('../components/ui/input.tsx');
 const { BulkImportControls } =
   await import('../features/master-data/bulk-import-controls.tsx');
 const { GlobalMasterDataPage } =
@@ -187,7 +188,7 @@ function harness(Component, props) {
     upload(file) {
       const event = { target: { files: [file], value: file.name } };
       this.find(
-        (node) => node.type === 'input' && node.props.type === 'file',
+        (node) => node.type === Input && node.props.type === 'file',
       ).props.onChange(event);
       assert.equal(
         event.target.value,
@@ -337,7 +338,7 @@ test('all ten tabs expose an accessible template and import entry, with disabled
     ui.button('Download Status Excel template').props.disabled,
     false,
   );
-  assert.equal(ui.find((node) => node.type === 'input').props.disabled, true);
+  assert.equal(ui.find((node) => node.type === Input).props.disabled, true);
   assert.deepEqual(calls.apply, []);
 });
 

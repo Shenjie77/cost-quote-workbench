@@ -1,3 +1,9 @@
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
 /** Version-level HQ travel opt-in with explicit, preserved expense assumptions. */
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -62,13 +68,20 @@ export function HQTravelPanel({
     ),
   ];
   return (
-    <section
-      className="wb-panel min-w-0 overflow-hidden"
+    <Surface
+      as="section"
+      variant="panel"
+      className="min-w-0 overflow-hidden"
       aria-label="HQ travel cost"
     >
-      <header className="wb-toolbar justify-between">
+      <Surface as="header" variant="header" className="justify-between">
         <div>
-          <label className="flex items-center gap-2 text-sm font-semibold">
+          <Surface
+            as="label"
+            variant="inline-field"
+            textRole="body-main"
+            className="flex items-center"
+          >
             <Checkbox
               aria-label="Include HQ travel cost"
               checked={enabled}
@@ -82,45 +95,65 @@ export function HQTravelPanel({
               }}
             />
             Include HQ Travel
-          </label>
-          <p className="mt-1 text-xs text-muted-foreground">
+          </Surface>
+          <Text as="p" tone="muted" textRole="body-small" className="mt-1">
             {enabled
               ? 'Calculated from HQ effort and the expenses below.'
               : 'Off · HQ effort is available for reference; no travel cost is included.'}
-          </p>
+          </Text>
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-xs text-muted-foreground">HQ Travel · SGD</p>
-          <p className="mt-0.5 text-base font-semibold tabular-nums text-primary">
+          <Text as="p" tone="muted" textRole="body-small">
+            HQ Travel · SGD
+          </Text>
+          <Text
+            as="p"
+            tone="primary"
+            textRole="body-main"
+            className="mt-1 tabular-nums"
+          >
             {summary.totalCost.toLocaleString('en-SG', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
-          </p>
+          </Text>
         </div>
-      </header>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-muted/20 px-3 py-2 text-xs">
+      </Surface>
+      <Surface
+        as="div"
+        variant="footer"
+        textRole="body-small"
+        className="flex flex-wrap items-center"
+      >
         <span>
-          <span className="text-muted-foreground">HQ effort </span>
+          <Text as="span" tone="muted">
+            HQ effort{' '}
+          </Text>
           <strong className="tabular-nums">
             {summary.hqMandays.toLocaleString('en-SG')} MD
           </strong>
         </span>
         <span>
-          <span className="text-muted-foreground">Equivalent </span>
+          <Text as="span" tone="muted">
+            Equivalent{' '}
+          </Text>
           <strong className="tabular-nums">
             {summary.months.toFixed(2)} months
           </strong>
         </span>
         {summary.hqMandays > 0 && (
-          <span className="text-muted-foreground">
+          <Text as="span" tone="muted">
             {mandaysPerMonth.join(' / ')} MD per month
-          </span>
+          </Text>
         )}
-      </div>
+      </Surface>
       {enabled && (
         <>
-          <div className="grid grid-cols-2 gap-3 border-t px-3 py-2 sm:grid-cols-3">
+          <Surface
+            as="div"
+            variant="footer"
+            className="grid grid-cols-2 sm:grid-cols-3"
+          >
             {(
               [
                 [
@@ -136,13 +169,21 @@ export function HQTravelPanel({
                 ],
               ] as const
             ).map(([key, label, ariaLabel]) => (
-              <label
+              <Surface
                 key={key}
-                className="min-w-0 space-y-1.5 text-xs font-medium text-muted-foreground"
+                as="label"
+                variant="field"
+                tone="muted"
+                textRole="body-small"
+                className="min-w-0"
               >
                 <span className="block">
                   {label}
-                  {key !== 'trips' && <span className="ml-1 text-xs">SGD</span>}
+                  {key !== 'trips' && (
+                    <Text as="span" textRole="body-small" className="ml-1">
+                      SGD
+                    </Text>
+                  )}
                 </span>
                 <Input
                   money={key !== 'trips'}
@@ -151,7 +192,7 @@ export function HQTravelPanel({
                   min={0}
                   max={key === 'trips' ? COST_LIMITS.trips : COST_LIMITS.money}
                   step={key === 'trips' ? 1 : 'any'}
-                  className="h-8 w-full bg-background px-2.5 text-right text-xs tabular-nums disabled:bg-muted/40"
+                  className="w-full text-right tabular-nums"
                   value={settings[key]}
                   disabled={locked}
                   onChange={(event) => updateAmount(key, event.target.value)}
@@ -159,38 +200,53 @@ export function HQTravelPanel({
                     updateAmount(key, event.target.value, true)
                   }
                 />
-              </label>
+              </Surface>
             ))}
-          </div>
+          </Surface>
           {!summary.required && (
-            <p className="border-t bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+            <Surface as="p" variant="footer" tone="muted" textRole="body-small">
               No HQ mandays in this version. Travel will calculate when HQ
               effort is entered.
-            </p>
+            </Surface>
           )}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2 text-xs">
+          <Surface
+            as="div"
+            variant="footer"
+            textRole="body-small"
+            className="flex flex-wrap items-center justify-between"
+          >
             <span>
-              <span className="text-muted-foreground">Monthly expenses </span>
+              <Text as="span" tone="muted">
+                Monthly expenses{' '}
+              </Text>
               <strong className="tabular-nums">
                 {formatSgd(summary.allowanceCost)}
               </strong>
             </span>
             <span>
-              <span className="text-muted-foreground">Airfare </span>
+              <Text as="span" tone="muted">
+                Airfare{' '}
+              </Text>
               <strong className="tabular-nums">
                 {formatSgd(summary.airfareCost)}
               </strong>
             </span>
-            <span className="text-muted-foreground">
+            <Text as="span" tone="muted">
               No labour uplift or 3% allowance
-            </span>
-          </div>
+            </Text>
+          </Surface>
           {summary.hqRows.length > 0 && (
-            <details className="border-t">
-              <summary className="cursor-pointer px-3 py-2 text-xs font-medium hover:bg-muted/20">
+            <Disclosure>
+              <DisclosureSummary className="cursor-pointer">
                 HQ effort sources · {summary.hqRows.length} lines
-              </summary>
-              <ul className="space-y-1 px-3 pb-3 text-xs text-muted-foreground">
+              </DisclosureSummary>
+              <Surface
+                as="ul"
+                variant="body"
+                tone="muted"
+                textRole="body-small"
+                className="space-y-1"
+              >
                 {summary.hqRows.map((row) => (
                   <li key={row.id}>
                     {row.scope} ·{' '}
@@ -199,11 +255,11 @@ export function HQTravelPanel({
                     )?.name || row.reTypeId}
                   </li>
                 ))}
-              </ul>
-            </details>
+              </Surface>
+            </Disclosure>
           )}
         </>
       )}
-    </section>
+    </Surface>
   );
 }

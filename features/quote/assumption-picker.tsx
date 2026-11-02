@@ -1,3 +1,9 @@
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
 /** Search eligible library text and reference a detached copy into this quote. */
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -88,7 +94,12 @@ export function AssumptionPicker({
   return (
     <div>
       {canSync && (
-        <div className="flex items-center gap-2 border-b px-3 py-1 text-xs">
+        <Surface
+          as="div"
+          variant="item"
+          textRole="body-small"
+          className="flex items-center gap-2"
+        >
           <Button
             size="sm"
             variant="ghost"
@@ -97,32 +108,38 @@ export function AssumptionPicker({
           >
             Refresh library
           </Button>
-          <span className="text-muted-foreground">
+          <Text as="span" tone="muted">
             {loading
               ? 'Refreshing assumptions…'
               : 'Library references sync automatically; quote-specific edits are retained.'}
-          </span>
-        </div>
+          </Text>
+        </Surface>
       )}
       {error && (
-        <p role="alert" className="px-3 py-2 text-xs text-destructive">
+        <Surface
+          role="alert"
+          as="p"
+          variant="body"
+          tone="danger"
+          textRole="body-small"
+        >
           {error}
-        </p>
+        </Surface>
       )}
-      <details className="border-b bg-muted/10">
-        <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring">
+      <Disclosure>
+        <DisclosureSummary className="cursor-pointer">
           Reference library / 引用假设库 · {entries.length} matches / 条适用
-        </summary>
-        <div className="px-3 pb-3">
+        </DisclosureSummary>
+        <Surface as="div" variant="body">
           <Input
             aria-label="Search assumption library"
             placeholder="Search name, category or text / 搜索名称、分类、内容"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-        </div>
+        </Surface>
         <div className="max-h-72 overflow-auto">
-          <Table className="text-xs [&_td]:border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:h-8">
+          <Table className="[&_th]:h-8">
             <TableHeader>
               <TableRow>
                 <TableHead>Name / 名称</TableHead>
@@ -144,9 +161,9 @@ export function AssumptionPicker({
                   <TableRow key={entry.id}>
                     <TableCell>
                       {entry.name}
-                      <small className="block text-muted-foreground">
+                      <Text as="small" tone="muted" className="block">
                         {entry.category} · {entry.clientPattern}
-                      </small>
+                      </Text>
                     </TableCell>
                     <TableCell className="max-w-xl whitespace-pre-wrap">
                       {entry.text}
@@ -179,12 +196,12 @@ export function AssumptionPicker({
           </Table>
         </div>
         {!entries.length && (
-          <p className="px-3 pb-3 text-xs text-muted-foreground">
+          <Surface as="p" variant="body" tone="muted" textRole="body-small">
             No applicable assumptions. Maintain them in Master Data →
             Assumptions. / 无适用假设，请在基础数据中维护。
-          </p>
+          </Surface>
         )}
-      </details>
+      </Disclosure>
     </div>
   );
 }

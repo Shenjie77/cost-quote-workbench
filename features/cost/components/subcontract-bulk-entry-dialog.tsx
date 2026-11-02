@@ -1,3 +1,16 @@
+import {
+  Surface,
+  Disclosure,
+  DisclosureSummary,
+  Text,
+} from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
+import { Textarea } from '@/components/ui/textarea';
+import { TableHeader } from '@/components/ui/table';
+import { TableRow } from '@/components/ui/table';
+import { TableHead } from '@/components/ui/table';
+import { TableBody } from '@/components/ui/table';
+import { TableCell } from '@/components/ui/table';
 import { Table } from '@/components/ui/table';
 import { formatMoney } from '@/lib/money';
 /** Review pasted subcontract BOQs locally before appending to the selected project or site. */
@@ -32,8 +45,6 @@ type Props = SubcontractBulkBasis & {
   onConfirm: (lines: SubcontractBulkLine[], fingerprint: string) => boolean;
   announce: (message: string) => void;
 };
-const selectClass =
-  'h-8 min-w-0 w-full rounded-md border border-border bg-white px-2 text-xs disabled:opacity-50';
 const money = formatMoney;
 const mappingLabels: [SubcontractBulkColumn, string][] = [
   ['unmapped', 'Choose field…'],
@@ -98,11 +109,16 @@ export function SubcontractBulkEntryForm({
       <div className="space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           {!site && (
-            <label className="grid gap-1 text-xs font-medium">
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="grid"
+            >
               Quantity year
-              <select
+              <SelectField
                 aria-label="Subcontract bulk quantity year"
-                className={selectClass}
+                className="h-8 min-w-0 w-full"
                 value={options.defaultYear}
                 disabled={locked}
                 onChange={(event) =>
@@ -117,8 +133,8 @@ export function SubcontractBulkEntryForm({
                       : ''}
                   </option>
                 ))}
-              </select>
-            </label>
+              </SelectField>
+            </Surface>
           )}
           <Button
             type="button"
@@ -143,27 +159,32 @@ export function SubcontractBulkEntryForm({
             Copy description template
           </Button>
         </div>
-        <details className="rounded-md border border-border px-3 py-2 text-xs">
-          <summary className="cursor-pointer font-medium">
+        <Disclosure>
+          <DisclosureSummary className="cursor-pointer">
             Template &amp; accepted columns
-          </summary>
-          <textarea
-            className="mt-2 h-20 w-full resize-none bg-muted/20 p-2 font-mono text-xs"
+          </DisclosureSummary>
+          <Textarea
+            className="h-20 w-full resize-none"
             aria-label="Subcontract bulk template"
             readOnly
             value={template}
           />
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-small" className="mt-2">
             Enter a Master Data code or item description plus quantity. Code,
             description, BU, unit and SGD price come from Master Data. Add or
             correct base items in Master Data before importing them here.
-          </p>
-        </details>
-        <label className="grid gap-1.5 text-xs font-medium">
+          </Text>
+        </Disclosure>
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="grid"
+        >
           Paste or type a table
-          <textarea
+          <Textarea
             aria-label="Subcontract bulk table"
-            className="h-36 w-full resize-y rounded-md border border-border bg-white px-3 py-2 font-mono text-xs font-normal leading-5 outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
+            className="h-36 w-full resize-y"
             value={text}
             disabled={locked}
             placeholder={template}
@@ -178,34 +199,48 @@ export function SubcontractBulkEntryForm({
                 );
             }}
           />
-        </label>
-        <p className="text-xs text-muted-foreground">
+        </Surface>
+        <Text as="p" tone="muted" textRole="body-small">
           Excel paste, quoted CSV or Markdown · up to 1,000 rows.{' '}
           {site
             ? 'Quantities apply per site; annual site deployments remain unchanged.'
             : 'Quantity uses the selected year; Y1–Y5 or calendar-year columns allocate annual quantities.'}{' '}
           Existing items stay in place.
-        </p>
+        </Text>
         {preview && (
           <>
             {!current && (
-              <p
+              <Surface
                 role="alert"
-                className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900"
+                as="p"
+                variant="notice"
+                tone="warning"
+                textRole="body-small"
               >
                 The input or cost version changed. Generate a new preview before
                 confirming.
-              </p>
+              </Surface>
             )}
-            <div className="grid gap-2 rounded-md border bg-muted/15 p-2 sm:grid-cols-3">
+            <Surface
+              as="div"
+              variant="panel"
+              padded
+              className="grid gap-2 sm:grid-cols-3"
+            >
               {preview.columns.map((column, index) => (
-                <label key={index} className="grid gap-1 text-xs font-medium">
+                <Surface
+                  key={index}
+                  as="label"
+                  variant="field"
+                  textRole="body-small"
+                  className="grid"
+                >
                   <span className="truncate" title={column.header}>
                     {column.header}
                   </span>
-                  <select
+                  <SelectField
                     aria-label={`Subcontract bulk column ${index + 1}`}
-                    className={selectClass}
+                    className="h-8 min-w-0 w-full"
                     disabled={locked}
                     value={options.mapping[index] ?? column.target}
                     onChange={(event) =>
@@ -228,104 +263,139 @@ export function SubcontractBulkEntryForm({
                           {label}
                         </option>
                       ))}
-                  </select>
-                </label>
+                  </SelectField>
+                </Surface>
               ))}
-            </div>
+            </Surface>
             {!!preview.issues.length && (
-              <div
+              <Surface
                 role="alert"
-                className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-800"
+                as="div"
+                variant="notice"
+                tone="danger"
+                textRole="body-small"
               >
-                <ul className="list-disc space-y-1 pl-4">
+                <Surface as="ul" variant="body" className="list-disc space-y-1">
                   {preview.issues.map((issue, index) => (
                     <li key={index}>{issue}</li>
                   ))}
-                </ul>
-              </div>
+                </Surface>
+              </Surface>
             )}
             {!!preview.notices.length && (
-              <details className="rounded-md border px-3 py-2 text-xs">
-                <summary className="cursor-pointer">
+              <Disclosure>
+                <DisclosureSummary className="cursor-pointer">
                   Review notes · {preview.notices.length}
-                </summary>
-                <ul className="mt-2 list-disc space-y-1 pl-4 text-muted-foreground">
+                </DisclosureSummary>
+                <Surface
+                  as="ul"
+                  variant="body"
+                  tone="muted"
+                  className="mt-2 list-disc space-y-1"
+                >
                   {preview.notices.map((notice, index) => (
                     <li key={index}>{notice}</li>
                   ))}
-                </ul>
-              </details>
+                </Surface>
+              </Disclosure>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <Surface
+              as="div"
+              textRole="body-small"
+              className="flex flex-wrap items-center justify-between gap-2"
+            >
               <strong>{preview.entries.length} items</strong>
               <span className="tabular-nums">
                 Batch cost · SGD {money(preview.totalCost)}
                 {site ? ' · current deployments' : ''}
               </span>
-            </div>
-            <div className="max-h-72 overflow-auto rounded-md border">
-              <Table className="w-full min-w-[650px] text-xs">
-                <thead className="sticky top-0 bg-muted">
-                  <tr>
-                    <th className="p-2 text-left">Row / Item</th>
-                    <th className="p-2 text-left">BU / Unit</th>
-                    <th className="p-2 text-right">Unit price</th>
-                    <th className="p-2 text-right">
+            </Surface>
+            <Surface
+              as="div"
+              variant="panel"
+              className="max-h-72 overflow-auto"
+            >
+              <Table className="w-full min-w-[650px]">
+                <TableHeader className="sticky top-0">
+                  <TableRow>
+                    <TableHead className="text-left">Row / Item</TableHead>
+                    <TableHead className="text-left">BU / Unit</TableHead>
+                    <TableHead variant="numeric" className="text-right">
+                      Unit price
+                    </TableHead>
+                    <TableHead variant="numeric" className="text-right">
                       {site ? 'Qty / Site' : 'Y1 / Y2 / Y3 / Y4 / Y5'}
-                    </th>
-                    <th className="p-2 text-left">Review</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </TableHead>
+                    <TableHead className="text-left">Review</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {preview.entries
                     .slice(safePage * 50, (safePage + 1) * 50)
                     .map((entry) => (
-                      <tr key={entry.sourceRow} className="border-t align-top">
-                        <td className="p-2">
-                          <strong className="font-mono font-bold">
+                      <TableRow key={entry.sourceRow} className="align-top">
+                        <TableCell>
+                          <Text as="strong">
                             {entry.sourceRow} · {entry.line?.code}
-                          </strong>
+                          </Text>
                           <p className="mt-1 max-w-72 whitespace-normal break-words">
                             {entry.line?.description}
                           </p>
-                        </td>
-                        <td className="p-2">
+                        </TableCell>
+                        <TableCell>
                           {entry.line?.bu}
-                          <span className="block text-muted-foreground">
+                          <Text as="span" tone="muted" className="block">
                             {entry.line?.unit}
-                          </span>
-                        </td>
-                        <td className="p-2 text-right tabular-nums">
+                          </Text>
+                        </TableCell>
+                        <TableCell
+                          variant="numeric"
+                          className="text-right tabular-nums"
+                        >
                           {entry.line?.unitPrice == null
                             ? 'Not priced'
                             : money(entry.line.unitPrice)}
-                        </td>
-                        <td className="p-2 text-right tabular-nums">
+                        </TableCell>
+                        <TableCell
+                          variant="numeric"
+                          className="text-right tabular-nums"
+                        >
                           {entry.line &&
                             ('quantities' in entry.line
                               ? entry.line.quantities.join(' / ')
                               : entry.line.quantityPerSite)}
-                        </td>
-                        <td className="max-w-72 whitespace-normal p-2">
+                        </TableCell>
+                        <TableCell
+                          variant="label"
+                          className="max-w-72 whitespace-normal"
+                        >
                           {entry.issues.length ? (
-                            <ul className="space-y-1 text-red-700">
+                            <Surface
+                              as="ul"
+                              tone="danger"
+                              className="space-y-1"
+                            >
                               {entry.issues.map((issue, index) => (
                                 <li key={index}>{issue}</li>
                               ))}
-                            </ul>
+                            </Surface>
                           ) : entry.line?.unitPrice === null ? (
                             'Set price before finalizing'
                           ) : (
                             'Ready'
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                </tbody>
+                </TableBody>
               </Table>
-            </div>
+            </Surface>
             {pageCount > 1 && (
-              <div className="flex items-center justify-end gap-2 text-xs">
+              <Surface
+                as="div"
+                textRole="body-small"
+                className="flex items-center justify-end gap-2"
+              >
                 <Button
                   type="button"
                   variant="outline"
@@ -347,12 +417,12 @@ export function SubcontractBulkEntryForm({
                 >
                   Next
                 </Button>
-              </div>
+              </Surface>
             )}
           </>
         )}
       </div>
-      <DialogFooter className="mt-2">
+      <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancel
         </Button>
@@ -442,7 +512,7 @@ export function SubcontractBulkEntryDialog(props: Props) {
         if (!open) props.onClose();
       }}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[1040px]">
+      <DialogContent size="lg" className="overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Subcontract Bulk Entry</DialogTitle>
           <DialogDescription>

@@ -74,7 +74,8 @@ test('combined quotation exposes inherited categories and explicit quotation ove
     (_, i) => autoSheet.getCell(i + 1, 15).value,
   );
   assert.ok(categories.includes('Hardware'));
-  assert.ok(categories.includes('Professional Service'));
+  assert.ok(categories.includes('Uncategorized'));
+  assert.ok(!categories.includes('Professional Service'));
 });
 
 test('combined hidden calculation caches retain cost allocation and GP intermediates', async () => {

@@ -106,6 +106,7 @@ test('Summary risk amounts are editable and proportional reset preserves the edi
     tree()
       .find(
         (node) =>
+          typeof node.props.onClick === 'function' &&
           typeof node.props.children === 'string' &&
           node.props.children.includes('按比例重置'),
       )

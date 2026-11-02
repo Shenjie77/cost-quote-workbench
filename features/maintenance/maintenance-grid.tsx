@@ -1,4 +1,9 @@
 'use client';
+
+import { ResizeHandle as ResizeGrip } from '@/components/ui/resize-handle';
+
+import { Text, Surface } from '@/components/ui/presentation';
+import { Textarea } from '@/components/ui/textarea';
 import { formatMoney } from '@/lib/money';
 /** Dense equipment grid: source prices stay editable, calculated fields and history remain read-only. */
 import { useState, type PointerEvent } from 'react';
@@ -98,6 +103,7 @@ function NumberCell({
   };
   return (
     <Input
+      variant="grid"
       money={!integer}
       aria-label={label}
       aria-invalid={error}
@@ -120,7 +126,7 @@ function NumberCell({
           setError(false);
         }
       }}
-      className="h-full min-h-8 rounded-none border-transparent bg-transparent px-2 text-right text-xs shadow-none"
+      className="text-right"
     />
   );
 }
@@ -143,7 +149,7 @@ function ResizeHandle({
   const coordinate = (event: PointerEvent<HTMLSpanElement>) =>
     axis === 'x' ? event.clientX : event.clientY;
   return (
-    <span
+    <ResizeGrip
       // Interactive resize handles use the adjustable separator pattern, not a decorative rule.
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
       role="separator"
@@ -153,11 +159,7 @@ function ResizeHandle({
       aria-valuenow={value}
       aria-valuemin={axis === 'x' ? 60 : 32}
       aria-valuemax={axis === 'x' ? 600 : 240}
-      className={
-        axis === 'x'
-          ? 'absolute inset-y-0 right-0 z-10 w-2 cursor-col-resize touch-none hover:bg-primary/20 focus-visible:bg-primary/20'
-          : 'absolute inset-x-0 bottom-0 z-10 h-1.5 cursor-row-resize touch-none hover:bg-primary/20 focus-visible:bg-primary/20'
-      }
+      axis={axis}
       onPointerDown={(event) => {
         event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -214,12 +216,10 @@ function HistoryCell({
   const matches = model.trim() ? maintenanceCandidates(records, model) : [];
   return (
     <Dialog>
-      <DialogTrigger
-        render={<Button variant="ghost" size="sm" className="h-7 text-xs" />}
-      >
+      <DialogTrigger render={<Button variant="ghost" size="sm" />}>
         {matches.length ? `History (${matches.length})` : 'History —'}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{model || 'Unnamed model'} · 历史价格</DialogTitle>
           <DialogDescription>
@@ -257,7 +257,7 @@ function HistoryCell({
                     {record.spms === undefined ? '—' : money(record.spms)}
                   </TableCell>
                   <TableCell>{money(unitAnnualQuote)}</TableCell>
-                  <TableCell className="whitespace-normal">
+                  <TableCell variant="label" className="whitespace-normal">
                     {record.project ?? record.source}
                   </TableCell>
                   <TableCell>
@@ -277,9 +277,9 @@ function HistoryCell({
             </TableBody>
           </Table>
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-main">
             暂无相同型号的历史价格。
-          </p>
+          </Text>
         )}
       </DialogContent>
     </Dialog>
@@ -306,7 +306,7 @@ export function MaintenanceGrid({
   return (
     <Table
       aria-label="Maintenance equipment grid"
-      className="table-fixed border-collapse text-xs [&_td]:border [&_td]:p-0 [&_th]:border"
+      className="table-fixed"
       style={{ width: widths.reduce((a, b) => a + b, 0) }}
     >
       <colgroup>
@@ -320,7 +320,7 @@ export function MaintenanceGrid({
             <TableHead
               key={index}
               title={columnTitles[index]}
-              className="relative h-8 px-2 text-xs"
+              className="relative h-8"
             >
               {label}
             </TableHead>
@@ -331,9 +331,9 @@ export function MaintenanceGrid({
         {!rows.length ? (
           <TableRow>
             <TableCell colSpan={13}>
-              <p className="p-4 text-muted-foreground">
+              <Surface as="p" variant="body" tone="muted">
                 添加设备或批量粘贴 Excel 数据。History 和 Remark 可留空。
-              </p>
+              </Surface>
             </TableCell>
           </TableRow>
         ) : (
@@ -341,16 +341,16 @@ export function MaintenanceGrid({
             <TableRow key={row.id} style={{ height: heights[row.id] ?? 32 }}>
               <TableCell>
                 <Input
+                  variant="grid"
                   aria-label={`Model row ${index + 1}`}
                   disabled={disabled}
                   value={row.model}
                   maxLength={500}
                   onChange={(e) => onPatch(row.id, { model: e.target.value })}
-                  className="h-full min-h-8 rounded-none border-transparent bg-transparent px-2 text-xs font-medium shadow-none"
                 />
               </TableCell>
               <TableCell>
-                <textarea
+                <Textarea
                   aria-label={`Description row ${index + 1}`}
                   disabled={disabled}
                   value={row.description ?? ''}
@@ -358,7 +358,7 @@ export function MaintenanceGrid({
                   onChange={(event) =>
                     onPatch(row.id, { description: event.target.value })
                   }
-                  className="block h-full min-h-8 w-full resize-none bg-transparent px-2 py-1 text-xs"
+                  className="block h-full min-h-8 w-full resize-none"
                   style={{ height: (heights[row.id] ?? 32) - 2 }}
                 />
               </TableCell>
@@ -374,10 +374,11 @@ export function MaintenanceGrid({
                   />
                 </TableCell>
               ))}
-              <TableCell className="financial-numeral bg-muted/30 text-right">
-                <span className="px-2">
-                  {money((row.ct ?? 0) + (row.spms ?? 0))}
-                </span>
+              <TableCell
+                variant="numeric"
+                className="financial-numeral text-right"
+              >
+                <Text as="span">{money((row.ct ?? 0) + (row.spms ?? 0))}</Text>
               </TableCell>
               <TableCell>
                 <NumberCell
@@ -391,19 +392,23 @@ export function MaintenanceGrid({
                 />
               </TableCell>
               <TableCell>
-                <input
+                <Input
+                  variant="grid"
                   aria-label={`Equipment unit row ${index + 1}`}
                   value={row.unit ?? ''}
                   maxLength={80}
                   disabled={disabled}
                   onChange={(e) => onPatch(row.id, { unit: e.target.value })}
-                  className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                  className="w-full min-w-0"
                 />
               </TableCell>
-              <TableCell className="financial-numeral bg-muted/30 text-right">
-                <span className="px-2">
+              <TableCell
+                variant="numeric"
+                className="financial-numeral text-right"
+              >
+                <Text as="span">
                   {money(((row.ct ?? 0) + (row.spms ?? 0)) * row.quantity)}
-                </span>
+                </Text>
               </TableCell>
               <TableCell>
                 <NumberCell
@@ -417,8 +422,11 @@ export function MaintenanceGrid({
                   }
                 />
               </TableCell>
-              <TableCell className="financial-numeral bg-muted/30 text-right">
-                <span className="px-2">{money(totals.get(row.id) ?? 0)}</span>
+              <TableCell
+                variant="numeric"
+                className="financial-numeral text-right"
+              >
+                <Text as="span">{money(totals.get(row.id) ?? 0)}</Text>
               </TableCell>
               <TableCell>
                 <HistoryCell
@@ -429,13 +437,13 @@ export function MaintenanceGrid({
                 />
               </TableCell>
               <TableCell>
-                <textarea
+                <Textarea
                   aria-label={`Remark row ${index + 1}`}
                   disabled={disabled}
                   maxLength={10000}
                   value={row.remark ?? ''}
                   onChange={(e) => onPatch(row.id, { remark: e.target.value })}
-                  className="block h-full min-h-8 w-full resize-none bg-transparent px-2 py-1 text-xs"
+                  className="block h-full min-h-8 w-full resize-none"
                   style={{ height: (heights[row.id] ?? 32) - 2 }}
                 />
               </TableCell>
@@ -445,7 +453,7 @@ export function MaintenanceGrid({
                   size="sm"
                   disabled={disabled}
                   aria-label={`Delete maintenance row ${index + 1}`}
-                  className="h-7 w-8 p-0"
+                  className="w-8"
                   onClick={() => onDelete(row.id)}
                 >
                   <Trash2 className="size-3" />

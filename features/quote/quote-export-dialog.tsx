@@ -1,3 +1,4 @@
+import { Text, Surface } from '@/components/ui/presentation';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -33,7 +34,7 @@ export function QuoteExportDialog({
         if (!busy) onOpenChange(value);
       }}
     >
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>Export customer quotation</DialogTitle>
           <DialogDescription>
@@ -46,35 +47,52 @@ export function QuoteExportDialog({
                   : 'Standard XLSX with professional services, maintenance, totals, assumptions and commercial terms. Uses the applied template’s wording.'}
           </DialogDescription>
         </DialogHeader>
-        <p className="text-sm">
+        <Text as="p" textRole="body-main">
           Draft files are marked DRAFT. Final output requires a confirmed cost
           version and completed quotation approval where applicable.
-        </p>
+        </Text>
         {errors.length > 0 && (
-          <div
+          <Surface
             role="alert"
-            className="max-h-52 overflow-auto rounded border border-red-200 bg-red-50 p-3 text-sm"
+            as="div"
+            variant="notice"
+            tone="danger"
+            textRole="body-main"
+            className="max-h-52 overflow-auto"
           >
-            <p className="font-semibold">Resolve before exporting</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5">
+            <p>Resolve before exporting</p>
+            <Surface
+              as="ul"
+              variant="body"
+              className="mt-2 list-disc space-y-1"
+            >
               {errors.map((error, index) => (
                 <li key={index}>{error}</li>
               ))}
-            </ul>
-          </div>
+            </Surface>
+          </Surface>
         )}
         {finalErrors.length > 0 && (
-          <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
-            <p className="font-semibold">Final quotation not ready</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5">
+          <Surface
+            as="div"
+            variant="notice"
+            tone="warning"
+            textRole="body-main"
+          >
+            <p>Final quotation not ready</p>
+            <Surface
+              as="ul"
+              variant="body"
+              className="mt-2 list-disc space-y-1"
+            >
               {finalErrors.map((error, index) => (
                 <li key={index}>{error}</li>
               ))}
-            </ul>
+            </Surface>
             <p className="mt-2">
               You can export a draft once the input issues above are resolved.
             </p>
-          </div>
+          </Surface>
         )}
         <DialogFooter>
           <Button

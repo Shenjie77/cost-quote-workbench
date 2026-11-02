@@ -2,8 +2,10 @@
 
 import * as React from 'react';
 
+import { FieldSurfaceProvider } from './field-surface';
 import { attachColumnResizing } from '@/lib/table-column-widths';
 import { cn } from '@/lib/utils';
+import { layoutClassName } from '@/lib/ui-layout';
 
 /** Wrap semantic data in a keyboard-scrollable grid without changing row behavior. */
 function Table({
@@ -17,27 +19,29 @@ function Table({
     if (tableRef.current) return attachColumnResizing(tableRef.current);
   }, [props.children]);
   return (
-    <div
-      data-slot="table-container"
-      className={cn(
-        'wb-table-scroll relative min-w-0 w-full focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2',
-        containerClassName,
-      )}
-      tabIndex={0}
-      role="region"
-      aria-label={props['aria-label'] || 'Scrollable data table'}
-    >
-      <table
-        ref={(node) => {
-          tableRef.current = node;
-          if (typeof ref === 'function') ref(node);
-          else if (ref) ref.current = node;
-        }}
-        data-slot="table"
-        className={cn('w-full caption-bottom text-[13px]', className)}
-        {...props}
-      />
-    </div>
+    <FieldSurfaceProvider value="grid">
+      <div
+        data-slot="table-container"
+        className={cn(
+          'wb-table-scroll relative min-w-0 w-full focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2',
+          layoutClassName(containerClassName),
+        )}
+        tabIndex={0}
+        role="region"
+        aria-label={props['aria-label'] || 'Scrollable data table'}
+      >
+        <table
+          ref={(node) => {
+            tableRef.current = node;
+            if (typeof ref === 'function') ref(node);
+            else if (ref) ref.current = node;
+          }}
+          data-slot="table"
+          className={cn('ui-table', layoutClassName(className))}
+          {...props}
+        />
+      </div>
+    </FieldSurfaceProvider>
   );
 }
 
@@ -46,7 +50,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
   return (
     <thead
       data-slot="table-header"
-      className={cn('bg-muted [&_tr]:border-b [&_tr]:border-grid', className)}
+      className={cn('ui-table-header', layoutClassName(className))}
       {...props}
     />
   );
@@ -57,7 +61,7 @@ function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
   return (
     <tbody
       data-slot="table-body"
-      className={cn('[&_tr:last-child]:border-0', className)}
+      className={cn('[&_tr:last-child]:border-0', layoutClassName(className))}
       {...props}
     />
   );
@@ -68,53 +72,69 @@ function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
   return (
     <tfoot
       data-slot="table-footer"
-      className={cn(
-        'bg-muted/50 border-t font-medium [&>tr]:last:border-b-0',
-        className,
-      )}
+      className={cn('ui-table-footer', layoutClassName(className))}
       {...props}
     />
   );
 }
 
 /** Highlight hover, selection, and expanded states without shifting cells. */
-function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
+function TableRow({
+  className,
+  tone = 'normal',
+  ...props
+}: React.ComponentProps<'tr'> & {
+  tone?:
+    | 'normal'
+    | 'section'
+    | 'subtotal'
+    | 'total'
+    | 'header'
+    | 'risk'
+    | 'warning';
+}) {
   return (
     <tr
       data-slot="table-row"
-      className={cn(
-        'hover:bg-accent/35 data-[state=selected]:bg-accent border-b transition-colors border-grid has-aria-expanded:bg-muted/50',
-        className,
-      )}
+      data-tone={tone}
+      className={cn('ui-table-row', layoutClassName(className))}
       {...props}
     />
   );
 }
 
 /** Label a column with the same visible grid line as data cells. */
-function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
+function TableHead({
+  className,
+  variant = 'default',
+  ...props
+}: React.ComponentProps<'th'> & {
+  variant?: 'default' | 'numeric' | 'editable' | 'label';
+}) {
   return (
     <th
       data-slot="table-head"
+      data-variant={variant}
       scope="col"
-      className={cn(
-        'border-r border-grid last:border-r-0 text-muted-foreground h-8 px-3 text-left align-middle text-xs font-semibold whitespace-nowrap [&:has([role=checkbox])]:pr-0',
-        className,
-      )}
+      className={cn('ui-table-head', layoutClassName(className))}
       {...props}
     />
   );
 }
 
 /** Keep dense cells aligned and preserve caller-provided wrapping or numeric alignment. */
-function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
+function TableCell({
+  className,
+  variant = 'default',
+  ...props
+}: React.ComponentProps<'td'> & {
+  variant?: 'default' | 'numeric' | 'editable' | 'label';
+}) {
   return (
     <td
       data-slot="table-cell"
-      className={cn(
-        'border-r border-grid last:border-r-0 px-3 py-1.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0',
-        className,
-      )}
+      data-variant={variant}
+      className={cn('ui-table-cell', layoutClassName(className))}
       {...props}
     />
   );
@@ -128,7 +148,10 @@ function TableCaption({
   return (
     <caption
       data-slot="table-caption"
-      className={cn('text-muted-foreground mt-4 text-sm', className)}
+      className={cn(
+        'text-muted-foreground mt-4 text-body-main',
+        layoutClassName(className),
+      )}
       {...props}
     />
   );

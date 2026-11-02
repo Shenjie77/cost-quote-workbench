@@ -1,3 +1,5 @@
+import { Surface, Text } from '@/components/ui/presentation';
+import { CheckInput } from '@/components/ui/check-input';
 /** Project assignments select saved Master Data labels; catalog changes belong to Master Data. */
 import { useId, useState } from 'react';
 import { Input } from '@/components/ui/input';
@@ -25,9 +27,9 @@ export function ProjectTagsInput({
   ];
   return (
     <section aria-label="Project tags" className="space-y-2">
-      <label htmlFor={id} className="text-xs font-medium">
+      <Surface htmlFor={id} as="label" variant="field" textRole="body-small">
         Tags / 项目标签
-      </label>
+      </Surface>
       <Input
         id={id}
         aria-label="Search project tags"
@@ -36,7 +38,12 @@ export function ProjectTagsInput({
         placeholder="Search saved tags / 搜索主数据标签"
         disabled={disabled}
       />
-      <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto rounded border p-2">
+      <Surface
+        as="div"
+        variant="panel"
+        padded
+        className="flex max-h-40 flex-wrap gap-2 overflow-y-auto"
+      >
         {options
           .filter((tag) => projectTagKey(tag).includes(projectTagKey(query)))
           .map((tag) => {
@@ -47,11 +54,14 @@ export function ProjectTagsInput({
               (item) => projectTagKey(item) === projectTagKey(tag),
             );
             return (
-              <label
+              <Surface
                 key={projectTagKey(tag)}
-                className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs"
+                as="label"
+                variant="field"
+                textRole="body-small"
+                className="inline-flex items-center"
               >
-                <input
+                <CheckInput
                   type="checkbox"
                   aria-label={`Assign tag ${tag}`}
                   checked={selected}
@@ -82,27 +92,27 @@ export function ProjectTagsInput({
                 />
                 {tag}
                 {!available && (
-                  <span className="text-muted-foreground">
+                  <Text as="span" tone="muted">
                     （已停用或不在目录）
-                  </span>
+                  </Text>
                 )}
-              </label>
+              </Surface>
             );
           })}
         {!options.length && (
-          <span className="text-xs text-muted-foreground">
+          <Text as="span" tone="muted" textRole="body-small">
             No tags available / 暂无可选标签
-          </span>
+          </Text>
         )}
-      </div>
-      <p className="text-xs text-muted-foreground">
+      </Surface>
+      <Text as="p" tone="muted" textRole="body-small">
         可多选。新增或停用标签请前往 Master Data → Project
         Tags；保存项目后生效。
-      </p>
+      </Text>
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <Text role="alert" as="p" tone="danger" textRole="body-small">
           {error}
-        </p>
+        </Text>
       )}
     </section>
   );

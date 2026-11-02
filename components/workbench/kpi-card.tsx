@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 /** Dense page-level KPI card. Table-adjacent metrics use compact strips instead. */
 
 import type { Gauge } from 'lucide-react';
@@ -20,47 +21,50 @@ export function KpiCard({
   icon: typeof Gauge;
   tone?: StatusTone;
 }) {
-  const iconTone = {
-    navy: 'bg-accent text-primary',
-    blue: 'bg-info-muted text-info',
-    green: 'bg-success-muted text-success',
-    amber: 'bg-warning-muted text-warning',
-    red: 'bg-danger-muted text-destructive',
-    gray: 'bg-muted text-muted-foreground',
-  }[tone];
+  const semanticTone = {
+    navy: 'primary',
+    blue: 'info',
+    green: 'success',
+    amber: 'warning',
+    red: 'danger',
+    gray: 'muted',
+  } as const;
   return (
-    <div
-      className="wb-panel flex h-full flex-col px-3 py-2"
+    <Surface
+      variant="panel"
+      padded
+      className="h-full"
       title={`${note} / ${noteZh}`}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <span className="text-xs font-medium text-muted-foreground">
+          <Text textRole="body-small" tone="muted">
             {label}
-          </span>
-          <span className="ml-1.5 text-xs text-muted-foreground">
+          </Text>
+          <Text className="ml-2" textRole="body-small" tone="muted">
             {labelZh}
-          </span>
+          </Text>
         </div>
-        <span
-          className={
-            'flex size-5 shrink-0 items-center justify-center rounded ' +
-            iconTone
-          }
-        >
-          <Icon aria-hidden="true" className="size-3" />
-        </span>
+        <Text
+          as={Icon}
+          aria-hidden="true"
+          className="size-4"
+          tone={semanticTone[tone]}
+        />
       </div>
-      <p className="financial-numeral mt-1 break-words text-xl font-semibold leading-tight tracking-tight text-foreground">
+      <Text as="p" textRole="h2" className="financial-numeral break-words">
         {value}
-      </p>
-      <p
-        className="mt-1 truncate text-xs leading-4 text-muted-foreground"
+      </Text>
+      <Text
+        as="p"
+        textRole="body-small"
+        tone="muted"
+        className="truncate"
         title={`${note} / ${noteZh}`}
       >
         {note}
         <span className="sr-only">{noteZh}</span>
-      </p>
-    </div>
+      </Text>
+    </Surface>
   );
 }

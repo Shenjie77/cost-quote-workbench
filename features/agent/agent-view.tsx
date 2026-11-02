@@ -1,3 +1,10 @@
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
+import { Button } from '@/components/ui/button';
 /** Live, deterministic daily digest generated from persisted project data. */
 
 import { AiOutputPanel } from '@/features/ai-output/ai-output-panel';
@@ -195,37 +202,42 @@ export function AgentView({
   };
 
   return (
-    <div className="wb-page-stack">
-      <section className="wb-panel">
-        <div className="wb-toolbar justify-between">
+    <Surface as="div" variant="page">
+      <Surface as="section" variant="panel">
+        <Surface as="div" variant="toolbar" className="justify-between">
           <div className="flex items-center gap-3">
             <div>
-              <p className="text-sm font-semibold text-primary">
+              <Text as="p" tone="primary" textRole="body-main">
                 Agent Digest · Project Follow-up
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              </Text>
+              <Text as="p" tone="muted" textRole="body-small" className="mt-1">
                 按 Project Workflow 按节点 SLA
                 和负责人跟进并行待办；节点关闭提醒或项目完成后停止提示。
-              </p>
+              </Text>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone="green">
               <BiInline en="Live governed data" zh="实时受控数据" />
             </StatusBadge>
-            <span className="financial-numeral text-xs text-muted-foreground">
+            <Text
+              as="span"
+              tone="muted"
+              textRole="body-small"
+              className="financial-numeral"
+            >
               As of {digest.asOf}
-            </span>
+            </Text>
           </div>
-        </div>
-      </section>
+        </Surface>
+      </Surface>
       <AiOutputPanel digest={digest} openItem={openItem} />
       <div className="grid gap-3 lg:grid-cols-2">
         {groups.map((group, index) => {
           const Icon = group.icon;
           const items = group.items;
           return (
-            <section key={group.id} className="wb-panel">
+            <Surface key={group.id} as="section" variant="panel">
               <SectionHeading
                 index={'0' + (index + 1)}
                 title={group.title}
@@ -239,49 +251,46 @@ export function AgentView({
                   </StatusBadge>
                 }
               />
-              <div className="divide-y divide-border">
+              <Surface as="div" variant="list">
                 {items.length ? (
                   items.map((item) => (
-                    <button
+                    <Button
+                      variant="ghost"
                       key={item.id}
                       onClick={() => openItem(item)}
                       type="button"
-                      className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:bg-accent/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                      className="flex w-full items-start gap-2 text-left focus-visible:-outline-offset-2"
                     >
                       <Icon
                         aria-hidden="true"
-                        className={`mt-0.5 size-4 shrink-0 ${group.tone === 'red' ? 'text-destructive' : group.tone === 'amber' ? 'text-amber-700' : group.tone === 'blue' ? 'text-blue-700' : 'text-muted-foreground'}`}
+                        className="mt-1 size-4 shrink-0"
                       />
                       <span className="min-w-0 flex-1">
-                        <BiText
-                          en={item.title}
-                          zh={item.titleZh}
-                          className="font-medium"
-                        />
+                        <BiText en={item.title} zh={item.titleZh} />
                         <BiText
                           en={item.detail}
                           zh={item.detailZh}
-                          className="mt-1 text-xs text-muted-foreground"
+                          className="mt-1"
                         />
                       </span>
-                      <ChevronRight className="size-4 text-muted-foreground" />
-                    </button>
+                      <Text as={ChevronRight} tone="muted" className="size-4" />
+                    </Button>
                   ))
                 ) : (
-                  <div className="wb-empty-state">
+                  <Surface as="div" variant="empty">
                     No follow-ups in this category / 本分类暂无跟进事项
-                  </div>
+                  </Surface>
                 )}
-              </div>
-            </section>
+              </Surface>
+            </Surface>
           );
         })}
       </div>
-      <details className="wb-panel">
+      <Disclosure>
         {/* Stable help stays accessible without pushing the task list below another large card. */}
-        <summary className="min-h-8 cursor-pointer px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">
+        <DisclosureSummary className="min-h-8 cursor-pointer">
           Follow-up Rules · 跟进规则
-        </summary>
+        </DisclosureSummary>
         <SectionHeading
           index="03"
           title="Follow-up Rules"
@@ -289,7 +298,11 @@ export function AgentView({
           description="Open an item to update the project workflow after checking the company platform."
           descriptionZh="查看公司系统后，点击提醒回到项目流程更新记录。"
         />
-        <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4">
+        <Surface
+          as="div"
+          variant="inset"
+          className="grid gap-px sm:grid-cols-2 xl:grid-cols-4"
+        >
           {[
             [
               'Project Workflow',
@@ -312,18 +325,25 @@ export function AgentView({
               '报价完成后不再提醒',
             ],
           ].map(([name, detail, detailZh]) => (
-            <div key={name} className="bg-card px-3 py-2">
-              <code className="financial-numeral text-xs font-semibold text-accent-foreground">
+            <Surface key={name} as="div" variant="panel" padded>
+              <Surface
+                as="code"
+                tone="primary"
+                textRole="body-small"
+                className="financial-numeral"
+              >
                 {name}
-              </code>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              </Surface>
+              <Text as="p" tone="muted" textRole="body-small" className="mt-1">
                 {detail}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">{detailZh}</p>
-            </div>
+              </Text>
+              <Text as="p" tone="muted" textRole="body-small" className="mt-1">
+                {detailZh}
+              </Text>
+            </Surface>
           ))}
-        </div>
-      </details>
-    </div>
+        </Surface>
+      </Disclosure>
+    </Surface>
   );
 }

@@ -1,25 +1,26 @@
-import { type ReactNode, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { formatMoney } from '@/lib/money';
-import { CalculationEditor } from '@/features/calculation/calculation-editor';
-import {
-  readSubcontractWorkbook,
-  subcontractBasis,
-  subcontractWorkbook,
-  type EntryLine,
-} from '../subcontract-spreadsheet';
+import { Surface, Text } from '@/components/ui/presentation';
+/** A single editable grid replaces the duplicate preview/detail editors. */
+import type { ReactNode } from 'react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { EntryLine } from '../subcontract-spreadsheet';
+import { SubcontractLinesTable } from './subcontract-lines-table';
 
 export function SubcontractSpreadsheetEntry({
-  draftId,
   name,
   lines,
   project = false,
   factors,
   locked,
   onReplace,
+  onDelete,
   announce,
   itemActions,
   titleActions,
+  titleEditor,
+  actualYears = [null, null, null, null, null],
+  yearIndex = 0,
+  onYearChange,
+  deleteConfirmation,
 }: {
   draftId: string;
   name: string;
@@ -28,131 +29,66 @@ export function SubcontractSpreadsheetEntry({
   factors: number[];
   locked: boolean;
   onReplace: (lines: EntryLine[]) => void;
+  onDelete?: (id: string) => void;
   announce: (message: string) => void;
   itemActions?: ReactNode;
   titleActions?: ReactNode;
+  titleEditor?: ReactNode;
+  actualYears?: (number | null)[];
+  yearIndex?: number | 'all';
+  onYearChange?: (year: number | 'all') => void;
+  deleteConfirmation?: (line: EntryLine) => string;
 }) {
-  const [editing, setEditing] = useState(false);
-  const editButton = useRef<HTMLButtonElement>(null);
-  const active = editing && !locked;
   return (
-    <div className="space-y-2 p-3">
-      {!active ? (
-        <>
-          <div
-            className="flex flex-wrap items-center justify-between gap-2"
-            aria-label="Worksheet toolbar"
-          >
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold">{name}</h3>
-              <span className="text-xs text-muted-foreground">
-                {lines.length} items
-              </span>
-              {titleActions}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {itemActions}
-              <Button
-                ref={editButton}
-                size="sm"
-                variant="outline"
-                disabled={locked || !lines.length}
-                onClick={() => setEditing(true)}
-              >
-                Edit worksheet
-              </Button>
-            </div>
-          </div>
-          {!lines.length ? (
-            <p className="py-5 text-xs text-muted-foreground">
-              Add catalog items to start this worksheet.
-            </p>
-          ) : (
-            <div
-              className="overflow-x-auto rounded border"
-              aria-label={`${name} cost preview`}
-            >
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="p-2">Code</th>
-                    <th className="p-2">Description</th>
-                    <th className="p-2">Unit</th>
-                    <th className="p-2 text-right">Unit price</th>
-                    {project ? (
-                      [1, 2, 3, 4, 5].map((year) => (
-                        <th key={year} className="p-2 text-right">
-                          Y{year} quantity
-                        </th>
-                      ))
-                    ) : (
-                      <th className="p-2 text-right">Quantity / site</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((line) => (
-                    <tr key={line.id} className="border-t">
-                      <td className="p-2 font-medium">{line.code}</td>
-                      <td className="p-2">{line.description}</td>
-                      <td className="p-2">{line.unit}</td>
-                      <td className="p-2 text-right tabular-nums">
-                        {line.unitPrice === null
-                          ? 'Not priced'
-                          : formatMoney(line.unitPrice)}
-                      </td>
-                      {'quantities' in line ? (
-                        line.quantities.map((quantity, index) => (
-                          <td
-                            key={index}
-                            className="p-2 text-right tabular-nums"
-                          >
-                            {quantity}
-                          </td>
-                        ))
-                      ) : (
-                        <td className="p-2 text-right tabular-nums">
-                          {line.quantityPerSite}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <CalculationEditor
-            key={draftId}
-            draftId={draftId}
-            title={name}
-            headerActions={itemActions}
-            titleActions={titleActions}
-            readOnly={locked}
-            onClose={() => {
-              setEditing(false);
-              requestAnimationFrame(() =>
-                editButton.current?.focus({ preventScroll: true }),
-              );
-            }}
-            initialDocument={subcontractWorkbook(lines, project, factors, name)}
-            onApply={(document) => {
-              if (locked) throw new Error('This cost version is locked.');
-              const next = readSubcontractWorkbook(
-                document,
-                lines,
-                project,
-                factors,
-              );
-              onReplace(next);
-              announce('Spreadsheet prices and quantities applied to costs.');
-              return subcontractBasis(next, project, factors);
-            }}
-          />
-        </>
+    <div>
+      <Surface as="div" variant="header" aria-label="Worksheet toolbar">
+        <div className="flex items-center gap-2">
+          {titleEditor ?? <h3>{name}</h3>}
+          <Text as="span" tone="muted" textRole="body-small">
+            {lines.length} items
+          </Text>
+          {titleActions}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">{itemActions}</div>
+      </Surface>
+      {project && onYearChange && (
+        <Tabs
+          value={String(yearIndex)}
+          onValueChange={(value) =>
+            onYearChange(value === 'all' ? 'all' : Number(value))
+          }
+        >
+          <TabsList variant="line" aria-label="Item details year">
+            {actualYears.map((year, index) => (
+              <TabsTrigger key={index} value={String(index)}>
+                Y{index + 1}
+                {year ? ` · ${year}` : ''}
+              </TabsTrigger>
+            ))}
+            <TabsTrigger value="all">All years</TabsTrigger>
+          </TabsList>
+        </Tabs>
       )}
+      <SubcontractLinesTable
+        lines={lines}
+        project={project}
+        actualYears={actualYears}
+        yearIndex={yearIndex}
+        rateFactors={factors}
+        locked={locked}
+        announce={announce}
+        onChange={(next) => {
+          if (!locked)
+            onReplace(lines.map((line) => (line.id === next.id ? next : line)));
+        }}
+        onDelete={(id) => {
+          if (!locked) {
+            if (onDelete) onDelete(id);
+            else onReplace(lines.filter((line) => line.id !== id));
+          }
+        }}
+        deleteConfirmation={deleteConfirmation}
+      />
     </div>
   );
 }

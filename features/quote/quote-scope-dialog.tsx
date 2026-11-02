@@ -1,3 +1,5 @@
+import { Surface, Text } from '@/components/ui/presentation';
+import { CheckInput } from '@/components/ui/check-input';
 /** Select live Scope shares and a separate Risk Cost share for one quotation line. */
 import { useState } from 'react';
 import { Settings2 } from 'lucide-react';
@@ -116,15 +118,15 @@ export function QuoteScopeDialog({
             <Button
               variant="ghost"
               disabled={disabled}
-              className="h-8 w-8 shrink-0 p-1"
+              className="w-8 shrink-0"
             />
           }
           aria-label={`Select cost scopes for line ${lineNumber}`}
         >
-          <Settings2 className="size-3.5" aria-hidden="true" />
+          <Settings2 className="size-4" aria-hidden="true" />
         </DialogTrigger>
       </span>
-      <DialogContent className="sm:max-w-[780px]">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Line {lineNumber} cost scopes / 成本 Scope</DialogTitle>
           <DialogDescription>
@@ -156,21 +158,33 @@ export function QuoteScopeDialog({
             Clear / 清空
           </Button>
         </div>
-        <div className="max-h-[42vh] overflow-y-auto divide-y border">
-          <div className="grid grid-cols-[minmax(100px,1fr)_90px_80px_80px_90px] gap-2 bg-muted p-2 text-xs font-semibold">
+        <Surface
+          as="div"
+          variant="list"
+          className="max-h-[42vh] overflow-y-auto"
+        >
+          <Surface
+            as="div"
+            variant="inset"
+            textRole="body-small"
+            className="grid grid-cols-[minmax(100px,1fr)_90px_80px_80px_90px] gap-2"
+          >
             <span>Scope</span>
             <span>Cost</span>
             <span>Cost Share %</span>
             <span>Risk Share %</span>
             <span>Cost + Risk</span>
-          </div>
+          </Surface>
           {visible.map((scope) => (
-            <div
+            <Surface
               key={scope.key}
-              className="grid grid-cols-[minmax(100px,1fr)_90px_80px_80px_90px] items-center gap-2 p-2 text-xs"
+              as="div"
+              variant="body"
+              textRole="body-small"
+              className="grid grid-cols-[minmax(100px,1fr)_90px_80px_80px_90px] items-center gap-2"
             >
               <label className="flex min-w-0 items-start gap-2">
-                <input
+                <CheckInput
                   type="checkbox"
                   aria-label={`Include scope ${scope.description}`}
                   checked={selected.includes(scope.key)}
@@ -251,25 +265,29 @@ export function QuoteScopeDialog({
                     : 0,
                 )}
               </span>
-            </div>
+            </Surface>
           ))}
-        </div>
-        <div className="flex items-center justify-between text-sm">
+        </Surface>
+        <Surface
+          as="div"
+          textRole="body-main"
+          className="flex items-center justify-between"
+        >
           <span>
             Risk Cost {formatSgd(riskAmount)} - 100% across all Scopes
           </span>
           <Button variant="ghost" size="sm" onClick={() => setRiskDrafts({})}>
             Reset Risk to Weight
           </Button>
-        </div>
-        <p className="text-right text-sm">
+        </Surface>
+        <Text as="p" textRole="body-main" className="text-right">
           {selected.length} selected · {invalid ? '—' : formatSgd(total)}
-        </p>
+        </Text>
         {invalid && (
-          <p role="alert" className="text-sm text-destructive">
+          <Text role="alert" as="p" tone="danger" textRole="body-main">
             {riskAllocation.errors[0] ??
               'Enter a percentage from 0 to 100 / 比例必须为 0–100。'}
-          </p>
+          </Text>
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => changeOpen(false)}>

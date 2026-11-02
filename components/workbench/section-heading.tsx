@@ -1,6 +1,6 @@
-/** Consistent bilingual heading for bordered workbench sections. */
-
-import type React from 'react';
+import type { ReactNode } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Surface, Text } from '@/components/ui/presentation';
 
 export function SectionHeading({
   index,
@@ -12,34 +12,32 @@ export function SectionHeading({
 }: {
   index?: string;
   title: string;
-  titleZh: string;
+  titleZh?: string;
   description?: string;
   descriptionZh?: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-border px-3 py-2">
-      <div className="min-w-0 flex-1 basis-60">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          {index ? (
-            <span className="financial-numeral inline-flex h-5 min-w-5 items-center justify-center rounded bg-accent px-1.5 text-xs font-semibold text-accent-foreground">
-              {index}
-            </span>
+    <Surface variant="header">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          {index ? <Badge>{index}</Badge> : null}
+          <Text as="h2">{title}</Text>
+          {titleZh ? (
+            <Text tone="muted" textRole="body-small">
+              {titleZh}
+            </Text>
           ) : null}
-          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-          <span className="text-xs font-normal text-muted-foreground">
-            {titleZh}
-          </span>
         </div>
         {description || descriptionZh ? (
-          <p className="mt-1 text-xs leading-4 text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-small" className="mt-1">
             {description}
             {descriptionZh ? (
-              <span className={description ? 'ml-2 text-xs' : ''}>
+              <Text className={description ? 'ml-2' : undefined}>
                 {descriptionZh}
-              </span>
+              </Text>
             ) : null}
-          </p>
+          </Text>
         ) : null}
       </div>
       {action ? (
@@ -47,6 +45,6 @@ export function SectionHeading({
           {action}
         </div>
       ) : null}
-    </div>
+    </Surface>
   );
 }

@@ -1,3 +1,13 @@
+import { Badge } from '@/components/ui/badge';
+import {
+  Surface,
+  Disclosure,
+  DisclosureSummary,
+  Text,
+} from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
+import { Textarea } from '@/components/ui/textarea';
+import { CheckInput } from '@/components/ui/check-input';
 /** A focused project task page: one editor, persistent drafts, canonical actions. */
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check } from 'lucide-react';
@@ -382,9 +392,10 @@ export function ProjectWorkflowPage({
   };
 
   return (
-    <section
+    <Surface
       ref={pageRef}
-      className="wb-page-stack gap-3"
+      as="section"
+      variant="page"
       aria-label="Project Workflow Page"
     >
       <ProjectWorkflowHeader
@@ -407,10 +418,10 @@ export function ProjectWorkflowPage({
         holdDisabled={complete && !onHold}
         onSetHold={onSetHold ? setHold : undefined}
       />
-      <details className="wb-panel px-3 py-2">
-        <summary className="cursor-pointer rounded-md text-sm font-semibold text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
+      <Disclosure>
+        <DisclosureSummary className="cursor-pointer">
           Project Files &amp; Archive
-        </summary>
+        </DisclosureSummary>
         <div className="mt-3 grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]">
           <ProjectFilesPanel
             projectId={project.id}
@@ -421,28 +432,25 @@ export function ProjectWorkflowPage({
           />
           <ArchiveSettingsPanel />
         </div>
-      </details>
-      <div className="wb-toolbar justify-between border-b text-xs leading-5">
-        <p
-          className={
-            onHold
-              ? 'font-medium text-amber-800'
-              : complete
-                ? 'font-medium text-emerald-700'
-                : 'text-muted-foreground'
-          }
+      </Disclosure>
+      <Surface
+        as="div"
+        variant="toolbar"
+        textRole="body-small"
+        className="justify-between"
+      >
+        <Text
+          as="p"
+          tone={onHold ? 'warning' : complete ? 'success' : 'muted'}
+          className=""
         >
           {onHold
             ? 'Project On Hold. Workflow monitoring and reminders are paused. Turn off the switch to resume with existing progress.'
             : complete
               ? 'Workflow complete. Reminders have stopped.'
               : 'Select a step, record progress, then save or complete it.'}
-        </p>
-        <p
-          className={
-            dirty ? 'font-medium text-amber-800' : 'text-muted-foreground'
-          }
-        >
+        </Text>
+        <Text as="p" tone={dirty ? 'warning' : 'muted'} className="">
           {dirty
             ? [
                 dirtyCodes.length > 0
@@ -454,15 +462,18 @@ export function ProjectWorkflowPage({
                 .filter(Boolean)
                 .join(' · ')
             : 'All changes saved'}
-        </p>
-      </div>
+        </Text>
+      </Surface>
       {(error || localError) && (
-        <p
+        <Surface
           role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-destructive"
+          as="p"
+          variant="notice"
+          tone="danger"
+          textRole="body-main"
         >
           {localError || error}
-        </p>
+        </Surface>
       )}
       <div className="grid min-w-0 items-start gap-3 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]">
         <WorkflowTaskSelect
@@ -472,43 +483,58 @@ export function ProjectWorkflowPage({
           onChange={choose}
           busy={disabled || documentsUploading}
         />
-        <nav
+        <Surface
           aria-label="Workflow Steps"
-          className="hidden wb-panel space-y-1 p-1 lg:sticky lg:top-32 lg:block lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto"
+          as="nav"
+          variant="panel"
+          padded
+          className="hidden space-y-1 lg:sticky lg:top-32 lg:block lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto"
         >
-          <div className="mb-1 flex items-center justify-between border-b border-border px-2 pb-2 pt-1 text-xs font-semibold">
+          <Surface
+            as="div"
+            variant="item"
+            textRole="body-small"
+            className="mb-1 flex items-center justify-between"
+          >
             <span>Steps</span>
-            <span className="text-muted-foreground">
+            <Text as="span" tone="muted">
               {workspace.processSteps.filter(isDone).length} /{' '}
               {workspace.processSteps.length} resolved
-            </span>
-          </div>
+            </Text>
+          </Surface>
           {phases.map((phase, index) => (
-            <div
+            <Surface
               key={phase.id}
-              className={
-                phase.parallel
-                  ? 'space-y-1 rounded-lg border border-primary/20 bg-primary/5 p-2'
-                  : ''
-              }
+              as="div"
+              variant={phase.parallel ? 'panel' : 'plain'}
+              tone={'inherit'}
+              className={phase.parallel ? 'space-y-1' : ''}
+              padded
             >
               {phase.parallel && (
-                <p className="px-1 pb-1 text-xs font-semibold text-primary">
+                <Surface
+                  as="p"
+                  variant="body"
+                  tone="primary"
+                  textRole="body-small"
+                >
                   {index + 1}. {phase.name} · Parallel
-                </p>
+                </Surface>
               )}
               {phase.steps.map((step) => (
-                <button
+                <Button
+                  variant="ghost"
                   key={step.code}
                   type="button"
                   aria-label={`Select ${step.name || step.nameZh}`}
                   aria-current={selectedCode === step.code ? 'step' : undefined}
                   disabled={disabled || documentsUploading}
                   onClick={() => choose(step.code)}
-                  className={`flex w-full items-start gap-2 rounded-md px-2 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60 ${selectedCode === step.code ? 'bg-primary text-white' : 'hover:bg-muted/60'}`}
+                  className="flex w-full items-start gap-2 text-left"
                 >
-                  <span
-                    className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs ${selectedCode === step.code ? 'bg-white/15' : 'bg-muted'}`}
+                  <Badge
+                    tone={'neutral'}
+                    className="mt-1 flex size-5 shrink-0 items-center justify-center"
                   >
                     {step.state === 'completed' ? (
                       <Check className="size-3" />
@@ -517,30 +543,34 @@ export function ProjectWorkflowPage({
                     ) : (
                       index + 1
                     )}
-                  </span>
+                  </Badge>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-xs font-medium">
+                    <Text as="span" textRole="body-small" className="block">
                       {step.name || step.nameZh}
                       {dirtyCodes.includes(step.code) ? ' *' : ''}
-                    </span>
-                    <span
-                      className={`mt-1 block text-xs ${selectedCode === step.code ? 'text-white/75' : 'text-muted-foreground'}`}
+                    </Text>
+                    <Text
+                      as="span"
+                      tone={selectedCode === step.code ? 'inherit' : 'muted'}
+                      textRole="body-small"
+                      className="mt-1 block"
                     >
                       {stateLabels[step.state]}
                       {step.owner ? ` · ${step.owner}` : ''}
-                    </span>
+                    </Text>
                   </span>
-                </button>
+                </Button>
               ))}
-            </div>
+            </Surface>
           ))}
-        </nav>
+        </Surface>
         <div className="min-w-0 space-y-3">
-          <section
+          <Surface
             ref={taskEditorRef}
             tabIndex={-1}
             aria-label={`Current workflow task: ${selected?.name || selected?.nameZh || 'Not selected'}`}
-            className="scroll-mt-32 outline-none"
+            as="section"
+            className="scroll-mt-32"
           >
             {selected ? (
               <WorkflowTaskEditor
@@ -573,11 +603,11 @@ export function ProjectWorkflowPage({
                 busy={disabled || onHold}
               />
             ) : (
-              <p className="wb-panel wb-empty-state">
+              <Surface as="p" variant="empty">
                 No workflow steps are configured.
-              </p>
+              </Surface>
             )}
-          </section>
+          </Surface>
           {selected && (
             <ProjectFilesPanel
               projectId={project.id}
@@ -593,7 +623,7 @@ export function ProjectWorkflowPage({
           <ProjectWorkflowHistory workspace={workspace} />
         </div>
       </div>
-    </section>
+    </Surface>
   );
 }
 
@@ -623,13 +653,18 @@ export function WorkflowTaskSelect({
   );
   return (
     <div className="space-y-2 lg:hidden">
-      <label className="block space-y-1.5 text-xs font-medium">
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         Workflow Step
-        <select
+        <SelectField
           aria-label="Select Workflow Step"
           value={selectedCode}
           disabled={busy || !steps.length}
-          className="h-8 w-full rounded-md border border-input bg-white px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+          className="h-8 w-full"
           onChange={(event) => onChange(event.target.value)}
         >
           {phases.map((phase) =>
@@ -641,12 +676,12 @@ export function WorkflowTaskSelect({
               phase.steps.map(option)
             ),
           )}
-        </select>
-      </label>
+        </SelectField>
+      </Surface>
       {selectedPhase?.parallel && (
-        <p className="text-xs text-primary">
+        <Text as="p" tone="primary" textRole="body-small">
           {selectedPhase.name} · {selectedPhase.steps.length} parallel tasks
-        </p>
+        </Text>
       )}
     </div>
   );
@@ -704,7 +739,7 @@ export function WorkflowTaskFields({
   return (
     <div className="space-y-3">
       {/* Primary task actions stay above editable fields, while existing validation still controls completion. */}
-      <div className="wb-toolbar -mx-3 -mt-3 border-b">
+      <Surface as="div" variant="toolbar" className="-mx-3 -mt-3">
         {active && (
           <Button
             type="button"
@@ -754,9 +789,14 @@ export function WorkflowTaskFields({
         >
           Reset Changes
         </Button>
-      </div>
+      </Surface>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1.5 text-xs font-medium">
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="block"
+        >
           Owner
           <Input
             aria-label="Task Owner"
@@ -767,8 +807,13 @@ export function WorkflowTaskFields({
               onChange({ ...value, owner: event.target.value })
             }
           />
-        </label>
-        <label className="block space-y-1.5 text-xs font-medium">
+        </Surface>
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="block"
+        >
           {step.state === 'paused' ? 'Planned Resume Date' : 'Next Follow-up'}
           <Input
             aria-label="Task Follow-up"
@@ -779,15 +824,20 @@ export function WorkflowTaskFields({
               onChange({ ...value, followUpDate: event.target.value })
             }
           />
-        </label>
+        </Surface>
       </div>
       {(step.requiredFields || []).length > 0 && (
-        <div className="space-y-2 border-l-2 border-border pl-3">
-          <p className="text-xs font-medium">Required to Complete</p>
+        <Surface as="div" variant="body" className="space-y-2">
+          <Text as="p" textRole="body-small">
+            Required to Complete
+          </Text>
           {(step.requiredFields || []).map((field) => (
-            <label
+            <Surface
               key={field}
-              className="block space-y-1.5 text-xs font-medium"
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="block"
             >
               {field}
               <Input
@@ -802,29 +852,39 @@ export function WorkflowTaskFields({
                   })
                 }
               />
-            </label>
+            </Surface>
           ))}
-        </div>
+        </Surface>
       )}
-      <label className="block space-y-1.5 text-xs font-medium">
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         Progress Note
-        <textarea
+        <Textarea
           aria-label="Task Progress Note"
           rows={3}
           maxLength={10000}
           value={value.note}
           disabled={busy}
           placeholder="Record the latest progress, decision, or company-platform reference."
-          className="w-full resize-y rounded-md border border-input bg-white px-2.5 py-2 text-sm leading-5 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
+          className="w-full resize-y"
           onChange={(event) => onChange({ ...value, note: event.target.value })}
         />
-      </label>
+      </Surface>
       {active && step.required && (
-        <label className="flex items-start gap-2 rounded-md bg-primary/5 px-3 py-2 text-xs">
-          <input
+        <Surface
+          as="label"
+          variant="inline-field"
+          textRole="body-small"
+          className="flex items-start"
+        >
+          <CheckInput
             type="checkbox"
             aria-label="Confirm Task Completion"
-            className="mt-0.5"
+            className="mt-1"
             checked={value.confirmed}
             disabled={busy}
             onChange={(event) =>
@@ -835,22 +895,22 @@ export function WorkflowTaskFields({
             I have checked the company platform and confirm this step is
             complete and the information above is accurate.
           </span>
-        </label>
+        </Surface>
       )}
 
       {active &&
         (missingFields.length > 0 || (step.required && !value.confirmed)) && (
-          <p className="text-xs text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-small">
             Save progress at any time. To complete, fill the required
             information
             {step.required ? ' and check the confirmation above' : ''}.
-          </p>
+          </Text>
         )}
       {step.state === 'not_started' && parallel && (
-        <p className="text-xs text-muted-foreground">
+        <Text as="p" tone="muted" textRole="body-small">
           Starting this step also starts the other pending steps in this
           parallel group. Each task keeps its own owner and deadline.
-        </p>
+        </Text>
       )}
     </div>
   );
@@ -887,14 +947,14 @@ function WorkflowTaskEditor({
   const done = isDone(step);
   const urgency = onHold ? 'none' : workflowUrgency(step);
   return (
-    <article className="wb-panel overflow-hidden">
-      <div className="space-y-2 border-b border-border bg-muted/15 px-3 py-2.5">
+    <Surface as="article" variant="panel" className="overflow-hidden">
+      <Surface as="div" variant="item" className="space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold tracking-tight text-primary">
+            <Text as="h2" tone="primary">
               {step.name || step.nameZh}
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
+            </Text>
+            <Text as="p" tone="muted" textRole="body-small" className="mt-1">
               {step.required ? 'Required Step' : 'Optional Step'} ·{' '}
               {step.slaDays || 3}{' '}
               {step.slaCalendar === 'calendar' ? 'Calendar' : 'Business'} Days ·{' '}
@@ -903,64 +963,95 @@ function WorkflowTaskEditor({
                 : step.reminderEnabled === false
                   ? 'Reminders Off'
                   : 'Reminders On'}
-            </p>
+            </Text>
           </div>
-          <span
-            className={`rounded-md px-2 py-1 text-xs font-medium ${done ? 'bg-emerald-50 text-emerald-800' : urgency === 'urgent' ? 'bg-red-50 text-red-700' : urgency === 'immediate' || step.state === 'paused' ? 'bg-amber-50 text-amber-800' : 'bg-primary/10 text-primary'}`}
+          <Badge
+            tone={
+              done
+                ? 'success'
+                : urgency === 'urgent'
+                  ? 'danger'
+                  : urgency === 'immediate' || step.state === 'paused'
+                    ? 'warning'
+                    : 'primary'
+            }
+            className=""
           >
             {stateLabels[step.state]}
-          </span>
+          </Badge>
         </div>
-        <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs [&>div]:flex [&>div]:items-baseline [&>div]:gap-1.5 [&_dd]:mt-0">
+        <Surface
+          as="dl"
+          textRole="body-small"
+          className="flex flex-wrap gap-x-4 gap-y-1 [&>div]:flex [&>div]:items-baseline [&>div]:gap-2 [&_dd]:mt-0"
+        >
           <div>
-            <dt className="text-muted-foreground">Started</dt>
+            <Text as="dt" tone="muted">
+              Started
+            </Text>
             <dd className="mt-1">{timeLabel(step.startedAt)}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">
+            <Text as="dt" tone="muted">
               {onHold ? 'SLA Due · Timing Paused' : 'SLA Due · Singapore'}
-            </dt>
-            <dd
-              className={`mt-1 ${urgency === 'urgent' ? 'font-semibold text-red-700' : ''}`}
+            </Text>
+            <Text
+              as="dd"
+              tone={urgency === 'urgent' ? 'danger' : 'inherit'}
+              className="mt-1"
             >
               {timeLabel(step.dueAt)}
-            </dd>
+            </Text>
           </div>
           {done && (
             <div>
-              <dt className="text-muted-foreground">
+              <Text as="dt" tone="muted">
                 {step.state === 'skipped' ? 'Skipped' : 'Completed'}
-              </dt>
+              </Text>
               <dd className="mt-1">{timeLabel(step.completedAt)}</dd>
             </div>
           )}
-        </dl>
+        </Surface>
         {step.detail && (
-          <p className="whitespace-pre-wrap text-xs text-muted-foreground">
+          <Text
+            as="p"
+            tone="muted"
+            textRole="body-small"
+            className="whitespace-pre-wrap"
+          >
             {step.detail}
-          </p>
+          </Text>
         )}
         {!done && blockers.length > 0 && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            <p className="font-medium">
-              Before this step can start or complete
-            </p>
-            <ul className="mt-1 list-disc space-y-1 pl-4">
+          <Surface
+            as="div"
+            variant="notice"
+            tone="warning"
+            textRole="body-small"
+          >
+            <p>Before this step can start or complete</p>
+            <Surface
+              as="ul"
+              variant="body"
+              className="mt-1 list-disc space-y-1"
+            >
               {blockers.map((blocker) => (
                 <li key={blocker}>{blocker}</li>
               ))}
-            </ul>
-          </div>
+            </Surface>
+          </Surface>
         )}
-      </div>
-      <div className="space-y-3 p-3">
+      </Surface>
+      <Surface as="div" variant="body" className="space-y-3">
         {done || complete ? (
-          <div className="space-y-3 text-sm">
-            <p className="text-xs text-muted-foreground">
+          <Surface as="div" textRole="body-main" className="space-y-3">
+            <Text as="p" tone="muted" textRole="body-small">
               This record is read only.
-            </p>
+            </Text>
             <p>
-              <span className="text-muted-foreground">Owner:</span>{' '}
+              <Text as="span" tone="muted">
+                Owner:
+              </Text>{' '}
               {step.owner || 'Not assigned'}
             </p>
             <p className="whitespace-pre-wrap">
@@ -968,11 +1059,13 @@ function WorkflowTaskEditor({
             </p>
             {Object.entries(step.fieldValues || {}).map(([field, value]) => (
               <p key={field} className="whitespace-pre-wrap">
-                <span className="text-muted-foreground">{field}:</span>{' '}
+                <Text as="span" tone="muted">
+                  {field}:
+                </Text>{' '}
                 {value || 'Not recorded'}
               </p>
             ))}
-          </div>
+          </Surface>
         ) : (
           <WorkflowTaskFields
             step={step}
@@ -986,10 +1079,10 @@ function WorkflowTaskEditor({
           />
         )}
         {!complete && (
-          <details className="border-t pt-3">
-            <summary className="cursor-pointer rounded-md py-1 text-xs font-medium text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
+          <Disclosure>
+            <DisclosureSummary className="cursor-pointer">
               More Actions
-            </summary>
+            </DisclosureSummary>
             <div className="mt-3 flex flex-wrap gap-2">
               {workflowNodeActive(step) && (
                 <Button
@@ -1025,9 +1118,9 @@ function WorkflowTaskEditor({
                 </Button>
               )}
               {!workflowNodeActive(step) && !done && step.required && (
-                <p className="text-xs text-muted-foreground">
+                <Text as="p" tone="muted" textRole="body-small">
                   Required steps cannot be skipped.
-                </p>
+                </Text>
               )}
             </div>
             {moreAction && (
@@ -1048,9 +1141,9 @@ function WorkflowTaskEditor({
                 busy={busy}
               />
             )}
-          </details>
+          </Disclosure>
         )}
-      </div>
-    </article>
+      </Surface>
+    </Surface>
   );
 }

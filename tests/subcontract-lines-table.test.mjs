@@ -44,10 +44,7 @@ const hooks = registerHooks({
 const {
   SubcontractLinesTable,
   SubcontractNumberInput,
-  SubcontractItemForm,
   SubcontractDeleteButton,
-  createSubcontractItemEdit,
-  saveSubcontractItemEdit,
 } = await import('../features/cost/components/subcontract-lines-table.tsx');
 hooks.deregister();
 const noop = () => {};
@@ -98,13 +95,12 @@ test('focused annual details directly edit only the selected year quantity', () 
   );
   assert.match(html, /Install Cisco 2u router/);
   assert.match(html, /Network/);
-  assert.doesNotMatch(
-    html,
-    /aria-label="ROUTER unit"|aria-label="ROUTER item"/,
-  );
-  assert.equal((html.match(/<input/g) || []).length, 2);
+  assert.match(html, /aria-label="ROUTER unit"/);
+  assert.doesNotMatch(html, /Edit ROUTER|Edit Item/);
   const quantity = walk(SubcontractLinesTable(props)).find(
-    (node) => node.type === SubcontractNumberInput,
+    (node) =>
+      node.type === SubcontractNumberInput &&
+      node.props.label.includes('quantity'),
   );
   SubcontractNumberInput(quantity.props).props.onChange({
     target: { value: '7' },
@@ -126,7 +122,7 @@ test('all-year view shows five quantity allocations and site mode shows per-site
   assert.equal((html.match(/ROUTER Y[1-5] quantity/g) || []).length, 5);
   assert.match(html, /3,000.00/);
   assert.equal((html.match(/<col style=/g) || []).length, 13);
-  assert.equal((html.match(/<input/g) || []).length, 6);
+
   const site = item({ unit: 'm', quantityPerSite: 2.5 });
   delete site.quantities;
   const siteHtml = render(
@@ -148,7 +144,9 @@ test('site quantity edits accept decimal units and immediately recalculate per-s
     onChange: (line) => changes.push(line),
   });
   const input = walk(SubcontractLinesTable(props)).find(
-    (node) => node.type === SubcontractNumberInput,
+    (node) =>
+      node.type === SubcontractNumberInput &&
+      node.props.label.includes('quantity'),
   );
   SubcontractNumberInput(input.props).props.onChange({
     target: { value: '3.75' },
@@ -171,7 +169,11 @@ test('inline quantities reject negatives, fractional PCS and excessive values', 
         announce: (message) => messages.push(message),
       }),
     ),
-  ).find((node) => node.type === SubcontractNumberInput);
+  ).find(
+    (node) =>
+      node.type === SubcontractNumberInput &&
+      node.props.label.includes('quantity'),
+  );
   for (const value of ['-1', '2.5', '1000001', 'NaN'])
     SubcontractNumberInput(input.props).props.onChange({ target: { value } });
   assert.equal(changes.length, 0);
@@ -198,213 +200,98 @@ test('subcontract category edits preserve quantities and locks block the inline 
   assert.equal(changes.length, 1);
 });
 
-test('item editing stages text and price until Save; Cancel leaves the saved version untouched', () => {
-  const original = item();
-  let draft = structuredClone(original),
-    closed = 0;
-  const saved = [];
-  const form = () =>
-    SubcontractItemForm({
-      draft,
-      onDraftChange: (next) => {
-        draft = next;
-      },
-      onSave: (next) => saved.push(next),
-      onClose: () => {
-        closed += 1;
-      },
-      announce: noop,
-    });
-  walk(form())
-    .find((node) => node.props['aria-label'] === 'Item description')
-    .props.onChange({ target: { value: 'Updated router installation' } });
-  const price = walk(form()).find(
-    (node) => node.type === SubcontractNumberInput,
+test('metadata edits apply in the row and retain the latest quantities and catalog reference', () => {
+  let current = item({
+    catalogItemId: 'catalog-1',
+    quantities: [9, 2, 3, 4, 5],
+  });
+  const original = structuredClone(current);
+  const fields = () =>
+    walk(
+      SubcontractLinesTable(
+        tableProps(current, {
+          onChange: (next) => {
+            current = next;
+          },
+        }),
+      ),
+    );
+  for (const [field, value] of [
+    ['description', 'Updated\nrouter installation'],
+    ['code', 'SWITCH'],
+    ['unit', 'm'],
+  ]) {
+    fields()
+      .find((node) => node.props['aria-label'] === `${current.code} ${field}`)
+      .props.onChange({ target: { value } });
+  }
+  const price = fields().find(
+    (node) => node.props.label === 'SWITCH unit price',
   );
   SubcontractNumberInput(price.props).props.onChange({
     target: { value: '250' },
   });
-  assert.deepEqual(saved, []);
-  assert.equal(original.description, 'Install Cisco 2u router');
-  walk(form())
-    .find((node) => node.props.children === 'Cancel')
-    .props.onClick();
-  assert.equal(closed, 1);
-  assert.deepEqual(saved, []);
-  draft = structuredClone(original);
-  walk(form())
-    .find((node) => node.props['aria-label'] === 'Item description')
-    .props.onChange({ target: { value: 'Saved description' } });
-  form().props.onSubmit({ preventDefault: noop });
-  assert.equal(saved[0].description, 'Saved description');
-  assert.equal(saved[0].unitPrice, 200);
-  assert.equal(closed, 2);
-  draft.quantities[0] = 90;
-  assert.equal(saved[0].quantities[0], 1);
+  assert.equal(current.unitPrice, 250);
+  assert.equal(current.description, 'Updated\nrouter installation');
+  assert.deepEqual(current.quantities, [9, 2, 3, 4, 5]);
+  assert.equal(current.catalogItemId, 'catalog-1');
+  assert.equal(original.code, 'ROUTER');
 });
 
-test('dialog prevents invalid unit conversion and currency while allowing incomplete Draft metadata', () => {
-  let draft = item({ unit: 'm', quantities: [2.5, 0, 0, 0, 0] });
+test('inline unit conversion rejects fractional PCS and blank price remains different from zero', () => {
+  let current = item({ unit: 'm', quantities: [2.5, 0, 0, 0, 0] });
   const errors = [],
     saved = [];
-  const form = () =>
-    SubcontractItemForm({
-      draft,
-      onDraftChange: (next) => {
-        draft = next;
-      },
-      onSave: (next) => saved.push(next),
-      onClose: noop,
-      announce: (message) => errors.push(message),
-    });
-  walk(form())
-    .find((node) => node.props['aria-label'] === 'Item unit')
+  const fields = () =>
+    walk(
+      SubcontractLinesTable(
+        tableProps(current, {
+          onChange: (next) => {
+            current = next;
+            saved.push(next);
+          },
+          announce: (message) => errors.push(message),
+        }),
+      ),
+    );
+  fields()
+    .find((node) => node.props['aria-label'] === 'ROUTER unit')
     .props.onChange({ target: { value: 'pcs' } });
-  form().props.onSubmit({ preventDefault: noop });
   assert.equal(saved.length, 0);
   assert.equal(errors.length, 1);
-  draft = item({ currency: 'USD' });
-  form().props.onSubmit({ preventDefault: noop });
-  assert.equal(saved.length, 0);
-  draft = item({
-    description: '',
-    code: '',
-    bu: '',
-    unit: '',
-    unitPrice: null,
-  });
-  form().props.onSubmit({ preventDefault: noop });
-  assert.equal(saved.length, 1);
+  for (const value of ['', '0']) {
+    const price = fields().find(
+      (node) => node.props.label === 'ROUTER unit price',
+    );
+    SubcontractNumberInput(price.props).props.onChange({ target: { value } });
+  }
   assert.equal(saved[0].unitPrice, null);
-  draft = item({ unitPrice: 0 });
-  form().props.onSubmit({ preventDefault: noop });
   assert.equal(saved[1].unitPrice, 0);
 });
 
-test('an external quantity or price update rejects stale dialog Save and keeps its unsaved draft open', () => {
-  let current = item();
-  let edit = createSubcontractItemEdit(current);
-  edit.draft.description = 'Unsaved local edit';
-  const saved = [],
-    messages = [];
-  let closed = 0;
-  const form = () =>
-    SubcontractItemForm({
-      draft: edit.draft,
-      onDraftChange: (draft) => {
-        edit = { ...edit, draft };
-      },
-      onSave: (draft) =>
-        saveSubcontractItemEdit({
-          line: current,
-          baseline: edit.baseline,
-          draft,
-          onSave: (next) => {
-            saved.push(next);
-          },
-          announce: (message) => messages.push(message),
-        }),
-      onClose: () => {
-        closed += 1;
-      },
-      announce: noop,
-    });
-  current = item({ quantities: [9, 2, 3, 4, 5] });
-  form().props.onSubmit({ preventDefault: noop });
-  assert.deepEqual(saved, []);
-  assert.equal(closed, 0);
-  assert.equal(edit.draft.description, 'Unsaved local edit');
-  assert.equal(current.quantities[0], 9);
-  assert.match(messages[0], /Reload the latest/);
-  edit = createSubcontractItemEdit(current);
-  assert.equal(edit.draft.quantities[0], 9);
-  edit.draft.description = 'Reviewed against latest';
-  form().props.onSubmit({ preventDefault: noop });
-  assert.equal(saved[0].description, 'Reviewed against latest');
-  assert.equal(saved[0].quantities[0], 9);
-  assert.equal(closed, 1);
-  edit = createSubcontractItemEdit(current);
-  current = { ...current, unitPrice: null };
-  form().props.onSubmit({ preventDefault: noop });
-  assert.equal(saved.length, 1);
-  assert.equal(closed, 1);
-});
-
-test('site quantity conflicts and explicit parent rejection leave Item Form open', () => {
-  const site = item({ quantityPerSite: 2 });
-  delete site.quantities;
-  const edit = createSubcontractItemEdit(site);
-  let calls = 0,
-    closed = 0;
-  const accepted = saveSubcontractItemEdit({
-    line: { ...site, quantityPerSite: 7 },
-    baseline: edit.baseline,
-    draft: edit.draft,
-    onSave: () => {
-      calls += 1;
-    },
-    announce: noop,
-  });
-  assert.equal(accepted, false);
-  assert.equal(calls, 0);
-  const form = SubcontractItemForm({
-    draft: item(),
-    onDraftChange: noop,
-    onSave: () => false,
-    onClose: () => {
-      closed += 1;
-    },
-    announce: noop,
-  });
-  form.props.onSubmit({ preventDefault: noop });
-  assert.equal(closed, 0);
-  assert.equal(
-    saveSubcontractItemEdit({
-      line: Object.fromEntries(Object.entries(site).reverse()),
-      baseline: edit.baseline,
-      draft: edit.draft,
-      onSave: () => {
-        calls += 1;
-      },
-      announce: noop,
-    }),
-    true,
-  );
-  assert.equal(calls, 1);
-});
-
-test('locked inline and dialog callbacks cannot mutate saved costs', () => {
+test('locked inline callbacks cannot mutate any saved field', () => {
   const changes = [];
   const props = tableProps(item(), {
     locked: true,
     onChange: (next) => changes.push(next),
   });
-  for (const field of walk(SubcontractLinesTable(props)).filter(
-    (node) => node.type === SubcontractNumberInput,
-  )) {
-    SubcontractNumberInput(field.props).props.onChange({
-      target: { value: '500' },
-    });
-    field.props.onChange(500);
+  for (const field of walk(SubcontractLinesTable(props))) {
+    if (field.type === SubcontractNumberInput) {
+      SubcontractNumberInput(field.props).props.onChange({
+        target: { value: '500' },
+      });
+      field.props.onChange(500);
+    } else if (
+      field.props['aria-label']?.startsWith('ROUTER') &&
+      field.props.onChange
+    ) {
+      field.props.onChange({ target: { value: 'CHANGED' } });
+    }
   }
-  const form = SubcontractItemForm({
-    draft: item(),
-    locked: true,
-    onDraftChange: (next) => changes.push(next),
-    onSave: (next) => changes.push(next),
-    onClose: noop,
-    announce: noop,
-  });
-  walk(form)
-    .find((node) => node.props['aria-label'] === 'Item code')
-    .props.onChange({ target: { value: 'CHANGED' } });
-  form.props.onSubmit({ preventDefault: noop });
   assert.deepEqual(changes, []);
   const html = render(SubcontractLinesTable, props);
-  assert.match(
-    html,
-    /aria-label="Edit ROUTER"[^>]*disabled|disabled[^>]*aria-label="Edit ROUTER"/,
-  );
+  assert.doesNotMatch(html, /Edit ROUTER|Edit Item/);
+  assert.match(html, /disabled/);
 });
 
 test('removing an item requires confirmation and locks bypass neither prompt nor guard', () => {

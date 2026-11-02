@@ -1,3 +1,9 @@
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
 import { RefreshCw, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,26 +34,30 @@ export function ProfitShareSummary({
   disabled: boolean;
 }) {
   return (
-    <div aria-label="Profit share allocation" className="bg-muted/10">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-2">
+    <Surface aria-label="Profit share allocation" as="div" variant="inset">
+      <Surface
+        as="div"
+        variant="body"
+        className="flex flex-wrap items-center justify-between gap-2"
+      >
         <div>
-          <p className="font-semibold">
+          <p>
             Profit Share Rate{' '}
-            <span className="financial-numeral ml-2 text-primary">
+            <Text as="span" tone="primary" className="financial-numeral ml-2">
               {result.weightedProfitShareRate.toFixed(2)}%
-            </span>
+            </Text>
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-small" className="mt-1">
             {masterDataRevision === undefined
               ? 'No master data revision applied'
               : `Applied Master Data · Revision ${masterDataRevision}`}
-          </p>
+          </Text>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             variant="outline"
-            className="h-8 text-xs"
+
             disabled={disabled || applying}
             onClick={onManage}
           >
@@ -57,7 +67,7 @@ export function ProfitShareSummary({
             <Button
               size="sm"
               variant="outline"
-              className="h-8 text-xs"
+
               disabled={disabled || applying}
               onClick={() => void onApply()}
             >
@@ -66,45 +76,63 @@ export function ProfitShareSummary({
             </Button>
           )}
         </div>
-      </div>
+      </Surface>
       {!!result.profitShareBreakdown.length && (
         <div className="mt-2 wb-table-scroll">
-          <Table className="min-w-[420px] text-xs">
+          <Table className="min-w-[420px]">
             <TableHeader>
               <TableRow>
-                <TableHead className="h-8 pl-4">BU</TableHead>
-                <TableHead className="h-8 text-right">Cost</TableHead>
-                <TableHead className="h-8 text-right">Weight</TableHead>
-                <TableHead className="h-8 text-right">Rate</TableHead>
-                <TableHead className="h-8 pr-4 text-right">Share</TableHead>
+                <TableHead className="h-8">BU</TableHead>
+                <TableHead variant="numeric" className="h-8 text-right">
+                  Cost
+                </TableHead>
+                <TableHead variant="numeric" className="h-8 text-right">
+                  Weight
+                </TableHead>
+                <TableHead variant="numeric" className="h-8 text-right">
+                  Rate
+                </TableHead>
+                <TableHead variant="numeric" className="h-8 text-right">
+                  Share
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {result.profitShareBreakdown.map((row) => (
                 <TableRow key={row.bu}>
-                  <TableCell className="py-1.5 pl-4 font-medium">
+                  <TableCell>
                     {row.bu}
                     {row.unassignedCost > 0 && (
-                      <small className="mt-0.5 block font-normal text-muted-foreground">
+                      <Text as="small" tone="muted" className="mt-1 block">
                         Includes {formatSgd(row.unassignedCost)} without BU
-                      </small>
+                      </Text>
                     )}
                   </TableCell>
-                  <TableCell className="financial-numeral py-1.5 text-right">
+                  <TableCell
+                    variant="numeric"
+                    className="financial-numeral text-right"
+                  >
                     {formatSgd(row.cost)}
                   </TableCell>
-                  <TableCell className="financial-numeral py-1.5 text-right">
+                  <TableCell
+                    variant="numeric"
+                    className="financial-numeral text-right"
+                  >
                     {(row.costWeight * 100).toFixed(2)}%
                   </TableCell>
                   <TableCell
-                    className={`financial-numeral py-1.5 text-right ${!row.configured ? 'text-amber-700' : ''}`}
+                    variant="numeric"
+                    className="financial-numeral text-right"
                   >
                     {row.ratePercent.toFixed(2)}%
                     {!row.configured && (
                       <small className="block">Not configured</small>
                     )}
                   </TableCell>
-                  <TableCell className="financial-numeral py-1.5 pr-4 text-right">
+                  <TableCell
+                    variant="numeric"
+                    className="financial-numeral text-right"
+                  >
                     {formatSgd(row.profitShareAmount)}
                   </TableCell>
                 </TableRow>
@@ -113,29 +141,40 @@ export function ProfitShareSummary({
           </Table>
         </div>
       )}
-      <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+      <Surface
+        as="div"
+        variant="body"
+        textRole="body-small"
+        className="flex items-center justify-between gap-3"
+      >
         <span>Profit Share Amount</span>
-        <span className="financial-numeral font-semibold">
+        <span className="financial-numeral">
           {formatSgd(result.profitShareAmount)}
         </span>
-      </div>
-      <details className="px-3 pb-2 text-xs text-muted-foreground">
-        <summary className="cursor-pointer">
+      </Surface>
+      <Disclosure>
+        <DisclosureSummary className="cursor-pointer">
           Calculation notes / 计算说明
-        </summary>
-        <p className="mt-1 leading-5">
+        </DisclosureSummary>
+        <p className="mt-1">
           Rates are weighted by BU cost. Costs without a BU, including EHS and
           Risk, are assigned to the largest BU. Sales GP = (price − cost −
           profit share) / price.
         </p>
-      </details>
+      </Disclosure>
       {!!result.warnings.length && (
-        <output className="mx-3 mb-2 block border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+        <Surface
+          as="output"
+          variant="notice"
+          tone="warning"
+          textRole="body-small"
+          className="mx-3 mb-2 block"
+        >
           {result.warnings.map((warning) => (
             <p key={warning}>{warning}</p>
           ))}
-        </output>
+        </Surface>
       )}
-    </div>
+    </Surface>
   );
 }

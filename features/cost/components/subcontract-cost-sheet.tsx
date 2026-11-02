@@ -1,16 +1,9 @@
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Surface, Text } from '@/components/ui/presentation';
 import { SubcontractSpreadsheetEntry } from './subcontract-spreadsheet-entry';
 import { formatMoney } from '@/lib/money';
 /** Version-owned subcontract BOQs with focused quantity entry and staged catalogue selection. */
 import { useEffect, useRef, useState } from 'react';
-import {
-  Copy,
-  ClipboardPaste,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-} from 'lucide-react';
+import { Copy, ClipboardPaste, Plus, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -46,10 +39,7 @@ import {
 } from '@/features/bulk-entry/subcontract-entry';
 import { updateSubcontractBulkLines } from '../subcontract-bulk-entry';
 import { SubcontractCatalogPicker } from './subcontract-catalog-picker';
-import {
-  SubcontractLinesTable,
-  SubcontractNumberInput,
-} from './subcontract-lines-table';
+import { SubcontractNumberInput } from './subcontract-lines-table';
 export { SubcontractCatalogPicker } from './subcontract-catalog-picker';
 export {
   SubcontractLinesTable,
@@ -225,10 +215,6 @@ export function SubcontractCostSheet({
     },
     [],
   );
-  const [renameDraft, setRenameDraft] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
   const [projectYear, setProjectYear] = useState<number | 'all'>(0);
   const [query, setQuery] = useState('');
   const [refreshedCatalog, setRefreshedCatalog] = useState<{
@@ -373,48 +359,78 @@ export function SubcontractCostSheet({
             catalogTarget?.kind === 'site' && site.id === catalogTarget.id,
         )?.lines ?? []);
   return (
-    <section className="wb-page-stack min-w-0" aria-label="Subcontract cost">
-      <div className="wb-panel min-w-0 overflow-hidden">
-        <header className="wb-toolbar justify-between">
+    <Surface
+      as="section"
+      variant="page"
+      className="min-w-0"
+      aria-label="Subcontract cost"
+    >
+      <Surface as="div" variant="panel" className="min-w-0 overflow-hidden">
+        <Surface as="header" variant="header" className="justify-between">
           <div>
-            <h2 className="text-sm font-semibold">
+            <h2>
               Subcontract Cost{' '}
-              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+              <Text
+                as="span"
+                tone="muted"
+                textRole="body-small"
+                className="ml-2"
+              >
                 2.3.2
-              </span>
+              </Text>
             </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <Text as="p" tone="muted" textRole="body-small" className="mt-1">
               Unit prices saved with this cost version.
-            </p>
+            </Text>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-4">
-            <div className="border-l pl-4 text-right">
-              <p className="text-xs font-medium text-muted-foreground">
+            <Surface as="div" variant="body" className="text-right">
+              <Text as="p" tone="muted" textRole="body-small">
                 {unpriced ? 'Priced Subtotal' : 'Total'} · SGD
-              </p>
-              <p className="mt-0.5 text-xl font-semibold leading-7 tracking-tight tabular-nums text-primary">
+              </Text>
+              <Text
+                as="p"
+                tone="primary"
+                textRole="h2"
+                className="mt-1 tabular-nums"
+              >
                 {money(total)}
-              </p>
-            </div>
+              </Text>
+            </Surface>
           </div>
-        </header>
-        <div className="grid grid-cols-2 gap-px border-t bg-border sm:grid-cols-5">
+        </Surface>
+        <Surface
+          as="div"
+          variant="footer"
+          className="grid grid-cols-2 sm:grid-cols-5"
+        >
           {years.map((amount, index) => (
-            <div key={index} className="min-w-0 bg-card px-4 py-3">
-              <p className="whitespace-nowrap text-xs text-muted-foreground">
+            <Surface key={index} as="div" variant="plain" className="min-w-0">
+              <Text
+                as="p"
+                tone="muted"
+                textRole="body-small"
+                className="whitespace-nowrap"
+              >
                 {yearLabel(actualYears, index)}
-              </p>
-              <p className="mt-0.5 overflow-x-auto whitespace-nowrap text-xs font-semibold tabular-nums">
+              </Text>
+              <Text
+                as="p"
+                textRole="body-small"
+                className="mt-1 overflow-x-auto whitespace-nowrap tabular-nums"
+              >
                 {money(amount)}
-              </p>
-            </div>
+              </Text>
+            </Surface>
           ))}
-        </div>
-      </div>
+        </Surface>
+      </Surface>
       {
-        <nav
+        <Surface
           aria-label="Subcontract worksheets"
-          className="flex flex-wrap items-center gap-1 border-b border-border pb-2"
+          as="nav"
+          variant="item"
+          className="flex flex-wrap items-center gap-1"
         >
           <Button
             size="sm"
@@ -463,10 +479,10 @@ export function SubcontractCostSheet({
             disabled={locked}
             onClick={addSite}
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-4" />
             New site type
           </Button>
-        </nav>
+        </Surface>
       }
       {page === 'overview' && (
         <SubcontractRateAssumptions
@@ -477,20 +493,34 @@ export function SubcontractCostSheet({
         />
       )}
       {locked && (
-        <output className="block rounded-md border bg-muted/30 px-3 py-2 text-xs">
+        <Surface
+          as="output"
+          variant="panel"
+          padded
+          textRole="body-small"
+          className="block"
+        >
           Read only · {lockedReason}
-        </output>
+        </Surface>
       )}
       {unpriced > 0 && (
-        <output className="block rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <Surface
+          as="output"
+          variant="notice"
+          tone="warning"
+          textRole="body-small"
+          className="block"
+        >
           {unpriced} item(s) not priced · Subtotal excludes unpriced items. Set
           a price before confirming or exporting; 0 means a confirmed zero-cost
           item.
-        </output>
+        </Surface>
       )}
       {value.mode === 'site-types' && page === 'site' && (
-        <section
-          className="wb-panel min-w-0 overflow-hidden"
+        <Surface
+          as="section"
+          variant="panel"
+          className="min-w-0 overflow-hidden"
           aria-label="Site configuration"
         >
           {selectedSite ? (
@@ -499,25 +529,34 @@ export function SubcontractCostSheet({
                 key={`${workspaceKey}:site:${selectedSite.id}`}
                 draftId={`${workspaceKey}:site:${selectedSite.id}`}
                 name={selectedSite.name}
+                actualYears={actualYears}
+                titleEditor={
+                  <Input
+                    variant="grid"
+                    aria-label="Site type name"
+                    value={selectedSite.name}
+                    disabled={locked}
+                    onChange={(event) => {
+                      if (!locked)
+                        updateSite({
+                          ...selectedSite,
+                          name: event.target.value,
+                        });
+                    }}
+                  />
+                }
+                onDelete={(lineId) =>
+                  updateSite(removeSubcontractSiteLine(selectedSite, lineId))
+                }
+                deleteConfirmation={(line) =>
+                  selectedSite.lines.length === 1 &&
+                  selectedSite.sites.some((count) => count > 0)
+                    ? `Remove ${line.description || line.code} and clear all annual deployments for ${selectedSite.name}? This is its last BOQ item.`
+                    : `Remove ${line.description || line.code} from ${selectedSite.name}?`
+                }
+
                 titleActions={
                   <>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={locked}
-                      aria-label="Rename site type"
-                      title="Rename site type"
-                      onClick={() => {
-                        if (!locked)
-                          setRenameDraft({
-                            id: selectedSite.id,
-                            name: selectedSite.name,
-                          });
-                      }}
-                    >
-                      <Pencil className="size-3.5" />
-                    </Button>
                     <Button
                       type="button"
                       variant="ghost"
@@ -540,14 +579,14 @@ export function SubcontractCostSheet({
                         );
                       }}
                     >
-                      <Copy className="size-3.5" />
+                      <Copy className="size-4" />
                     </Button>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-sm"
                       disabled={locked}
-                      className="text-muted-foreground hover:text-destructive"
+
                       aria-label="Delete site type"
                       title="Delete site type"
                       onClick={() => {
@@ -567,7 +606,7 @@ export function SubcontractCostSheet({
                         setSelectedSiteId(null);
                       }}
                     >
-                      <Trash2 className="size-3.5" />
+                      <Trash2 className="size-4" />
                     </Button>
                   </>
                 }
@@ -593,70 +632,48 @@ export function SubcontractCostSheet({
                   })
                 }
               />
-              <details className="border-t">
-                <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
-                  Item details
-                </summary>
 
-                <SubcontractLinesTable
-                  lines={selectedSite.lines}
-                  actualYears={actualYears}
-                  locked={locked}
-                  onChange={(line) =>
-                    updateSite({
-                      ...selectedSite,
-                      lines: selectedSite.lines.map((entry) =>
-                        entry.id === line.id
-                          ? (line as SubcontractSiteLine)
-                          : entry,
-                      ),
-                    })
-                  }
-                  deleteConfirmation={(line) =>
-                    selectedSite.lines.length === 1 &&
-                    selectedSite.sites.some((count) => count > 0)
-                      ? `Remove ${line.description || line.code} and clear all annual deployments for ${selectedSite.name}? This is its last BOQ item.`
-                      : `Remove ${line.description || line.code} from ${selectedSite.name}?`
-                  }
-                  onDelete={(lineId) =>
-                    updateSite(removeSubcontractSiteLine(selectedSite, lineId))
-                  }
-                  announce={announce}
-                />
-              </details>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-4 py-3 text-xs">
-                <span className="text-muted-foreground">
+              <Surface
+                as="div"
+                variant="footer"
+                textRole="body-small"
+                className="flex flex-wrap items-center justify-between"
+              >
+                <Text as="span" tone="muted">
                   Cost per Site
                   {selectedSite.lines.some((line) => line.unitPrice === null)
                     ? ' · Provisional'
                     : ''}
-                </span>
+                </Text>
                 <strong className="tabular-nums">
                   SGD {money(selectedSummary?.unitCost || 0)}
                 </strong>
-              </div>
-              <div className="space-y-2.5 border-t px-3 py-3">
-                <div className="flex flex-wrap items-center justify-between gap-1.5">
-                  <h3 className="text-xs font-semibold">
-                    Annual Site Deployments
-                  </h3>
-                  <span className="text-xs text-muted-foreground">
+              </Surface>
+              <Surface as="div" variant="footer">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3>Annual Site Deployments</h3>
+                  <Text as="span" tone="muted" textRole="body-small">
                     {selectedSite.sites.reduce((sum, count) => sum + count, 0)}{' '}
                     sites · SGD {money(selectedSummary?.total || 0)}
-                  </span>
+                  </Text>
                 </div>
                 {!selectedSite.lines.length && (
-                  <p className="text-xs text-muted-foreground">
+                  <Text as="p" tone="muted" textRole="body-small">
                     Add BOQ items first, then enter the number of sites for each
                     year.
-                  </p>
+                  </Text>
                 )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                   {selectedSite.sites.map((count, index) => (
-                    <div key={index} className="min-w-0 space-y-1.5">
-                      <p className="whitespace-nowrap text-xs font-medium text-muted-foreground">
+                    <div key={index} className="min-w-0 space-y-2">
+                      <Text
+                        as="p"
+                        tone="muted"
+                        textRole="body-small"
+                        className="whitespace-nowrap"
+                      >
                         {yearLabel(actualYears, index)}
-                      </p>
+                      </Text>
                       <SubcontractNumberInput
                         value={count}
                         integer
@@ -672,55 +689,72 @@ export function SubcontractCostSheet({
                         }
                         announce={announce}
                       />
-                      <p className="overflow-x-auto whitespace-nowrap text-right text-xs tabular-nums text-muted-foreground">
+                      <Text
+                        as="p"
+                        tone="muted"
+                        textRole="body-small"
+                        className="overflow-x-auto whitespace-nowrap text-right tabular-nums"
+                      >
                         {money(selectedSummary?.years[index] || 0)}
-                      </p>
+                      </Text>
                     </div>
                   ))}
                 </div>
-              </div>
+              </Surface>
             </>
           ) : (
-            <div className="wb-empty-state">
-              <p className="text-sm font-medium">
+            <Surface as="div" variant="empty">
+              <Text as="p" textRole="body-main">
                 Build your first site configuration
-              </p>
-              <p className="mt-1.5 text-xs text-muted-foreground">
+              </Text>
+              <Text as="p" tone="muted" textRole="body-small" className="mt-2">
                 Create a site type, add its BOQ, then plan annual deployments.
-              </p>
+              </Text>
               <Button
                 type="button"
                 size="sm"
-                className="mt-4"
+
                 disabled={locked}
                 onClick={addSite}
               >
-                <Plus className="size-3.5" />
+                <Plus className="size-4" />
                 Add Site Type
               </Button>
-            </div>
+            </Surface>
           )}
-        </section>
+        </Surface>
       )}
       {page === 'overview' && (
-        <section className="wb-panel min-w-0 overflow-hidden">
-          <h3 className="px-3 py-2.5 text-xs font-medium">
+        <Surface
+          as="section"
+          variant="panel"
+          className="min-w-0 overflow-hidden"
+        >
+          <Surface as="h3" variant="header">
             All site types · Annual breakdown{' '}
-            <span className="ml-2 font-normal text-muted-foreground">
+            <Text as="span" tone="muted" className="ml-2">
               {value.siteTypes.length} configurations
-            </span>
-          </h3>
+            </Text>
+          </Surface>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Site Type</TableHead>
-                <TableHead className="text-right">Cost / Site</TableHead>
+                <TableHead variant="numeric" className="text-right">
+                  Cost / Site
+                </TableHead>
                 {zeroYears().map((_, index) => (
-                  <TableHead key={index} className="text-right">
+                  <TableHead
+                    variant="numeric"
+                    key={index}
+                    className="text-right"
+                  >
                     {yearLabel(actualYears, index)}
                   </TableHead>
                 ))}
-                <TableHead className="text-right">Total · SGD</TableHead>
+                <TableHead variant="numeric" className="text-right">
+                  Total · SGD
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -731,31 +765,51 @@ export function SubcontractCostSheet({
                 return (
                   <TableRow key={site.id}>
                     <TableCell>
-                      <button
+                      <Button
+                        variant="ghost"
                         type="button"
-                        className="text-left text-xs font-medium text-primary underline-offset-2 hover:underline"
+                        className="text-left underline-offset-2 hover:underline"
                         onClick={() => {
                           setSelectedSiteId(site.id);
                           setPage('site');
                         }}
                       >
                         {site.name}
-                      </button>
+                      </Button>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell
+                      variant="numeric"
+                      className="text-right tabular-nums"
+                    >
                       {money(calculated?.unitCost || 0)}
                     </TableCell>
                     {site.sites.map((count, index) => (
-                      <TableCell key={index} className="text-right">
-                        <span className="block text-xs tabular-nums">
+                      <TableCell
+                        variant="numeric"
+                        key={index}
+                        className="text-right"
+                      >
+                        <Text
+                          as="span"
+                          textRole="body-small"
+                          className="block tabular-nums"
+                        >
                           {count} sites
-                        </span>
-                        <span className="text-xs tabular-nums text-muted-foreground">
+                        </Text>
+                        <Text
+                          as="span"
+                          tone="muted"
+                          textRole="body-small"
+                          className="tabular-nums"
+                        >
                           {money(calculated?.years[index] || 0)}
-                        </span>
+                        </Text>
                       </TableCell>
                     ))}
-                    <TableCell className="text-right font-semibold tabular-nums">
+                    <TableCell
+                      variant="numeric"
+                      className="text-right tabular-nums"
+                    >
                       {money(calculated?.total || 0)}
                     </TableCell>
                   </TableRow>
@@ -763,16 +817,21 @@ export function SubcontractCostSheet({
               })}
               <TableRow>
                 <TableCell>
-                  <button
-                    className="text-primary hover:underline"
+                  <Button
+                    variant="ghost"
+                    className="hover:underline"
                     onClick={() => setPage('shared')}
                   >
                     Shared project costs
-                  </button>
+                  </Button>
                 </TableCell>
                 <TableCell>—</TableCell>
                 {years.map((_, i) => (
-                  <TableCell key={i} className="text-right tabular-nums">
+                  <TableCell
+                    variant="numeric"
+                    key={i}
+                    className="text-right tabular-nums"
+                  >
                     {money(
                       summary.lines.reduce(
                         (sum, line) => sum + line.years[i],
@@ -781,31 +840,48 @@ export function SubcontractCostSheet({
                     )}
                   </TableCell>
                 ))}
-                <TableCell className="text-right tabular-nums">
+                <TableCell
+                  variant="numeric"
+                  className="text-right tabular-nums"
+                >
                   {money(projectTotal)}
                 </TableCell>
               </TableRow>
-              <TableRow className="font-semibold">
+              <TableRow>
                 <TableCell>Total (including legacy costs)</TableCell>
                 <TableCell>—</TableCell>
                 {years.map((amount, i) => (
-                  <TableCell key={i} className="text-right tabular-nums">
+                  <TableCell
+                    variant="numeric"
+                    key={i}
+                    className="text-right tabular-nums"
+                  >
                     {money(amount)}
                   </TableCell>
                 ))}
-                <TableCell className="text-right tabular-nums">
+                <TableCell
+                  variant="numeric"
+                  className="text-right tabular-nums"
+                >
                   {money(total)}
                 </TableCell>
               </TableRow>
             </TableBody>
           </Table>
-        </section>
+        </Surface>
       )}
       {page === 'shared' && (
-        <section className="wb-panel min-w-0 overflow-hidden">
+        <Surface
+          as="section"
+          variant="panel"
+          className="min-w-0 overflow-hidden"
+        >
           <SubcontractSpreadsheetEntry
             draftId={`${workspaceKey}:project`}
             name="Shared / One-off Project Costs"
+            actualYears={actualYears}
+            yearIndex={projectYear}
+            onYearChange={setProjectYear}
             itemActions={
               <AddLineActions
                 locked={locked}
@@ -824,73 +900,23 @@ export function SubcontractCostSheet({
               change({ ...value, lines: lines as SubcontractCostLine[] })
             }
           />
-          <details className="border-t">
-            <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
-              Item details
-            </summary>
-            <Tabs
-              value={String(projectYear)}
-              onValueChange={(value) =>
-                setProjectYear(value === 'all' ? 'all' : Number(value))
-              }
-              className="gap-0"
-            >
-              <div className="overflow-x-auto border-b px-2 py-1">
-                <TabsList variant="line" aria-label="Item details year">
-                  {zeroYears().map((_, index) => (
-                    <TabsTrigger
-                      key={index}
-                      value={String(index)}
-                      className="min-h-7 px-2.5 text-xs"
-                    >
-                      {yearLabel(actualYears, index)}
-                    </TabsTrigger>
-                  ))}
-                  <TabsTrigger value="all" className="min-h-7 px-2.5 text-xs">
-                    All years
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-              <TabsContent value={String(projectYear)}>
-                <SubcontractLinesTable
-                  lines={value.lines}
-                  actualYears={actualYears}
-                  locked={locked}
-                  project
-                  yearIndex={projectYear}
-                  rateFactors={rateFactors}
-                  onChange={(line) =>
-                    change({
-                      ...value,
-                      lines: value.lines.map((entry) =>
-                        entry.id === line.id
-                          ? (line as SubcontractCostLine)
-                          : entry,
-                      ),
-                    })
-                  }
-                  onDelete={(lineId) =>
-                    change({
-                      ...value,
-                      lines: value.lines.filter((line) => line.id !== lineId),
-                    })
-                  }
-                  announce={announce}
-                />
-              </TabsContent>
-            </Tabs>
-          </details>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-3 py-2 text-xs">
-            <span className="text-muted-foreground">
+
+          <Surface
+            as="div"
+            variant="footer"
+            textRole="body-small"
+            className="flex flex-wrap items-center justify-between"
+          >
+            <Text as="span" tone="muted">
               {projectYear === 'all'
                 ? 'BOQ total'
                 : `${yearLabel(actualYears, projectYear)} subtotal · SGD ${money(roundMoney(summary.lines.reduce((sum, line) => sum + line.years[projectYear], 0)))}`}
-            </span>
-            <span className="font-medium tabular-nums">
+            </Text>
+            <span className="tabular-nums">
               All years · SGD {money(projectTotal)}
             </span>
-          </div>
-        </section>
+          </Surface>
+        </Surface>
       )}
       {catalogTarget && (
         <Dialog
@@ -900,8 +926,9 @@ export function SubcontractCostSheet({
           }}
         >
           <DialogContent
+            size="md"
             showCloseButton={false}
-            className="max-h-[90vh] overflow-y-auto border-0 p-0 sm:max-w-2xl"
+            className="overflow-y-auto"
           >
             <DialogHeader className="sr-only">
               <DialogTitle>Select Subcontract Items</DialogTitle>
@@ -992,7 +1019,7 @@ export function SubcontractCostSheet({
               if (!open) closeBulk();
             }}
           >
-            <DialogContent className="sm:max-w-md">
+            <DialogContent size="sm">
               <DialogHeader>
                 <DialogTitle>Subcontract Bulk Entry</DialogTitle>
                 <DialogDescription>
@@ -1000,13 +1027,18 @@ export function SubcontractCostSheet({
                 </DialogDescription>
               </DialogHeader>
               {bulkRequest.error ? (
-                <p role="alert" className="text-sm text-destructive">
+                <Text role="alert" as="p" tone="danger" textRole="body-main">
                   {bulkRequest.error}
-                </p>
+                </Text>
               ) : (
-                <output className="block text-sm text-muted-foreground">
+                <Text
+                  as="output"
+                  tone="muted"
+                  textRole="body-main"
+                  className="block"
+                >
                   Loading Master Data…
-                </output>
+                </Text>
               )}
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={closeBulk}>
@@ -1027,61 +1059,6 @@ export function SubcontractCostSheet({
             </DialogContent>
           </Dialog>
         ))}
-      {renameDraft && (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setRenameDraft(null);
-          }}
-        >
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Rename Site Type</DialogTitle>
-              <DialogDescription>
-                Use a name that identifies this site configuration.
-              </DialogDescription>
-            </DialogHeader>
-            <form
-              className="space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (locked) return;
-                const name = renameDraft.name.trim();
-                const site = value.siteTypes.find(
-                  (entry) => entry.id === renameDraft.id,
-                );
-                if (!name || !site) return;
-                updateSite({ ...site, name });
-                setRenameDraft(null);
-              }}
-            >
-              <Input
-                aria-label="Site type name"
-                value={renameDraft.name}
-                disabled={locked}
-                onChange={(event) =>
-                  setRenameDraft({ ...renameDraft, name: event.target.value })
-                }
-              />
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setRenameDraft(null)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={locked || !renameDraft.name.trim()}
-                >
-                  Save
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
       {legacyRows.length > 0 && (
         <LegacySubcontractCosts
           rows={legacyRows}
@@ -1090,7 +1067,7 @@ export function SubcontractCostSheet({
           onRemove={onRemoveLegacyRow}
         />
       )}
-    </section>
+    </Surface>
   );
 }
 
@@ -1105,25 +1082,19 @@ function AddLineActions({
 }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <Button
-        type="button"
-        size="sm"
-        disabled={locked}
-        onClick={onCatalog}
-        className="h-8 bg-primary px-2.5 text-xs text-white hover:bg-primary/90"
-      >
-        <Search className="size-3.5" />
+      <Button type="button" size="sm" disabled={locked} onClick={onCatalog}>
+        <Search className="size-4" />
         Add from Catalog
       </Button>
       <Button
         type="button"
         size="sm"
         variant="outline"
-        className="h-8 px-2.5 text-xs"
+
         disabled={locked}
         onClick={onBulk}
       >
-        <ClipboardPaste className="size-3.5" />
+        <ClipboardPaste className="size-4" />
         Bulk Entry
       </Button>
     </div>
@@ -1142,15 +1113,15 @@ export function LegacySubcontractCosts({
   onRemove?: (id: string) => void;
 }) {
   return (
-    <section className="wb-panel min-w-0 overflow-hidden">
-      <div className="border-b p-3">
-        <h3 className="text-sm font-semibold">Legacy Subcontract Costs</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
+    <Surface as="section" variant="panel" className="min-w-0 overflow-hidden">
+      <Surface as="div" variant="item">
+        <h3>Legacy Subcontract Costs</h3>
+        <Text as="p" tone="muted" textRole="body-small" className="mt-1">
           These saved amounts remain included in the totals. To replace a legacy
           row, enter its BOQ above, then explicitly remove the old row from this
           draft.
-        </p>
-      </div>
+        </Text>
+      </Surface>
       <Table>
         <TableHeader>
           <TableRow>
@@ -1168,7 +1139,7 @@ export function LegacySubcontractCosts({
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.id}>
-              <TableCell className="max-w-96 whitespace-normal">
+              <TableCell variant="label" className="max-w-96 whitespace-normal">
                 {row.scope}
               </TableCell>
               <TableCell>{row.bu}</TableCell>
@@ -1177,7 +1148,7 @@ export function LegacySubcontractCosts({
                   {money(row.years[index]?.cost || 0)}
                 </TableCell>
               ))}
-              <TableCell className="font-semibold tabular-nums">
+              <TableCell className="tabular-nums">
                 {money(
                   roundMoney(
                     row.years.reduce((sum, year) => sum + year.cost, 0),
@@ -1210,6 +1181,6 @@ export function LegacySubcontractCosts({
           ))}
         </TableBody>
       </Table>
-    </section>
+    </Surface>
   );
 }

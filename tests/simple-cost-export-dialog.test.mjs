@@ -216,7 +216,7 @@ test('clear blocks empty export; single selection and select all preserve named 
   assert.ok(
     walk(tree).some(
       (node) =>
-        (node.type === 'output' || node.props.role === 'status') &&
+        ((node.type === 'output' || node.props.as === 'output') || node.props.role === 'status') &&
         /at least one/.test(textOf(node)),
     ),
   );

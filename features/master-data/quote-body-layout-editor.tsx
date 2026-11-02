@@ -1,3 +1,14 @@
+import { Text, Surface } from '@/components/ui/presentation';
+import { Table } from '@/components/ui/table';
+import { TableHeader } from '@/components/ui/table';
+import { TableRow } from '@/components/ui/table';
+import { TableHead } from '@/components/ui/table';
+import { TableBody } from '@/components/ui/table';
+import { TableCell } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { SelectField } from '@/components/ui/select-field';
+import { CheckInput } from '@/components/ui/check-input';
+import { Button } from '@/components/ui/button';
 import type { QuoteBodyLayout } from '@/features/quote/excel-template-types';
 import { defaultBodyTitles } from '@/features/quote/structured-body';
 
@@ -15,8 +26,6 @@ export function emptyBodyLayout(): QuoteBodyLayout {
     },
   };
 }
-const cellControl =
-  'h-8 w-full min-w-0 border-0 bg-transparent px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring';
 const titleLabels = {
   section: 'Section heading',
   category: 'Category heading',
@@ -35,29 +44,30 @@ export function QuoteBodyLayoutEditor({
 }) {
   return (
     <section aria-label="Structured quotation body" className="space-y-2">
-      <p className="text-xs leading-5 text-muted-foreground">
+      <Text as="p" tone="muted" textRole="body-small">
         Select the entire original quotation body, including all sample
         headings, details, subtotals and totals. The system replaces it with
         actual categories and items. Empty chapters and their totals disappear
         together. Header and terms outside this range are retained.
-      </p>
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full min-w-[440px] text-left text-xs">
-          <thead className="bg-muted/40">
-            <tr>
-              <th className="px-2 py-2 font-medium">Layout setting</th>
-              <th className="px-2 py-2 font-medium">Original row / value</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
+      </Text>
+      <Surface as="div" variant="panel" className="overflow-x-auto">
+        <Table className="w-full min-w-[440px] text-left">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Layout setting</TableHead>
+              <TableHead>Original row / value</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {(['startRow', 'endRow'] as const).map((key) => (
-              <tr key={key}>
-                <th className="w-44 px-2 font-normal">
+              <TableRow key={key}>
+                <TableHead className="w-44">
                   {key === 'startRow' ? 'Body start' : 'Body end'}
-                </th>
-                <td>
-                  <input
-                    className={cellControl}
+                </TableHead>
+                <TableCell>
+                  <Input
+                    variant="grid"
+                    className="w-full min-w-0"
                     aria-label={
                       key === 'startRow' ? 'Body start row' : 'Body end row'
                     }
@@ -69,8 +79,8 @@ export function QuoteBodyLayoutEditor({
                       onChange({ ...value, [key]: Number(e.target.value) })
                     }
                   />
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
             {(
               [
@@ -82,13 +92,14 @@ export function QuoteBodyLayoutEditor({
                 'grandTotal',
               ] as const
             ).map((role) => (
-              <tr key={role}>
-                <th className="px-2 font-normal capitalize">
+              <TableRow key={role}>
+                <TableHead className="capitalize">
                   {role === 'grandTotal' ? 'Grand Total' : role} style row
-                </th>
-                <td>
-                  <input
-                    className={cellControl}
+                </TableHead>
+                <TableCell>
+                  <Input
+                    variant="grid"
+                    className="w-full min-w-0"
                     aria-label={`${role === 'grandTotal' ? 'Grand Total' : role} style row`}
                     type="number"
                     min={1}
@@ -107,8 +118,8 @@ export function QuoteBodyLayoutEditor({
                       })
                     }
                   />
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
             {(
               [
@@ -117,11 +128,12 @@ export function QuoteBodyLayoutEditor({
                 ['section', 'After section block (default)'],
               ] as const
             ).map(([key, label]) => (
-              <tr key={key}>
-                <th className="px-2 font-normal">{label}</th>
-                <td>
-                  <select
-                    className={cellControl}
+              <TableRow key={key}>
+                <TableHead>{label}</TableHead>
+                <TableCell>
+                  <SelectField
+                    variant="grid"
+                    className="h-8 w-full min-w-0"
                     aria-label={`${label} blank rows`}
                     value={
                       value.spacing?.[key] ??
@@ -145,15 +157,15 @@ export function QuoteBodyLayoutEditor({
                         {n} blank {n === 1 ? 'row' : 'rows'}
                       </option>
                     ))}
-                  </select>
-                </td>
-              </tr>
+                  </SelectField>
+                </TableCell>
+              </TableRow>
             ))}
-            <tr>
-              <th className="px-2 font-normal">Category Subtotals</th>
-              <td className="px-2">
+            <TableRow>
+              <TableHead>Category Subtotals</TableHead>
+              <TableCell>
                 <label className="flex h-8 items-center gap-2">
-                  <input
+                  <CheckInput
                     type="checkbox"
                     checked={value.showSubtotals !== false}
                     onChange={(e) =>
@@ -162,14 +174,15 @@ export function QuoteBodyLayoutEditor({
                   />
                   Include category Subtotals
                 </label>
-              </td>
-            </tr>
-            <tr>
-              <th className="px-2 font-normal">Item numbering</th>
-              <td>
-                <select
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableHead>Item numbering</TableHead>
+              <TableCell>
+                <SelectField
+                  variant="grid"
                   aria-label="Item numbering"
-                  className={cellControl}
+                  className="h-8 w-full min-w-0"
                   value={value.numbering}
                   onChange={(e) =>
                     onChange({
@@ -181,15 +194,16 @@ export function QuoteBodyLayoutEditor({
                   <option value="hierarchical">Hierarchical · 1.1.1</option>
                   <option value="continuous">Continuous · 1, 2, 3</option>
                   <option value="alphabetic">Per category · a, b, c</option>
-                </select>
-              </td>
-            </tr>
-            <tr>
-              <th className="px-2 font-normal">Category order</th>
-              <td>
-                <input
+                </SelectField>
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableHead>Category order</TableHead>
+              <TableCell>
+                <Input
+                  variant="grid"
                   aria-label="Category order"
-                  className={cellControl}
+                  className="w-full min-w-0"
                   placeholder="Professional Service, Maintenance (remaining categories follow data order)"
                   value={value.categoryOrder.join(',')}
                   onChange={(e) =>
@@ -207,29 +221,28 @@ export function QuoteBodyLayoutEditor({
                     })
                   }
                 />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div className="overflow-x-auto border rounded-md">
-        <p className="border-b px-2 py-2 text-xs text-muted-foreground">
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </Surface>
+      <Surface as="div" variant="panel" className="overflow-x-auto">
+        <Surface as="p" variant="item" tone="muted" textRole="body-small">
           Section spacing exceptions (optional). Match the Section in Pricing
           &amp; Quote, not its Category or printed heading. For example,
           Implementation = 2 replaces the default with 2 blank rows after
           Implementation; 0 removes its spacing.
-        </p>
-        <table className="w-full text-xs text-left">
-          <thead className="bg-muted/40">
-            <tr>
-              <th className="px-2 py-2 font-medium">Section name</th>
-              <th className="px-2 font-medium">
-                Blank rows after this section block
-              </th>
-              <th>
-                <button
+        </Surface>
+        <Table className="w-full text-left">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Section name</TableHead>
+              <TableHead>Blank rows after this section block</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
                   type="button"
-                  className="h-8 px-2 text-primary focus-visible:outline-2 focus-visible:outline-ring"
+
                   onClick={() =>
                     onChange({
                       ...value,
@@ -241,25 +254,26 @@ export function QuoteBodyLayoutEditor({
                   }
                 >
                   Add section spacing rule
-                </button>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
+                </Button>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {!value.sectionSpacing?.length && (
-              <tr>
-                <td colSpan={3} className="px-2 py-2 text-muted-foreground">
+              <TableRow>
+                <TableCell colSpan={3}>
                   No section exceptions. Every section uses After section block
                   (default).
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
             {value.sectionSpacing?.map((rule, index) => (
-              <tr key={index}>
-                <td>
-                  <input
+              <TableRow key={index}>
+                <TableCell>
+                  <Input
+                    variant="grid"
                     aria-label={`Spacing section ${index + 1}`}
-                    className={cellControl}
+                    className="w-full min-w-0"
                     maxLength={120}
                     placeholder="e.g. Implementation"
                     value={rule.section}
@@ -274,11 +288,12 @@ export function QuoteBodyLayoutEditor({
                       })
                     }
                   />
-                </td>
-                <td>
-                  <select
+                </TableCell>
+                <TableCell>
+                  <SelectField
+                    variant="grid"
                     aria-label={`Section spacing rows ${index + 1}`}
-                    className={cellControl}
+                    className="h-8 w-full min-w-0"
                     value={rule.rows}
                     onChange={(event) =>
                       onChange({
@@ -296,12 +311,13 @@ export function QuoteBodyLayoutEditor({
                         {n}
                       </option>
                     ))}
-                  </select>
-                </td>
-                <td>
-                  <button
+                  </SelectField>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
                     type="button"
-                    className="h-8 px-2 text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
+
                     aria-label={`Remove section spacing rule ${index + 1}`}
                     onClick={() =>
                       onChange({
@@ -313,31 +329,30 @@ export function QuoteBodyLayoutEditor({
                     }
                   >
                     Remove
-                  </button>
-                </td>
-              </tr>
+                  </Button>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="overflow-x-auto border rounded-md">
-        <p className="border-b px-2 py-2 text-xs text-muted-foreground">
+          </TableBody>
+        </Table>
+      </Surface>
+      <Surface as="div" variant="panel" className="overflow-x-auto">
+        <Surface as="p" variant="item" tone="muted" textRole="body-small">
           Category spacing exceptions (optional). Match the Category in Pricing
           &amp; Quote, not its Section or printed heading. For example,
           Maintenance = 2 replaces the default with 2 blank rows after
           Maintenance; 0 removes its spacing.
-        </p>
-        <table className="w-full text-xs text-left">
-          <thead className="bg-muted/40">
-            <tr>
-              <th className="px-2 py-2 font-medium">Category name</th>
-              <th className="px-2 font-medium">
-                Blank rows after this category block
-              </th>
-              <th>
-                <button
+        </Surface>
+        <Table className="w-full text-left">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Category name</TableHead>
+              <TableHead>Blank rows after this category block</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
                   type="button"
-                  className="h-8 px-2 text-primary focus-visible:outline-2 focus-visible:outline-ring"
+
                   onClick={() =>
                     onChange({
                       ...value,
@@ -349,25 +364,26 @@ export function QuoteBodyLayoutEditor({
                   }
                 >
                   Add spacing rule
-                </button>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
+                </Button>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {!value.categorySpacing?.length && (
-              <tr>
-                <td colSpan={3} className="px-2 py-2 text-muted-foreground">
+              <TableRow>
+                <TableCell colSpan={3}>
                   No exceptions. Every category uses After category block
                   (default).
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
             {value.categorySpacing?.map((rule, index) => (
-              <tr key={index}>
-                <td>
-                  <input
+              <TableRow key={index}>
+                <TableCell>
+                  <Input
+                    variant="grid"
                     aria-label={`Spacing category ${index + 1}`}
-                    className={cellControl}
+                    className="w-full min-w-0"
                     maxLength={120}
                     placeholder="e.g. Maintenance"
                     value={rule.category}
@@ -382,11 +398,12 @@ export function QuoteBodyLayoutEditor({
                       })
                     }
                   />
-                </td>
-                <td>
-                  <select
+                </TableCell>
+                <TableCell>
+                  <SelectField
+                    variant="grid"
                     aria-label={`Category spacing rows ${index + 1}`}
-                    className={cellControl}
+                    className="h-8 w-full min-w-0"
                     value={rule.rows}
                     onChange={(event) =>
                       onChange({
@@ -404,12 +421,13 @@ export function QuoteBodyLayoutEditor({
                         {n}
                       </option>
                     ))}
-                  </select>
-                </td>
-                <td>
-                  <button
+                  </SelectField>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
                     type="button"
-                    className="h-8 px-2 text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
+
                     aria-label={`Remove spacing rule ${index + 1}`}
                     onClick={() =>
                       onChange({
@@ -421,30 +439,31 @@ export function QuoteBodyLayoutEditor({
                     }
                   >
                     Remove
-                  </button>
-                </td>
-              </tr>
+                  </Button>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full min-w-[440px] text-left text-xs">
-          <thead className="bg-muted/40">
-            <tr>
-              <th className="w-44 px-2 py-2 font-medium">Generated heading</th>
-              <th className="px-2 py-2 font-medium">Text / placeholders</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
+          </TableBody>
+        </Table>
+      </Surface>
+      <Surface as="div" variant="panel" className="overflow-x-auto">
+        <Table className="w-full min-w-[440px] text-left">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-44">Generated heading</TableHead>
+              <TableHead>Text / placeholders</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {(Object.keys(titleLabels) as Array<keyof typeof titleLabels>).map(
               (key) => (
-                <tr key={key}>
-                  <th className="px-2 font-normal">{titleLabels[key]}</th>
-                  <td>
-                    <input
+                <TableRow key={key}>
+                  <TableHead>{titleLabels[key]}</TableHead>
+                  <TableCell>
+                    <Input
+                      variant="grid"
                       aria-label={`${titleLabels[key]} text`}
-                      className={cellControl}
+                      className="w-full min-w-0"
                       value={
                         value.titles[key] ??
                         (key === 'section'
@@ -460,14 +479,14 @@ export function QuoteBodyLayoutEditor({
                         })
                       }
                     />
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ),
             )}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-xs text-muted-foreground">
+          </TableBody>
+        </Table>
+      </Surface>
+      <Text as="p" tone="muted" textRole="body-small">
         Headings support {'{section}, {project}, {category}, {chapterNumber}'}{' '}
         and the cell placeholders below. Style rows must be inside the body.
         Cell content mappings must be outside it. Section titles are edited on
@@ -479,7 +498,7 @@ export function QuoteBodyLayoutEditor({
         rows after its details and Subtotal. A named category override replaces
         the default category block spacing (including 0); it applies wherever
         that category appears.
-      </p>
+      </Text>
     </section>
   );
 }

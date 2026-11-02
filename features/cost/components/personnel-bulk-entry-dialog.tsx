@@ -1,3 +1,17 @@
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
+import { Textarea } from '@/components/ui/textarea';
+import { CheckInput } from '@/components/ui/check-input';
+import { TableHeader } from '@/components/ui/table';
+import { TableRow } from '@/components/ui/table';
+import { TableHead } from '@/components/ui/table';
+import { TableBody } from '@/components/ui/table';
+import { TableCell } from '@/components/ui/table';
 import { Table } from '@/components/ui/table';
 import { formatMoney } from '@/lib/money';
 /** Review a local table before appending a new manual personnel batch. */
@@ -60,8 +74,6 @@ const quantity = (value: number | null) =>
   value === null
     ? 'Invalid'
     : value.toLocaleString('en-SG', { maximumFractionDigits: 4 });
-const selectClass =
-  'h-8 w-full min-w-0 rounded-md border border-border bg-white px-2 text-xs disabled:opacity-50';
 const mappingOptions: { value: PersonnelBulkColumnTarget; label: string }[] = [
   { value: 'unmapped', label: 'Choose field…' },
   { value: 'ignore', label: 'Ignore column' },
@@ -198,12 +210,22 @@ export function PersonnelBulkEntryForm({
   return (
     <>
       <div className="space-y-3">
-        <div className="grid gap-2 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-[220px_1fr]">
-          <label className="grid content-start gap-1 text-xs font-medium">
+        <Surface
+          as="div"
+          variant="panel"
+          padded
+          className="grid gap-2 sm:grid-cols-[220px_1fr]"
+        >
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="grid content-start"
+          >
             Input format
-            <select
+            <SelectField
               aria-label="Bulk input format"
-              className={selectClass}
+              className="h-8 w-full min-w-0"
               value={format}
               disabled={locked}
               onChange={(event) =>
@@ -221,20 +243,24 @@ export function PersonnelBulkEntryForm({
               <option value="group-scope-md">
                 Group + Scope + MD · no header
               </option>
-            </select>
-            <span className="font-normal text-muted-foreground">
+            </SelectField>
+            <Text as="span" tone="muted">
               MD means total man-days. Choose the default BU, RE Type and year
               below when missing from the table.
-            </span>
-          </label>
+            </Text>
+          </Surface>
           <div className="grid gap-1">
-            <div className="flex items-center justify-between gap-2 text-xs font-medium">
+            <Surface
+              as="div"
+              textRole="body-small"
+              className="flex items-center justify-between gap-2"
+            >
               <span>MD template · tab-separated</span>
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="h-6 text-xs"
+
                 disabled={locked}
                 onClick={() => {
                   if (!locked) onCopyTemplate?.(template);
@@ -242,20 +268,25 @@ export function PersonnelBulkEntryForm({
               >
                 Copy template
               </Button>
-            </div>
-            <textarea
+            </Surface>
+            <Textarea
               aria-label="MD template"
               readOnly
               value={template}
-              className="h-20 w-full resize-none rounded border border-border bg-white px-2 py-1 font-mono text-xs"
+              className="h-20 w-full resize-none"
             />
           </div>
-        </div>
-        <label className="grid gap-1.5 text-xs font-medium">
+        </Surface>
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="grid"
+        >
           Paste or type a table
-          <textarea
+          <Textarea
             aria-label="Bulk cost table"
-            className="h-36 w-full resize-y rounded-md border border-border bg-white px-3 py-2 font-mono text-xs font-normal leading-5 outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
+            className="h-36 w-full resize-y"
             value={text}
             disabled={locked}
             placeholder={template}
@@ -270,18 +301,21 @@ export function PersonnelBulkEntryForm({
                 );
             }}
           />
-        </label>
-        <p className="text-xs text-muted-foreground">
+        </Surface>
+        <Text as="p" tone="muted" textRole="body-small">
           Excel paste, quoted CSV and Markdown tables · up to 1,000 rows. Scope,
           Group, BU, RE Type and annual effort are recognized locally. Use MD,
           Y1 MD–Y5 MD or calendar-year MD headings. Values such as 1 MD, 3days
           and 3天 are accepted in MD columns. Costs are recalculated from this
           version&apos;s rates and allowance.
-        </p>
+        </Text>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <label
+          <Surface
             htmlFor="bulk-cost-default-bu"
-            className="grid gap-1 text-xs font-medium"
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="grid"
           >
             Default BU
             <BusinessUnitSelect
@@ -289,16 +323,21 @@ export function PersonnelBulkEntryForm({
               aria-label="Bulk default BU"
               value={options.defaultBU || ''}
               disabled={locked}
-              className="h-8 text-xs"
+              className="h-8"
               placeholder="For blank BU cells"
               onChange={(event) => update({ defaultBU: event.target.value })}
             />
-          </label>
-          <label className="grid gap-1 text-xs font-medium">
+          </Surface>
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="grid"
+          >
             Default RE Type
-            <select
+            <SelectField
               aria-label="Bulk default RE Type"
-              className={selectClass}
+              className="h-8 w-full min-w-0"
               disabled={locked}
               value={options.defaultRETypeId || ''}
               onChange={(event) =>
@@ -311,13 +350,18 @@ export function PersonnelBulkEntryForm({
                   {resource.code} · {resource.name}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs font-medium">
+            </SelectField>
+          </Surface>
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="grid"
+          >
             Default input mode
-            <select
+            <SelectField
               aria-label="Bulk default input mode"
-              className={selectClass}
+              className="h-8 w-full min-w-0"
               disabled={locked || format !== 'auto'}
               value={format === 'auto' ? options.defaultMode : 'mandays'}
               onChange={(event) =>
@@ -327,13 +371,18 @@ export function PersonnelBulkEntryForm({
             >
               <option value="sites">Sites</option>
               <option value="mandays">Direct MD</option>
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs font-medium">
+            </SelectField>
+          </Surface>
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="grid"
+          >
             Default year
-            <select
+            <SelectField
               aria-label="Bulk default year"
-              className={selectClass}
+              className="h-8 w-full min-w-0"
               disabled={locked}
               value={options.defaultYear}
               onChange={(event) =>
@@ -346,12 +395,16 @@ export function PersonnelBulkEntryForm({
                   {actualYears[index] ? ` · ${actualYears[index]}` : ''}
                 </option>
               ))}
-            </select>
-          </label>
+            </SelectField>
+          </Surface>
         </div>
-        <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
-          <label className="flex items-center gap-1.5">
-            <input
+        <Surface
+          as="div"
+          textRole="body-small"
+          className="flex flex-wrap gap-x-5 gap-y-2"
+        >
+          <label className="flex items-center gap-2">
+            <CheckInput
               type="checkbox"
               aria-label="Bulk first row contains headers"
               checked={format === 'auto' && options.hasHeader !== false}
@@ -367,8 +420,8 @@ export function PersonnelBulkEntryForm({
             />
             First row contains headers
           </label>
-          <label className="flex items-center gap-1.5">
-            <input
+          <label className="flex items-center gap-2">
+            <CheckInput
               type="checkbox"
               aria-label="Bulk fill down Group"
               checked={options.fillDownGroup === true}
@@ -379,8 +432,8 @@ export function PersonnelBulkEntryForm({
             />
             Fill blank Group cells from the preceding group
           </label>
-          <label className="flex items-center gap-1.5">
-            <input
+          <label className="flex items-center gap-2">
+            <CheckInput
               type="checkbox"
               aria-label="Bulk fill down Scope"
               checked={options.fillDownScope !== false}
@@ -391,40 +444,45 @@ export function PersonnelBulkEntryForm({
             />
             Fill blank Scope cells from the preceding row
           </label>
-        </div>
+        </Surface>
         {preview && (
-          <div className="space-y-3 border-t border-border pt-3">
+          <Surface as="div" variant="footer">
             {!current && (
-              <p
+              <Surface
                 role="alert"
-                className="rounded-md bg-amber-50 p-2 text-xs text-amber-900"
+                as="p"
+                variant="notice"
+                tone="warning"
+                textRole="body-small"
               >
                 Input, mapping or version rates changed. Generate a new preview
                 to review updated amounts.
-              </p>
+              </Surface>
             )}
             {!!preview.columns.length && (
-              <details
-                className="rounded-md border border-border p-2"
+              <Disclosure
                 open={preview.columns.some(
                   (column) => column.target === 'unmapped',
                 )}
               >
-                <summary className="cursor-pointer text-xs font-medium">
+                <DisclosureSummary className="cursor-pointer">
                   Column mapping · review or correct detected fields
-                </summary>
+                </DisclosureSummary>
                 <div className="mt-2 grid gap-2 sm:grid-cols-3">
                   {preview.columns.map((column) => (
-                    <label
-                      className="grid min-w-0 gap-1 text-xs"
+                    <Surface
+                      as="label"
+                      variant="field"
+                      textRole="body-small"
+                      className="grid min-w-0"
                       key={column.index}
                     >
                       <span className="truncate" title={column.header}>
                         {column.index + 1}. {column.header}
                       </span>
-                      <select
+                      <SelectField
                         aria-label={`Map bulk column ${column.index + 1}`}
-                        className={selectClass}
+                        className="h-8 w-full min-w-0"
                         disabled={
                           locked ||
                           (options.hasHeader !== false &&
@@ -451,41 +509,45 @@ export function PersonnelBulkEntryForm({
                             {option.label}
                           </option>
                         ))}
-                      </select>
-                    </label>
+                      </SelectField>
+                    </Surface>
                   ))}
                 </div>
-              </details>
+              </Disclosure>
             )}
             {!!preview.issues.length && (
-              <div
+              <Surface
                 role="alert"
-                className="rounded-md bg-red-50 p-2 text-xs text-red-900"
+                as="div"
+                variant="notice"
+                tone="danger"
+                textRole="body-small"
               >
                 <ul className="list-inside list-disc space-y-1">
                   {preview.issues.map((issue, index) => (
                     <li key={index}>{issue}</li>
                   ))}
                 </ul>
-              </div>
+              </Surface>
             )}
             {!!preview.notices.length && (
-              <details
-                className="rounded-md bg-muted/30 p-2 text-xs"
-                open={preview.notices.length <= 5}
-              >
-                <summary className="cursor-pointer font-medium">
+              <Disclosure open={preview.notices.length <= 5}>
+                <DisclosureSummary className="cursor-pointer">
                   Recognition notes · {preview.notices.length}
-                </summary>
+                </DisclosureSummary>
                 <ul className="mt-1 max-h-36 list-inside list-disc space-y-1 overflow-y-auto">
                   {preview.notices.map((notice, index) => (
                     <li key={index}>{notice}</li>
                   ))}
                 </ul>
-              </details>
+              </Disclosure>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span className="font-semibold">
+            <Surface
+              as="div"
+              textRole="body-small"
+              className="flex flex-wrap items-center justify-between gap-2"
+            >
+              <span>
                 {preview.entries.length} rows ·{' '}
                 {preview.entries.filter((entry) => entry.issues.length).length}{' '}
                 to correct
@@ -494,12 +556,12 @@ export function PersonnelBulkEntryForm({
                 Batch cost: <strong>SGD {money(preview.totalCost)}</strong>
                 {!preview.canConfirm && ' · valid rows only'}
               </span>
-            </div>
+            </Surface>
             {!!preview.entries.length && (
-              <div className="max-h-80 overflow-auto border border-border">
-                <Table className="w-full min-w-[840px] text-xs">
-                  <thead className="sticky top-0 z-10 bg-muted">
-                    <tr>
+              <Surface as="div" className="max-h-80 overflow-auto">
+                <Table className="w-full min-w-[840px]">
+                  <TableHeader className="sticky top-0 z-10">
+                    <TableRow>
                       {[
                         'Row',
                         'Group',
@@ -510,41 +572,35 @@ export function PersonnelBulkEntryForm({
                         'Cost (SGD)',
                         'Check',
                       ].map((label) => (
-                        <th
-                          key={label}
-                          className="border-r border-border px-2 py-2 text-left font-medium"
-                        >
+                        <TableHead key={label} className="text-left">
                           {label}
-                        </th>
+                        </TableHead>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {preview.entries
                       .slice(safePage * 50, (safePage + 1) * 50)
                       .map((entry) => (
-                        <tr
-                          key={entry.sourceRow}
-                          className="border-t border-border"
-                        >
-                          <td className="px-2 py-2 tabular-nums">
+                        <TableRow key={entry.sourceRow}>
+                          <TableCell className="tabular-nums">
                             {entry.sourceRow}
-                          </td>
-                          <td className="max-w-36 break-words px-2 py-2">
+                          </TableCell>
+                          <TableCell className="max-w-36 break-words">
                             {entry.groupName || 'Unassigned Group'}
-                          </td>
-                          <td className="max-w-44 px-2 py-2">
-                            <p className="break-words font-medium">
+                          </TableCell>
+                          <TableCell className="max-w-44">
+                            <p className="break-words">
                               {entry.scope || 'Missing Scope'}
                             </p>
-                            <p className="text-muted-foreground">
+                            <Text as="p" tone="muted">
                               {entry.bu || 'Missing BU'}
-                            </p>
-                          </td>
-                          <td className="min-w-36 max-w-52 px-2 py-2">
-                            <select
+                            </Text>
+                          </TableCell>
+                          <TableCell className="min-w-36 max-w-52">
+                            <SelectField
                               aria-label={`Bulk row ${entry.sourceRow} RE Type`}
-                              className={selectClass}
+                              className="h-8 w-full min-w-0"
                               disabled={locked}
                               value={
                                 options.reTypeOverrides?.[entry.sourceRow] ||
@@ -566,35 +622,47 @@ export function PersonnelBulkEntryForm({
                                   {resource.code} · {resource.name}
                                 </option>
                               ))}
-                            </select>
+                            </SelectField>
                             {entry.reTypeText && (
-                              <p className="mt-1 break-words text-xs text-muted-foreground">
+                              <Text
+                                as="p"
+                                tone="muted"
+                                textRole="body-small"
+                                className="mt-1 break-words"
+                              >
                                 Pasted: {entry.reTypeText}
-                              </p>
+                              </Text>
                             )}
-                          </td>
-                          <td className="px-2 py-2">
+                          </TableCell>
+                          <TableCell>
                             {entry.mode === 'sites'
                               ? `Sites · ${quantity(entry.mdPerSite)} MD/site`
                               : 'Direct MD'}
-                          </td>
+                          </TableCell>
                           {entry.quantities.map((amount, index) => (
-                            <td
+                            <TableCell
+                              variant="numeric"
                               key={YEAR_BUCKETS[index]}
-                              className="px-2 py-2 text-right tabular-nums"
+                              className="text-right tabular-nums"
                             >
                               {quantity(amount)}
-                              <span className="ml-1 text-[9px] text-muted-foreground">
+                              <Text
+                                as="span"
+                                tone="muted"
+                                textRole="body-small"
+                                className="ml-1"
+                              >
                                 {entry.mode === 'sites' ? 'sites' : 'MD'}
-                              </span>
-                            </td>
+                              </Text>
+                            </TableCell>
                           ))}
-                          <td className="px-2 py-2 text-right font-medium tabular-nums">
-                            {entry.row ? money(totalRowCost(entry.row)) : '—'}
-                          </td>
-                          <td
-                            className={`min-w-32 px-2 py-2 ${entry.issues.length ? 'text-red-800' : 'text-emerald-800'}`}
+                          <TableCell
+                            variant="numeric"
+                            className="text-right tabular-nums"
                           >
+                            {entry.row ? money(totalRowCost(entry.row)) : '—'}
+                          </TableCell>
+                          <TableCell className="min-w-32">
                             {entry.issues.length ? (
                               <ul className="space-y-1">
                                 {entry.issues.map((issue, index) => (
@@ -604,15 +672,19 @@ export function PersonnelBulkEntryForm({
                             ) : (
                               'Ready'
                             )}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                  </tbody>
+                  </TableBody>
                 </Table>
-              </div>
+              </Surface>
             )}
             {pageCount > 1 && (
-              <div className="flex items-center justify-end gap-2 text-xs">
+              <Surface
+                as="div"
+                textRole="body-small"
+                className="flex items-center justify-end gap-2"
+              >
                 <Button
                   type="button"
                   size="sm"
@@ -634,12 +706,12 @@ export function PersonnelBulkEntryForm({
                 >
                   Next
                 </Button>
-              </div>
+              </Surface>
             )}
-          </div>
+          </Surface>
         )}
       </div>
-      <DialogFooter className="mt-2">
+      <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancel
         </Button>
@@ -736,7 +808,7 @@ export function PersonnelBulkEntryDialog(props: PersonnelBulkEntryDialogProps) {
         if (!open) props.onClose();
       }}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[1040px]">
+      <DialogContent size="lg" className="overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Bulk Entry</DialogTitle>
           <DialogDescription>

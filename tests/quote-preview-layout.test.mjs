@@ -26,7 +26,7 @@ const loader = registerHooks({
   resolve(specifier, context, nextResolve) {
     if (
       specifier === 'react' &&
-      /\/(quote-view|quote-preview-dialog|quote-description-dialog|manual-history-form|use-personnel-table-view)\.tsx?$/.test(
+      /\/(quote-view|quote-preview-dialog|quote-lines-editor|manual-history-form|use-personnel-table-view)\.tsx?$/.test(
         context.parentURL || '',
       )
     )
@@ -62,8 +62,6 @@ const loader = registerHooks({
     };
   },
 });
-const { QuoteDescriptionDialog } =
-  await import('../features/quote/quote-description-dialog.tsx');
 const { QuoteView } = await import('../features/quote/quote-view.tsx');
 const { QuoteExportDialog } =
   await import('../features/quote/quote-export-dialog.tsx');
@@ -318,8 +316,14 @@ test('opening and closing the preview changes only visibility and preserves ever
     true,
   );
   const content = walk(dialog).find((node) => node.type === DialogContent);
-  assert.match(content.props.className, /max-h-/);
-  const article = walk(content).find((node) => node.type === 'article');
+  assert.equal(content.props.size, 'lg');
+  assert.match(
+    readFileSync(new URL('../styles/components.css', import.meta.url), 'utf8'),
+    /max-height: calc\(100dvh - var\(--space-8\)\)/,
+  );
+  const article = walk(content).find(
+    (node) => node.type === 'article' || node.props.as === 'article',
+  );
   const html = renderToStaticMarkup(article);
   for (const text of [
     'CUSTOMER SERVICES',
@@ -436,7 +440,9 @@ test('preview displays two-decimal unit rates without changing stored precision 
   const alert = nodes.find((node) => node.props.role === 'alert');
   assert.ok(alert);
   assert.match(renderToStaticMarkup(alert), /Draft has unresolved pricing/);
-  const article = nodes.find((node) => node.type === 'article');
+  const article = nodes.find(
+    (node) => node.type === 'article' || node.props.as === 'article',
+  );
   const html = renderToStaticMarkup(article);
   assert.match(html, /S\$ 373\.33/);
   assert.equal(props.pricing.manualLines[0].unitPrice, 373.332);
@@ -505,7 +511,9 @@ test('manual history has one Quote Total field and stores no tax amount', () => 
   });
   const set = (label, value) => {
     const control = walk(render()).find(
-      (node) => node.type === 'label' && textOf(node).includes(label),
+      (node) =>
+        (node.type === 'label' || node.props.as === 'label') &&
+        textOf(node).includes(label),
     );
     assert.ok(control, label);
     walk(control)
@@ -523,43 +531,6 @@ test('manual history has one Quote Total field and stores no tax amount', () => 
   assert.equal(records[0].quoteAfterTax, 200);
   assert.equal(records[0].gstAmount, 0);
   assert.equal(records[0].grossMarginPercent, 50);
-});
-
-test('full description popup preserves newlines and cancellation never writes', () => {
-  const saved = [];
-  const props = {
-    value: 'One\nTwo\nThree\nFour',
-    lineNumber: 1,
-    editable: true,
-    disabled: false,
-    onSave: (value) => saved.push(value),
-  };
-  const render = harness(QuoteDescriptionDialog, props);
-  const input = () =>
-    walk(render()).find(
-      (node) => node.props['aria-label'] === 'Full description for line 1',
-    );
-  const button = (label) =>
-    walk(render()).find(
-      (node) =>
-        typeof node.props.onClick === 'function' && textOf(node) === label,
-    );
-  render().props.onOpenChange(true);
-  assert.equal(input().props.value, props.value);
-  input().props.onChange({ target: { value: 'Edited\nDescription' } });
-  button('Cancel').props.onClick();
-  assert.deepEqual(saved, []);
-  render().props.onOpenChange(true);
-  assert.equal(input().props.value, props.value);
-  input().props.onChange({ target: { value: 'Saved\nDescription' } });
-  button('Save description').props.onClick();
-  assert.deepEqual(saved, ['Saved\nDescription']);
-  props.disabled = true;
-  button('Save description').props.onClick();
-  assert.equal(saved.length, 1);
-  props.editable = false;
-  assert.equal(input(), undefined);
-  assert.ok(textOf(render()).includes(props.value));
 });
 
 test('export entry opens requirements for draft costs and final output stays gated', () => {
@@ -655,4 +626,45 @@ test('Preview export button downloads one XLSX without writing pricing, archive 
     JSON.stringify(book.worksheets[0].getSheetValues()),
     /PREVIEW — Internal review only/,
   );
+});
+
+test('long quote descriptions edit directly in the row and locked callbacks cannot write', () => {
+  const { props } = fixture();
+  const editorProps = walk(harness(QuoteView, props)()).find(
+    (node) => node.type === QuoteLinesEditor,
+  ).props;
+  let current = structuredClone(editorProps.pricing);
+  const original = structuredClone(current);
+  let writes = 0;
+  const view = harness(QuoteLinesEditor, {
+    ...editorProps,
+    setPricing: (updater) => {
+      current = typeof updater === 'function' ? updater(current) : updater;
+      writes++;
+    },
+  });
+  const field = walk(view()).find(
+    (node) => node.props['aria-label'] === 'Line 1 description',
+  );
+  assert.ok(field);
+  assert.equal(field.props.rows, 1);
+  const value = 'One\nTwo\nThree\nFour\nFive';
+  field.props.onChange({ target: { value } });
+  assert.equal(current.manualLines[0].description, value);
+  assert.equal(
+    current.manualLines[0].unitPrice,
+    original.manualLines[0].unitPrice,
+  );
+  assert.doesNotMatch(textOf(view()), /Save description|Full description/);
+  const locked = harness(QuoteLinesEditor, {
+    ...editorProps,
+    disabled: true,
+    setPricing: () => {
+      writes++;
+    },
+  });
+  walk(locked())
+    .find((node) => node.props['aria-label'] === 'Line 1 description')
+    .props.onChange({ target: { value: 'Changed' } });
+  assert.equal(writes, 1);
 });

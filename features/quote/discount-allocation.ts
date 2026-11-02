@@ -11,7 +11,31 @@ export type DiscountAllocation = {
   mode: 'total' | 'section' | 'category';
   /** Explicit shares; omitted groups share the remaining percentage by price. */
   shares?: { key: string; percentage: number }[];
+  /** Customer wording by stable group key; an explicit blank uses template wording. */
+  descriptions?: Record<string, string>;
 };
+
+export function validateDiscountDescriptions(
+  settings?: DiscountAllocation,
+): string[] {
+  const descriptions = settings?.descriptions;
+  if (descriptions === undefined) return [];
+  return !descriptions ||
+    typeof descriptions !== 'object' ||
+    Array.isArray(descriptions) ||
+    Object.keys(descriptions).length > 2000 ||
+    Object.entries(descriptions).some(
+      ([key, value]) =>
+        !key ||
+        key.length > 500 ||
+        typeof value !== 'string' ||
+        value.length > 1000,
+    )
+    ? [
+        'Each group discount description must be at most 1000 characters (up to 2000 groups).',
+      ]
+    : [];
+}
 export const discountGroupKey = (
   inclusion: string,
   category?: string,
@@ -32,7 +56,7 @@ export function allocateQuotationDiscount(
 ) {
   lines = normalizeSectionMembership(lines);
   const mode = settings?.mode ?? 'total';
-  const errors: string[] = [];
+  const errors: string[] = validateDiscountDescriptions(settings);
   if (!Number.isFinite(discount) || discount < 0 || discount > 1e12)
     errors.push('Discount must be a valid amount from 0 to 1,000,000,000,000.');
   if (lines.some((line) => !Number.isFinite(line.amount) || line.amount < 0))
@@ -106,6 +130,9 @@ export function allocateQuotationDiscount(
   const amounts = allocateMoneyByWeights(discount, percentages);
   const rows = buckets.map((b, i) => ({
     ...b,
+    ...(typeof settings?.descriptions?.[b.key] === 'string'
+      ? { description: settings.descriptions[b.key] }
+      : {}),
     percentage: percentages[i],
     fixed: fixed[i] !== undefined,
     discount: amounts[i],

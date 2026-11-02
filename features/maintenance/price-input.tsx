@@ -1,4 +1,5 @@
 'use client';
+
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { roundMoney } from '../cost/domain';
@@ -21,7 +22,7 @@ export function MaintenancePriceInput({
       aria-invalid={invalid}
       type="text"
       inputMode="decimal"
-      className="h-8 min-w-20 text-right text-xs"
+      className="min-w-20 text-right"
       value={draft}
       onChange={(event) => {
         setDraft(event.target.value);

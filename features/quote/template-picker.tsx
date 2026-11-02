@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 /** Visible quotation entry point: choosing is local; Apply explicitly uses the template. */
 import { useEffect, useState } from 'react';
 import { FileCheck2, RefreshCw } from 'lucide-react';
@@ -96,16 +97,17 @@ export function QuoteTemplatePicker({
   }));
 
   return (
-    <section
+    <Surface
       aria-labelledby="quote-template-heading"
-      className="wb-panel min-w-0 px-3 py-2"
+      as="section"
+      variant="panel"
+      padded
+      className="min-w-0"
     >
       {/* Template choice and its actions share one compact toolbar. */}
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
         <div className="shrink-0">
-          <h2 id="quote-template-heading" className="text-sm font-semibold">
-            Quotation Template
-          </h2>
+          <h2 id="quote-template-heading">Quotation Template</h2>
           <span className="sr-only">
             Client: {client} · {choices.length} available
           </span>
@@ -127,7 +129,7 @@ export function QuoteTemplatePicker({
             <SelectTrigger
               id="quote-template-select"
               aria-labelledby="quote-template-label"
-              className="h-8 w-full min-w-0"
+              className="w-full min-w-0"
             >
               <SelectValue>{candidate?.name || 'Select template'}</SelectValue>
             </SelectTrigger>
@@ -142,7 +144,7 @@ export function QuoteTemplatePicker({
         </div>
         <Button
           size="sm"
-          className="h-8"
+
           title="Apply title, payment terms and T&C; append eligible default assumptions without overwriting quote edits."
           disabled={!candidate || unavailable}
           onClick={() =>
@@ -157,7 +159,7 @@ export function QuoteTemplatePicker({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8"
+
             disabled={busy || loading}
             onClick={() => {
               setRefresh((value) => value + 1);
@@ -166,36 +168,39 @@ export function QuoteTemplatePicker({
             <RefreshCw aria-hidden="true" /> Refresh templates
           </Button>
         )}
-        <Button variant="outline" size="sm" className="h-8" onClick={onManage}>
+        <Button variant="outline" size="sm" onClick={onManage}>
           Manage templates
         </Button>
       </div>
-      <div
-        className="mt-1 space-y-1 text-xs text-muted-foreground"
+      <Surface
+        as="div"
+        tone="muted"
+        textRole="body-small"
+        className="mt-1 space-y-1"
         aria-live="polite"
       >
         <p>
           Applied:{' '}
-          <span className="font-medium text-foreground">
+          <Text as="span" tone="default">
             {selected?.name || 'None'}
-          </span>
+          </Text>
           {!loading && !error && !selectedAvailable && (
-            <span className="ml-2 text-amber-700">
+            <Text as="span" tone="warning" className="ml-2">
               Unavailable — select an applicable template
-            </span>
+            </Text>
           )}
         </p>
         {candidate && candidate.id !== selectedId && (
-          <p className="text-amber-700">
+          <Text as="p" tone="warning">
             Selection not applied yet — click Apply Template.
-          </p>
+          </Text>
         )}
         {loading && <output className="block">Loading saved templates…</output>}
         {error && (
-          <p role="alert" className="text-destructive">
+          <Text role="alert" as="p" tone="danger">
             {error} Use Refresh templates to retry. The applied project template
             is unchanged.
-          </p>
+          </Text>
         )}
         {!loading &&
           !error &&
@@ -205,13 +210,13 @@ export function QuoteTemplatePicker({
               assumptions without overwriting quote edits.
             </p>
           ) : (
-            <p role="alert" className="text-amber-700">
+            <Text role="alert" as="p" tone="warning">
               No active template matches this client. Manage templates to add
               one with Active enabled and Customer set to this client or *. Save
               the Master Data tab, then refresh templates.
-            </p>
+            </Text>
           ))}
-      </div>
-    </section>
+      </Surface>
+    </Surface>
   );
 }

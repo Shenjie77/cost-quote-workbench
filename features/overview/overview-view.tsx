@@ -1,3 +1,11 @@
+import { Badge } from '@/components/ui/badge';
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+  StatusDot,
+} from '@/components/ui/presentation';
 /** Today workspace derived entirely from persisted portfolio and review data. */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -154,67 +162,77 @@ export function OverviewView({
   );
 
   return (
-    <div className="wb-page-stack gap-3">
+    <Surface as="div" variant="page">
       {/* Put actionable pending counts first and preserve published workflow order. */}
-      <section
-        className="wb-panel overflow-hidden"
+      <Surface
+        as="section"
+        variant="panel"
+        className="overflow-hidden"
         aria-label="Project Workflow Distribution"
       >
-        <div className="wb-toolbar border-b border-border">
+        <Surface as="div" variant="toolbar">
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold">
-              Project Workflow Distribution
-            </h2>
+            <h2>Project Workflow Distribution</h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span
-              className="rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold tabular-nums text-amber-800"
+            <Badge
+              tone="warning"
+              className="tabular-nums"
               title="Current unresolved tasks and the next ready phase; completed rounds and projects on hold are excluded."
             >
               {pendingTaskCount} Pending
-            </span>
+            </Badge>
             {workflowDefinitionRevision !== undefined && (
-              <span className="text-xs text-muted-foreground">
+              <Text as="span" tone="muted" textRole="body-small">
                 Published workflow · Revision {workflowDefinitionRevision}
-              </span>
+              </Text>
             )}
           </div>
-        </div>
+        </Surface>
         {workflowDefinitionError && (
-          <output className="block border-b px-4 py-2 text-xs text-amber-800">
+          <Surface
+            as="output"
+            variant="item"
+            tone="warning"
+            textRole="body-small"
+            className="block"
+          >
             {workflowDefinitionError}
-          </output>
+          </Surface>
         )}
         <WorkflowDistributionNodes
           entries={distribution.nodes}
           onSelect={selectPendingWorkflow}
         />
         {distribution.retained.length > 0 && (
-          <div className="border-t border-border">
-            <p className="px-4 pt-2 text-xs text-muted-foreground">
+          <Surface as="div" variant="footer">
+            <Surface as="p" variant="body" tone="muted" textRole="body-small">
               Other recorded nodes · Retained progress from earlier workflow
               definitions
-            </p>
+            </Surface>
             <WorkflowDistributionNodes
               entries={distribution.retained}
               onSelect={selectPendingWorkflow}
             />
-          </div>
+          </Surface>
         )}
-      </section>
+      </Surface>
       {/* Keep portfolio totals in one scan line instead of four tall decorative cards. */}
-      <dl
-        className="flex flex-wrap items-center gap-x-6 gap-y-2 px-1 py-1 text-xs"
+      <Surface
+        as="dl"
+        variant="body"
+        textRole="body-small"
+        className="flex flex-wrap items-center gap-x-6 gap-y-2"
         aria-label="Portfolio summary"
       >
         <div
           className="flex items-baseline gap-2"
           title={`${projects.length} local projects in total / 共 ${projects.length} 个本地项目`}
         >
-          <dt className="text-muted-foreground">
+          <Text as="dt" tone="muted">
             Active Projects <span className="sr-only">进行中项目</span>
-          </dt>
-          <dd className="font-semibold tabular-nums">
+          </Text>
+          <dd className="tabular-nums">
             {
               projects.filter(
                 (project) =>
@@ -231,36 +249,32 @@ export function OverviewView({
           className="flex items-baseline gap-2"
           title="Current selected version of each project / 按各项目当前选中版本汇总"
         >
-          <dt className="text-muted-foreground">
+          <Text as="dt" tone="muted">
             Current Cost Base <span className="sr-only">当前成本规模</span>
-          </dt>
-          <dd className="font-semibold tabular-nums">
-            {formatSgd(portfolioCost)}
-          </dd>
+          </Text>
+          <dd className="tabular-nums">{formatSgd(portfolioCost)}</dd>
         </div>
         <div
           className="flex items-baseline gap-2"
           title="Based on workflow tasks, upcoming starts and their SLA / 按待办、待启动节点及 SLA 提醒配置判断"
         >
-          <dt className="text-muted-foreground">
+          <Text as="dt" tone="muted">
             Projects to Follow Up <span className="sr-only">待跟进项目</span>
-          </dt>
-          <dd className="font-semibold tabular-nums">
-            {followUpProjects.length}
-          </dd>
+          </Text>
+          <dd className="tabular-nums">{followUpProjects.length}</dd>
         </div>
         <div
           className="flex items-baseline gap-2"
           title="Manual project risk classification / 按项目风险标记统计"
         >
-          <dt className="text-muted-foreground">
+          <Text as="dt" tone="muted">
             High-Risk Projects <span className="sr-only">高风险项目</span>
-          </dt>
-          <dd className="font-semibold tabular-nums">
+          </Text>
+          <dd className="tabular-nums">
             {projects.filter((project) => project.risk === 'high').length}
           </dd>
         </div>
-      </dl>
+      </Surface>
       {/* Multiple projects require a visible choice; each row opens its exact workflow node. */}
       <Dialog
         open={Boolean(pendingWorkflow)}
@@ -268,7 +282,7 @@ export function OverviewView({
           if (!open) setPendingWorkflowCode(null);
         }}
       >
-        <DialogContent className="gap-3 sm:max-w-2xl">
+        <DialogContent size="md" className="gap-3">
           <DialogHeader>
             <DialogTitle>
               {pendingWorkflow?.step.name || pendingWorkflow?.step.nameZh}
@@ -289,7 +303,7 @@ export function OverviewView({
       <div className="grid min-w-0 gap-3">
         {/* Keep follow-up actions above the full project list for immediate access. */}
         <div className="min-w-0">
-          <section className="wb-panel overflow-hidden">
+          <Surface as="section" variant="panel" className="overflow-hidden">
             <SectionHeading
               index="01"
               title="Project Follow-ups"
@@ -301,55 +315,74 @@ export function OverviewView({
                   onClick={() => setView('agent')}
                 >
                   Open full digest{' '}
-                  <span className="text-xs opacity-70">完整摘要</span>
+                  <Text as="span" textRole="body-small">
+                    完整摘要
+                  </Text>
                   <ArrowRight />
                 </Button>
               }
             />
             {/* The digest stays beside the follow-ups it describes, without a competing sidebar card. */}
-            <div className="wb-toolbar border-b bg-muted/20 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">
+            <Surface
+              as="div"
+              variant="toolbar"
+              tone="muted"
+              textRole="body-small"
+            >
+              <Text as="span" tone="default">
                 Daily Agent Digest · 每日摘要
-              </span>
+              </Text>
               <span>
                 {followUpProjects.length} 个项目、{digest.items.length}{' '}
                 个节点需要跟进
               </span>
               <span className="ml-auto tabular-nums">{digest.asOf}</span>
-            </div>
-            <div className="divide-y divide-border">
+            </Surface>
+            <Surface as="div" variant="list">
               {followUpProjects.length ? (
                 followUpProjects.slice(0, 4).map((group) => {
                   const project = projects.find(
                     (entry) => entry.id === group.projectId,
                   );
                   return (
-                    <details
+                    <Disclosure
                       key={group.projectId}
                       data-workflow-project-group={group.projectId}
-                      className="group px-3 py-2 transition-colors open:bg-muted/25"
+                      className="group"
                       open={group.severity === 'red'}
                     >
-                      <summary className="flex cursor-pointer list-none flex-wrap items-center min-h-8 gap-2 rounded-md text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
-                        <span
-                          className={`size-2 shrink-0 rounded-full ${group.severity === 'red' ? 'bg-destructive' : group.severity === 'amber' ? 'bg-amber-600' : 'bg-primary'}`}
+                      <DisclosureSummary className="flex cursor-pointer list-none flex-wrap items-center min-h-8 gap-2">
+                        <StatusDot
+                          tone={
+                            group.severity === 'red'
+                              ? 'danger'
+                              : group.severity === 'amber'
+                                ? 'warning'
+                                : 'inherit'
+                          }
+                          className="size-2 shrink-0"
                         />
-                        <span className="min-w-0 flex-1 font-semibold">
+                        <span className="min-w-0 flex-1">
                           {project?.name || group.projectId}
                         </span>
-                        <span className="text-xs text-muted-foreground">
+                        <Text as="span" tone="muted" textRole="body-small">
                           {group.severity === 'red'
                             ? '紧急'
                             : group.severity === 'amber'
                               ? '马上处理'
                               : '普通跟进'}{' '}
                           · {group.items.length} 个待办节点
-                        </span>
-                        <ChevronRight className="size-3.5 group-open:rotate-90" />
-                      </summary>
-                      <div className="mt-2 space-y-1 pl-5">
+                        </Text>
+                        <ChevronRight className="size-4 group-open:rotate-90" />
+                      </DisclosureSummary>
+                      <Surface
+                        as="div"
+                        variant="body"
+                        className="mt-2 space-y-1"
+                      >
                         {group.items.map((item) => (
-                          <button
+                          <Button
+                            variant="ghost"
                             key={item.id}
                             aria-label={`更新流程节点 ${item.titleZh}`}
                             onClick={() => {
@@ -361,36 +394,49 @@ export function OverviewView({
                                 setView('project');
                               }
                             }}
-                            className="block w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring"
+                            className="block w-full text-left"
                           >
-                            <span className="block text-xs font-medium">
+                            <Text
+                              as="span"
+                              textRole="body-small"
+                              className="block"
+                            >
                               {item.titleZh}
-                            </span>
-                            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                            </Text>
+                            <Text
+                              as="span"
+                              tone="muted"
+                              textRole="body-small"
+                              className="mt-1 block"
+                            >
                               {item.detailZh}
-                            </span>
-                          </button>
+                            </Text>
+                          </Button>
                         ))}
-                      </div>
-                    </details>
+                      </Surface>
+                    </Disclosure>
                   );
                 })
               ) : (
-                <div className="wb-empty-state">
+                <Surface as="div" variant="empty">
                   No projects need follow-up / 当前没有需要跟进的项目
-                </div>
+                </Surface>
               )}
-            </div>
-            <button
+            </Surface>
+            <Button
+              variant="ghost"
               onClick={() => setView('project')}
-              className="flex w-full items-center justify-center gap-1 border-t border-border px-3 py-2 text-xs font-medium text-primary hover:bg-muted/50"
+              className="flex w-full items-center justify-center gap-1"
             >
-              Open project list <span className="text-xs">查看项目列表</span>
-              <ArrowRight className="size-3.5" />
-            </button>
-          </section>
+              Open project list{' '}
+              <Text as="span" textRole="body-small">
+                查看项目列表
+              </Text>
+              <ArrowRight className="size-4" />
+            </Button>
+          </Surface>
         </div>
-        <section className="wb-panel overflow-hidden">
+        <Surface as="section" variant="panel" className="overflow-hidden">
           <SectionHeading
             index="02"
             title="Project Portfolio"
@@ -442,13 +488,13 @@ export function OverviewView({
             onQuote={onOpenQuote}
             onTrackWorkflow={onTrackWorkflow}
           />
-          <div className="border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          <Surface as="div" variant="footer" tone="muted" textRole="body-small">
             Showing {visibleProjects.length} of {projects.length} local projects
             / 显示 {visibleProjects.length} 个项目
-          </div>
-        </section>
+          </Surface>
+        </Surface>
       </div>
-    </div>
+    </Surface>
   );
 }
 
@@ -461,9 +507,14 @@ export function WorkflowDistributionNodes({
   onSelect: (code: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-3 xl:grid-cols-5">
+    <Surface
+      as="div"
+      variant="body"
+      className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5"
+    >
       {entries.map(({ step, pendingCount, legacy }) => (
-        <button
+        <Button
+          variant="ghost"
           key={step.code}
           type="button"
           data-workflow-distribution-node={step.code}
@@ -472,28 +523,36 @@ export function WorkflowDistributionNodes({
           disabled={pendingCount === 0}
           title={`${step.name || step.nameZh} · ${pendingCount} Pending · ${pendingCount ? 'Open task / 打开任务' : 'No pending tasks / 暂无待办'}${step.parallelGroup ? ` · Parallel · ${step.parallelGroup}` : ''}`}
           onClick={() => onSelect(step.code)}
-          className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 rounded-md border px-2 py-1.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default ${
-            pendingCount > 0
-              ? 'border-amber-200 bg-amber-50/60 hover:border-amber-400 hover:bg-amber-50'
-              : 'border-transparent bg-muted/30'
-          }`}
+          className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 text-left disabled:cursor-default"
         >
-          <span
-            className={`row-span-2 text-base font-semibold tabular-nums ${pendingCount > 0 ? 'text-amber-800' : 'text-muted-foreground/70'}`}
+          <Text
+            as="span"
+            tone={pendingCount > 0 ? 'warning' : 'muted'}
+            textRole="body-main"
+            className="row-span-2 tabular-nums"
           >
             {pendingCount}
-          </span>
-          <span className="text-xs font-semibold leading-4 [overflow-wrap:anywhere]">
+          </Text>
+          <Text
+            as="span"
+            textRole="body-small"
+            className="[overflow-wrap:anywhere]"
+          >
             {step.name || step.nameZh}
-          </span>
+          </Text>
           {step.name && step.nameZh && (
-            <span className="col-start-2 text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]">
+            <Text
+              as="span"
+              tone="muted"
+              textRole="body-small"
+              className="col-start-2 [overflow-wrap:anywhere]"
+            >
               {step.nameZh}
-            </span>
+            </Text>
           )}
-        </button>
+        </Button>
       ))}
-    </div>
+    </Surface>
   );
 }
 
@@ -522,8 +581,10 @@ export function WorkflowPendingTaskList({
 }) {
   const pendingProjects = pendingWorkflowProjects(entry, projects);
   return (
-    <div
-      className="max-h-[60dvh] divide-y overflow-y-auto rounded-md border"
+    <Surface
+      as="div"
+      variant="list"
+      className="max-h-[60dvh] overflow-y-auto"
       aria-label="Pending workflow tasks"
     >
       {pendingProjects.length ? (
@@ -534,24 +595,31 @@ export function WorkflowPendingTaskList({
           );
           const state = step && workflowStateLabels[step.state];
           return (
-            <div
+            <Surface
               key={project.id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5"
+              as="div"
+              variant="body"
+              className="flex flex-wrap items-center gap-x-3 gap-y-2"
             >
               <div className="min-w-0 flex-1 basis-48">
-                <p className="break-words text-sm font-medium">
+                <Text as="p" textRole="body-main" className="break-words">
                   {project.name}
-                </p>
-                <p className="mt-0.5 break-words text-xs text-muted-foreground">
+                </Text>
+                <Text
+                  as="p"
+                  tone="muted"
+                  textRole="body-small"
+                  className="mt-1 break-words"
+                >
                   {project.client}
-                </p>
+                </Text>
               </div>
-              <div className="text-xs text-muted-foreground">
+              <Surface as="div" tone="muted" textRole="body-small">
                 <p>{step?.owner || project.workflowOwner || 'Unassigned'}</p>
-                <p className="mt-0.5">
+                <p className="mt-1">
                   {state ? `${state.en} / ${state.zh}` : 'Pending / 待办'}
                 </p>
-              </div>
+              </Surface>
               <Button
                 type="button"
                 variant="outline"
@@ -559,17 +627,17 @@ export function WorkflowPendingTaskList({
                 aria-label={`Open task ${project.name} · ${entry.step.name || entry.step.nameZh}`}
                 onClick={() => onOpenTask(project, entry.step.code)}
               >
-                Open task <ArrowRight className="size-3.5" />
+                Open task <ArrowRight className="size-4" />
               </Button>
-            </div>
+            </Surface>
           );
         })
       ) : (
-        <p className="px-3 py-4 text-sm text-muted-foreground">
+        <Surface as="p" variant="body" tone="muted" textRole="body-main">
           No pending tasks / 暂无待办
-        </p>
+        </Surface>
       )}
-    </div>
+    </Surface>
   );
 }
 

@@ -1,3 +1,11 @@
+import {
+  Surface,
+  Disclosure,
+  DisclosureSummary,
+  Text,
+} from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
+import { Textarea } from '@/components/ui/textarea';
 /** One company-process register, with earlier review evidence available read-only. */
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -56,14 +64,19 @@ export function ProjectWorkflowFields({
   const completed = value.currentWorkflowStepCode === QUOTE_COMPLETED;
   return (
     <div className="space-y-3">
-      <label className="block space-y-1.5 text-xs font-medium">
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         Current Workflow
-        <select
+        <SelectField
           aria-label="Current Workflow"
           value={value.currentWorkflowStepCode}
           disabled={busy}
           required
-          className="h-10 w-full rounded-lg border border-input bg-white px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+          className="h-10 w-full"
           onChange={(event) => {
             const target = steps.find(
               (step) => step.code === event.target.value,
@@ -82,10 +95,15 @@ export function ProjectWorkflowFields({
               {step.name || step.nameZh}
             </option>
           ))}
-        </select>
-      </label>
+        </SelectField>
+      </Surface>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1.5 text-xs font-medium">
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="block"
+        >
           Owner
           <Input
             aria-label="Workflow Owner"
@@ -97,8 +115,13 @@ export function ProjectWorkflowFields({
               onChange({ ...value, owner: event.target.value })
             }
           />
-        </label>
-        <label className="block space-y-1.5 text-xs font-medium">
+        </Surface>
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="block"
+        >
           Next Follow-up
           <Input
             aria-label="Next Follow-up"
@@ -109,28 +132,36 @@ export function ProjectWorkflowFields({
               onChange({ ...value, followUpDate: event.target.value })
             }
           />
-        </label>
+        </Surface>
       </div>
-      <p
-        className={`text-xs ${completed ? 'text-[#177c80]' : 'text-muted-foreground'}`}
+      <Text
+        as="p"
+        tone={completed ? 'primary' : 'muted'}
+        textRole="body-small"
+        className=""
       >
         {completed
           ? 'Project reminders stop after the quotation is complete. A new cost round restarts the workflow.'
           : 'Record actual progress from the company platform. Projects without a follow-up date are flagged for scheduling.'}
-      </p>
-      <label className="block space-y-1.5 text-xs font-medium">
+      </Text>
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         Progress / Follow-up Note
-        <textarea
+        <Textarea
           aria-label="Workflow Note"
           value={value.note}
           disabled={busy}
           rows={3}
           maxLength={10000}
-          className="w-full resize-y rounded-lg border border-input bg-white px-3 py-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
+          className="w-full resize-y"
           placeholder="Example: PM submitted DRB on the company platform; awaiting the result. Reference: DRB-2026-001."
           onChange={(event) => onChange({ ...value, note: event.target.value })}
         />
-      </label>
+      </Surface>
     </div>
   );
 }
@@ -164,36 +195,39 @@ export function ProjectWorkflowHistory({
     b.lastUpdatedAt.localeCompare(a.lastUpdatedAt),
   );
   return (
-    <details className="wb-panel px-5 py-4">
-      <summary className="cursor-pointer rounded-md text-sm font-semibold text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
+    <Disclosure>
+      <DisclosureSummary className="cursor-pointer">
         Workflow History (Read Only)
-      </summary>
-      <div className="mt-4 max-h-80 space-y-4 overflow-y-auto text-xs leading-5">
+      </DisclosureSummary>
+      <Surface
+        as="div"
+        textRole="body-small"
+        className="mt-4 max-h-80 space-y-4 overflow-y-auto"
+      >
         {!updates.length && !submissions.length && !gates.length && (
-          <p className="text-muted-foreground">No history recorded.</p>
+          <Text as="p" tone="muted">
+            No history recorded.
+          </Text>
         )}
         {updates.map((entry) => (
-          <article
-            key={entry.id}
-            className="rounded-lg border border-border bg-muted/15 p-4"
-          >
-            <p className="font-medium">
+          <Surface key={entry.id} as="article" variant="panel" padded>
+            <p>
               {entry.costVersion} · {label(entry.toStepCode, entry.costVersion)}
             </p>
-            <p className="mt-1 text-muted-foreground">
+            <Text as="p" tone="muted" className="mt-1">
               Recorded: {entry.updatedAt} · {entry.owner} · Follow-up:
               {entry.followUpDate || 'Not set'}
-            </p>
+            </Text>
             {entry.fromStepCode !== entry.toStepCode && (
-              <p className="mt-1 text-muted-foreground">
+              <Text as="p" tone="muted" className="mt-1">
                 From: {label(entry.fromStepCode, entry.costVersion)}
-              </p>
+              </Text>
             )}
             <p className="mt-1 whitespace-pre-wrap">
               {entry.note || 'No additional notes'}
             </p>
             {entry.action && (
-              <p className="mt-1 text-muted-foreground">
+              <Text as="p" tone="muted" className="mt-1">
                 Action:
                 {(
                   {
@@ -206,40 +240,42 @@ export function ProjectWorkflowHistory({
                     reopen: 'Reopen',
                   } as Record<string, string>
                 )[entry.action] || 'Workflow Update'}
-              </p>
+              </Text>
             )}
             {(entry.startedAt || entry.dueAt) && (
-              <p className="mt-1 text-muted-foreground">
+              <Text as="p" tone="muted" className="mt-1">
                 Recorded start: {entry.startedAt || 'Not recorded'} · Recorded
                 deadline:
                 {entry.dueAt || 'Not recorded'}
-              </p>
+              </Text>
             )}
             {!!Object.keys(entry.fields || {}).length && (
-              <dl className="mt-2 space-y-1 rounded border p-2">
+              <Surface
+                as="dl"
+                variant="panel"
+                padded
+                className="mt-2 space-y-1"
+              >
                 {Object.entries(entry.fields || {}).map(([field, value]) => (
                   <div key={field} className="flex gap-2">
-                    <dt className="font-medium">{field}</dt>
+                    <dt>{field}</dt>
                     <dd className="whitespace-pre-wrap">{value}</dd>
                   </div>
                 ))}
-              </dl>
+              </Surface>
             )}
-          </article>
+          </Surface>
         ))}
         {submissions.map((entry) => (
-          <article
-            key={entry.id}
-            className="rounded-lg border border-border bg-muted/15 p-4"
-          >
-            <p className="font-medium">
+          <Surface key={entry.id} as="article" variant="panel" padded>
+            <p>
               Historical Review · {entry.costBaseline.code} · {entry.kind}
               {entry.domain ? ` · ${entry.domain}` : ''}
             </p>
-            <p className="mt-1 text-muted-foreground">
+            <Text as="p" tone="muted" className="mt-1">
               Recorded: {entry.createdAt} · {entry.owner} · Reference:
               {entry.applicationNumber || 'Not recorded'}
-            </p>
+            </Text>
             {entry.evidence && (
               <p className="mt-1 whitespace-pre-wrap">{entry.evidence}</p>
             )}
@@ -266,27 +302,24 @@ export function ProjectWorkflowHistory({
                 {followUp.nextDate || 'Not set'}
               </p>
             ))}
-          </article>
+          </Surface>
         ))}
         {gates.map((entry) => (
-          <article
-            key={entry.id}
-            className="rounded-lg border border-border bg-muted/15 p-4"
-          >
-            <p className="font-medium">
+          <Surface key={entry.id} as="article" variant="panel" padded>
+            <p>
               Historical Checkpoint ·{' '}
               {entry.costVersion || 'Version not recorded'} ·{' '}
               {entry.gate || entry.gateZh}
             </p>
             {entry.workflowStepCode && (
-              <p className="mt-1 text-muted-foreground">
+              <Text as="p" tone="muted" className="mt-1">
                 Workflow: {label(entry.workflowStepCode, entry.costVersion)}
-              </p>
+              </Text>
             )}
-            <p className="mt-1 text-muted-foreground">
+            <Text as="p" tone="muted" className="mt-1">
               Recorded: {entry.lastUpdatedAt || 'Time not recorded'} ·{' '}
               {entry.owner} · {entry.status}
-            </p>
+            </Text>
             <p className="mt-1 whitespace-pre-wrap">
               {entry.note}
               {entry.noteZh && entry.noteZh !== entry.note
@@ -299,10 +332,10 @@ export function ProjectWorkflowHistory({
                 {followUp.nextFollowUpAt || 'Not set'}
               </p>
             ))}
-          </article>
+          </Surface>
         ))}
-      </div>
-    </details>
+      </Surface>
+    </Disclosure>
   );
 }
 
@@ -360,7 +393,8 @@ export function ProjectWorkflowDialog({
       }}
     >
       <DialogContent
-        className="max-h-[90vh] overflow-y-auto sm:max-w-4xl"
+        size="lg"
+        className="overflow-y-auto"
         showCloseButton={!disabled}
       >
         <DialogHeader>
@@ -392,10 +426,10 @@ export function ProjectWorkflowDialog({
               busy={disabled}
             />
           )}
-          <details className="wb-panel px-5 py-4">
-            <summary className="cursor-pointer rounded-md text-sm font-semibold text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
+          <Disclosure>
+            <DisclosureSummary className="cursor-pointer">
               Project References
-            </summary>
+            </DisclosureSummary>
             <div className="mt-3 space-y-3">
               {(
                 [
@@ -404,9 +438,12 @@ export function ProjectWorkflowDialog({
                   ['technicalBasis', 'Technical Document Version'],
                 ] as const
               ).map(([key, label]) => (
-                <label
+                <Surface
                   key={key}
-                  className="block space-y-1.5 text-xs font-medium"
+                  as="label"
+                  variant="field"
+                  textRole="body-small"
+                  className="block"
                 >
                   {label}
                   <Input
@@ -417,28 +454,33 @@ export function ProjectWorkflowDialog({
                       setMeta({ ...meta, [key]: event.target.value })
                     }
                   />
-                </label>
+                </Surface>
               ))}
-              <label className="block space-y-1.5 text-xs font-medium">
+              <Surface
+                as="label"
+                variant="field"
+                textRole="body-small"
+                className="block"
+              >
                 Scope Brief
-                <textarea
+                <Textarea
                   value={meta.scopeBrief}
                   disabled={disabled}
                   rows={3}
                   maxLength={10000}
-                  className="w-full rounded-lg border border-input bg-white px-3 py-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
+                  className="w-full"
                   onChange={(event) =>
                     setMeta({ ...meta, scopeBrief: event.target.value })
                   }
                 />
-              </label>
+              </Surface>
             </div>
-          </details>
+          </Disclosure>
           <ProjectWorkflowHistory workspace={workspace} />
           {(error || saveError) && (
-            <p role="alert" className="text-sm text-destructive">
+            <Text role="alert" as="p" tone="danger" textRole="body-main">
               {error || saveError}
-            </p>
+            </Text>
           )}
           <DialogFooter>
             <Button

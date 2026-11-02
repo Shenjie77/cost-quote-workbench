@@ -1,3 +1,10 @@
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
+import { Textarea } from '@/components/ui/textarea';
 import { DiscountAllocationEditor } from './discount-allocation-editor';
 import { groupedLines } from './quotation-groups';
 import { quotationProjectName } from './template-text';
@@ -505,7 +512,7 @@ export function QuoteView({
   const addManualHistory = () => setShowManualHistory(true);
 
   return (
-    <div className="wb-page-stack gap-3">
+    <Surface as="div" variant="page">
       <QuoteExportDialog
         open={showExport}
         onOpenChange={setShowExport}
@@ -541,13 +548,24 @@ export function QuoteView({
         onManage={() => onOpenMasterData('quote-templates')}
         busy={exportInProgress}
       />
-      <div className="wb-panel flex flex-wrap items-center gap-2 px-3 py-2">
-        <label htmlFor="quotation-project-name" className="text-xs font-medium">
+      <Surface
+        as="div"
+        variant="panel"
+        padded
+        className="flex flex-wrap items-center gap-2"
+      >
+        <Surface
+          htmlFor="quotation-project-name"
+          as="label"
+          variant="field"
+          textRole="body-small"
+        >
           Quotation project name
-        </label>
-        <input
+        </Surface>
+        <Input
+          variant="grid"
           id="quotation-project-name"
-          className="h-8 min-w-48 flex-1 border-0 bg-transparent px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+          className="min-w-48 flex-1"
           maxLength={500}
           value={pricing.quotationProjectName ?? ''}
           placeholder={project.name}
@@ -559,11 +577,16 @@ export function QuoteView({
             }))
           }
         />
-        <span className="text-xs text-muted-foreground">
+        <Text as="span" tone="muted" textRole="body-small">
           Customer documents only · blank uses the project name
-        </span>
-      </div>
-      <section className="wb-panel min-w-0" aria-label="Quotation pricing">
+        </Text>
+      </Surface>
+      <Surface
+        as="section"
+        variant="panel"
+        className="min-w-0"
+        aria-label="Quotation pricing"
+      >
         <SectionHeading
           index="01"
           title="Pricing Parameters"
@@ -594,7 +617,9 @@ export function QuoteView({
                 }
               >
                 <Save /> Save Pricing{' '}
-                <span className="text-xs opacity-60">保存定价</span>
+                <Text as="span" textRole="body-small">
+                  保存定价
+                </Text>
               </Button>
               <Button
                 onClick={() => setShowExport(true)}
@@ -603,7 +628,9 @@ export function QuoteView({
               >
                 {isExporting ? <Download /> : <FileCheck2 />}
                 {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
-                <span className="text-xs opacity-60">生成报价</span>
+                <Text as="span" textRole="body-small">
+                  生成报价
+                </Text>
               </Button>
               <SimpleCostExportDialog
                 key={`${project.id}-${activeVersion}`}
@@ -632,51 +659,43 @@ export function QuoteView({
         />
         {/* Keep editable commercial terms beside their results, following the Cost Grid cell layout. */}
         <Table
-          className="min-w-[700px] table-fixed text-xs"
+          className="min-w-[700px] table-fixed"
           aria-label="Pricing parameters"
         >
           <TableHeader>
-            <TableRow className="h-10 bg-primary text-white hover:bg-primary">
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
+            <TableRow tone="total" className="h-10">
+              <TableHead variant="label" className="whitespace-normal">
                 <BiText
-                  zhClassName="text-white/70"
+                  zhTone="inverse"
                   en="Cost with Risk"
                   zh="含风险项目总成本"
                 />
               </TableHead>
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
+              <TableHead variant="label" className="whitespace-normal">
                 <BiText
-                  zhClassName="text-white/70"
+                  zhTone="inverse"
                   en="Line Total"
                   zh="明细合计（折扣前）"
                 />
               </TableHead>
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
+              <TableHead variant="label" className="whitespace-normal">
                 <label htmlFor="pricing-discount">
-                  <BiText
-                    zhClassName="text-white/70"
-                    en="Discount (SGD)"
-                    zh="折扣金额"
-                  />
+                  <BiText zhTone="inverse" en="Discount (SGD)" zh="折扣金额" />
                 </label>
               </TableHead>
-              <TableHead className="border-r border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
-                <BiText
-                  zhClassName="text-white/70"
-                  en="Quote Total"
-                  zh="最终报价"
-                />
+              <TableHead variant="label" className="whitespace-normal">
+                <BiText zhTone="inverse" en="Quote Total" zh="最终报价" />
               </TableHead>
-              <TableHead className="px-3 py-1.5 text-xs whitespace-normal text-white">
+              <TableHead variant="label" className="whitespace-normal">
                 <BiText
-                  zhClassName="text-white/70"
+                  zhTone="inverse"
                   en="Actual Sales GP"
                   zh="销售毛利率（扣除分成）"
                 />
               </TableHead>
-              <TableHead className="border-l border-white/20 px-3 py-1.5 text-xs whitespace-normal text-white">
+              <TableHead variant="label" className="whitespace-normal">
                 <BiText
-                  zhClassName="text-white/70"
+                  zhTone="inverse"
                   en="Grand Total"
                   zh="全部章节折后总报价"
                 />
@@ -684,15 +703,22 @@ export function QuoteView({
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow className="h-8 hover:bg-transparent">
-              <TableCell className="financial-numeral border-r bg-muted/30 px-3 text-right font-semibold">
+            <TableRow className="h-8">
+              <TableCell
+                variant="numeric"
+                className="financial-numeral text-right"
+              >
                 {formatSgd(result.cost)}
               </TableCell>
-              <TableCell className="financial-numeral border-r bg-muted/30 px-3 text-right font-semibold">
+              <TableCell
+                variant="numeric"
+                className="financial-numeral text-right"
+              >
                 {result.valid ? formatSgd(result.listPrice) : '—'}
               </TableCell>
-              <TableCell className="border-r bg-blue-50/30 p-0">
+              <TableCell variant="editable">
                 <Input
+                  variant="grid"
                   id="pricing-discount"
                   disabled={isApplyingRates || isExporting || exportInProgress}
                   type="number"
@@ -700,23 +726,37 @@ export function QuoteView({
                   step="0.01"
                   value={pricing.discount}
                   onChange={(event) => updateDiscount(event.target.value)}
-                  className="financial-numeral h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-right text-xs text-blue-700 shadow-none focus-visible:bg-background focus-visible:ring-1"
+                  className="financial-numeral w-full min-w-0 text-right"
                 />
               </TableCell>
-              <TableCell className="financial-numeral border-r bg-accent/60 px-3 text-right font-semibold text-primary">
+              <TableCell
+                variant="numeric"
+                className="financial-numeral text-right"
+              >
                 {formatSgd(result.quoteBeforeTax)}
               </TableCell>
-              <TableCell className="financial-numeral bg-accent/60 px-3 text-right">
-                <span className="block font-semibold text-primary">
+              <TableCell
+                variant="numeric"
+                className="financial-numeral text-right"
+              >
+                <Text as="span" tone="primary" className="block">
                   {result.valid
                     ? `${result.grossMarginPercent.toFixed(2)}%`
                     : '—'}
-                </span>
-                <span className="block text-xs text-muted-foreground">
+                </Text>
+                <Text
+                  as="span"
+                  tone="muted"
+                  textRole="body-small"
+                  className="block"
+                >
                   {result.valid ? formatSgd(result.salesGrossProfit) : '—'}
-                </span>
+                </Text>
               </TableCell>
-              <TableCell className="financial-numeral border-l bg-accent/60 px-3 text-right font-semibold text-primary">
+              <TableCell
+                variant="numeric"
+                className="financial-numeral text-right"
+              >
                 {customerPreview === undefined
                   ? '—'
                   : formatSgd(customerPreview.total)}
@@ -745,7 +785,7 @@ export function QuoteView({
           disabled={isExporting || exportInProgress || isApplyingRates}
           embedded
         />
-        <div className="border-t text-xs">
+        <Surface as="div" variant="footer" textRole="body-small">
           <ProfitShareSummary
             result={result}
             masterDataRevision={pricing.profitShareMasterDataRevision}
@@ -781,35 +821,42 @@ export function QuoteView({
                 : undefined
             }
           />
-        </div>
+        </Surface>
         {outputErrors.length > 0 ? (
-          <p role="alert" className="px-3 pb-3 text-xs text-red-700">
+          <Surface
+            role="alert"
+            as="p"
+            variant="body"
+            tone="danger"
+            textRole="body-small"
+          >
             Validation · 输入校验：{outputErrors[0]}
-          </p>
+          </Surface>
         ) : null}
-      </section>
-      <section className="wb-panel overflow-hidden">
+      </Surface>
+      <Surface as="section" variant="panel" className="overflow-hidden">
         <SectionHeading index="02" title="Maintenance" titleZh="维保报价" />
         {grossDocument?.maintenance.length ? (
-          <div className="overflow-x-auto border-b">
-            <h3 className="px-3 py-2 text-xs font-medium">
+          <Surface as="div" variant="item" className="overflow-x-auto">
+            <Surface as="h3" variant="header">
               Maintenance quotation groups
-            </h3>
-            <table className="w-full min-w-[540px] text-xs">
-              <thead className="bg-muted/40 text-left">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Description</th>
-                  <th className="w-24 px-2 py-2 font-medium">Equipment unit</th>
-                  <th className="px-2 py-2 font-medium">Section / Category</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
+            </Surface>
+            <Table className="w-full min-w-[540px]">
+              <TableHeader className="text-left">
+                <TableRow>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="w-24">Equipment unit</TableHead>
+                  <TableHead>Category / 成本分类</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {grossDocument.maintenance.map((line) => (
-                  <tr key={line.id}>
-                    <td className="px-3 py-1">{line.description}</td>
-                    <td>
-                      <input
-                        className="h-8 w-full border-0 bg-transparent px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                  <TableRow key={line.id}>
+                    <TableCell>{line.description}</TableCell>
+                    <TableCell>
+                      <Input
+                        variant="grid"
+                        className="w-full"
                         aria-label={`Equipment unit for ${line.id}`}
                         maxLength={80}
                         disabled={exportInProgress || !onMaintenanceUnitChange}
@@ -825,8 +872,8 @@ export function QuoteView({
                           )
                         }
                       />
-                    </td>
-                    <td className="w-80 px-1">
+                    </TableCell>
+                    <TableCell className="w-80">
                       <QuoteGroupFields
                         label={line.description}
                         disabled={exportInProgress}
@@ -851,20 +898,20 @@ export function QuoteView({
                           }))
                         }
                       />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </Surface>
         ) : null}
         <MaintenanceSummary
           value={maintenance ?? emptyMaintenance()}
           serviceQuote={result.quoteBeforeTax}
           details
         />
-      </section>
-      <section className="wb-panel">
+      </Surface>
+      <Surface as="section" variant="panel">
         <SectionHeading
           index="03"
           title="Quote Assumptions"
@@ -879,7 +926,9 @@ export function QuoteView({
                 onClick={() => onOpenMasterData('assumptions')}
               >
                 Manage library{' '}
-                <span className="text-xs opacity-60">管理假设库</span>
+                <Text as="span" textRole="body-small">
+                  管理假设库
+                </Text>
               </Button>
               <Button
                 size="sm"
@@ -897,7 +946,9 @@ export function QuoteView({
                 }
               >
                 <Plus /> Add for this quote{' '}
-                <span className="text-xs opacity-60">本次新增</span>
+                <Text as="span" textRole="body-small">
+                  本次新增
+                </Text>
               </Button>
             </div>
           }
@@ -912,9 +963,9 @@ export function QuoteView({
           setAssumptions={setQuoteAssumptions}
         />
         <div className="wb-table-scroll">
-          <Table className="min-w-[640px] text-xs [&_td]:border [&_td]:p-0 [&_th]:border [&_th]:h-8">
+          <Table className="min-w-[640px] [&_th]:h-8">
             <TableHeader>
-              <TableRow className="bg-muted/60">
+              <TableRow tone="subtotal">
                 <TableHead className="w-28">Include</TableHead>
                 <TableHead>Assumption</TableHead>
                 <TableHead className="w-20 text-center">Action</TableHead>
@@ -924,7 +975,8 @@ export function QuoteView({
               {effectiveQuoteAssumptions.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
-                    <button
+                    <Button
+                      variant="ghost"
                       type="button"
                       onClick={() =>
                         setQuoteAssumptions((rows) =>
@@ -939,21 +991,21 @@ export function QuoteView({
                       <StatusBadge tone={item.included ? 'green' : 'gray'}>
                         {item.included ? 'Included' : 'Excluded'}
                       </StatusBadge>
-                    </button>
+                    </Button>
                     {item.sourceAssumptionId && (
-                      <small className="mt-1 block text-muted-foreground">
+                      <Text as="small" tone="muted" className="mt-1 block">
                         {item.sourceText !== undefined &&
                         (item.text !== item.sourceText ||
                           item.textZh !== (item.sourceTextZh ?? ''))
                           ? 'Customized'
                           : 'Library reference'}
-                      </small>
+                      </Text>
                     )}
                   </TableCell>
                   <TableCell>
-                    <textarea
+                    <Textarea
                       rows={1}
-                      className="block min-h-8 w-full resize-y border-0 bg-transparent px-2 py-1 text-xs [field-sizing:content] focus-visible:outline-2 focus-visible:outline-ring"
+                      className="block min-h-8 w-full resize-y [field-sizing:content]"
                       disabled={exportInProgress}
                       aria-label="Quotation assumption text"
                       maxLength={2000}
@@ -988,9 +1040,9 @@ export function QuoteView({
             </TableBody>
           </Table>
         </div>
-      </section>
+      </Surface>
 
-      <section className="wb-panel">
+      <Surface as="section" variant="panel">
         <SectionHeading
           index="04"
           title="Quotation History"
@@ -1018,14 +1070,20 @@ export function QuoteView({
         <div className="wb-table-scroll">
           <Table className="min-w-[1180px]">
             <TableHeader>
-              <TableRow className="bg-muted/60">
+              <TableRow tone="subtotal">
                 <TableHead>Quote No.</TableHead>
                 <TableHead>Generated</TableHead>
                 <TableHead>Cost Version</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Cost</TableHead>
-                <TableHead className="text-right">Quote Total</TableHead>
-                <TableHead className="text-right">Sales GP</TableHead>
+                <TableHead variant="numeric" className="text-right">
+                  Cost
+                </TableHead>
+                <TableHead variant="numeric" className="text-right">
+                  Quote Total
+                </TableHead>
+                <TableHead variant="numeric" className="text-right">
+                  Sales GP
+                </TableHead>
                 <TableHead>Note</TableHead>
                 <TableHead className="w-16">Action</TableHead>
               </TableRow>
@@ -1034,14 +1092,18 @@ export function QuoteView({
               {quoteHistory.length ? (
                 quoteHistory.map((record) => (
                   <TableRow key={record.id}>
-                    <TableCell className="financial-numeral font-semibold">
+                    <TableCell className="financial-numeral">
                       {record.quoteNumber}
                       {record.templateSnapshot && (
-                        <details className="mt-1 max-w-sm text-xs font-normal">
-                          <summary className="cursor-pointer text-muted-foreground">
+                        <Disclosure className="mt-1 max-w-sm">
+                          <DisclosureSummary className="cursor-pointer">
                             Saved T&C & assumptions / 当时报价条款
-                          </summary>
-                          <div className="space-y-2 whitespace-pre-wrap py-2">
+                          </DisclosureSummary>
+                          <Surface
+                            as="div"
+                            variant="body"
+                            className="space-y-2 whitespace-pre-wrap"
+                          >
                             <p>{record.templateSnapshot.name}</p>
                             {record.quotationProjectName && (
                               <p>Project: {record.quotationProjectName}</p>
@@ -1061,11 +1123,11 @@ export function QuoteView({
                                 )}
                               </p>
                             ))}
-                          </div>
-                        </details>
+                          </Surface>
+                        </Disclosure>
                       )}
                     </TableCell>
-                    <TableCell className="financial-numeral text-xs">
+                    <TableCell className="financial-numeral">
                       {new Date(record.generatedAt).toLocaleString('en-SG')}
                     </TableCell>
                     <TableCell>{record.costVersion}</TableCell>
@@ -1098,15 +1160,24 @@ export function QuoteView({
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="financial-numeral text-right">
+                    <TableCell
+                      variant="numeric"
+                      className="financial-numeral text-right"
+                    >
                       {formatSgd(record.costAmount)}
                     </TableCell>
-                    <TableCell className="financial-numeral text-right">
+                    <TableCell
+                      variant="numeric"
+                      className="financial-numeral text-right"
+                    >
                       {formatSgd(
                         record.customerQuoteAmount ?? record.quoteBeforeTax,
                       )}
                     </TableCell>
-                    <TableCell className="financial-numeral text-right">
+                    <TableCell
+                      variant="numeric"
+                      className="financial-numeral text-right"
+                    >
                       {record.grossMarginPercent.toFixed(2)}%
                     </TableCell>
                     <TableCell>
@@ -1142,10 +1213,7 @@ export function QuoteView({
                 ))
               ) : (
                 <TableRow>
-                  <TableCell
-                    colSpan={9}
-                    className="h-20 text-center text-xs text-muted-foreground"
-                  >
+                  <TableCell colSpan={9} className="h-20 text-center">
                     No quotation history yet / 暂无报价历史
                   </TableCell>
                 </TableRow>
@@ -1153,7 +1221,7 @@ export function QuoteView({
             </TableBody>
           </Table>
         </div>
-      </section>
-    </div>
+      </Surface>
+    </Surface>
   );
 }

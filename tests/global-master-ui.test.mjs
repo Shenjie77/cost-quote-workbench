@@ -145,7 +145,7 @@ test('global RE Type editor renders without any project, lock or workspace props
     markup,
     /Current project|当前项目：|Project-owned|返回报价|按项目独立保存/,
   );
-  assert.doesNotMatch(markup, /fieldset disabled/);
+  assert.doesNotMatch(markup, /<fieldset[^>]*disabled/);
 });
 
 test('workflow master editor edits requirements but has no project progress control', () => {
@@ -248,7 +248,7 @@ test('load error preserves tab navigation and disables data mutation', () => {
     }),
   );
   assert.match(markup, /offline/);
-  assert.match(markup, /fieldset disabled/);
+  assert.match(markup, /<fieldset[^>]*disabled/);
   // Assert actual navigation controls, independent of where the save toolbar sits.
   const tabs = [
     ...markup.matchAll(/<button\b[^>]*role="tab"[^>]*>[\s\S]*?<\/button>/g),

@@ -1,4 +1,13 @@
 'use client';
+
+import {
+  Text,
+  Surface,
+  DisclosureSummary,
+  Disclosure,
+} from '@/components/ui/presentation';
+import { CheckInput } from '@/components/ui/check-input';
+import { SelectField } from '@/components/ui/select-field';
 import { formatMoney } from '@/lib/money';
 /** Upload source evidence first, then require explicit confirmation before changing maintenance prices. */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -202,7 +211,7 @@ export function ServiceQuoteImport({
     formatMoney(parts.reduce((sum, part) => sum + (part[key] ?? 0), 0));
   return (
     <>
-      <input
+      <Input
         type="file"
         ref={picker}
         accept=".xlsx"
@@ -224,20 +233,22 @@ export function ServiceQuoteImport({
         onBrowse={() => picker.current?.click()}
         onRefresh={() => void refresh()}
       >
-        <p className="text-xs text-muted-foreground">
+        <Text as="p" tone="muted" textRole="body-small">
           拖入报价文件，自动核对 LPB 与 Customer
           金额；确认年数、实际年份、设备型号和 Node 数量后导入。采用 Customer
           实际报价。
-        </p>
+        </Text>
         {error && (
-          <p role="alert" className="text-xs text-destructive">
+          <Text role="alert" as="p" tone="danger" textRole="body-small">
             {error}
-          </p>
+          </Text>
         )}
         {files.map((file) => (
-          <div
+          <Surface
             key={file.id}
-            className="flex flex-wrap items-center gap-2 text-xs"
+            as="div"
+            textRole="body-small"
+            className="flex flex-wrap items-center gap-2"
           >
             <a
               className="underline"
@@ -260,18 +271,18 @@ export function ServiceQuoteImport({
             <Button
               size="sm"
               variant="ghost"
-              className="text-destructive"
+
               disabled={busy}
               aria-label={`删除文件 ${file.originalName}`}
               onClick={() => void removeFile(file)}
             >
               删除
             </Button>
-          </div>
+          </Surface>
         ))}
       </ProjectFileDropzone>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent size="xl" className="overflow-y-auto">
           <DialogHeader>
             <DialogTitle>确认维保报价识别结果</DialogTitle>
             <DialogDescription>
@@ -281,7 +292,11 @@ export function ServiceQuoteImport({
               台数。
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-wrap items-center gap-3 text-xs">
+          <Surface
+            as="div"
+            textRole="body-small"
+            className="flex flex-wrap items-center gap-3"
+          >
             <label>
               实际开始年份
               <Input
@@ -307,38 +322,43 @@ export function ServiceQuoteImport({
               />
             </label>
             <label>
-              <input
+              <CheckInput
                 type="checkbox"
                 checked={yearsConfirmed}
                 onChange={(event) => setYearsConfirmed(event.target.checked)}
               />{' '}
               已确认实际年份与年数
             </label>
-          </div>
-          <p className="text-xs">
+          </Surface>
+          <Text as="p" textRole="body-small">
             LPB 单价 × 数量：{total('computed')} · LPB 总额：{total('lpb')} ·
             Customer 总额：{total('customer')}
-          </p>
+          </Text>
           {hasDifference && (
-            <label className="text-xs text-amber-800">
-              <input
+            <Surface
+              as="label"
+              variant="field"
+              tone="warning"
+              textRole="body-small"
+            >
+              <CheckInput
                 type="checkbox"
                 checked={discountConfirmed}
                 onChange={(event) => setDiscountConfirmed(event.target.checked)}
               />{' '}
               已核对折扣／金额差异，采用 Customer 实际报价
-            </label>
+            </Surface>
           )}
 
-          <fieldset className="space-y-2 rounded border p-3">
-            <legend className="px-1 text-xs font-medium">
+          <Surface as="fieldset" variant="panel" padded className="space-y-2">
+            <Surface as="legend" variant="body" textRole="body-small">
               合并识别条目 / 平台维保
-            </legend>
-            <p className="text-xs text-muted-foreground">
+            </Surface>
+            <Text as="p" tone="muted" textRole="body-small">
               在下方设备名前勾选，再点击 Group。所选设备的 CT、SPMS
               分别汇总；组名作为 Model 导入，原始成员写入
               Remark，平台数量必须重新确认。
-            </p>
+            </Text>
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
@@ -423,8 +443,8 @@ export function ServiceQuoteImport({
                 撤销合并
               </Button>
             </div>
-          </fieldset>
-          <Table className="text-xs">
+          </Surface>
+          <Table>
             <TableHeader>
               <TableRow>
                 {[
@@ -468,7 +488,7 @@ export function ServiceQuoteImport({
                 return (
                   <TableRow key={group.key}>
                     <TableCell>
-                      <input
+                      <CheckInput
                         type="checkbox"
                         aria-label={`Group ${group.model}`}
                         checked={group.rows.every((row) =>
@@ -490,12 +510,16 @@ export function ServiceQuoteImport({
                       {group.model}
                       {members.length > 0 && (
                         <details>
-                          <summary className="cursor-pointer text-xs">
+                          <DisclosureSummary className="cursor-pointer">
                             组合成员 ({members.length})
-                          </summary>
-                          <div className="whitespace-pre-line text-xs">
+                          </DisclosureSummary>
+                          <Surface
+                            as="div"
+                            textRole="body-small"
+                            className="whitespace-pre-line"
+                          >
                             {members.join('\n')}
-                          </div>
+                          </Surface>
                         </details>
                       )}
                     </TableCell>
@@ -525,8 +549,8 @@ export function ServiceQuoteImport({
               })}
             </TableBody>
           </Table>
-          <details className="rounded border p-3">
-            <summary className="cursor-pointer text-xs font-medium">
+          <Disclosure>
+            <DisclosureSummary className="cursor-pointer">
               原始明细与校验（{parts.length} 行，
               {
                 parts.filter(
@@ -534,12 +558,12 @@ export function ServiceQuoteImport({
                 ).length
               }{' '}
               项待处理）
-            </summary>
-            <p className="py-2 text-xs text-muted-foreground">
+            </DisclosureSummary>
+            <Surface as="p" variant="body" tone="muted" textRole="body-small">
               CT/SPMS 自动继承 Subquotation 分类。LPB
               核对允许显示单价舍入造成的差额；以表中总额核对 Customer 实际报价。
-            </p>
-            <Table className="min-w-[1000px] text-xs">
+            </Surface>
+            <Table className="min-w-[1000px]">
               <TableHeader>
                 <TableRow>
                   {[
@@ -583,7 +607,7 @@ export function ServiceQuoteImport({
                       />
                     </TableCell>
                     <TableCell>
-                      <select
+                      <SelectField
                         aria-label={`Service source row ${part.row}`}
                         value={part.service ?? ''}
                         disabled={preview?.parts[index]?.service != null}
@@ -605,7 +629,7 @@ export function ServiceQuoteImport({
                         <option value="">请选择</option>
                         <option>CT</option>
                         <option>SPMS</option>
-                      </select>
+                      </SelectField>
                     </TableCell>
                     <TableCell>{part.quantity}</TableCell>
                     <TableCell>{formatMoney(part.unitPrice) ?? '—'}</TableCell>
@@ -616,23 +640,23 @@ export function ServiceQuoteImport({
                         ? ((1 - part.customer / part.lpb) * 100).toFixed(2)
                         : '—'}
                     </TableCell>
-                    <TableCell className="whitespace-normal text-destructive">
+                    <TableCell variant="label" className="whitespace-normal">
                       {part.issue}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </details>
-          <p className="text-xs text-muted-foreground">
+          </Disclosure>
+          <Text as="p" tone="muted" textRole="body-small">
             年度单台价格向上取整到两位小数；由此产生的分差不会改写原
             Excel。确认导入将追加到当前版本。Node
             数量仅在各年度子项一致时预填；请核实后再确认。
-          </p>
+          </Text>
           {error && (
-            <p role="alert" className="text-xs text-destructive">
+            <Text role="alert" as="p" tone="danger" textRole="body-small">
               {error}
-            </p>
+            </Text>
           )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>

@@ -1,4 +1,7 @@
 'use client';
+
+import { Text, Surface } from '@/components/ui/presentation';
+import { Textarea } from '@/components/ui/textarea';
 import { formatMoney } from '@/lib/money';
 /** Preview and atomically update clipboard rows using the same annual-price rules as the grid. */
 import { useState } from 'react';
@@ -47,7 +50,7 @@ export function MaintenanceBulkDialog({
       <DialogTrigger render={<Button variant="outline" disabled={disabled} />}>
         Bulk Entry / 批量录入
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>批量更新维保设备</DialogTitle>
           <DialogDescription>
@@ -57,7 +60,7 @@ export function MaintenanceBulkDialog({
             自动向上取整至两位小数，合计自动计算。
           </DialogDescription>
         </DialogHeader>
-        <textarea
+        <Textarea
           aria-label="Maintenance bulk rows"
           value={text}
           maxLength={1000000}
@@ -65,23 +68,27 @@ export function MaintenanceBulkDialog({
             setText(event.target.value);
             setPreview(null);
           }}
-          className="h-48 w-full resize-y rounded border bg-background p-2 font-mono text-xs"
+          className="h-48 w-full resize-y"
           placeholder={
             'Model\tCT\tSPMS\tQTY\tDuration\tRemark\tDescription\nRouter A\t100\t50\t2\t3\t'
           }
         />
         {error && (
-          <p role="alert" className="text-sm text-destructive">
+          <Text role="alert" as="p" tone="danger" textRole="body-main">
             {error}
-          </p>
+          </Text>
         )}
         {preview?.errors.length ? (
-          <p role="alert" className="text-sm text-destructive">
+          <Text role="alert" as="p" tone="danger" textRole="body-main">
             {preview.errors.join('\n')}
-          </p>
+          </Text>
         ) : null}
         {preview && !preview.errors.length ? (
-          <div className="max-h-40 overflow-auto text-xs">
+          <Surface
+            as="div"
+            textRole="body-small"
+            className="max-h-40 overflow-auto"
+          >
             {preview.rows.map((row, index) => (
               <p key={row.id}>
                 {index + 1}. {row.model || '—'} · CT {formatMoney(row.ct)} +
@@ -89,7 +96,7 @@ export function MaintenanceBulkDialog({
                 {row.durationYears} years
               </p>
             ))}
-          </div>
+          </Surface>
         ) : null}
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>

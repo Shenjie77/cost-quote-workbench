@@ -1,15 +1,25 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { registerHooks } from 'node:module';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync } from 'node:fs';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const hooks = registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier.startsWith('@/')) {
+      const base = new URL('../' + specifier.slice(2), import.meta.url);
+      for (const ext of ['.ts', '.tsx']) {
+        const url = pathToFileURL(fileURLToPath(base) + ext);
+        if (existsSync(url)) return nextResolve(url.href, context);
+      }
+    }
+    return nextResolve(specifier, context);
+  },
   load(url, context, nextLoad) {
-    if (!url.endsWith('/features/workbench/open-project-tabs.tsx'))
+    if (!url.endsWith('.tsx') || url.includes('/node_modules/'))
       return nextLoad(url, context);
     return {
       format: 'module',
@@ -26,6 +36,7 @@ const hooks = registerHooks({
 });
 const { OpenProjectTabs } =
   await import('../features/workbench/open-project-tabs.tsx');
+const { Button } = await import('../components/ui/button.tsx');
 hooks.deregister();
 
 const projects = [
@@ -99,7 +110,7 @@ test('loading disables both project selection and tab closing', () => {
     onClose: () => calls.push('close'),
   });
   const buttons = walk(OpenProjectTabs(input)).filter(
-    (node) => node.type === 'button',
+    (node) => node.type === Button,
   );
   assert.equal(buttons.length, 4);
   for (const button of buttons) {
@@ -110,5 +121,5 @@ test('loading disables both project selection and tab closing', () => {
   const html = renderToStaticMarkup(
     React.createElement(OpenProjectTabs, input),
   );
-  assert.equal((html.match(/disabled=""/g) || []).length, 4);
+  assert.equal((html.match(/ disabled=""/g) || []).length, 4);
 });

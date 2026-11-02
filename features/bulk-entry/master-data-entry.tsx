@@ -1,3 +1,4 @@
+import { Surface } from '@/components/ui/presentation';
 import { useEffect } from 'react';
 import { historyFieldValue } from '../master-data/history-fields';
 import { BulkEntryPage } from './bulk-entry-page';
@@ -32,8 +33,10 @@ export function MasterDataBulkEntryPage({
   const failure = states.find((s) => s?.error)?.error;
   if (states.some((s) => !s?.record || s.loading))
     return (
-      <div
-        className="fixed inset-0 z-[90] flex flex-col items-center justify-center gap-3 bg-background"
+      <Surface
+        as="div"
+        variant="inset"
+        className="fixed inset-0 z-[90] flex flex-col items-center justify-center gap-3"
         aria-label="Loading Master Data"
       >
         <p>{failure || 'Loading Master Data input sheets…'}</p>
@@ -49,7 +52,7 @@ export function MasterDataBulkEntryPage({
             Retry
           </Button>
         )}
-      </div>
+      </Surface>
     );
   const sheets: EntrySheet[] = tabs.map((tab) => ({
     id: tab.value,

@@ -1,4 +1,18 @@
 'use client';
+
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
+import { CheckInput } from '@/components/ui/check-input';
+import { SelectField } from '@/components/ui/select-field';
+import { TableHeader } from '@/components/ui/table';
+import { TableRow } from '@/components/ui/table';
+import { TableHead } from '@/components/ui/table';
+import { TableBody } from '@/components/ui/table';
+import { TableCell } from '@/components/ui/table';
 import { Table } from '@/components/ui/table';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -31,8 +45,7 @@ const labels: Record<ReviewKind, string> = {
   QUOTE_DECISION: '报价决策',
   BID_REVIEW: '标书答复评审',
 };
-const selectClass =
-  'h-8 rounded-md border border-input bg-card px-2.5 text-xs focus-visible:outline-2 focus-visible:outline-ring';
+const selectClass = 'h-8';
 export function SsrView({
   value,
   onChange,
@@ -111,61 +124,91 @@ export function SsrView({
     (item) => currentSubmissionIds.has(item.id),
   );
   return (
-    <div className="wb-page-stack">
-      <div className="wb-panel px-3 py-2 text-xs">
+    <Surface as="div" variant="page">
+      <Surface as="div" variant="panel" padded textRole="body-small">
         当前流程成本版本：<strong>{baseline.code}</strong> · {baseline.state}。
         {baseline.state !== 'Confirmed'
           ? 'DTRB · 本版成本待确认。'
           : '本版成本已确认。'}
         查看历史成本版本不会改变本轮流程。
-      </div>
-      <section className="wb-panel space-y-3 p-3">
+      </Surface>
+      <Surface as="section" variant="panel" padded className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-primary">
+          <Text as="h2" tone="primary">
             项目范围与正式记录
-          </h2>
-          <label className="flex items-center gap-2 text-sm">
-            <input
+          </Text>
+          <Surface
+            as="label"
+            variant="inline-field"
+            textRole="body-main"
+            className="flex items-center"
+          >
+            <CheckInput
               type="checkbox"
               checked={value.enabled}
               onChange={(e) => edit({ enabled: e.target.checked })}
             />
             启用 SSR 流程检查
-          </label>
+          </Surface>
         </div>
-        <p className="text-sm text-muted-foreground">
+        <Text as="p" tone="muted" textRole="body-main">
           先在公司平台完成申请，再登记申请号和依据。系统据此跟踪条件、责任人和日期；启用后，报价导出需有适用的报价决策。
-        </p>
+        </Text>
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="block space-y-1 text-xs">
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="block"
+          >
             Proposal 编号
             <Input
               value={value.proposalNumber}
               onChange={(e) => edit({ proposalNumber: e.target.value })}
             />
-          </label>
-          <label className="block space-y-1 text-xs">
+          </Surface>
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="block"
+          >
             公司平台记录地址
             <Input
               value={value.companyUrl}
               onChange={(e) => edit({ companyUrl: e.target.value })}
             />
-          </label>
-          <label className="block space-y-1 text-xs">
+          </Surface>
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="block"
+          >
             简短 Scope
             <Input
               value={value.scopeBrief}
               onChange={(e) => edit({ scopeBrief: e.target.value })}
             />
-          </label>
-          <label className="block space-y-1 text-xs">
+          </Surface>
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="block"
+          >
             产品方案 / TD 人力计划版本或文件号
             <Input
               value={value.technicalBasis}
               onChange={(e) => edit({ technicalBasis: e.target.value })}
             />
-          </label>
-          <label className="block space-y-1 text-xs">
+          </Surface>
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="block"
+          >
             必需专业领域（用逗号分隔）
             <Input
               value={domainsText}
@@ -183,11 +226,16 @@ export function SsrView({
                 })
               }
             />
-          </label>
-          <label className="block space-y-1 text-xs">
+          </Surface>
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="block"
+          >
             业务类型
-            <select
-              className={selectClass + ' ml-3'}
+            <SelectField
+              className={selectClass + ''}
               value={value.mode}
               onChange={(e) =>
                 edit({ mode: e.target.value as SsrWorkspace['mode'] })
@@ -195,31 +243,39 @@ export function SsrView({
             >
               <option value="service">服务报价</option>
               <option value="tender">项目投标</option>
-            </select>
-          </label>
+            </SelectField>
+          </Surface>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <Text as="p" tone="muted" textRole="body-small">
           DTRB → DRB → 概算申请与专业评审并行 →
           报价决策。投标还需完成标书答复评审。成本或范围变化会显示原评审已不适用。
-        </p>
-      </section>
+        </Text>
+      </Surface>
       {items.length > 0 && (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
-          <h2 className="mb-2 font-semibold">需要跟进</h2>
+        <Surface
+          as="section"
+          variant="notice"
+          tone="warning"
+          textRole="body-small"
+        >
+          <h2 className="mb-2">需要跟进</h2>
           {items.map((i) => (
-            <button
-              className="block py-1 text-left"
+            <Button
+              variant="ghost"
+              className="block text-left"
               key={i.id}
               onClick={() => setSelected(i.id)}
             >
               {i.title}：{i.detail}
-            </button>
+            </Button>
           ))}
-        </section>
+        </Surface>
       )}
       {value.mode === 'tender' && (
-        <section className="wb-panel space-y-3 p-3">
-          <h2 className="text-sm font-semibold text-primary">各专业标书答复</h2>
+        <Surface as="section" variant="panel" padded className="space-y-3">
+          <Text as="h2" tone="primary">
+            各专业标书答复
+          </Text>
           <div className="grid gap-3 md:grid-cols-2">
             {(
               [
@@ -232,7 +288,13 @@ export function SsrView({
                 'dueDate',
               ] as const
             ).map((k, i) => (
-              <label key={k} className="block space-y-1 text-xs">
+              <Surface
+                key={k}
+                as="label"
+                variant="field"
+                textRole="body-small"
+                className="block"
+              >
                 {
                   [
                     '条款编号',
@@ -249,7 +311,7 @@ export function SsrView({
                   value={bid[k]}
                   onChange={(e) => setBid({ ...bid, [k]: e.target.value })}
                 />
-              </label>
+              </Surface>
             ))}
           </div>
           <Button
@@ -276,10 +338,10 @@ export function SsrView({
           >
             添加条款
           </Button>
-          <div className="wb-table-scroll rounded-lg border">
-            <Table className="w-full text-sm">
-              <thead>
-                <tr>
+          <Surface as="div" variant="panel" className="wb-table-scroll">
+            <Table className="w-full">
+              <TableHeader>
+                <TableRow>
                   {[
                     '条款',
                     '要求',
@@ -289,21 +351,18 @@ export function SsrView({
                     '期限',
                     '',
                   ].map((x) => (
-                    <th
-                      className="bg-muted/50 p-3 text-left text-xs font-semibold text-muted-foreground"
-                      key={x}
-                    >
+                    <TableHead className="text-left" key={x}>
                       {x}
-                    </th>
+                    </TableHead>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {value.bidResponses.map((r) => (
-                  <tr key={r.id} className="border-t">
-                    <td>{r.clause}</td>
-                    <td>{r.requirement}</td>
-                    <td>
+                  <TableRow key={r.id}>
+                    <TableCell>{r.clause}</TableCell>
+                    <TableCell>{r.requirement}</TableCell>
+                    <TableCell>
                       <Input
                         aria-label="负责领域"
                         value={r.domain}
@@ -330,8 +389,8 @@ export function SsrView({
                           })
                         }
                       />
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <Input
                         aria-label="答复"
                         value={r.response}
@@ -345,8 +404,8 @@ export function SsrView({
                           })
                         }
                       />
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <Input
                         aria-label="偏差"
                         value={r.deviation}
@@ -360,8 +419,8 @@ export function SsrView({
                           })
                         }
                       />
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <Input
                         aria-label="答复期限"
                         type="date"
@@ -376,8 +435,8 @@ export function SsrView({
                           })
                         }
                       />
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <Button
                         variant="ghost"
                         onClick={() =>
@@ -390,23 +449,28 @@ export function SsrView({
                       >
                         移除
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
+              </TableBody>
             </Table>
-          </div>
-        </section>
+          </Surface>
+        </Surface>
       )}
-      <section className="wb-panel space-y-3 p-3">
-        <h2 className="text-sm font-semibold text-primary">
+      <Surface as="section" variant="panel" padded className="space-y-3">
+        <Text as="h2" tone="primary">
           登记送审 · 保存成本 {baseline.code} 快照
-        </h2>
+        </Text>
         <div className="grid gap-3 md:grid-cols-3">
-          <label className="block space-y-1 text-xs">
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="block"
+          >
             评审
-            <select
-              className={selectClass + ' block w-full'}
+            <SelectField
+              className={selectClass + ' block w-full '}
               value={submission.kind}
               onChange={(e) =>
                 setSubmission({
@@ -420,13 +484,18 @@ export function SsrView({
                   {labels[k]}
                 </option>
               ))}
-            </select>
-          </label>
+            </SelectField>
+          </Surface>
           {submission.kind === 'SPECIALIST' && (
-            <label className="block space-y-1 text-xs">
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="block"
+            >
               领域
-              <select
-                className={selectClass + ' block w-full'}
+              <SelectField
+                className={selectClass + ' block w-full '}
                 value={submission.domain}
                 onChange={(e) =>
                   setSubmission({ ...submission, domain: e.target.value })
@@ -436,12 +505,18 @@ export function SsrView({
                 {value.requiredDomains.map((d) => (
                   <option key={d}>{d}</option>
                 ))}
-              </select>
-            </label>
+              </SelectField>
+            </Surface>
           )}
           {(['owner', 'dueDate', 'applicationNumber', 'evidence'] as const).map(
             (k, i) => (
-              <label className="block space-y-1 text-xs" key={k}>
+              <Surface
+                as="label"
+                variant="field"
+                textRole="body-small"
+                className="block"
+                key={k}
+              >
                 {['负责人', '截止日期', '公司申请号', '申请依据 / 链接'][i]}
                 <Input
                   type={k === 'dueDate' ? 'date' : 'text'}
@@ -450,7 +525,7 @@ export function SsrView({
                     setSubmission({ ...submission, [k]: e.target.value })
                   }
                 />
-              </label>
+              </Surface>
             ),
           )}
         </div>
@@ -470,13 +545,18 @@ export function SsrView({
             ? '确认成本后登记 DRB'
             : '登记送审记录'}
         </Button>
-      </section>
-      <section className="wb-panel space-y-3 p-3">
-        <h2 className="text-sm font-semibold text-primary">
+      </Surface>
+      <Surface as="section" variant="panel" padded className="space-y-3">
+        <Text as="h2" tone="primary">
           评审结果与条件关闭
-        </h2>
-        <label className="flex items-center gap-2 text-sm">
-          <input
+        </Text>
+        <Surface
+          as="label"
+          variant="inline-field"
+          textRole="body-main"
+          className="flex items-center"
+        >
+          <CheckInput
             type="checkbox"
             checked={showHistory}
             onChange={(event) => {
@@ -485,10 +565,10 @@ export function SsrView({
             }}
           />
           显示所有版本的历史送审记录
-        </label>
-        <select
+        </Surface>
+        <SelectField
           aria-label="选择送审记录"
-          className={selectClass + ' w-full'}
+          className={selectClass + ' w-full '}
           value={selected}
           onChange={(e) => {
             setSelected(e.target.value);
@@ -504,17 +584,17 @@ export function SsrView({
               {isStale(value, s, recordBaseline(s)) ? ' · 材料已变化' : ''}
             </option>
           ))}
-        </select>
+        </SelectField>
         {record && (
           <>
-            <p className="text-sm">
+            <Text as="p" textRole="body-main">
               负责人 {record.owner} · 截止 {record.dueDate} · 送审成本{' '}
               {record.costBaseline.code} · {record.evidence}
-            </p>
+            </Text>
             <div className="grid gap-2 md:grid-cols-3">
-              <select
+              <SelectField
                 aria-label="结果"
-                className={selectClass}
+                className="h-8"
                 value={result.outcome}
                 onChange={(e) =>
                   setResult({
@@ -527,7 +607,7 @@ export function SsrView({
                 <option value="conditional">有条件通过</option>
                 <option value="rejected">未通过</option>
                 <option value="withdrawn">撤回</option>
-              </select>
+              </SelectField>
               <Input
                 placeholder="公司平台实际结果依据"
                 value={result.evidence}
@@ -559,9 +639,9 @@ export function SsrView({
             </Button>
             {openConditions(record).length > 0 && (
               <div className="flex flex-wrap gap-2">
-                <select
+                <SelectField
                   aria-label="未关闭条件"
-                  className={selectClass}
+                  className="h-8"
                   value={closure.condition}
                   onChange={(e) =>
                     setClosure({ ...closure, condition: e.target.value })
@@ -571,7 +651,7 @@ export function SsrView({
                   {openConditions(record).map((c) => (
                     <option key={c}>{c}</option>
                   ))}
-                </select>
+                </SelectField>
                 <Input
                   className="max-w-md"
                   placeholder="条件关闭依据"
@@ -633,9 +713,16 @@ export function SsrView({
                 记录跟进
               </Button>
             </div>
-            <details className="rounded-md border bg-muted/10 px-3 py-2">
-              <summary className="cursor-pointer text-sm">查看历史依据</summary>
-              <div className="space-y-2 pt-2 text-sm">
+            <Disclosure>
+              <DisclosureSummary className="cursor-pointer">
+                查看历史依据
+              </DisclosureSummary>
+              <Surface
+                as="div"
+                variant="body"
+                textRole="body-main"
+                className="space-y-2"
+              >
                 {record.results.map((r) => (
                   <p key={r.id}>
                     {r.recordedAt} · {r.outcome} · {r.evidence}{' '}
@@ -652,11 +739,11 @@ export function SsrView({
                     {f.recordedAt} · {f.note} · 下次 {f.nextDate}
                   </p>
                 ))}
-              </div>
-            </details>
+              </Surface>
+            </Disclosure>
           </>
         )}
-      </section>
-    </div>
+      </Surface>
+    </Surface>
   );
 }

@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 /**
  * Manual references record an actual historical quotation. They do not create
  * a new customer document or substitute today's calculated pricing.
@@ -36,8 +37,10 @@ export function ManualHistoryForm({
     ['note', 'Source / note · 来源备注', 'text'],
   ] as const;
   return (
-    <form
-      className="grid gap-4 border-b bg-muted/30 p-5 md:grid-cols-3"
+    <Surface
+      as="form"
+      variant="item"
+      className="grid gap-4 md:grid-cols-3"
       onSubmit={(event) => {
         event.preventDefault();
         const cost = roundMoney(Number(values.costAmount));
@@ -75,7 +78,13 @@ export function ManualHistoryForm({
       }}
     >
       {fields.map(([key, label, type]) => (
-        <label key={key} className="block space-y-2 text-xs font-medium">
+        <Surface
+          key={key}
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="block"
+        >
           {label}
           <Input
             type={type}
@@ -91,12 +100,18 @@ export function ManualHistoryForm({
               }))
             }
           />
-        </label>
+        </Surface>
       ))}
       {error ? (
-        <p role="alert" className="text-xs text-red-700 md:col-span-3">
+        <Text
+          role="alert"
+          as="p"
+          tone="danger"
+          textRole="body-small"
+          className="md:col-span-3"
+        >
           {error}
-        </p>
+        </Text>
       ) : null}
       <div className="flex gap-2 md:col-span-3">
         <Button type="submit" size="sm">
@@ -106,6 +121,6 @@ export function ManualHistoryForm({
           Cancel / 取消
         </Button>
       </div>
-    </form>
+    </Surface>
   );
 }

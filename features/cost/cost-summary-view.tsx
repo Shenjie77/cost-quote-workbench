@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 import { GroupCostTable } from './components/group-cost-table';
 import { buildGroupCostSummary } from './group-cost-summary';
 import type { TravelSettings } from './domain';
@@ -76,7 +77,13 @@ export function CostSummaryView({
   ).size;
   const averageCost =
     totalMandays > 0 ? statementValues.totalWithRisk / totalMandays : 0;
-  const palette = ['#183c51', '#177c80', '#5488ab', '#83a3ad', '#6a7996'];
+  const palette = [
+    'var(--primary)',
+    'var(--ring)',
+    'var(--accent)',
+    'var(--accent)',
+    'var(--accent)',
+  ];
   const statementRows = buildCostStatementRows(
     rows,
     resourceTypes,
@@ -125,7 +132,7 @@ export function CostSummaryView({
     ),
   );
   return (
-    <div className="wb-page-stack min-w-0">
+    <Surface as="div" variant="page" className="min-w-0">
       <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Total Cost with Risk"
@@ -163,24 +170,33 @@ export function CostSummaryView({
           tone="gray"
         />
       </div>
-      <section className="wb-panel min-w-0 overflow-hidden">
+      <Surface as="section" variant="panel" className="min-w-0 overflow-hidden">
         <Tabs defaultValue="statement">
-          <div className="flex min-w-0 flex-col gap-4 border-b border-border px-5 py-4">
+          <Surface
+            as="div"
+            variant="item"
+            className="flex min-w-0 flex-col gap-4"
+          >
             <div>
-              <p className="text-xs font-semibold tracking-wider text-primary">
+              <Text as="p" tone="primary" textRole="body-small">
                 02
-              </p>
-              <h2 className="mt-0.5 text-[15px] font-semibold">
+              </Text>
+              <h2 className="mt-1">
                 Multidimensional Summary{' '}
-                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                <Text
+                  as="span"
+                  tone="muted"
+                  textRole="body-small"
+                  className="ml-1"
+                >
                   多维成本汇总
-                </span>
+                </Text>
               </h2>
-              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+              <Text as="p" tone="muted" textRole="body-small" className="mt-2">
                 Dimensions include risk and reference Cost Statement accounts;
                 Subcon shows the 2.3.2 breakdown. /
                 各维度含风险并引用报表科目；分包页对应 2.3.2。
-              </p>
+              </Text>
             </div>
             <TabsList
               variant="line"
@@ -188,18 +204,22 @@ export function CostSummaryView({
             >
               <TabsTrigger value="statement">
                 Cost Statement{' '}
-                <span className="text-[9px] opacity-60">成本报表</span>
+                <Text as="span" textRole="body-small">
+                  成本报表
+                </Text>
               </TabsTrigger>
               <TabsTrigger value="group">Group</TabsTrigger>
               <TabsTrigger value="scope">Scope</TabsTrigger>
               <TabsTrigger value="bu">BU</TabsTrigger>
               <TabsTrigger value="resource-type">
                 RE Type & Level{' '}
-                <span className="text-[9px] opacity-60">资源类型与级别</span>
+                <Text as="span" textRole="body-small">
+                  资源类型与级别
+                </Text>
               </TabsTrigger>
               <TabsTrigger value="subcontract">Subcon</TabsTrigger>
             </TabsList>
-          </div>
+          </Surface>
           <TabsContent value="group">
             <GroupCostTable
               readOnly={readOnly}
@@ -225,26 +245,35 @@ export function CostSummaryView({
             <BreakdownTable items={resourceBreakdown} />
           </TabsContent>
           <TabsContent value="subcontract">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3">
+            <Surface
+              as="div"
+              variant="item"
+              className="flex flex-wrap items-center justify-between gap-2"
+            >
               <div>
-                <p className="text-sm font-semibold">
+                <Text as="p" textRole="body-main">
                   2.3.2 · Subcontract Cost
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                </Text>
+                <Text
+                  as="p"
+                  tone="muted"
+                  textRole="body-small"
+                  className="mt-1"
+                >
                   BOQ scopes and preserved legacy packages /
                   分包条目及历史合作成本
-                </p>
+                </Text>
               </div>
-              <p className="text-lg font-semibold tabular-nums">
+              <Text as="p" textRole="h3" className="tabular-nums">
                 {formatSgd(statementValues.subcontract)}
-              </p>
-            </div>
+              </Text>
+            </Surface>
             {subcontractBreakdown.length ? (
               <BreakdownTable items={subcontractBreakdown} />
             ) : (
-              <p className="wb-empty-state">
+              <Surface as="p" variant="empty">
                 No subcontract costs in this version.
-              </p>
+              </Surface>
             )}
           </TabsContent>
           <TabsContent value="statement">
@@ -261,7 +290,7 @@ export function CostSummaryView({
             />
           </TabsContent>
         </Tabs>
-      </section>
-    </div>
+      </Surface>
+    </Surface>
   );
 }

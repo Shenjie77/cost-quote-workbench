@@ -1,3 +1,5 @@
+import { Surface, Text } from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
 /** Direct personnel spreadsheet entry with optional year focus and Pool allowances. */
 import { useState } from 'react';
 import { ClipboardPaste, Copy, ListTree, Plus, Upload } from 'lucide-react';
@@ -268,11 +270,15 @@ export function CostInputSheet({
   };
 
   return (
-    <section className="wb-panel min-w-0 overflow-hidden">
+    <Surface as="section" variant="panel" className="min-w-0 overflow-hidden">
       {/* Keep cost health and totals in one scan line instead of separate metric cards. */}
-      <header className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-b border-border px-3 py-2">
+      <Surface
+        as="header"
+        variant="header"
+        className="flex min-w-0 flex-wrap items-center justify-between"
+      >
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-sm font-semibold">Cost Input</h2>
+          <h2>Cost Input</h2>
           {locked ? (
             <StatusBadge tone="gray">Locked · View only</StatusBadge>
           ) : (
@@ -280,31 +286,39 @@ export function CostInputSheet({
               {issues.length ? `${issues.length} to review` : 'Calculated'}
             </StatusBadge>
           )}
-          <span className="text-xs text-muted-foreground">
+          <Text as="span" tone="muted" textRole="body-small">
             {rows.length} rows
-          </span>
+          </Text>
         </div>
-        <dl className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
-          <div className="flex items-baseline gap-1.5">
-            <dt className="text-muted-foreground">Cost · All Years</dt>
-            <dd className="font-semibold tabular-nums text-primary">
+        <Surface
+          as="dl"
+          textRole="body-small"
+          className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1"
+        >
+          <div className="flex items-baseline gap-2">
+            <Text as="dt" tone="muted">
+              Cost · All Years
+            </Text>
+            <Text as="dd" tone="primary" className="tabular-nums">
               {formatSgd(totalCost)}
-            </dd>
+            </Text>
           </div>
-          <div className="flex items-baseline gap-1.5">
-            <dt className="text-muted-foreground">Total Mandays</dt>
-            <dd className="font-semibold tabular-nums">
+          <div className="flex items-baseline gap-2">
+            <Text as="dt" tone="muted">
+              Total Mandays
+            </Text>
+            <dd className="tabular-nums">
               {totalMd.toLocaleString('en-SG', { maximumFractionDigits: 4 })} MD
             </dd>
           </div>
-          <div className="flex items-baseline gap-1.5">
-            <dt className="text-muted-foreground">Included Travel</dt>
-            <dd className="font-semibold tabular-nums">
-              {formatSgd(includedTravelCost)}
-            </dd>
+          <div className="flex items-baseline gap-2">
+            <Text as="dt" tone="muted">
+              Included Travel
+            </Text>
+            <dd className="tabular-nums">{formatSgd(includedTravelCost)}</dd>
           </div>
-        </dl>
-      </header>
+        </Surface>
+      </Surface>
       <PersonnelAllowanceOptions
         selectedPools={allowancePools}
         partialLegacy={hasPartialLegacyAllowance(rateSettings, resources)}
@@ -336,12 +350,16 @@ export function CostInputSheet({
         />
       )}
       {/* One wrapping toolbar keeps year selection and entry actions next to the editable grid. */}
-      <div
-        className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-border bg-muted/20 px-3 py-1.5"
+      <Surface
+        as="div"
+        variant="item"
+        className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2"
         aria-label="Cost table controls"
       >
-        <div
-          className="flex max-w-full flex-wrap gap-0.5 rounded-md bg-muted/60 p-0.5"
+        <Surface
+          as="div"
+          variant="inset"
+          className="flex max-w-full flex-wrap gap-1"
           aria-label="Cost delivery year"
         >
           {[
@@ -356,18 +374,18 @@ export function CostInputSheet({
               type="button"
               size="sm"
               variant={yearIndex === year.value ? 'default' : 'ghost'}
-              className="h-8 gap-1 px-2 text-xs"
+              className="gap-1"
               aria-pressed={yearIndex === year.value}
               onClick={() => setYearIndex(year.value)}
             >
               {year.label}
             </Button>
           ))}
-        </div>
+        </Surface>
         <Button
           type="button"
           size="sm"
-          className="h-8 gap-1 px-2 text-xs"
+          className="gap-1"
           disabled={locked || !resources.some((resource) => resource.active)}
           onClick={openNew}
         >
@@ -378,7 +396,7 @@ export function CostInputSheet({
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 gap-1 px-2 text-xs"
+          className="gap-1"
           disabled={locked || !groups.length}
           onClick={() => openCopyGroup()}
         >
@@ -389,7 +407,7 @@ export function CostInputSheet({
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 gap-1 px-2 text-xs"
+          className="gap-1"
           disabled={locked || !resources.some((resource) => resource.active)}
           onClick={() => setShowBulkEntry(true)}
         >
@@ -400,7 +418,7 @@ export function CostInputSheet({
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 gap-1 px-2 text-xs"
+          className="gap-1"
           disabled={locked}
           onClick={() => {
             if (!locked) setShowImport(!showImport);
@@ -410,11 +428,11 @@ export function CostInputSheet({
           Import
         </Button>
         <fieldset
-          className="ml-auto flex min-w-0 flex-wrap items-center gap-1.5"
+          className="ml-auto flex min-w-0 flex-wrap items-center gap-2"
           aria-label="Cost input mode"
         >
           <span className="sr-only">Mode</span>
-          <div className="flex gap-0.5 rounded-md border border-border bg-card p-0.5">
+          <Surface as="div" variant="panel" padded className="flex gap-1">
             {(
               [
                 ['sites', 'Sites'],
@@ -426,7 +444,7 @@ export function CostInputSheet({
                 type="button"
                 size="sm"
                 variant={inputMode === mode ? 'default' : 'ghost'}
-                className="h-8 px-2 text-xs"
+
                 aria-pressed={inputMode === mode}
                 disabled={locked}
                 title={`Set all cost rows to ${label}`}
@@ -435,17 +453,19 @@ export function CostInputSheet({
                 {label}
               </Button>
             ))}
-          </div>
+          </Surface>
           {inputMode === 'mixed' && (
-            <span className="text-xs text-muted-foreground">Mixed</span>
+            <Text as="span" tone="muted" textRole="body-small">
+              Mixed
+            </Text>
           )}
         </fieldset>
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Button
             type="button"
             size="sm"
             variant={grouped ? 'default' : 'outline'}
-            className="h-8 gap-1 px-2 text-xs"
+            className="gap-1"
             aria-pressed={grouped}
             onClick={() => setGrouped((current) => !current)}
           >
@@ -461,7 +481,7 @@ export function CostInputSheet({
             storageAvailable={columnSettings.storageAvailable}
           />
         </div>
-      </div>
+      </Surface>
       <PersonnelLinesTable
         rows={displayedRows}
         resources={resources}
@@ -491,12 +511,12 @@ export function CostInputSheet({
         }}
         onDelete={deleteRow}
       />
-      <div className="border-t border-border bg-muted/20 px-3 py-2 text-xs leading-4 text-muted-foreground">
+      <Surface as="div" variant="footer" tone="muted" textRole="body-small">
         Sites × MD/Site or Direct MD → RE rate × annual uplift × selected
         allowance + allocated HQ travel. HQ travel is included in Cost once, by
         resource and year. MD/Site applies to all years for that row. Draft
         changes save automatically. Subcontract costs are managed in Subcon.
-      </div>
+      </Surface>
       {copyGroup && (
         <Dialog
           open
@@ -504,7 +524,7 @@ export function CostInputSheet({
             if (!open) setCopyGroup(null);
           }}
         >
-          <DialogContent className="sm:max-w-md">
+          <DialogContent size="sm">
             <DialogHeader>
               <DialogTitle>Copy Group</DialogTitle>
               <DialogDescription>
@@ -519,11 +539,16 @@ export function CostInputSheet({
                 insertGroupCopy();
               }}
             >
-              <label className="grid gap-1.5 text-sm font-medium">
+              <Surface
+                as="label"
+                variant="field"
+                textRole="body-main"
+                className="grid"
+              >
                 Source group
-                <select
+                <SelectField
                   aria-label="Source group"
-                  className="h-9 rounded-md border border-border bg-white px-3 text-sm"
+                  className="h-9"
                   value={copyGroup.groupName}
                   disabled={locked}
                   onChange={(event) => openCopyGroup(event.target.value)}
@@ -534,9 +559,14 @@ export function CostInputSheet({
                       {group.rows.length} rows
                     </option>
                   ))}
-                </select>
-              </label>
-              <label className="grid gap-1.5 text-sm font-medium">
+                </SelectField>
+              </Surface>
+              <Surface
+                as="label"
+                variant="field"
+                textRole="body-main"
+                className="grid"
+              >
                 New group name
                 <Input
                   aria-label="New group name"
@@ -551,11 +581,11 @@ export function CostInputSheet({
                     })
                   }
                 />
-              </label>
-              <p className="text-xs text-muted-foreground">
+              </Surface>
+              <Text as="p" tone="muted" textRole="body-small">
                 {copyGroup.rowIds.length} rows will be inserted. Edit the copied
                 quantities or scope as needed.
-              </p>
+              </Text>
               <DialogFooter>
                 <Button
                   type="button"
@@ -614,6 +644,6 @@ export function CostInputSheet({
           }}
         />
       )}
-    </section>
+    </Surface>
   );
 }

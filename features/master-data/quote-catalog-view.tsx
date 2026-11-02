@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 /** Global assumption and customer-template editors; projects keep independent copies. */
 import { useState } from 'react';
 import { Plus, Trash2, Copy } from 'lucide-react';
@@ -19,9 +20,6 @@ import type {
 } from '@/features/quote/types';
 import { matchesClient } from '@/features/quote/catalog-domain';
 import { QuoteExcelTemplateEditor } from './quote-excel-template-editor';
-
-const cellClass =
-  'h-8 rounded-md border border-transparent bg-transparent shadow-none hover:border-input hover:bg-background focus-visible:bg-background';
 type Setter<T> = React.Dispatch<React.SetStateAction<T[]>>;
 
 /** Deletion detaches template defaults but never touches copied quote/history text. */
@@ -50,15 +48,20 @@ export function AssumptionLibraryView({
     );
   return (
     <>
-      <div className="wb-toolbar justify-between border-b text-xs">
-        <p className="text-muted-foreground">
-          <span className="font-medium text-foreground">
+      <Surface
+        as="div"
+        variant="toolbar"
+        textRole="body-small"
+        className="justify-between"
+      >
+        <Text as="p" tone="muted">
+          <Text as="span" tone="default">
             {rows.length} global assumptions · 全局假设库
-          </span>
+          </Text>
           <span className="ml-3">
             Client: exact name or * / 客户完整名称，* 通用
           </span>
-        </p>
+        </Text>
         <Button
           size="sm"
           onClick={() =>
@@ -78,9 +81,9 @@ export function AssumptionLibraryView({
         >
           <Plus /> Add / 新增
         </Button>
-      </div>
+      </Surface>
       <div className="min-w-0">
-        <Table className="min-w-[1000px] text-xs [&_td]:border [&_td]:p-0 [&_th]:border [&_th]:h-8">
+        <Table className="min-w-[1000px] [&_th]:h-8">
           <TableHeader>
             <TableRow>
               {[
@@ -101,11 +104,12 @@ export function AssumptionLibraryView({
               <TableRow key={row.id}>
                 {(['name', 'category', 'clientPattern'] as const).map(
                   (field) => (
-                    <TableCell key={field} className="p-0">
+                    <TableCell variant="editable" key={field}>
                       <Input
+                        variant="grid"
                         aria-label={`${row.name} ${field}`}
                         maxLength={2000}
-                        className={cellClass}
+
                         value={row[field]}
                         onChange={(event) =>
                           update(row.id, { [field]: event.target.value })
@@ -115,12 +119,16 @@ export function AssumptionLibraryView({
                   ),
                 )}
                 {(['text', 'textZh'] as const).map((field) => (
-                  <TableCell key={field} className="min-w-64 p-0">
-                    <textarea
+                  <TableCell
+                    variant="editable"
+                    key={field}
+                    className="min-w-64"
+                  >
+                    <Textarea
                       rows={1}
                       aria-label={`${row.name} ${field}`}
                       maxLength={2000}
-                      className="block min-h-8 w-full resize-y border-0 bg-transparent px-2 py-1 text-xs [field-sizing:content] focus-visible:outline-2 focus-visible:outline-ring"
+                      className="block min-h-8 w-full resize-y [field-sizing:content]"
                       value={row[field]}
                       onChange={(event) =>
                         update(row.id, { [field]: event.target.value })
@@ -175,9 +183,9 @@ export function AssumptionLibraryView({
         </Table>
       </div>
       {!rows.length && (
-        <p className="p-4 text-xs text-muted-foreground">
+        <Surface as="p" variant="body" tone="muted" textRole="body-small">
           No matching assumptions / 暂无匹配假设
-        </p>
+        </Surface>
       )}
     </>
   );
@@ -236,7 +244,12 @@ export function QuoteTemplatesView({
   };
   return (
     <>
-      <div className="wb-toolbar justify-between border-b text-xs">
+      <Surface
+        as="div"
+        variant="toolbar"
+        textRole="body-small"
+        className="justify-between"
+      >
         <span>{rows.length} templates</span>
         <div className="flex gap-2">
           <Button
@@ -251,9 +264,9 @@ export function QuoteTemplatesView({
             <Plus /> New template
           </Button>
         </div>
-      </div>
+      </Surface>
       <div className="grid min-w-0 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)]">
-        <div className="min-w-0 border-b lg:border-b-0 lg:border-r">
+        <Surface as="div" variant="item" className="min-w-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -265,20 +278,21 @@ export function QuoteTemplatesView({
             <TableBody>
               {rows.map((row) => (
                 <TableRow
+                  tone={template?.id === row.id ? 'section' : 'normal'}
                   key={row.id}
-                  className={template?.id === row.id ? 'bg-accent/60' : ''}
                 >
                   <TableCell>
-                    <button
+                    <Button
+                      variant="ghost"
                       type="button"
                       className="text-left underline-offset-4 hover:underline"
                       onClick={() => setEditingId(row.id)}
                     >
                       {row.name}
-                      <small className="block text-muted-foreground">
+                      <Text as="small" tone="muted" className="block">
                         {row.active ? 'Active' : 'Inactive'}
-                      </small>
-                    </button>
+                      </Text>
+                    </Button>
                   </TableCell>
                   <TableCell>
                     {row.clientPattern === '*' ? 'All' : row.clientPattern}
@@ -313,11 +327,13 @@ export function QuoteTemplatesView({
             </TableBody>
           </Table>
           {!rows.length && (
-            <p className="wb-empty-state text-xs">No matching templates</p>
+            <Surface as="p" variant="empty" textRole="body-small">
+              No matching templates
+            </Surface>
           )}
-        </div>
+        </Surface>
         {template && (
-          <div className="space-y-3 p-3">
+          <Surface as="div" variant="body" className="space-y-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {(
                 [
@@ -327,9 +343,12 @@ export function QuoteTemplatesView({
                   ['paymentTerms', 'Payment terms'],
                 ] as const
               ).map(([field, label]) => (
-                <label
+                <Surface
                   key={field}
-                  className="space-y-1 text-xs text-muted-foreground"
+                  as="label"
+                  variant="field"
+                  tone="muted"
+                  textRole="body-small"
                 >
                   {label}
                   <Input
@@ -339,11 +358,14 @@ export function QuoteTemplatesView({
                       update({ [field]: event.target.value })
                     }
                   />
-                </label>
+                </Surface>
               ))}
-              <label
+              <Surface
                 htmlFor="template-validity"
-                className="space-y-1 text-xs text-muted-foreground"
+                as="label"
+                variant="field"
+                tone="muted"
+                textRole="body-small"
               >
                 Validity days
                 <Input
@@ -364,11 +386,14 @@ export function QuoteTemplatesView({
                     })
                   }
                 />
-              </label>
+              </Surface>
             </div>
-            <label
+            <Surface
               htmlFor="template-active"
-              className="flex items-center gap-2 text-xs"
+              as="label"
+              variant="inline-field"
+              textRole="body-small"
+              className="flex items-center"
             >
               <Checkbox
                 id="template-active"
@@ -376,25 +401,31 @@ export function QuoteTemplatesView({
                 onCheckedChange={(active) => update({ active })}
               />
               Active
-            </label>
+            </Surface>
             {/* Excel mappings are staged and validated independently before updating this template draft. */}
             <QuoteExcelTemplateEditor
               templateId={template.id}
               value={template.excel}
               onChange={(excel) => update({ excel })}
             />
-            <label htmlFor="template-tc" className="block text-xs">
+            <Surface
+              htmlFor="template-tc"
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="block"
+            >
               Terms & Conditions
-              <span className="mt-1 block text-muted-foreground">
+              <Text as="span" tone="muted" className="mt-1 block">
                 Supports{' '}
                 {
                   '{project} {client} {date} {quoteNumber} {currency} {validityDays} {paymentTerms} {companyName} {companyAddress} {quoteBeforeTax} {maintenancePrice} {optionalPrice} {grandTotal}'
                 }
                 . Project uses the quotation project name.
-              </span>
+              </Text>
               <Textarea
                 id="template-tc"
-                className="mt-1 min-h-40 text-xs"
+                className="min-h-40"
                 maxLength={20000}
                 value={template.termsAndConditions}
                 placeholder="Enter this customer's original T&C; line breaks are preserved"
@@ -402,10 +433,16 @@ export function QuoteTemplatesView({
                   update({ termsAndConditions: event.target.value })
                 }
               />
-            </label>
-            <fieldset className="rounded-md border bg-muted/20 p-3">
-              <legend className="px-1 text-xs">Default assumptions</legend>
-              <div className="grid max-h-48 gap-2 overflow-y-auto py-1 sm:grid-cols-2">
+            </Surface>
+            <Surface as="fieldset" variant="panel" padded>
+              <Surface as="legend" variant="body" textRole="body-small">
+                Default assumptions
+              </Surface>
+              <Surface
+                as="div"
+                variant="body"
+                className="grid max-h-48 gap-2 overflow-y-auto sm:grid-cols-2"
+              >
                 {library.map((entry) => {
                   const applicable =
                     entry.active &&
@@ -419,9 +456,12 @@ export function QuoteTemplatesView({
                     entry.id,
                   );
                   return (
-                    <label
+                    <Surface
                       key={entry.id}
-                      className="flex items-start gap-2 rounded-md p-2 text-xs hover:bg-muted/40"
+                      as="label"
+                      variant="inline-field"
+                      textRole="body-small"
+                      className="flex items-start"
                     >
                       <Checkbox
                         checked={checked}
@@ -438,26 +478,36 @@ export function QuoteTemplatesView({
                       />
                       <span>
                         {entry.name}
-                        <small className="block text-muted-foreground">
+                        <Text as="small" tone="muted" className="block">
                           {entry.clientPattern}
                           {!applicable ? ' · Unavailable' : ''}
-                        </small>
+                        </Text>
                       </span>
-                    </label>
+                    </Surface>
                   );
                 })}
-              </div>
+              </Surface>
               {!library.length && (
-                <p className="space-y-1 text-xs text-muted-foreground">
+                <Text
+                  as="p"
+                  tone="muted"
+                  textRole="body-small"
+                  className="space-y-1"
+                >
                   Create library entries in Assumptions first.
-                </p>
+                </Text>
               )}
-            </fieldset>
-            <p className="space-y-1 text-xs text-muted-foreground">
+            </Surface>
+            <Text
+              as="p"
+              tone="muted"
+              textRole="body-small"
+              className="space-y-1"
+            >
               Exact client match (case-insensitive); * is common. Changes affect
               future projects. Existing project templates remain unchanged.
-            </p>
-          </div>
+            </Text>
+          </Surface>
         )}
       </div>
     </>

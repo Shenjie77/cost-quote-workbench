@@ -1,4 +1,6 @@
 'use client';
+
+import { Surface, Text } from '@/components/ui/presentation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { DigestItem } from './digest-domain';
@@ -56,44 +58,55 @@ export function ReminderInbox({
   const active = items.filter((i) => i.active),
     unread = active.filter((i) => !i.acknowledged);
   return (
-    <section
+    <Surface
       aria-label="Project follow-up reminders"
-      className="mb-2 min-w-0 border-b border-border px-1 py-1"
+      as="section"
+      variant="item"
+      className="mb-2 min-w-0"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 px-2 text-xs"
+
           aria-expanded={open}
           aria-controls="project-reminder-list"
           onClick={() => setOpen(!open)}
         >
           跟进提醒 · {unread.length} 条未读 / {active.length} 条待处理
         </Button>
-        <span
+        <Text
           role={error ? 'alert' : undefined}
-          className="text-xs text-muted-foreground"
+          as="span"
+          tone="muted"
+          textRole="body-small"
         >
           {error ||
             (open ? '按节点 SLA 与提醒配置检查，完成或关闭提醒后自动移出' : '')}
-        </span>
+        </Text>
       </div>
       {open && (
-        <div
+        <Surface
           id="project-reminder-list"
-          className="max-h-80 divide-y overflow-auto"
+          as="div"
+          variant="list"
+          className="max-h-80 overflow-auto"
         >
           {active.length === 0 && (
-            <p className="text-sm text-muted-foreground">暂无待处理提醒</p>
+            <Text as="p" tone="muted" textRole="body-main">
+              暂无待处理提醒
+            </Text>
           )}
           {active.map((r) => (
-            <div
+            <Surface
               key={r.id}
-              className="flex flex-wrap items-center justify-between gap-2 px-2 py-2 hover:bg-muted/20"
+              as="div"
+              variant="body"
+              className="flex flex-wrap items-center justify-between gap-2"
             >
-              <button
-                className="min-w-0 flex-1 rounded-md text-left text-sm focus-visible:outline-2 focus-visible:outline-ring"
+              <Button
+                variant="ghost"
+                className="min-w-0 flex-1 text-left"
                 onClick={() =>
                   onOpen(
                     r.item.projectId,
@@ -108,11 +121,16 @@ export function ReminderInbox({
                   )
                 }
               >
-                <p className="font-medium">{r.item.titleZh}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p>{r.item.titleZh}</p>
+                <Text
+                  as="p"
+                  tone="muted"
+                  textRole="body-small"
+                  className="mt-1"
+                >
                   {r.item.detailZh}
-                </p>
-              </button>
+                </Text>
+              </Button>
               {!r.acknowledged && (
                 <Button
                   variant="outline"
@@ -142,10 +160,10 @@ export function ReminderInbox({
                   已阅
                 </Button>
               )}
-            </div>
+            </Surface>
           ))}
-        </div>
+        </Surface>
       )}
-    </section>
+    </Surface>
   );
 }

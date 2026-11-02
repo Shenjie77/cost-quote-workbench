@@ -1,5 +1,6 @@
 'use client';
 
+import { Surface, Text } from '@/components/ui/presentation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,20 +79,25 @@ export function ProjectBootstrap({
     }
   };
   return (
-    <main className="min-h-screen bg-background px-4 py-8 sm:py-16">
-      <section className="wb-panel mx-auto max-w-xl space-y-5 p-5 sm:p-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">
+    <Surface as="main" variant="inset" className="min-h-screen">
+      <Surface
+        as="section"
+        variant="panel"
+        padded
+        className="mx-auto max-w-xl space-y-5"
+      >
+        <Text as="h1" tone="primary">
           Cost & Quote Workbench
-        </h1>
+        </Text>
         {onOpenMasterData && (
           <Button variant="outline" onClick={onOpenMasterData}>
             Global Master Data / 全局主数据
           </Button>
         )}
         {error && (
-          <p role="alert" className="text-sm text-destructive">
+          <Text role="alert" as="p" tone="danger" textRole="body-main">
             {error}
-          </p>
+          </Text>
         )}
         {projects === null ? (
           <>
@@ -100,10 +106,10 @@ export function ProjectBootstrap({
           </>
         ) : (
           <>
-            <h2 className="font-semibold">Project List / 项目列表 · 0</h2>
-            <p className="text-sm text-muted-foreground">
+            <h2>Project List / 项目列表 · 0</h2>
+            <Text as="p" tone="muted" textRole="body-main">
               暂无项目。新建项目后开始维护成本和报价。
-            </p>
+            </Text>
             <NewProjectIdField
               inputId="first-project-id"
               value={projectId}
@@ -113,22 +119,32 @@ export function ProjectBootstrap({
               }}
               disabled={busy}
             />
-            <label className="block text-sm">
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-main"
+              className="block"
+            >
               项目名称
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={busy}
               />
-            </label>
-            <label className="block text-sm">
+            </Surface>
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-main"
+              className="block"
+            >
               客户
               <Input
                 value={client}
                 onChange={(e) => setClient(e.target.value)}
                 disabled={busy}
               />
-            </label>
+            </Surface>
             <ArchiveSettingsPanel
               disabled={busy}
               onBlockedChange={setArchiveBlocked}
@@ -145,12 +161,12 @@ export function ProjectBootstrap({
             >
               New Project / 新建项目
             </Button>
-            <p className="text-xs text-muted-foreground">
+            <Text as="p" tone="muted" textRole="body-small">
               已删除项目的成本和评审记录保留在本地，可通过 CLI 恢复。
-            </p>
+            </Text>
           </>
         )}
-      </section>
-    </main>
+      </Surface>
+    </Surface>
   );
 }

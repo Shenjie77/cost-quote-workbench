@@ -1,3 +1,6 @@
+import { Surface } from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
+import { CheckInput } from '@/components/ui/check-input';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,7 +36,12 @@ export function GlobalCpqCatalog({
   );
   return (
     <>
-      <div className="wb-toolbar justify-between border-b text-xs">
+      <Surface
+        as="div"
+        variant="toolbar"
+        textRole="body-small"
+        className="justify-between"
+      >
         <span>{rows.length} records / 条记录 · 项目配置保存独立副本</span>
         <Button
           size="sm"
@@ -60,9 +68,9 @@ export function GlobalCpqCatalog({
         >
           <Plus /> Add / 新增
         </Button>
-      </div>
+      </Surface>
       <div className="min-w-0">
-        <Table className="min-w-[1500px] text-xs">
+        <Table className="min-w-[1500px]">
           <TableHeader>
             <TableRow>
               {[
@@ -92,9 +100,7 @@ export function GlobalCpqCatalog({
                   <TableCell key={field}>
                     <Input
                       className={
-                        field === 'scope'
-                          ? 'h-8 min-w-64 text-xs'
-                          : `h-8 min-w-24 text-xs ${field === 'code' ? 'font-semibold' : ''}`
+                        field === 'scope' ? 'min-w-64' : 'h-8 min-w-24'
                       }
                       aria-label={`${row.code} ${field}`}
                       value={row[field]}
@@ -107,7 +113,7 @@ export function GlobalCpqCatalog({
                 <TableCell>
                   <Input
                     money
-                    className="financial-numeral h-8 min-w-24 text-xs"
+                    className="financial-numeral min-w-24"
                     type="number"
                     min={0.01}
                     step="0.01"
@@ -124,8 +130,8 @@ export function GlobalCpqCatalog({
                   />
                 </TableCell>
                 <TableCell>
-                  <select
-                    className="h-8 rounded-md border border-input bg-background px-2"
+                  <SelectField
+                    className="h-8"
                     aria-label={`${row.code} kind`}
                     value={row.kind}
                     onChange={(e) =>
@@ -139,10 +145,10 @@ export function GlobalCpqCatalog({
                   >
                     <option value="service">Service / 服务</option>
                     <option value="equipment">Equipment / 设备</option>
-                  </select>
+                  </SelectField>
                 </TableCell>
                 <TableCell>
-                  <input
+                  <CheckInput
                     type="checkbox"
                     aria-label={`${row.code} adjustable`}
                     checked={row.adjustable}
@@ -156,7 +162,7 @@ export function GlobalCpqCatalog({
                   (field) => (
                     <TableCell key={field}>
                       <Input
-                        className="financial-numeral h-8 min-w-20 text-right text-xs"
+                        className="financial-numeral min-w-20 text-right"
                         type="number"
                         min={field === 'step' ? 0.0001 : 0}
                         step="any"
@@ -177,7 +183,7 @@ export function GlobalCpqCatalog({
                 {(['tags', 'revision'] as const).map((field) => (
                   <TableCell key={field}>
                     <Input
-                      className="financial-numeral h-8 min-w-24 text-xs"
+                      className="financial-numeral min-w-24"
                       aria-label={`${row.code} ${field}`}
                       value={row[field]}
                       onChange={(e) =>
@@ -187,7 +193,7 @@ export function GlobalCpqCatalog({
                   </TableCell>
                 ))}
                 <TableCell>
-                  <input
+                  <CheckInput
                     type="checkbox"
                     aria-label={`${row.code} active`}
                     checked={row.active}
@@ -220,11 +226,11 @@ export function GlobalCpqCatalog({
           </TableBody>
         </Table>
       </div>
-      <p className="border-t p-3 text-xs text-muted-foreground">
+      <Surface as="p" variant="footer" tone="muted" textRole="body-small">
         Equipment quantities are fixed to actual BOQ. Only adjustable service
         items participate in allocation. / 设备数量按实际
         BOQ，只有可调服务项参与数量匹配。
-      </p>
+      </Surface>
     </>
   );
 }

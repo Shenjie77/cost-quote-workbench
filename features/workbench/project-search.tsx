@@ -1,5 +1,7 @@
 'use client';
 
+import { Text, Surface } from '@/components/ui/presentation';
+import { Input } from '@/components/ui/input';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FocusEvent, KeyboardEvent } from 'react';
 import { Check, LoaderCircle, Search, X } from 'lucide-react';
@@ -152,17 +154,22 @@ export function ProjectSearch({
     <div className="relative min-w-0 w-full" onBlur={handleBlur}>
       <div className="relative">
         {busy ? (
-          <LoaderCircle
+          <Text
             aria-hidden="true"
-            className="pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground"
+            as={LoaderCircle}
+            tone="muted"
+            className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 animate-spin"
           />
         ) : (
-          <Search
+          <Text
             aria-hidden="true"
-            className="pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-muted-foreground"
+            as={Search}
+            tone="muted"
+            className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2"
           />
         )}
-        <input
+        <Input
+          variant="search"
           ref={input}
           role="combobox"
           name="project-search"
@@ -179,7 +186,7 @@ export function ProjectSearch({
           aria-busy={busy}
           autoComplete="off"
           placeholder="Proposal / project / workflow / tag…"
-          className="h-8 w-full min-w-0 rounded-md border border-input bg-background py-1 pl-8 pr-8 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full min-w-0 disabled:cursor-not-allowed"
           value={query}
           disabled={disabled}
           readOnly={busy}
@@ -208,36 +215,49 @@ export function ProjectSearch({
             variant="ghost"
             size="icon-sm"
             aria-label="Clear project search"
-            className="absolute right-1 top-1/2 size-6 -translate-y-1/2"
+            className="absolute right-1 top-1/2 -translate-y-1/2"
             disabled={disabled || busy}
             onClick={clearSearch}
           >
-            <X className="size-3.5" />
+            <X className="size-4" />
           </Button>
         )}
       </div>
       {visible && (
-        <div className="absolute left-0 right-0 top-full z-[70] mt-1.5 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg">
-          <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+        <Surface
+          as="div"
+          variant="panel"
+          className="absolute left-0 right-0 top-full z-[70] mt-2 overflow-hidden"
+        >
+          <Surface
+            as="div"
+            variant="item"
+            tone="muted"
+            textRole="body-small"
+            className="flex items-center justify-between gap-2"
+          >
             <span>
               {matches.length} {matches.length === 1 ? 'project' : 'projects'}
             </span>
             <span>{busy ? 'Opening…' : 'Select to switch project'}</span>
-          </div>
+          </Surface>
           {/* Rich project options use the WAI-ARIA combobox/listbox pattern so each result can include its workflow context. */}
           {/* oxlint-disable jsx-a11y/prefer-tag-over-role */}
-          <div
+          <Surface
             ref={list}
             id={listId}
             role="listbox"
             tabIndex={-1}
             aria-label="Matching projects"
-            className="relative max-h-[min(360px,60dvh)] overflow-y-auto overscroll-contain p-1"
+            as="div"
+            variant="body"
+            className="relative max-h-[min(360px,60dvh)] overflow-y-auto overscroll-contain"
           >
             {matches.map((project, index) => {
               const workflow = projectWorkflowSearchInfo(project).summary;
               return (
-                <button
+                <Button
+                  variant="ghost"
                   key={project.id}
                   id={`${listId}-option-${index}`}
                   type="button"
@@ -246,7 +266,7 @@ export function ProjectSearch({
                   data-search-index={index}
                   tabIndex={-1}
                   disabled={busy}
-                  className={`flex w-full items-start gap-2 rounded-md px-2 py-2 text-left transition-colors ${index === activeIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/50'} disabled:cursor-wait disabled:opacity-60`}
+                  className="flex w-full items-start gap-2 text-left disabled:cursor-wait"
                   onMouseDown={(event) => event.preventDefault()}
                   onMouseEnter={() => {
                     if (!busy) setHighlight(index);
@@ -254,53 +274,79 @@ export function ProjectSearch({
                   onClick={() => void selectProject(project)}
                 >
                   <span className="min-w-0 flex-1">
-                    <span
-                      className="block truncate text-xs font-semibold"
+                    <Text
+                      as="span"
+                      textRole="body-small"
+                      className="block truncate"
                       title={project.name}
                     >
                       {project.name}
-                    </span>
-                    <span
-                      className="mt-0.5 block truncate text-[11px] text-muted-foreground"
+                    </Text>
+                    <Text
+                      as="span"
+                      tone="muted"
+                      textRole="body-small"
+                      className="mt-1 block truncate"
                       title={`${project.proposalNumber || project.name} · ${project.client}`}
                     >
                       {project.proposalNumber || project.name} ·{' '}
                       {project.client}
-                    </span>
-                    <span className="mt-1 block text-[11px] leading-4 text-muted-foreground [overflow-wrap:anywhere]">
+                    </Text>
+                    <Text
+                      as="span"
+                      tone="muted"
+                      textRole="body-small"
+                      className="mt-1 block [overflow-wrap:anywhere]"
+                    >
                       {workflow}
-                    </span>
+                    </Text>
                     {!!project.tags?.length && (
-                      <span className="mt-1 block text-[11px] text-primary">
+                      <Text
+                        as="span"
+                        tone="primary"
+                        textRole="body-small"
+                        className="mt-1 block"
+                      >
                         {project.tags.map((tag) => `#${tag}`).join(' · ')}
-                      </span>
+                      </Text>
                     )}
                   </span>
                   {project.id === activeProjectId && (
-                    <Check
+                    <Text
                       aria-label="Current project"
-                      className="mt-0.5 size-3.5 shrink-0 text-primary"
+                      as={Check}
+                      tone="primary"
+                      className="mt-1 size-4 shrink-0"
                     />
                   )}
-                </button>
+                </Button>
               );
             })}
-          </div>
+          </Surface>
           {/* oxlint-enable jsx-a11y/prefer-tag-over-role */}
           {!matches.length && (
-            <p className="px-3 py-5 text-center text-xs text-muted-foreground">
+            <Surface
+              as="p"
+              variant="body"
+              tone="muted"
+              textRole="body-small"
+              className="text-center"
+            >
               No matching projects / 未找到匹配项目
-            </p>
+            </Surface>
           )}
           {error && (
-            <p
+            <Surface
               role="alert"
-              className="border-t px-3 py-2 text-xs leading-5 text-destructive"
+              as="p"
+              variant="footer"
+              tone="danger"
+              textRole="body-small"
             >
               {error}
-            </p>
+            </Surface>
           )}
-        </div>
+        </Surface>
       )}
     </div>
   );

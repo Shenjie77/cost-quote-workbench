@@ -1,3 +1,7 @@
+import { Badge } from '@/components/ui/badge';
+import { Text, Surface } from '@/components/ui/presentation';
+import { Textarea } from '@/components/ui/textarea';
+import { CheckInput } from '@/components/ui/check-input';
 /** Project execution cards share the domain's phase ordering and SLA urgency. */
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -54,36 +58,47 @@ export function ProjectWorkflowExecution({
   ).length;
   return (
     <section className="space-y-3">
-      <div
-        className={`rounded-lg border p-3 ${complete ? 'border-emerald-200 bg-emerald-50' : 'bg-muted/20'}`}
+      <Surface
+        as="div"
+        variant={complete ? 'notice' : 'inset'}
+        tone={complete ? 'success' : 'inherit'}
+        className=""
+        padded
       >
-        <p className="text-sm font-semibold">
+        <Text as="p" textRole="body-main">
           {complete
             ? 'This workflow round is complete. Project reminders have stopped.'
             : 'Record each step using the actual progress on the company platform.'}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
+        </Text>
+        <Text as="p" tone="muted" textRole="body-small" className="mt-1">
           Completed or skipped: {completedCount} /{' '}
           {workspace.processSteps.length} · Tasks in a parallel group can run
           together. Later required steps depend on their prerequisites.
-        </p>
-      </div>
+        </Text>
+      </Surface>
       {phases.map((phase, index) => (
         <section key={phase.id} className="space-y-2">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#183c51]">
-            <span className="financial-numeral flex size-6 items-center justify-center rounded-full bg-[#e5eeee]">
+          <Surface
+            as="div"
+            tone="primary"
+            textRole="body-small"
+            className="flex items-center gap-2"
+          >
+            <Badge className="financial-numeral flex items-center justify-center">
               {index + 1}
-            </span>
+            </Badge>
             {phase.parallel
               ? `${phase.name} · Parallel`
               : phase.steps[0].name || phase.steps[0].nameZh}
-          </div>
-          <div
+          </Surface>
+          <Surface
+            as="div"
+            variant={phase.parallel ? 'panel' : 'plain'}
+            tone={'inherit'}
             className={
-              phase.parallel
-                ? 'grid gap-3 rounded-xl border border-[#bdd3d1] bg-[#f1f7f6] p-3 md:grid-cols-2'
-                : 'space-y-3'
+              phase.parallel ? 'grid gap-3 md:grid-cols-2' : 'space-y-3'
             }
+            padded
           >
             {phase.steps.map((step) => (
               <WorkflowExecutionNode
@@ -96,7 +111,7 @@ export function ProjectWorkflowExecution({
                 focused={step.code === focusNodeCode}
               />
             ))}
-          </div>
+          </Surface>
         </section>
       ))}
     </section>
@@ -164,73 +179,123 @@ export function WorkflowExecutionNode({
     }
   };
   return (
-    <article
+    <Surface
       ref={card}
-      className={`rounded-lg border bg-card p-3 ${focused ? 'ring-2 ring-[#177c80]/30' : ''} ${urgency === 'urgent' ? 'border-red-300' : urgency === 'immediate' ? 'border-amber-300' : 'border-border'}`}
+      as="article"
+      variant="panel"
+      selected={focused}
+      tone={
+        urgency === 'urgent'
+          ? 'danger'
+          : urgency === 'immediate'
+            ? 'warning'
+            : 'inherit'
+      }
+      className=""
+      padded
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold">{step.name || step.nameZh}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <Text as="p" textRole="body-main">
+            {step.name || step.nameZh}
+          </Text>
+          <Text as="p" tone="muted" textRole="body-small" className="mt-1">
             {step.owner || 'Owner not assigned'} ·{' '}
             {step.required ? 'Required Step' : 'Optional Step'}
-          </p>
+          </Text>
         </div>
-        <span className="shrink-0 rounded bg-muted px-2 py-1 text-xs">
-          {stateLabels[step.state]}
-        </span>
+        <Badge className="shrink-0">{stateLabels[step.state]}</Badge>
       </div>
-      <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+      <Surface
+        as="div"
+        textRole="body-small"
+        className="mt-2 grid gap-2 sm:grid-cols-2"
+      >
         <p>Started: {dateTime(step.startedAt)}</p>
-        <p className={urgency === 'urgent' ? 'font-semibold text-red-700' : ''}>
+        <Text
+          as="p"
+          tone={urgency === 'urgent' ? 'danger' : 'inherit'}
+          className=""
+        >
           Due: {dateTime(step.dueAt)}
-        </p>
-      </div>
+        </Text>
+      </Surface>
       {urgencyLabel && !done && (
-        <p
-          className={`mt-2 text-xs ${urgency === 'urgent' ? 'text-red-700' : urgency === 'immediate' ? 'text-amber-800' : 'text-muted-foreground'}`}
+        <Text
+          as="p"
+          tone={
+            urgency === 'urgent'
+              ? 'danger'
+              : urgency === 'immediate'
+                ? 'warning'
+                : 'muted'
+          }
+          textRole="body-small"
+          className="mt-2"
         >
           {urgencyLabel}
           {step.followUpDate ? ` · Follow-up: ${step.followUpDate}` : ''}
-        </p>
+        </Text>
       )}
       {paused && (
-        <p className="mt-2 text-xs text-amber-800">
+        <Text as="p" tone="warning" textRole="body-small" className="mt-2">
           Paused · Planned resume: {step.followUpDate || 'Not set'}
-        </p>
+        </Text>
       )}
       {step.note && (
-        <p className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">
+        <Text
+          as="p"
+          tone="muted"
+          textRole="body-small"
+          className="mt-2 whitespace-pre-wrap"
+        >
           {step.note}
-        </p>
+        </Text>
       )}
       {step.detail && (
-        <p className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">
+        <Text
+          as="p"
+          tone="muted"
+          textRole="body-small"
+          className="mt-2 whitespace-pre-wrap"
+        >
           Requirements: {step.detail}
-        </p>
+        </Text>
       )}
       {done && step.completedAt && (
-        <p className="mt-2 text-xs text-muted-foreground">
+        <Text as="p" tone="muted" textRole="body-small" className="mt-2">
           {step.state === 'skipped' ? 'Skipped at' : 'Completed at'}:
           {dateTime(step.completedAt)}
-        </p>
+        </Text>
       )}
       {!mode && Object.keys(step.fieldValues || {}).length > 0 && (
-        <dl className="mt-2 space-y-1 rounded border bg-muted/20 p-2 text-xs">
+        <Surface
+          as="dl"
+          variant="panel"
+          padded
+          textRole="body-small"
+          className="mt-2 space-y-1"
+        >
           {Object.entries(step.fieldValues || {}).map(([field, value]) => (
             <div key={field} className="flex flex-wrap gap-2">
-              <dt className="shrink-0 font-medium">{field}</dt>
+              <dt className="shrink-0">{field}</dt>
               <dd className="whitespace-pre-wrap">{value}</dd>
             </div>
           ))}
-        </dl>
+        </Surface>
       )}
       {pending && blockers.length > 0 && (
-        <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-800">
+        <Surface
+          as="ul"
+          variant="body"
+          tone="warning"
+          textRole="body-small"
+          className="mt-2 list-disc space-y-1"
+        >
           {blockers.map((message, index) => (
             <li key={index}>{message}</li>
           ))}
-        </ul>
+        </Surface>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
         {pending && (
@@ -323,11 +388,17 @@ export function WorkflowExecutionNode({
         />
       )}
       {error && (
-        <p role="alert" className="mt-2 text-xs text-destructive">
+        <Text
+          role="alert"
+          as="p"
+          tone="danger"
+          textRole="body-small"
+          className="mt-2"
+        >
           {error}
-        </p>
+        </Text>
       )}
-    </article>
+    </Surface>
   );
 }
 
@@ -396,9 +467,14 @@ export function WorkflowNodeActionForm({
     });
   };
   return (
-    <div className="mt-3 space-y-3 border-t pt-3">
+    <Surface as="div" variant="footer" className="mt-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1.5 text-xs font-medium">
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="block"
+        >
           Owner
           <Input
             aria-label="Step Owner"
@@ -408,8 +484,13 @@ export function WorkflowNodeActionForm({
               onChange({ ...value, owner: event.target.value })
             }
           />
-        </label>
-        <label className="block space-y-1.5 text-xs font-medium">
+        </Surface>
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="block"
+        >
           {mode === 'pause'
             ? 'Planned Resume Date (Required)'
             : 'Next Follow-up Date'}
@@ -422,11 +503,17 @@ export function WorkflowNodeActionForm({
               onChange({ ...value, followUpDate: event.target.value })
             }
           />
-        </label>
+        </Surface>
       </div>
       {mode !== 'reopen' &&
         (step.requiredFields || []).map((field) => (
-          <label key={field} className="block space-y-1.5 text-xs font-medium">
+          <Surface
+            key={field}
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="block"
+          >
             {field}
             {mode === 'complete' ? ' (Required to complete)' : ''}
             <Input
@@ -440,21 +527,31 @@ export function WorkflowNodeActionForm({
                 })
               }
             />
-          </label>
+          </Surface>
         ))}
-      <label className="block space-y-1.5 text-xs font-medium">
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         Progress Note
-        <textarea
+        <Textarea
           aria-label="Step Progress Note"
           rows={3}
-          className="w-full rounded-lg border border-input bg-white px-2.5 py-2 text-sm leading-5 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-60"
+          className="w-full"
           value={note}
           disabled={disabled}
           onChange={(event) => onChange({ ...value, note: event.target.value })}
         />
-      </label>
+      </Surface>
       {requiresReason && (
-        <label className="block space-y-1.5 text-xs font-medium">
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="block"
+        >
           {mode === 'pause'
             ? 'Reason for Pausing'
             : mode === 'skip'
@@ -468,11 +565,16 @@ export function WorkflowNodeActionForm({
               onChange({ ...value, reason: event.target.value })
             }
           />
-        </label>
+        </Surface>
       )}
       {mode === 'complete' && step.required && (
-        <label className="flex items-start gap-2 text-xs">
-          <input
+        <Surface
+          as="label"
+          variant="inline-field"
+          textRole="body-small"
+          className="flex items-start"
+        >
+          <CheckInput
             type="checkbox"
             aria-label="Confirm Required Step Completion"
             checked={confirmed}
@@ -485,7 +587,7 @@ export function WorkflowNodeActionForm({
             I have checked the company platform and confirm that this required
             step is complete and the information above is accurate.
           </span>
-        </label>
+        </Surface>
       )}
       <div className="flex flex-wrap gap-2">
         <Button
@@ -514,6 +616,6 @@ export function WorkflowNodeActionForm({
           Cancel
         </Button>
       </div>
-    </div>
+    </Surface>
   );
 }

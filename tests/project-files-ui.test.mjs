@@ -62,6 +62,7 @@ const hooks = registerHooks({
     };
   },
 });
+const { Button } = await import('../components/ui/button.tsx');
 const client = await import('../features/projects/project-files.ts');
 const {
   ProjectFileList,
@@ -550,7 +551,7 @@ test('archive dropzone ignores text/link drags and rejects files during upload o
     blocked.props.onDrop(drop);
     assert.deepEqual(drop.calls, { prevented: 1, stopped: 1 });
     assert.deepEqual(uploads, []);
-    const browse = walkElements(blocked).find((node) => node.type === 'button');
+    const browse = walkElements(blocked).find((node) => node.type === Button);
     assert.equal(browse.props.disabled, true);
   }
 });
@@ -563,7 +564,7 @@ test('drop card visibly names the chosen destination, highlights active drops an
     },
   });
   const card = ProjectFileDropzone(props);
-  const button = walkElements(card).find((node) => node.type === 'button');
+  const button = walkElements(card).find((node) => node.type === Button);
   assert.equal(button.props.type, 'button');
   assert.equal(button.props.disabled, false);
   assert.equal(
@@ -580,7 +581,7 @@ test('drop card visibly names the chosen destination, highlights active drops an
   assert.doesNotMatch(normal, /Upload Documents/);
   const active = render(ProjectFileDropzone, { ...props, dragging: true });
   assert.match(active, /Release to upload/);
-  assert.match(active, /ring-2/);
+  assert.match(active, /data-selected="true"/);
   const feedback = [];
   ProjectFileDropzone({
     ...props,

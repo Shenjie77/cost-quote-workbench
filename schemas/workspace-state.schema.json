@@ -262,6 +262,12 @@
             "mode": {
               "enum": ["total", "section", "category"]
             },
+            "descriptions": {
+              "type": "object",
+              "maxProperties": 2000,
+              "propertyNames": { "minLength": 1, "maxLength": 500 },
+              "additionalProperties": { "type": "string", "maxLength": 1000 }
+            },
             "shares": {
               "type": "array",
               "maxItems": 2000,
@@ -1441,6 +1447,7 @@
                     "type": "string",
                     "maxLength": 120
                   },
+                  "description": { "type": "string", "maxLength": 1000 },
                   "gross": {
                     "$ref": "#/$defs/money"
                   },

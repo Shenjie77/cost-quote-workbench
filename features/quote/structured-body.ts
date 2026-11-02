@@ -174,20 +174,28 @@ export function structuredBodyRows(
                 : `${sectionNo}.${i + 1}`,
         });
       }
-      const categoryDiscount =
+      const categoryAllocation =
         allocation.mode === 'category'
-          ? (allocation.rows.find(
+          ? allocation.rows.find(
               (r) =>
                 r.key ===
                 discountGroupKey(inclusion, section.category, sectionName),
-            )?.discount ?? 0)
-          : 0;
+            )
+          : undefined;
+      const categoryDiscount = categoryAllocation?.discount ?? 0;
       let categoryDiscountRow: number | undefined;
       if (categoryDiscount) {
         categoryDiscountRow = rows.length;
         rows.push({
           role: 'subtotal',
-          description: text(titles.discount, section.category),
+          description: text(
+            categoryAllocation?.description === undefined
+              ? titles.discount
+              : categoryAllocation.description.trim() ||
+                  layout.titles.discount ||
+                  defaultBodyTitles.discount,
+            section.category,
+          ),
           amount: categoryDiscount,
         });
       }
@@ -217,18 +225,25 @@ export function structuredBodyRows(
       );
     }
     let discount: number | undefined;
-    const sectionDiscount =
+    const sectionAllocation =
       allocation.mode === 'section'
-        ? (allocation.rows.find(
+        ? allocation.rows.find(
             (r) =>
               r.key === discountGroupKey(inclusion, undefined, sectionName),
-          )?.discount ?? 0)
-        : 0;
+          )
+        : undefined;
+    const sectionDiscount = sectionAllocation?.discount ?? 0;
     if (sectionDiscount) {
       discount = rows.length;
       rows.push({
         role: 'subtotal',
-        description: text(titles.discount),
+        description: text(
+          sectionAllocation?.description === undefined
+            ? titles.discount
+            : sectionAllocation.description.trim() ||
+                layout.titles.discount ||
+                defaultBodyTitles.discount,
+        ),
         amount: sectionDiscount,
       });
     }

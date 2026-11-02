@@ -1,4 +1,12 @@
 'use client';
+
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
 import { formatMoney } from '@/lib/money';
 import { ServiceQuoteImport } from './service-quote-import';
 import {
@@ -147,14 +155,14 @@ export function MaintenanceView({
     }
   };
   return (
-    <div className="wb-page-stack">
-      <section className="wb-panel overflow-hidden">
-        <div className="wb-toolbar justify-between border-b">
-          <h2 className="text-sm font-semibold text-primary">
+    <Surface as="div" variant="page">
+      <Surface as="section" variant="panel" className="overflow-hidden">
+        <Surface as="div" variant="toolbar" className="justify-between">
+          <Text as="h2" tone="primary">
             设备明细 · BOQ 维保配置
-          </h2>
+          </Text>
           <div className="flex items-center gap-2">
-            <select
+            <SelectField
               aria-label="Maintenance version"
               disabled={busy}
               value={versionCode}
@@ -172,7 +180,7 @@ export function MaintenanceView({
                 .map((code) => (
                   <option key={code}>{code}</option>
                 ))}
-            </select>
+            </SelectField>
             <Button
               variant="outline"
               disabled={busy}
@@ -235,13 +243,18 @@ export function MaintenanceView({
               删除版本
             </Button>
           </div>
-          <label className="flex items-center gap-2 text-xs">
+          <Surface
+            as="label"
+            variant="inline-field"
+            textRole="body-small"
+            className="flex items-center"
+          >
             开始年份
             <Input
               aria-label="Maintenance start year"
               type="text"
               inputMode="numeric"
-              className="h-8 w-24"
+              className="w-24"
               value={value.startYear}
               disabled={busy}
               onChange={(event) => {
@@ -250,7 +263,7 @@ export function MaintenanceView({
                   onChange({ ...value, startYear: Number(event.target.value) });
               }}
             />
-          </label>
+          </Surface>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
@@ -312,18 +325,24 @@ export function MaintenanceView({
               锁定并归档
             </Button>
           </div>
-        </div>
+        </Surface>
         <MaintenanceSummary value={value} />
         {calculationError && (
-          <p role="alert" className="px-3 py-2 text-xs text-destructive">
+          <Surface
+            role="alert"
+            as="p"
+            variant="body"
+            tone="danger"
+            textRole="body-small"
+          >
             {calculationError}
-          </p>
+          </Surface>
         )}
-        <p className="border-b px-3 py-2 text-xs text-muted-foreground">
+        <Surface as="p" variant="item" tone="muted" textRole="body-small">
           UnitPrice = CT + SPMS（单台年度价格）；Yearly = UnitPrice × QTY；Total
           = Yearly × Duration（年）。各项可留空；History
           仅供价格对比。拖动列边界调整列宽，行末底边调整行高，也可聚焦后使用方向键。
-        </p>
+        </Surface>
         <MaintenanceGrid
           rows={value.boq}
           totals={
@@ -342,11 +361,16 @@ export function MaintenanceView({
             });
           }}
         />
-        <details className="bg-muted/10 px-3 py-2">
-          <summary className="cursor-pointer text-xs font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring">
+        <Disclosure>
+          <DisclosureSummary className="cursor-pointer">
             从产品 BOQ Excel 导入设备
-          </summary>
-          <fieldset disabled={busy} className="space-y-2 pt-3">
+          </DisclosureSummary>
+          <Surface
+            disabled={busy}
+            as="fieldset"
+            variant="body"
+            className="space-y-2"
+          >
             <Input
               type="file"
               aria-label="产品 BOQ Excel 文件"
@@ -371,28 +395,36 @@ export function MaintenanceView({
               }}
             />
             <div className="grid gap-3 md:grid-cols-5">
-              <label className="block space-y-1 text-xs font-medium">
+              <Surface
+                as="label"
+                variant="field"
+                textRole="body-small"
+                className="block"
+              >
                 工作表
-                <select
+                <SelectField
                   value={sheet}
                   onChange={(e) => {
                     setSheet(e.target.value);
                     setPreview([]);
                   }}
-                  className="block h-8 w-full rounded-md border border-input bg-card px-2.5 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                  className="block h-8 w-full"
                 >
                   {sheets.map((s) => (
                     <option key={s}>{s}</option>
                   ))}
-                </select>
-              </label>
+                </SelectField>
+              </Surface>
               {[
                 [header, setHeader, '表头行'],
                 [modelCol, setModelCol, '型号列号'],
                 [qtyCol, setQtyCol, '数量列号'],
               ].map(([n, set, label]) => (
-                <label
-                  className="block space-y-1 text-xs font-medium"
+                <Surface
+                  as="label"
+                  variant="field"
+                  textRole="body-small"
+                  className="block"
                   key={String(label)}
                 >
                   {String(label)}
@@ -404,9 +436,14 @@ export function MaintenanceView({
                       setPreview([]);
                     }}
                   />
-                </label>
+                </Surface>
               ))}
-              <label className="block space-y-1 text-xs font-medium">
+              <Surface
+                as="label"
+                variant="field"
+                textRole="body-small"
+                className="block"
+              >
                 排除行号
                 <Input
                   value={excluded}
@@ -415,7 +452,7 @@ export function MaintenanceView({
                     setPreview([]);
                   }}
                 />
-              </label>
+              </Surface>
             </div>
             <Button
               variant="outline"
@@ -451,13 +488,17 @@ export function MaintenanceView({
             </Button>
             {preview.length > 0 && (
               <>
-                <div className="max-h-40 overflow-auto text-sm">
+                <Surface
+                  as="div"
+                  textRole="body-main"
+                  className="max-h-40 overflow-auto"
+                >
                   {preview.map((r) => (
                     <p key={r.id}>
                       {r.model} · {r.quantity} 台
                     </p>
                   ))}
-                </div>
+                </Surface>
                 <Button
                   disabled={busy}
                   onClick={async () => {
@@ -517,9 +558,9 @@ export function MaintenanceView({
                 </Button>
               </>
             )}
-          </fieldset>
-        </details>
-      </section>
+          </Surface>
+        </Disclosure>
+      </Surface>
       <ServiceQuoteImport
         key={`${projectId}-${versionCode}`}
         projectId={projectId}
@@ -541,13 +582,15 @@ export function MaintenanceView({
       />
 
       {value.archives.length > 0 && (
-        <section className="wb-panel overflow-hidden">
-          <div className="wb-toolbar border-b">
-            <h2 className="text-sm font-semibold text-primary">维保配置历史</h2>
-            <span className="text-xs text-muted-foreground">
+        <Surface as="section" variant="panel" className="overflow-hidden">
+          <Surface as="div" variant="toolbar">
+            <Text as="h2" tone="primary">
+              维保配置历史
+            </Text>
+            <Text as="span" tone="muted" textRole="body-small">
               {value.archives.length} 条归档
-            </span>
-          </div>
+            </Text>
+          </Surface>
           <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow>
@@ -555,8 +598,12 @@ export function MaintenanceView({
                 <TableHead>版本</TableHead>
                 <TableHead>客户</TableHead>
                 <TableHead>维保期限</TableHead>
-                <TableHead className="text-right">报价 SGD</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+                <TableHead variant="numeric" className="text-right">
+                  报价 SGD
+                </TableHead>
+                <TableHead variant="numeric" className="text-right">
+                  操作
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -573,10 +620,13 @@ export function MaintenanceView({
                       ? `${a.startYear} · ${Math.max(0, ...a.lines.map((line) => line.boq.durationYears ?? 0))} 年`
                       : `${a.coverageMonths} 月（旧归档）`}
                   </TableCell>
-                  <TableCell className="financial-numeral text-right">
+                  <TableCell
+                    variant="numeric"
+                    className="financial-numeral text-right"
+                  >
                     {formatMoney(a.quote)}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell variant="numeric" className="text-right">
                     <Button
                       size="sm"
                       variant="outline"
@@ -609,8 +659,8 @@ export function MaintenanceView({
               ))}
             </TableBody>
           </Table>
-        </section>
+        </Surface>
       )}
-    </div>
+    </Surface>
   );
 }

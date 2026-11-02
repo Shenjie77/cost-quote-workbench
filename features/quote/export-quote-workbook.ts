@@ -67,7 +67,12 @@ export const buildQuoteWorkbookBuffer = async (
     const errors = validateQuoteLines(input.lines, input.pricing.listPrice);
     if (errors.length) throw new Error(errors.join(' '));
   }
-  if (input.layout === 'customer') {
+  if (
+    input.layout === 'customer' ||
+    (!input.template.excel &&
+      input.pricing.discountAllocation &&
+      input.pricing.discountAllocation.mode !== 'total')
+  ) {
     return (await import('./customer-workbook.ts')).buildCustomerWorkbook(
       input,
     );

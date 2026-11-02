@@ -142,10 +142,10 @@ test('peer service accounts share the same row style while Settlement stays edit
   const nodes = render(false);
   const statementRows = nodes.filter((node) => node.type === TableRow);
   const groupClass = statementRows.find((node) => node.key === '2.3.1').props
-    .className;
+    .tone;
   for (const code of ['2.3.2', '2.3.3', '2.3.4'])
     assert.equal(
-      statementRows.find((node) => node.key === code).props.className,
+      statementRows.find((node) => node.key === code).props.tone,
       groupClass,
     );
   const settlement = nodes.find(
@@ -154,7 +154,7 @@ test('peer service accounts share the same row style while Settlement stays edit
       node.props['aria-label'] === 'Settlement Cost cost in SGD',
   );
   assert.equal(settlement.props.disabled, false);
-  assert.match(settlement.props.className, /bg-transparent/);
+  assert.equal(settlement.props.variant, 'grid');
   settlement.props.onChange({ target: { value: '123.45' } });
   assert.equal(manualCosts.settlement, 123.45);
   assert.equal(manualCosts.otherServiceRate, 0.01);

@@ -1,3 +1,13 @@
+import { Badge } from '@/components/ui/badge';
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
+import { Textarea } from '@/components/ui/textarea';
+import { CheckInput } from '@/components/ui/check-input';
 /** Edits one global workflow draft; project execution is handled separately. */
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from 'lucide-react';
@@ -159,46 +169,48 @@ export function WorkflowTemplateEditor({
   };
   return (
     <section>
-      <div className="wb-toolbar justify-between border-b">
+      <Surface as="div" variant="toolbar" className="justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold">Workflow Template</p>
-            <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+            <Text as="p" textRole="body-main">
+              Workflow Template
+            </Text>
+            <Badge tone="neutral">
               {steps.length} Steps · {phases.length} Phases
-            </span>
+            </Badge>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-small" className="mt-1">
             Configure steps, deadlines and requirements, then preview the impact
             before publishing.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          </Text>
+          <Text as="p" tone="muted" textRole="body-small" className="mt-1">
             Phase arrows move the entire parallel group. Arrows within a group
             reorder its steps. New steps are inserted before the closing step.
-          </p>
+          </Text>
         </div>
         <Button type="button" size="sm" disabled={disabled} onClick={create}>
           <Plus />
           Add Step
         </Button>
-      </div>
-      <div className="space-y-3 p-3">
+      </Surface>
+      <Surface as="div" variant="body" className="space-y-3">
         {visible.length ? (
           visible.map((phase, phaseIndex) => (
-            <section
+            <Surface
               key={`${phase.id}:${phaseIndex}`}
-              className={
-                phase.parallel
-                  ? 'space-y-2 rounded-md border border-border bg-muted/30 p-2'
-                  : 'space-y-2'
-              }
+              as="section"
+              variant={phase.parallel ? 'panel' : 'plain'}
+              tone={'inherit'}
+              className="space-y-2"
+              padded
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-muted-foreground">
+                <Text as="p" tone="muted" textRole="body-small">
                   Phase {phases.indexOf(phase) + 1}
                   {phase.parallel
                     ? ` · ${phase.name} · Parallel`
                     : ' · Sequential'}
-                </p>
+                </Text>
                 {phase.parallel && (
                   <div className="flex items-center gap-1">
                     {([-1, 1] as const).map((direction) => (
@@ -238,16 +250,29 @@ export function WorkflowTemplateEditor({
                   (item) => item.code === step.code,
                 );
                 return (
-                  <article
+                  <Surface
                     key={step.code}
-                    className="flex flex-wrap items-center gap-3 rounded-md border bg-card px-3 py-2"
+                    as="article"
+                    variant="panel"
+                    padded
+                    className="flex flex-wrap items-center gap-3"
                   >
-                    <span className="financial-numeral flex size-7 shrink-0 items-center justify-center rounded-sm bg-accent text-xs text-accent-foreground">
+                    <Badge
+                      tone="primary"
+                      className="financial-numeral flex shrink-0 items-center justify-center"
+                    >
                       {index + 1}
-                    </span>
+                    </Badge>
                     <div className="min-w-0 flex-1 basis-48">
-                      <p className="text-sm font-semibold">{stepTitle(step)}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <Text as="p" textRole="body-main">
+                        {stepTitle(step)}
+                      </Text>
+                      <Text
+                        as="p"
+                        tone="muted"
+                        textRole="body-small"
+                        className="mt-1"
+                      >
                         {step.owner || 'Owner not assigned'} ·{' '}
                         {normalizeWorkflowDefinition(step).slaDays}{' '}
                         {normalizeWorkflowDefinition(step).slaCalendar ===
@@ -255,8 +280,13 @@ export function WorkflowTemplateEditor({
                           ? 'Business Days'
                           : 'Calendar Days'}{' '}
                         · {step.required ? 'Required Step' : 'Optional Step'}
-                      </p>
-                      <p className="mt-1 text-xs text-accent-foreground">
+                      </Text>
+                      <Text
+                        as="p"
+                        tone="primary"
+                        textRole="body-small"
+                        className="mt-1"
+                      >
                         {[
                           step.roundStart && 'Round Start',
                           step.requiresConfirmedCost &&
@@ -269,11 +299,16 @@ export function WorkflowTemplateEditor({
                         ]
                           .filter(Boolean)
                           .join(' · ')}
-                      </p>
+                      </Text>
                       {step.detail && (
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <Text
+                          as="p"
+                          tone="muted"
+                          textRole="body-small"
+                          className="mt-1"
+                        >
                           Requirements: {step.detail}
-                        </p>
+                        </Text>
                       )}
                     </div>
                     <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -321,7 +356,7 @@ export function WorkflowTemplateEditor({
                         variant="ghost"
                         size="icon-sm"
                         disabled={disabled}
-                        className="text-destructive"
+
                         aria-label={`Delete ${stepTitle(step)}`}
                         onClick={() => {
                           if (
@@ -343,26 +378,32 @@ export function WorkflowTemplateEditor({
                         <Trash2 />
                       </Button>
                     </div>
-                  </article>
+                  </Surface>
                 );
               })}
-            </section>
+            </Surface>
           ))
         ) : (
-          <p className="py-6 text-center text-sm text-muted-foreground">
+          <Surface
+            as="p"
+            variant="body"
+            tone="muted"
+            textRole="body-main"
+            className="text-center"
+          >
             No matching steps.
-          </p>
+          </Surface>
         )}
-      </div>
-      <div className="wb-toolbar justify-between border-t">
-        <p className="text-xs text-muted-foreground">
+      </Surface>
+      <Surface as="div" variant="toolbar" className="justify-between">
+        <Text as="p" tone="muted" textRole="body-small">
           Add another step, then Preview &amp; Publish to sync projects.
-        </p>
+        </Text>
         <Button type="button" size="sm" disabled={disabled} onClick={create}>
           <Plus />
           Add Step
         </Button>
-      </div>
+      </Surface>
       {editing && (
         <Sheet
           open
@@ -378,13 +419,13 @@ export function WorkflowTemplateEditor({
                 the template draft.
               </SheetDescription>
             </SheetHeader>
-            <div className="space-y-4 px-4">
+            <Surface as="div" variant="body" className="space-y-4">
               <WorkflowNodeDefinitionFields
                 value={editing}
                 onChange={setEditing}
                 disabled={disabled}
               />
-            </div>
+            </Surface>
             <SheetFooter>
               <Button
                 type="button"
@@ -460,7 +501,12 @@ export function WorkflowNodeDefinitionFields({
   ] as const;
   return (
     <>
-      <label className="block space-y-1 text-xs">
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         English Name
         <Input
           aria-label="Step English Name"
@@ -468,8 +514,13 @@ export function WorkflowNodeDefinitionFields({
           disabled={disabled}
           onChange={(event) => onChange({ ...value, name: event.target.value })}
         />
-      </label>
-      <label className="block space-y-1 text-xs">
+      </Surface>
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         Chinese Name
         <Input
           aria-label="Step Chinese Name"
@@ -479,8 +530,13 @@ export function WorkflowNodeDefinitionFields({
             onChange({ ...value, nameZh: event.target.value })
           }
         />
-      </label>
-      <label className="block space-y-1 text-xs">
+      </Surface>
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         Default Owner
         <Input
           aria-label="Step Default Owner"
@@ -490,9 +546,14 @@ export function WorkflowNodeDefinitionFields({
             onChange({ ...value, owner: event.target.value })
           }
         />
-      </label>
+      </Surface>
       <div className="grid grid-cols-2 gap-3">
-        <label className="block space-y-1 text-xs">
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="block"
+        >
           SLA Duration
           <Input
             aria-label="SLA Days"
@@ -512,12 +573,17 @@ export function WorkflowNodeDefinitionFields({
               })
             }
           />
-        </label>
-        <label className="block space-y-1 text-xs">
+        </Surface>
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="block"
+        >
           Calendar
-          <select
+          <SelectField
             aria-label="SLA Calendar"
-            className="h-8 w-full rounded-md border border-input bg-background px-3"
+            className="h-8 w-full"
             value={normalized.slaCalendar}
             disabled={disabled}
             onChange={(event) =>
@@ -529,14 +595,19 @@ export function WorkflowNodeDefinitionFields({
           >
             <option value="business">Business Days</option>
             <option value="calendar">Calendar Days</option>
-          </select>
-        </label>
+          </SelectField>
+        </Surface>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <Text as="p" tone="muted" textRole="body-small">
         Business hours are Monday–Friday, 09:00–18:00 Singapore time. One
         business day equals 9 hours.
-      </p>
-      <label className="block space-y-1 text-xs">
+      </Text>
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         Parallel Group
         <Input
           aria-label="Parallel Group"
@@ -547,16 +618,21 @@ export function WorkflowNodeDefinitionFields({
             onChange({ ...value, parallelGroup: event.target.value })
           }
         />
-        <span className="block text-muted-foreground">
+        <Text as="span" tone="muted" className="block">
           Adjacent steps with the same group name run in parallel. Publishing
           validates that group members are consecutive.
-        </span>
-      </label>
-      <label className="block space-y-1 text-xs">
+        </Text>
+      </Surface>
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         Requirements
-        <textarea
+        <Textarea
           aria-label="Step Requirements"
-          className="w-full rounded-md border border-input bg-background px-3 py-2"
+          className="w-full"
           rows={3}
           value={value.detail}
           disabled={disabled}
@@ -564,12 +640,17 @@ export function WorkflowNodeDefinitionFields({
             onChange({ ...value, detail: event.target.value })
           }
         />
-      </label>
-      <label className="block space-y-1 text-xs">
+      </Surface>
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
         Required Completion Fields
-        <textarea
+        <Textarea
           aria-label="Required Completion Fields"
-          className="w-full rounded-md border border-input bg-background px-3 py-2"
+          className="w-full"
           rows={3}
           placeholder="One field per line, e.g. Application Number, Review Outcome"
           value={(value.requiredFields || []).join('\n')}
@@ -581,20 +662,26 @@ export function WorkflowNodeDefinitionFields({
             })
           }
         />
-        <span className="block text-muted-foreground">
+        <Text as="span" tone="muted" className="block">
           Enter one field name per line. The owner fills in these fields when
           completing the step.
-        </span>
-      </label>
-      <div className="space-y-3 rounded-lg border p-3">
+        </Text>
+      </Surface>
+      <Surface as="div" variant="panel" padded className="space-y-3">
         {flags.map(([key, label, detail]) => (
-          <label key={key} className="flex items-start gap-2 text-xs">
-            <input
+          <Surface
+            key={key}
+            as="label"
+            variant="inline-field"
+            textRole="body-small"
+            className="flex items-start"
+          >
+            <CheckInput
               aria-label={label}
               type="checkbox"
               checked={!!normalized[key]}
               disabled={disabled || (key === 'autoSkip' && !!value.required)}
-              className="mt-0.5"
+              className="mt-1"
               onChange={(event) =>
                 onChange({
                   ...value,
@@ -606,21 +693,28 @@ export function WorkflowNodeDefinitionFields({
               }
             />
             <span>
-              <strong className="font-medium">{label}</strong>
-              <span className="mt-1 block text-muted-foreground">{detail}</span>
+              <strong>{label}</strong>
+              <Text as="span" tone="muted" className="mt-1 block">
+                {detail}
+              </Text>
             </span>
-          </label>
+          </Surface>
         ))}
-      </div>
-      <details className="rounded-lg border p-3">
-        <summary className="cursor-pointer text-xs font-medium">
+      </Surface>
+      <Disclosure>
+        <DisclosureSummary className="cursor-pointer">
           Advanced: Non-working Dates
-        </summary>
-        <label className="mt-3 block space-y-1 text-xs">
+        </DisclosureSummary>
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="mt-3 block"
+        >
           One date per line (YYYY-MM-DD)
-          <textarea
+          <Textarea
             aria-label="Non-working Dates"
-            className="w-full rounded-md border border-input bg-background px-3 py-2"
+            className="w-full"
             rows={3}
             value={(value.slaHolidays || []).join('\n')}
             disabled={disabled}
@@ -631,8 +725,8 @@ export function WorkflowNodeDefinitionFields({
               })
             }
           />
-        </label>
-      </details>
+        </Surface>
+      </Disclosure>
     </>
   );
 }

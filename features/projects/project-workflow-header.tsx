@@ -1,3 +1,10 @@
+import {
+  Disclosure,
+  DisclosureSummary,
+  Text,
+  Surface,
+} from '@/components/ui/presentation';
+import { Textarea } from '@/components/ui/textarea';
 import { ContextBand } from './project-context-band';
 import { safeProjectReferenceUrl } from './project-reference-link';
 export { safeProjectReferenceUrl } from './project-reference-link';
@@ -34,20 +41,29 @@ export function projectReferenceLinkErrors(
 function ReferenceText({ label, value }: { label: string; value?: string }) {
   const text = value?.trim() || 'Not set';
   return text.length > 180 ? (
-    <details className="min-w-0 text-xs leading-5">
-      <summary className="cursor-pointer break-words text-muted-foreground">
-        <span className="font-medium">{label}</span>
-        <span className="ml-2 text-foreground">{text.slice(0, 150)}…</span>
-      </summary>
-      <p className="mt-1 whitespace-pre-wrap break-words pl-4 text-foreground">
+    <Disclosure className="min-w-0">
+      <DisclosureSummary className="cursor-pointer break-words">
+        <span>{label}</span>
+        <Text as="span" tone="default" className="ml-2">
+          {text.slice(0, 150)}…
+        </Text>
+      </DisclosureSummary>
+      <Surface
+        as="p"
+        variant="body"
+        tone="default"
+        className="mt-1 whitespace-pre-wrap break-words"
+      >
         {text}
-      </p>
-    </details>
+      </Surface>
+    </Disclosure>
   ) : (
-    <p className="min-w-0 break-words text-xs leading-5">
-      <span className="mr-2 font-medium text-muted-foreground">{label}</span>
+    <Text as="p" textRole="body-small" className="min-w-0 break-words">
+      <Text as="span" tone="muted" className="mr-2">
+        {label}
+      </Text>
       <span className="whitespace-pre-wrap">{text}</span>
-    </p>
+    </Text>
   );
 }
 
@@ -77,9 +93,11 @@ export function ProjectWorkflowInfoFields({
 }: InfoFieldsProps) {
   const canSave = dirty && !busy && Object.keys(linkErrors).length === 0;
   return (
-    <form
+    <Surface
       aria-label="Edit Project Info"
-      className="mt-3 border-t border-border pt-3"
+      as="form"
+      variant="footer"
+      className="mt-3"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
@@ -87,11 +105,16 @@ export function ProjectWorkflowInfoFields({
       }}
     >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <label className="grid gap-1 text-xs font-medium">
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="grid"
+        >
           Proposal Number
           <Input
             aria-label="Proposal Number"
-            className="h-8"
+
             value={value.proposalNumber}
             maxLength={300}
             disabled={busy}
@@ -99,20 +122,26 @@ export function ProjectWorkflowInfoFields({
               onChange({ ...value, proposalNumber: event.target.value })
             }
           />
-        </label>
+        </Surface>
         {(
           [
             ['companyUrl', 'iSales / Company Link'],
             ['cpqUrl', 'CPQ Link'],
           ] as const
         ).map(([field, label]) => (
-          <label key={field} className="grid gap-1 text-xs font-medium">
+          <Surface
+            key={field}
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="grid"
+          >
             {label}
             <Input
               aria-label={label}
               type="text"
               inputMode="url"
-              className="h-8"
+
               value={value[field] || ''}
               maxLength={10000}
               placeholder="https://…"
@@ -127,20 +156,22 @@ export function ProjectWorkflowInfoFields({
               }}
             />
             {linkErrors[field] && (
-              <span
-                id={`${field}-error`}
-                className="font-normal text-destructive"
-              >
+              <Text id={`${field}-error`} as="span" tone="danger">
                 {linkErrors[field]}
-              </span>
+              </Text>
             )}
-          </label>
+          </Surface>
         ))}
-        <label className="grid content-start gap-1 text-xs font-medium">
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="grid content-start"
+        >
           Technical Document Version
           <Input
             aria-label="Technical Document Version"
-            className="h-8"
+
             value={value.technicalBasis}
             maxLength={10000}
             disabled={busy}
@@ -148,12 +179,17 @@ export function ProjectWorkflowInfoFields({
               onChange({ ...value, technicalBasis: event.target.value })
             }
           />
-        </label>
-        <label className="grid gap-1 text-xs font-medium xl:col-span-2">
+        </Surface>
+        <Surface
+          as="label"
+          variant="field"
+          textRole="body-small"
+          className="grid xl:col-span-2"
+        >
           Scope Brief
-          <textarea
+          <Textarea
             aria-label="Scope Brief"
-            className="min-h-20 w-full resize-y rounded-lg border border-input bg-background px-3 py-2.5 text-sm font-normal leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-55"
+            className="min-h-20 w-full resize-y"
             rows={2}
             value={value.scopeBrief}
             maxLength={10000}
@@ -162,7 +198,7 @@ export function ProjectWorkflowInfoFields({
               onChange({ ...value, scopeBrief: event.target.value })
             }
           />
-        </label>
+        </Surface>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button type="submit" size="sm" disabled={!canSave}>
@@ -186,9 +222,13 @@ export function ProjectWorkflowInfoFields({
         >
           Close
         </Button>
-        {dirty && <span className="text-xs text-amber-700">Unsaved info</span>}
+        {dirty && (
+          <Text as="span" tone="warning" textRole="body-small">
+            Unsaved info
+          </Text>
+        )}
       </div>
-    </form>
+    </Surface>
   );
 }
 
@@ -203,9 +243,13 @@ export function ProjectWorkflowHoldControl({
   disabled?: boolean;
 }) {
   return (
-    <label
+    <Surface
       htmlFor="project-workflow-on-hold"
-      className={`inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs ${onHold ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-border text-muted-foreground'}`}
+      as="label"
+      variant="inline-field"
+      tone={onHold ? 'warning' : 'muted'}
+      textRole="body-small"
+      className="inline-flex items-center gap-2"
     >
       <Switch
         id="project-workflow-on-hold"
@@ -218,8 +262,8 @@ export function ProjectWorkflowHoldControl({
             void onSetHold(checked).catch(() => {});
         }}
       />
-      <span className="whitespace-nowrap font-medium">Project On Hold</span>
-    </label>
+      <span className="whitespace-nowrap">Project On Hold</span>
+    </Surface>
   );
 }
 
@@ -316,9 +360,12 @@ export function ProjectWorkflowHeader({
     }
   };
   return (
-    <section
+    <Surface
       aria-label="Project Workflow Info"
-      className="wb-panel min-w-0 px-3 py-2"
+      as="section"
+      variant="panel"
+      padded
+      className="min-w-0"
     >
       <ContextBand
         project={project}
@@ -356,7 +403,7 @@ export function ProjectWorkflowHeader({
                 onClick={refresh}
                 disabled={disabled}
               >
-                <RefreshCw className="size-3.5" aria-hidden="true" />
+                <RefreshCw className="size-4" aria-hidden="true" />
                 Refresh
               </Button>
               <Button
@@ -403,10 +450,16 @@ export function ProjectWorkflowHeader({
         />
       )}
       {error && (
-        <p role="alert" className="mt-2 text-xs text-destructive">
+        <Text
+          role="alert"
+          as="p"
+          tone="danger"
+          textRole="body-small"
+          className="mt-2"
+        >
           {error}
-        </p>
+        </Text>
       )}
-    </section>
+    </Surface>
   );
 }

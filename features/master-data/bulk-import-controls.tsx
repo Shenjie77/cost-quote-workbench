@@ -1,4 +1,7 @@
 'use client';
+
+import { Text, Surface } from '@/components/ui/presentation';
+import { Input } from '@/components/ui/input';
 import { exportTimestamp } from '../../lib/file-names';
 
 import { useEffect, useRef, useState } from 'react';
@@ -312,12 +315,18 @@ export function BulkImportControls({
         </Button>
       )}
       {!open && error && (
-        <span role="alert" className="basis-full text-xs text-destructive">
+        <Text
+          role="alert"
+          as="span"
+          tone="danger"
+          textRole="body-small"
+          className="basis-full"
+        >
           {error}
-        </span>
+        </Text>
       )}
       <Dialog open={open} onOpenChange={changeOpen}>
-        <DialogContent className="sm:max-w-4xl gap-3" aria-busy={busy}>
+        <DialogContent size="lg" className="gap-3" aria-busy={busy}>
           <DialogHeader>
             <DialogTitle>Bulk Import · {label}</DialogTitle>
             <DialogDescription>
@@ -355,7 +364,7 @@ export function BulkImportControls({
             >
               <Upload /> {busy ? 'Processing…' : 'Choose Excel File'}
             </Button>
-            <input
+            <Input
               ref={fileInput}
               type="file"
               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -369,23 +378,29 @@ export function BulkImportControls({
               }}
             />
           </div>
-          <p className="text-xs text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-small">
             Existing records absent from the file stay unchanged. Matching keys
             update records; blank optional cells keep existing values. Export
             current data to retain its IDs.
-          </p>
+          </Text>
           {error && (
-            <p
+            <Text
               role="alert"
-              className="text-sm text-destructive whitespace-pre-wrap"
+              as="p"
+              tone="danger"
+              textRole="body-main"
+              className="whitespace-pre-wrap"
             >
               {error}
-            </p>
+            </Text>
           )}
           {prepared && preview && (
             <>
-              <div
-                className="flex flex-wrap items-center gap-x-4 gap-y-1 border-y py-2 text-xs"
+              <Surface
+                as="div"
+                variant="body"
+                textRole="body-small"
+                className="flex flex-wrap items-center gap-x-4 gap-y-1"
                 aria-live="polite"
               >
                 <strong className="break-all">{prepared.fileName}</strong>
@@ -393,15 +408,20 @@ export function BulkImportControls({
                 <span>{preview.updated} updates</span>
                 <span>{preview.unchanged} unchanged</span>
                 {!!preview.issues.length && (
-                  <span className="text-destructive">
+                  <Text as="span" tone="danger">
                     {preview.issues.length} errors · No changes will be imported
-                  </span>
+                  </Text>
                 )}
-              </div>
+              </Surface>
               {!!preview.issues.length && (
-                <div
+                <Surface
                   role="alert"
-                  className="max-h-48 overflow-auto rounded-md border border-destructive/25 p-2 text-xs text-destructive"
+                  as="div"
+                  variant="panel"
+                  padded
+                  tone="danger"
+                  textRole="body-small"
+                  className="max-h-48 overflow-auto"
                 >
                   <ul className="space-y-1">
                     {preview.issues.map((issue, index) => (
@@ -412,43 +432,42 @@ export function BulkImportControls({
                       </li>
                     ))}
                   </ul>
-                </div>
+                </Surface>
               )}
               {!!preview.changes.length && (
                 <>
-                  <div className="min-w-0 rounded-md border">
+                  <Surface as="div" variant="panel" className="min-w-0">
                     <Table
-                      className="text-left text-xs"
+                      className="text-left"
                       containerClassName="max-h-[40dvh]"
                       aria-label="Master Data import preview"
                     >
-                      <TableHeader className="sticky top-0 bg-muted">
+                      <TableHeader className="sticky top-0">
                         <TableRow>
-                          <TableHead className="p-2">Action</TableHead>
-                          <TableHead className="p-2">Row</TableHead>
-                          <TableHead className="p-2">Record</TableHead>
-                          <TableHead className="p-2">
-                            Values from Excel
-                          </TableHead>
+                          <TableHead>Action</TableHead>
+                          <TableHead>Row</TableHead>
+                          <TableHead>Record</TableHead>
+                          <TableHead>Values from Excel</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {visibleChanges.map((change) => (
-                          <TableRow
-                            key={change.row}
-                            className="border-t align-top"
-                          >
-                            <TableCell className="p-2 capitalize">
+                          <TableRow key={change.row} className="align-top">
+                            <TableCell className="capitalize">
                               {change.action}
                             </TableCell>
-                            <TableCell className="p-2">{change.row}</TableCell>
-                            <TableCell className="p-2 min-w-36">
-                              <div className="font-medium">{change.label}</div>
-                              <div className="text-muted-foreground [overflow-wrap:anywhere]">
+                            <TableCell>{change.row}</TableCell>
+                            <TableCell className="min-w-36">
+                              <div>{change.label}</div>
+                              <Surface
+                                as="div"
+                                tone="muted"
+                                className="[overflow-wrap:anywhere]"
+                              >
                                 {change.key}
-                              </div>
+                              </Surface>
                             </TableCell>
-                            <TableCell className="p-2 min-w-48 whitespace-pre-wrap [overflow-wrap:anywhere]">
+                            <TableCell className="min-w-48 whitespace-pre-wrap [overflow-wrap:anywhere]">
                               {describeInput(
                                 prepared.rows.find(
                                   (row) => row.row === change.row,
@@ -459,9 +478,13 @@ export function BulkImportControls({
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
+                  </Surface>
                   {pages > 1 && (
-                    <div className="flex items-center justify-end gap-2 text-xs">
+                    <Surface
+                      as="div"
+                      textRole="body-small"
+                      className="flex items-center justify-end gap-2"
+                    >
                       <span>
                         Page {page + 1} / {pages}
                       </span>
@@ -481,7 +504,7 @@ export function BulkImportControls({
                       >
                         Next
                       </Button>
-                    </div>
+                    </Surface>
                   )}
                 </>
               )}

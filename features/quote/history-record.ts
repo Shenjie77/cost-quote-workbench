@@ -1,4 +1,5 @@
 import { quoteFieldValues } from './document-fields.ts';
+import { customerDocument } from './customer-document.ts';
 import { quotationProjectName } from './template-text.ts';
 import type { QuoteWorkbookInput } from './export-quote-workbook.ts';
 import type { QuoteHistoryRecord, QuoteProfitShareSnapshot } from './types.ts';
@@ -33,6 +34,13 @@ export function quoteHistoryRecord(
     status: 'Draft',
     lineRemarks: structuredClone(input.lineRemarks ?? {}),
     discountDescription: p.discountDescription ?? '',
+    ...(p.discountAllocation
+      ? {
+          discountAllocationSnapshot: structuredClone(
+            customerDocument(input).allocation,
+          ),
+        }
+      : {}),
     costAmount: p.cost,
     quoteBeforeTax: p.quoteBeforeTax,
     gstAmount: p.gstAmount,

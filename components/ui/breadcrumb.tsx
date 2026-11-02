@@ -1,3 +1,4 @@
+import { layoutClassName } from '@/lib/ui-layout';
 import * as React from 'react';
 import { mergeProps } from '@base-ui/react/merge-props';
 import { useRender } from '@base-ui/react/use-render';
@@ -21,8 +22,8 @@ function BreadcrumbList({ className, ...props }: React.ComponentProps<'ol'>) {
     <ol
       data-slot="breadcrumb-list"
       className={cn(
-        'text-muted-foreground gap-1.5 text-sm flex flex-wrap items-center wrap-break-word',
-        className,
+        'text-muted-foreground gap-2 text-body-main flex flex-wrap items-center wrap-break-word',
+        layoutClassName(className),
       )}
       {...props}
     />
@@ -66,7 +67,7 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<'span'>) {
       role="link"
       aria-disabled="true"
       aria-current="page"
-      className={cn('text-foreground font-normal', className)}
+      className={cn('text-foreground', className)}
       {...props}
     />
   );
@@ -101,7 +102,7 @@ function BreadcrumbEllipsis({
       aria-hidden="true"
       className={cn(
         'size-5 [&>svg]:size-4 flex items-center justify-center',
-        className,
+        layoutClassName(className),
       )}
       {...props}
     >

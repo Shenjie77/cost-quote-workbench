@@ -360,8 +360,8 @@ test('Action stays last and is pinned on wider screens across header, rows and t
     assert.equal(actions.length, 3);
     for (const action of actions) {
       assert.match(action.props.className, /sm:sticky sm:right-0/);
-      assert.match(action.props.className, /border-l/);
-      assert.match(action.props.className, /bg-/);
+      const styles = readFileSync(new URL('../styles/components.css', import.meta.url), 'utf8');
+      assert.match(styles, /\[data-personnel-column='action'\][\s\S]*?background: var\(--card\)[\s\S]*?border-left:/);
     }
     const body = nodes.find(
       (node) => node.props['data-personnel-row'] === 'CI-1',
@@ -857,7 +857,7 @@ test('group rename commits explicitly with captured membership, including merge 
   );
   assert.equal(field.props.onChange, undefined);
   assert.equal(updates.length, 0);
-  const submit = walk(header).find((node) => node.type === 'form').props
+  const submit = walk(header).find((node) => (node.type === 'form' || node.props.as === 'form')).props
     .onSubmit;
   const event = (value) => ({
     preventDefault: noop,
@@ -876,7 +876,7 @@ test('group rename commits explicitly with captured membership, including merge 
     (node) => node.props['data-personnel-group'] === 'Design',
   );
   walk(lockedHeader)
-    .find((node) => node.type === 'form')
+    .find((node) => (node.type === 'form' || node.props.as === 'form'))
     .props.onSubmit(event('Blocked'));
   assert.equal(updates.length, 2);
   assert.match(render(PersonnelLinesTable, props), /Save \/ Merge/);

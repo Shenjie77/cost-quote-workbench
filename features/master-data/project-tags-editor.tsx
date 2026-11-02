@@ -1,3 +1,5 @@
+import { Text } from '@/components/ui/presentation';
+import { CheckInput } from '@/components/ui/check-input';
 /** Shared tag catalog uses the same draft/save lifecycle as other master-data grids. */
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,9 +30,9 @@ export function ProjectTagsEditor({
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
+        <Text as="p" tone="muted" textRole="body-small">
           统一创建标签，项目编辑中多选分配。停用或改名不会改写项目已有标签。
-        </p>
+        </Text>
         <Button
           size="sm"
           onClick={() =>
@@ -70,7 +72,7 @@ export function ProjectTagsEditor({
                   />
                 </TableCell>
                 <TableCell>
-                  <input
+                  <CheckInput
                     type="checkbox"
                     aria-label={`Active tag ${item.name || 'new tag'}`}
                     checked={item.active}

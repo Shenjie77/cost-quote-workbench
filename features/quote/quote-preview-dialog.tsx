@@ -1,3 +1,4 @@
+import { Text, Surface } from '@/components/ui/presentation';
 import {
   structuredBodyRows,
   defaultBodyTitles,
@@ -138,7 +139,12 @@ export function QuotePreviewDialog({
       quoteNumber: `QT-${project.id.replace(/^PRJ-/, '')}-${activeVersion}`,
       costVersion: activeVersion,
       sections: sections.map((section) => ({
-        name: `${section.section || sectionName(section.inclusion)} / ${section.category}`,
+        name: [
+          section.section || sectionName(section.inclusion),
+          section.category,
+        ]
+          .filter((name, index, names) => names.indexOf(name) === index)
+          .join(' / '),
         lines: section.lines,
       })),
       bodyRows,
@@ -184,84 +190,107 @@ export function QuotePreviewDialog({
         render={<Button variant="outline" />}
       >
         <Eye /> Preview
-        <span className="text-xs opacity-60">客户预览</span>
+        <Text as="span" textRole="body-small">
+          客户预览
+        </Text>
       </DialogTrigger>
-      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-3 overflow-hidden sm:max-w-[900px]">
+      <DialogContent size="lg" className="flex flex-col gap-3 overflow-hidden">
         <DialogHeader>
           <DialogTitle>Client Output Preview</DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogDescription>
             Review the current quotation content. Preview XLSX uses this
             built-in layout; customer exports use the selected customer
             template.
           </DialogDescription>
         </DialogHeader>
         {termsError && (
-          <p role="alert" className="text-xs text-destructive">
+          <Text role="alert" as="p" tone="danger" textRole="body-small">
             {termsError}
-          </p>
+          </Text>
         )}
         {!pricing.valid && (
-          <p
+          <Surface
             role="alert"
-            className="border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+            as="p"
+            variant="notice"
+            tone="warning"
+            textRole="body-small"
           >
             Draft has unresolved pricing:{' '}
             {pricing.errors[0] ||
               'Resolve pricing errors before generating the customer quotation.'}
-          </p>
+          </Surface>
         )}
         {/* Only customer-facing fields are rendered; cost, allocation weights and pricing controls stay outside. */}
-        <article
+        <Surface
           aria-label="Customer quotation preview"
-          className="min-h-0 overflow-auto border bg-card p-4"
+          as="article"
+          variant="panel"
+          padded
+          className="min-h-0 overflow-auto"
         >
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-primary pb-3">
-            <h3 className="text-base font-bold tracking-wide text-primary">
+          <Surface
+            as="div"
+            variant="body"
+            className="flex flex-wrap items-start justify-between gap-3"
+          >
+            <Text as="h3" tone="primary">
               {template?.documentTitle || 'SERVICE QUOTATION'}
-            </h3>
-            <span className="financial-numeral text-xs text-muted-foreground">
+            </Text>
+            <Text
+              as="span"
+              tone="muted"
+              textRole="body-small"
+              className="financial-numeral"
+            >
               QT-{project.id.replace(/^PRJ-/, '')}-{activeVersion}
-            </span>
-          </div>
+            </Text>
+          </Surface>
           <div className="my-3">
-            <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
+            <Text
+              as="p"
+              tone="muted"
+              textRole="body-small"
+              className="uppercase"
+            >
               Prepared for
-            </p>
-            <p className="mt-1 text-sm font-semibold">{project.client}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{customerName}</p>
+            </Text>
+            <Text as="p" textRole="body-main" className="mt-1">
+              {project.client}
+            </Text>
+            <Text as="p" tone="muted" textRole="body-small" className="mt-1">
+              {customerName}
+            </Text>
           </div>
           {/* Line amounts share the same calculated source as the customer workbook. */}
           <Table
-            className="min-w-[600px] text-xs"
+            className="min-w-[600px]"
             aria-label="Customer quotation details"
           >
             <TableHeader>
-              <TableRow className="bg-muted/60">
+              <TableRow tone="subtotal">
                 <TableHead className="w-10">#</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead className="text-right">Quantity</TableHead>
+                <TableHead variant="numeric" className="text-right">
+                  Quantity
+                </TableHead>
                 <TableHead>Unit</TableHead>
-                <TableHead className="text-right">Unit price</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead variant="numeric" className="text-right">
+                  Unit price
+                </TableHead>
+                <TableHead variant="numeric" className="text-right">
+                  Amount
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {bodyRows.map((row, index) =>
                 row.role === 'blank' ? (
                   <TableRow key={index} aria-hidden="true">
-                    <TableCell colSpan={6} className="h-3 p-0" />
+                    <TableCell variant="editable" colSpan={6} className="h-3" />
                   </TableRow>
                 ) : (
-                  <TableRow
-                    key={index}
-                    className={
-                      row.role === 'total' || row.role === 'grandTotal'
-                        ? 'bg-accent/50 font-semibold'
-                        : row.role !== 'detail'
-                          ? 'font-medium'
-                          : ''
-                    }
-                  >
+                  <TableRow key={index}>
                     <TableCell>{row.number}</TableCell>
                     <TableCell
                       colSpan={row.line ? 1 : 4}
@@ -271,16 +300,16 @@ export function QuotePreviewDialog({
                     </TableCell>
                     {row.line && (
                       <>
-                        <TableCell className="text-right">
+                        <TableCell variant="numeric" className="text-right">
                           {row.line.quantity}
                         </TableCell>
                         <TableCell>{row.line.unit}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell variant="numeric" className="text-right">
                           {formatUnitPrice(row.line.unitPrice)}
                         </TableCell>
                       </>
                     )}
-                    <TableCell className="text-right">
+                    <TableCell variant="numeric" className="text-right">
                       {row.amount === undefined ? '' : formatSgd(row.amount)}
                     </TableCell>
                   </TableRow>
@@ -288,10 +317,7 @@ export function QuotePreviewDialog({
               )}
               {!sections.length && (
                 <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="py-4 text-center text-muted-foreground"
-                  >
+                  <TableCell colSpan={6} className="text-center">
                     No quotation details yet.
                   </TableCell>
                 </TableRow>
@@ -299,19 +325,24 @@ export function QuotePreviewDialog({
             </TableBody>
           </Table>
           {/* Preserve selected terms and included assumptions verbatim, including their line breaks. */}
-          <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+          <Surface
+            as="div"
+            tone="muted"
+            textRole="body-small"
+            className="mt-3 space-y-2"
+          >
             <p>• Validity: {template?.validityDays || 30} days</p>
             <p className="whitespace-pre-wrap break-words">
               • Payment: {template?.paymentTerms || 'Not set'}
             </p>
             <p>• Cost baseline: {activeVersion}</p>
             {template?.termsAndConditions && (
-              <div className="border-t pt-2">
-                <p className="font-semibold">Terms &amp; Conditions</p>
+              <Surface as="div" variant="footer">
+                <p>Terms &amp; Conditions</p>
                 <p className="whitespace-pre-wrap break-words">
                   {renderedTerms}
                 </p>
-              </div>
+              </Surface>
             )}
             {assumptions
               .filter((row) => row.included && !isRetiredQuoteAssumption(row))
@@ -320,18 +351,18 @@ export function QuotePreviewDialog({
                   • {row.text}
                 </p>
               ))}
-          </div>
-        </article>
+          </Surface>
+        </Surface>
         {exportError && (
-          <p role="alert" className="text-xs text-destructive">
+          <Text role="alert" as="p" tone="danger" textRole="body-small">
             {exportError}
-          </p>
+          </Text>
         )}
-        <p className="text-xs text-muted-foreground">
+        <Text as="p" tone="muted" textRole="body-small">
           Built-in preview layout. Edit content in Quotation project name, Quote
           Templates (title and T&amp;C), and Quote Assumptions.
-        </p>
-        <DialogFooter className="py-3" showCloseButton>
+        </Text>
+        <DialogFooter showCloseButton>
           <Button
             disabled={exporting || !pricing.valid || !!termsError || !template}
             onClick={exportPreview}

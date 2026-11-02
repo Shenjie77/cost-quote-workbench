@@ -1,3 +1,10 @@
+import {
+  Surface,
+  Disclosure,
+  DisclosureSummary,
+  Text,
+} from '@/components/ui/presentation';
+import { Textarea } from '@/components/ui/textarea';
 import { useEffect, useState } from 'react';
 import { FolderArchive, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -149,7 +156,7 @@ export function ProjectEditDialog({
     label: string,
     required = false,
   ) => (
-    <label className="block space-y-1.5 text-xs font-medium">
+    <Surface as="label" variant="field" textRole="body-small" className="block">
       {label}
       <Input
         value={details[key]}
@@ -161,7 +168,7 @@ export function ProjectEditDialog({
         type={key.endsWith('Url') ? 'url' : 'text'}
         maxLength={key.endsWith('Url') ? 2048 : 200}
       />
-    </label>
+    </Surface>
   );
   return (
     <Dialog
@@ -171,8 +178,9 @@ export function ProjectEditDialog({
       }}
     >
       <DialogContent
+        size="md"
         showCloseButton={!busy}
-        className="max-h-[90vh] overflow-y-auto sm:max-w-[660px]"
+        className="overflow-y-auto"
       >
         <DialogHeader>
           <DialogTitle>Edit Project</DialogTitle>
@@ -206,19 +214,22 @@ export function ProjectEditDialog({
             disabled={busy || !baseline}
             onChange={(tags) => setDetails((current) => ({ ...current, tags }))}
           />
-          <details className="rounded-md border border-border bg-muted/15 px-3 py-2">
-            <summary className="cursor-pointer rounded-md text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
+          <Disclosure>
+            <DisclosureSummary className="cursor-pointer">
               Scope & Technical Basis
-            </summary>
+            </DisclosureSummary>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {(['scopeBrief', 'technicalBasis'] as const).map((key) => (
-                <label
+                <Surface
                   key={key}
-                  className="block space-y-1.5 text-xs font-medium"
+                  as="label"
+                  variant="field"
+                  textRole="body-small"
+                  className="block"
                 >
                   {key === 'scopeBrief' ? 'Scope Brief' : 'Technical Basis'}
-                  <textarea
-                    className="min-h-24 w-full rounded-lg border border-input bg-white px-3 py-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+                  <Textarea
+                    className="min-h-24 w-full"
                     value={details[key]}
                     disabled={busy || !baseline}
                     maxLength={4000}
@@ -229,16 +240,19 @@ export function ProjectEditDialog({
                       }))
                     }
                   />
-                </label>
+                </Surface>
               ))}
             </div>
-          </details>
-          <section
+          </Disclosure>
+          <Surface
             aria-label="Project Folder"
-            className="space-y-2 rounded-md border border-border bg-muted/20 p-3"
+            as="section"
+            variant="panel"
+            padded
+            className="space-y-2"
           >
             <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-xs font-semibold">
+              <h3 className="flex items-center gap-2">
                 <FolderArchive className="size-4" />
                 Project Folder
               </h3>
@@ -246,7 +260,7 @@ export function ProjectEditDialog({
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="size-8"
+
                 aria-label="Reload project folder"
                 disabled={busy || folderLoading}
                 onClick={() => {
@@ -255,12 +269,12 @@ export function ProjectEditDialog({
                   setFolderReload((value) => value + 1);
                 }}
               >
-                <RefreshCw className="size-3.5" />
+                <RefreshCw className="size-4" />
               </Button>
             </div>
             <Input
               aria-label="Project folder path"
-              className="font-mono text-xs"
+
               value={projectPath}
               placeholder={
                 folderLoading
@@ -279,11 +293,11 @@ export function ProjectEditDialog({
               description="Open saved project archive folder"
               disabled={busy || folderLoading || !location}
             />
-            <p className="text-xs text-muted-foreground">
+            <Text as="p" tone="muted" textRole="body-small">
               Enter a new project folder on the computer running the workbench,
               then apply to move its documents. Pasted quoted paths, file URLs
               and ~/ paths are supported. The destination folder must not exist.
-            </p>
+            </Text>
             {folderDirty && (
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -306,26 +320,31 @@ export function ProjectEditDialog({
                 >
                   Reset
                 </Button>
-                <span className="text-xs text-muted-foreground">
+                <Text as="span" tone="muted" textRole="body-small">
                   Apply or reset before saving project info.
-                </span>
+                </Text>
               </div>
             )}
             {folderError && (
-              <p role="alert" className="text-xs text-destructive">
+              <Text role="alert" as="p" tone="danger" textRole="body-small">
                 {folderError}
-              </p>
+              </Text>
             )}
             {folderNotice && (
-              <output className="block text-xs text-emerald-700">
+              <Text
+                as="output"
+                tone="success"
+                textRole="body-small"
+                className="block"
+              >
                 {folderNotice}
-              </output>
+              </Text>
             )}
-          </section>
+          </Surface>
           {error && (
-            <p role="alert" className="text-sm text-destructive">
+            <Text role="alert" as="p" tone="danger" textRole="body-main">
               {error}
-            </p>
+            </Text>
           )}
           <DialogFooter>
             <Button

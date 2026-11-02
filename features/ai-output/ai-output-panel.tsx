@@ -1,12 +1,15 @@
+import { Surface, Text, DisclosureSummary } from '@/components/ui/presentation';
+import { CheckInput } from '@/components/ui/check-input';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { SelectField } from '@/components/ui/select-field';
+import { Textarea } from '@/components/ui/textarea';
 import { useEffect, useRef, useState } from 'react';
 import { StatusBadge } from '@/components/workbench/status-badge';
 import type { DailyDigest, DigestItem } from '../agent/digest-domain';
 import type { AiOutput, AiRun, Scene, SceneRecord } from './contracts';
 
-const fieldClass =
-  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring';
-const buttonClass =
-  'min-h-9 rounded-md border border-input px-3 py-2 text-sm hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-ring';
+const fieldClass = 'w-full';
 type Settings = {
   provider: string;
   model: string;
@@ -193,45 +196,57 @@ export function AiOutputPanel({
     setFinal(updated);
   }
   return (
-    <section className="wb-panel">
-      <div className="wb-toolbar justify-between">
-        <label className="flex items-center gap-2 text-sm font-medium">
-          <input
+    <Surface as="section" variant="panel">
+      <Surface as="div" variant="toolbar" className="justify-between">
+        <Surface
+          as="label"
+          variant="inline-field"
+          textRole="body-main"
+          className="flex items-center"
+        >
+          <CheckInput
             type="checkbox"
             checked={enabled}
             disabled={Boolean(busy)}
             onChange={(e) => enableExperiment(e.target.checked)}
           />
           Local AI draft experiment / 本地 AI 草稿实验
-        </label>
-        <span className="text-xs text-muted-foreground">
+        </Surface>
+        <Text as="span" tone="muted" textRole="body-small">
           Feedback only · No automatic training / 仅存反馈，不自动训练
-        </span>
-      </div>
+        </Text>
+      </Surface>
       {enabled && (
-        <div className="space-y-4 border-t p-3">
-          <p className="text-xs text-muted-foreground">
+        <Surface as="div" variant="footer">
+          <Text as="p" tone="muted" textRole="body-small">
             原有摘要在下方始终可用。模型组织章节、顺序及来源摘录；数字、状态和期限由平台保留。确认仅保存认可稿，不修改项目。
-          </p>
+          </Text>
           <div className="flex flex-wrap items-end gap-2">
-            <label className="min-w-64 flex-1 text-xs">
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="min-w-64 flex-1"
+            >
               Local backend API / 平台本地后端地址
-              <input
-                className={fieldClass}
+              <Input
+                className="w-full"
                 value={endpoint}
                 disabled={Boolean(busy)}
                 onChange={(e) => setEndpoint(e.target.value)}
               />
-            </label>
-            <button
-              className={buttonClass}
+            </Surface>
+            <Button
+              variant="ghost"
+              className="disabled:cursor-not-allowed"
               disabled={Boolean(busy) || !endpoint}
               onClick={load}
             >
               Load configuration / 读取配置
-            </button>
-            <button
-              className={buttonClass}
+            </Button>
+            <Button
+              variant="ghost"
+              className="disabled:cursor-not-allowed"
               disabled={Boolean(busy) || !settings}
               onClick={() =>
                 perform('Checking service / 检查连接', async () => {
@@ -249,22 +264,27 @@ export function AiOutputPanel({
               }
             >
               Check model connection / 验证模型连接
-            </button>
+            </Button>
           </div>
           {settings && (
-            <p className="text-xs text-muted-foreground">
+            <Text as="p" tone="muted" textRole="body-small">
               {settings.provider} ·{' '}
               {settings.model || 'Set WORKBENCH_AI_MODEL / 请配置模型名'} ·
               context {settings.contextLength} · output ≤ {settings.maxTokens}{' '}
               tokens · timeout {settings.timeoutMs / 1000}s · single request
-            </p>
+            </Text>
           )}
           {!!scenes.length && (
             <>
-              <label className="block text-xs">
+              <Surface
+                as="label"
+                variant="field"
+                textRole="body-small"
+                className="block"
+              >
                 Scenario / 场景
-                <select
-                  className={fieldClass}
+                <SelectField
+                  className="w-full"
                   value={sceneId}
                   disabled={Boolean(busy)}
                   onChange={(e) => {
@@ -283,39 +303,52 @@ export function AiOutputPanel({
                       {s.scene.name} · v{s.revision}
                     </option>
                   ))}
-                </select>
-              </label>
+                </SelectField>
+              </Surface>
               <details>
-                <summary className="cursor-pointer py-2 text-sm">
+                <DisclosureSummary className="cursor-pointer">
                   Edit scene configuration / 编辑章节、语气、长度、必填项和示例
-                </summary>
-                <p className="mb-2 text-xs text-muted-foreground">
+                </DisclosureSummary>
+                <Text
+                  as="p"
+                  tone="muted"
+                  textRole="body-small"
+                  className="mb-2"
+                >
                   JSON 配置可仅用于本次；保存预设保留版本。修改 id
                   可另存新场景。引导语由你维护，摘录必须逐字来自记录。sections
                   顺序即章节顺序；requiredFields 控制来源字段显示。
-                </p>
-                <label className="block text-xs">
+                </Text>
+                <Surface
+                  as="label"
+                  variant="field"
+                  textRole="body-small"
+                  className="block"
+                >
                   Scene JSON
-                  <textarea
-                    className={`${fieldClass} font-mono`}
+                  <Textarea
+                    className={`${fieldClass}`}
                     rows={14}
                     value={configText}
                     disabled={Boolean(busy)}
                     onChange={(e) => setConfigText(e.target.value)}
                   />
-                </label>
+                </Surface>
               </details>
               <details open>
-                <summary className="cursor-pointer py-2 text-sm">
+                <DisclosureSummary className="cursor-pointer">
                   Input snapshot selection / 选择输入记录（4K 从一条开始）
-                </summary>
+                </DisclosureSummary>
                 <div className="max-h-48 space-y-2 overflow-auto">
                   {digest.items.map((item) => (
-                    <label
-                      className="flex items-start gap-2 text-xs"
+                    <Surface
+                      as="label"
+                      variant="inline-field"
+                      textRole="body-small"
+                      className="flex items-start"
                       key={item.id}
                     >
-                      <input
+                      <CheckInput
                         type="checkbox"
                         disabled={Boolean(busy)}
                         checked={selected.includes(item.id)}
@@ -331,102 +364,131 @@ export function AiOutputPanel({
                         {item.titleZh || item.title} —{' '}
                         {item.detailZh || item.detail}
                       </span>
-                    </label>
+                    </Surface>
                   ))}
                   {!digest.items.length && (
-                    <p className="text-xs">
+                    <Text as="p" textRole="body-small">
                       No source items / 当前没有提醒事项
-                    </p>
+                    </Text>
                   )}
                 </div>
               </details>
-              <label className="block text-xs">
+              <Surface
+                as="label"
+                variant="field"
+                textRole="body-small"
+                className="block"
+              >
                 Adjustment for this generation / 本次调整要求（最多 500 字）
-                <textarea
-                  className={fieldClass}
+                <Textarea
+                  className="w-full"
                   rows={2}
                   maxLength={500}
                   disabled={Boolean(busy)}
                   value={adjustment}
                   onChange={(e) => setAdjustment(e.target.value)}
                 />
-              </label>
+              </Surface>
               <div className="flex flex-wrap gap-2">
-                <button
-                  className={buttonClass}
+                <Button
+                  variant="ghost"
+                  className="disabled:cursor-not-allowed"
                   disabled={Boolean(busy) || !settings?.configured}
                   onClick={() => generate(false)}
                 >
                   Generate new draft / 生成新草稿
-                </button>
-                <button
-                  className={buttonClass}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="disabled:cursor-not-allowed"
                   disabled={
                     Boolean(busy) || !run?.result || !settings?.configured
                   }
                   onClick={() => generate(true)}
                 >
                   Revise same snapshot / 调整本次并重新生成
-                </button>
-                <button
-                  className={buttonClass}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="disabled:cursor-not-allowed"
                   disabled={Boolean(busy)}
                   onClick={savePreset}
                 >
                   Save as scene preset / 保存为场景预设
-                </button>
+                </Button>
               </div>
             </>
           )}
-          <output aria-live="polite" className="block text-xs">
+          <Text
+            aria-live="polite"
+            as="output"
+            textRole="body-small"
+            className="block"
+          >
             {busy || message}
-          </output>
+          </Text>
           {error && (
-            <p role="alert" className="text-sm text-destructive">
+            <Text role="alert" as="p" tone="danger" textRole="body-main">
               {error} 原有摘要和已有草稿保留。
-            </p>
+            </Text>
           )}
           {run && final && (
             <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
+              <Text as="p" tone="muted" textRole="body-small">
                 Snapshot {run.snapshot.asOf} · {run.model} · scene v
                 {run.sceneRevision} ·{' '}
                 {run.status === 'confirmed'
                   ? 'Confirmed / 已确认'
                   : 'Draft / 待确认'}{' '}
                 · {run.createdAt}
-              </p>
+              </Text>
               {final.sections.map((section, si) => (
-                <section className="rounded-md border" key={section.id}>
-                  <h3 className="border-b px-3 py-2 text-sm font-medium">
+                <Surface as="section" variant="panel" key={section.id}>
+                  <Surface as="h3" variant="header">
                     {run.scene.sections.find((s) => s.id === section.id)?.title}
-                  </h3>
+                  </Surface>
                   {!section.entries.length && (
-                    <p className="p-3 text-xs text-muted-foreground">
+                    <Surface
+                      as="p"
+                      variant="body"
+                      tone="muted"
+                      textRole="body-small"
+                    >
                       {run.scene.missing === 'pending'
                         ? 'Pending confirmation / 待确认'
                         : ''}
-                    </p>
+                    </Surface>
                   )}
                   {section.entries.map((entry, ei) => {
                     const source = run.snapshot.items.find(
                       (i) => i.id === entry.sourceId,
                     )!;
                     return (
-                      <div
-                        className="space-y-2 border-b p-3 last:border-b-0"
+                      <Surface
+                        as="div"
+                        variant="item"
+                        className="space-y-2"
                         key={entry.sourceId}
                       >
-                        <div className="flex items-center gap-2 text-sm font-medium">
+                        <Surface
+                          as="div"
+                          textRole="body-main"
+                          className="flex items-center gap-2"
+                        >
                           <StatusBadge tone={source.severity}>
                             {source.severity}
                           </StatusBadge>
                           <span>{source.titleZh || source.title}</span>
-                        </div>
-                        <label className="block text-xs">
+                        </Surface>
+                        <Surface
+                          as="label"
+                          variant="field"
+                          textRole="body-small"
+                          className="block"
+                        >
                           Lead / 引导语
-                          <input
-                            className={fieldClass}
+                          <Input
+                            className="w-full"
                             disabled={
                               Boolean(busy) || run.status === 'confirmed'
                             }
@@ -436,11 +498,16 @@ export function AiOutputPanel({
                               editEntry(si, ei, 'lead', e.target.value)
                             }
                           />
-                        </label>
-                        <label className="block text-xs">
+                        </Surface>
+                        <Surface
+                          as="label"
+                          variant="field"
+                          textRole="body-small"
+                          className="block"
+                        >
                           Draft content / 草稿内容
-                          <textarea
-                            className={fieldClass}
+                          <Textarea
+                            className="w-full"
                             rows={2}
                             disabled={
                               Boolean(busy) || run.status === 'confirmed'
@@ -451,15 +518,21 @@ export function AiOutputPanel({
                               editEntry(si, ei, 'excerpt', e.target.value)
                             }
                           />
-                        </label>
+                        </Surface>
                         <details>
-                          <summary className="cursor-pointer text-xs">
+                          <DisclosureSummary className="cursor-pointer">
                             Source facts / 来源核对
-                          </summary>
-                          <dl className="space-y-1 py-2 text-xs text-muted-foreground">
+                          </DisclosureSummary>
+                          <Surface
+                            as="dl"
+                            variant="body"
+                            tone="muted"
+                            textRole="body-small"
+                            className="space-y-1"
+                          >
                             {run.scene.requiredFields.map((key) => (
                               <div key={key}>
-                                <dt className="inline font-medium">{key}: </dt>
+                                <dt className="inline">{key}: </dt>
                                 <dd className="inline">
                                   {source[key] ||
                                     (run.scene.missing === 'pending'
@@ -468,32 +541,39 @@ export function AiOutputPanel({
                                 </dd>
                               </div>
                             ))}
-                          </dl>
+                          </Surface>
                         </details>
-                        <button
-                          className={buttonClass}
+                        <Button
+                          variant="ghost"
+                          className="disabled:cursor-not-allowed"
                           onClick={() => openItem(source)}
                         >
                           Open source record / 打开原始记录
-                        </button>
-                      </div>
+                        </Button>
+                      </Surface>
                     );
                   })}
-                </section>
+                </Surface>
               ))}
-              <label className="block text-xs">
+              <Surface
+                as="label"
+                variant="field"
+                textRole="body-small"
+                className="block"
+              >
                 Final feedback / 最终修改说明
-                <textarea
-                  className={fieldClass}
+                <Textarea
+                  className="w-full"
                   maxLength={2000}
                   rows={2}
                   value={note}
                   disabled={Boolean(busy) || run.status === 'confirmed'}
                   onChange={(e) => setNote(e.target.value)}
                 />
-              </label>
-              <button
-                className={buttonClass}
+              </Surface>
+              <Button
+                variant="ghost"
+                className="disabled:cursor-not-allowed"
                 disabled={Boolean(busy) || run.status !== 'draft'}
                 onClick={() =>
                   perform('Confirming / 保存认可稿', async () => {
@@ -511,18 +591,19 @@ export function AiOutputPanel({
                 }
               >
                 Confirm final version / 确认并保存认可稿
-              </button>
+              </Button>
             </div>
           )}
           {!!history.length && (
             <details>
-              <summary className="cursor-pointer py-2 text-sm">
+              <DisclosureSummary className="cursor-pointer">
                 Recent saved drafts / 最近 20 条记录
-              </summary>
+              </DisclosureSummary>
               <div className="flex flex-wrap gap-2">
                 {history.map((value) => (
-                  <button
-                    className={buttonClass}
+                  <Button
+                    variant="ghost"
+                    className="disabled:cursor-not-allowed"
                     key={value.id}
                     disabled={Boolean(busy) || !value.result}
                     onClick={() => {
@@ -537,13 +618,14 @@ export function AiOutputPanel({
                     }}
                   >
                     {value.createdAt.slice(0, 19)} · {value.status}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </details>
           )}
-          <button
-            className={buttonClass}
+          <Button
+            variant="ghost"
+            className="disabled:cursor-not-allowed"
             disabled={Boolean(busy) || !endpoint}
             onClick={() =>
               perform('Exporting / 导出反馈', async () => {
@@ -564,9 +646,9 @@ export function AiOutputPanel({
             }
           >
             Export feedback JSONL / 导出反馈
-          </button>
-        </div>
+          </Button>
+        </Surface>
       )}
-    </section>
+    </Surface>
   );
 }

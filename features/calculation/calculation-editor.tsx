@@ -1,4 +1,11 @@
 'use client';
+
+import {
+  Text,
+  Disclosure,
+  DisclosureSummary,
+  Surface,
+} from '@/components/ui/presentation';
 import {
   type ReactNode,
   type RefObject,
@@ -386,7 +393,7 @@ export function CalculationEditor({
     <>
       <Button
         size="sm"
-        className={pageLayout ? 'h-7' : undefined}
+        className={pageLayout ? '' : undefined}
         variant="ghost"
         onClick={backup}
       >
@@ -406,7 +413,7 @@ export function CalculationEditor({
         <Button
           size="sm"
           variant="outline"
-          className={pageLayout ? 'h-7' : undefined}
+          className={pageLayout ? '' : undefined}
           disabled={!ready || busy}
           onClick={() => void save()}
         >
@@ -422,27 +429,32 @@ export function CalculationEditor({
     >
       {headerActions}
       {pageLayout && (
-        <output className="hidden text-xs text-muted-foreground md:block">
+        <Text
+          as="output"
+          tone="muted"
+          textRole="body-small"
+          className="hidden md:block"
+        >
           {status}
-        </output>
+        </Text>
       )}
       {onClose ? (
-        <details className="relative">
-          <summary className="cursor-pointer rounded border px-2.5 py-1.5 text-xs">
-            More
-          </summary>
-          <div className="absolute right-0 top-full z-50 mt-1 flex min-w-44 flex-col gap-1 rounded-md border bg-white p-2 shadow-md">
+        <Disclosure className="relative">
+          <DisclosureSummary className="cursor-pointer">More</DisclosureSummary>
+          <Surface
+            as="div"
+            variant="panel"
+            padded
+            className="absolute right-0 top-full z-50 mt-1 flex min-w-44 flex-col gap-1"
+          >
             {utilityActions}
-          </div>
-        </details>
+          </Surface>
+        </Disclosure>
       ) : (
         utilityActions
       )}
       {backToWorkbench && (
-        <Link
-          href="/"
-          className="self-center px-2 text-xs text-primary hover:underline"
-        >
+        <Link href="/" className="self-center hover:underline">
           Back to workbench
         </Link>
       )}
@@ -470,11 +482,14 @@ export function CalculationEditor({
     </div>
   );
   return (
-    <section
+    <Surface
+      as="section"
+      variant={'panel'}
+      tone={'inherit'}
       className={
         pageLayout
-          ? 'calculation-page-editor flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-white'
-          : 'min-w-0 overflow-hidden rounded-md border border-border bg-white'
+          ? 'calculation-page-editor flex h-full min-h-0 min-w-0 flex-col overflow-hidden'
+          : 'min-w-0 overflow-hidden'
       }
       aria-label={title}
     >
@@ -484,29 +499,35 @@ export function CalculationEditor({
           {toolbarHost && createPortal(actions, toolbarHost)}
         </>
       ) : (
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-1.5">
+        <Surface
+          as="header"
+          variant="header"
+          className="flex shrink-0 flex-wrap items-center justify-between"
+        >
           <div className="flex items-center gap-3">
-            {pageLayout ? (
-              <h1 className="text-sm font-semibold">{title}</h1>
-            ) : (
-              <h2 className="text-sm font-semibold">{title}</h2>
-            )}
+            {pageLayout ? <h1>{title}</h1> : <h2>{title}</h2>}
             {titleActions}
-            <output className="text-xs text-muted-foreground">{status}</output>
+            <Text as="output" tone="muted" textRole="body-small">
+              {status}
+            </Text>
           </div>
           {actions}
-        </header>
+        </Surface>
       )}
       {error && (
-        <div
+        <Surface
           role="alert"
-          className="flex items-center justify-between gap-3 border-b bg-red-50 px-3 py-2 text-sm text-red-800"
+          as="div"
+          variant="item"
+          tone="danger"
+          textRole="body-main"
+          className="flex items-center justify-between gap-3"
         >
           <span>{error}</span>
           <Button size="sm" variant="outline" onClick={() => void reload()}>
             Reload saved copy
           </Button>
-        </div>
+        </Surface>
       )}
       <div
         ref={container}
@@ -516,6 +537,6 @@ export function CalculationEditor({
             : 'univer-workbench h-[620px] min-h-[420px] w-full'
         }
       />
-    </section>
+    </Surface>
   );
 }

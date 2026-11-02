@@ -564,6 +564,14 @@ test('quotation internal remarks and discount wording persist without repricing 
       targetGrossMargin: 37,
       lineRemarks: { 'service:project': 'GP approved for existing customer' },
       discountDescription: 'Long-term customer discount',
+      discountAllocation: {
+        mode: 'category',
+        descriptions: {
+          '["mandatory","implementation"]': 'Implementation rebate',
+          '["mandatory","support"]': 'Support rebate',
+          '["optional","support"]': '',
+        },
+      },
     };
     repository.save(workspace.project.id, workspace, null);
     assert.deepEqual(

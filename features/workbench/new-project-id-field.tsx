@@ -1,3 +1,4 @@
+import { Surface, Text } from '@/components/ui/presentation';
 /** Shared optional identity field for both project-creation entry points. */
 import { Input } from '@/components/ui/input';
 import { PROJECT_ID_MAX_LENGTH, projectIdError } from './project-creation';
@@ -15,7 +16,7 @@ export function NewProjectIdField({
 }) {
   const error = projectIdError(value);
   return (
-    <div className="space-y-2 text-sm">
+    <Surface as="div" textRole="body-main" className="space-y-2">
       <label htmlFor={inputId}>Project ID / 项目编号 (optional)</label>
       <Input
         id={inputId}
@@ -28,19 +29,21 @@ export function NewProjectIdField({
         aria-invalid={Boolean(error)}
         aria-describedby={`${inputId}-hint${error ? ` ${inputId}-error` : ''}`}
       />
-      <p id={`${inputId}-hint`} className="text-xs text-muted-foreground">
+      <Text id={`${inputId}-hint`} as="p" tone="muted" textRole="body-small">
         Up to {PROJECT_ID_MAX_LENGTH} characters. Cannot be changed after
         creation.
-      </p>
+      </Text>
       {error && (
-        <p
+        <Text
           id={`${inputId}-error`}
           role="alert"
-          className="text-xs text-destructive"
+          as="p"
+          tone="danger"
+          textRole="body-small"
         >
           {error}
-        </p>
+        </Text>
       )}
-    </div>
+    </Surface>
   );
 }

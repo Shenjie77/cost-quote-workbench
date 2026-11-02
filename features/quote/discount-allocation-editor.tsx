@@ -1,3 +1,13 @@
+import { Surface } from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Table } from '@/components/ui/table';
+import { TableHeader } from '@/components/ui/table';
+import { TableRow } from '@/components/ui/table';
+import { TableHead } from '@/components/ui/table';
+import { TableBody } from '@/components/ui/table';
+import { TableCell } from '@/components/ui/table';
 import type { Dispatch, SetStateAction } from 'react';
 import type { PricingSettings } from './domain';
 import type { QuoteLine } from './excel-template-types';
@@ -7,8 +17,7 @@ import {
 } from './discount-allocation';
 import { formatSgd } from '@/lib/formatters';
 
-const cell =
-  'h-8 w-full min-w-0 border-0 bg-transparent px-3 text-xs focus-visible:outline-2 focus-visible:outline-ring';
+const cell = 'h-8 w-full min-w-0';
 export function DiscountAllocationEditor({
   pricing,
   setPricing,
@@ -26,21 +35,31 @@ export function DiscountAllocationEditor({
     pricing.discountAllocation,
   );
   return (
-    <section className="border-t text-xs" aria-label="Discount allocation">
-      <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-3">
-        <label htmlFor="discount-placement" className="font-medium">
-          Apply discount
-        </label>
-        <select
+    <Surface
+      as="section"
+      variant="footer"
+      textRole="body-small"
+      aria-label="Discount allocation"
+    >
+      <Surface
+        as="div"
+        variant="item"
+        className="flex flex-wrap items-center gap-2"
+      >
+        <label htmlFor="discount-placement">Apply discount</label>
+        <SelectField
           id="discount-placement"
           disabled={disabled}
           className={cell.replace('w-full', 'w-44')}
           value={allocation.mode}
           onChange={(e) =>
+            !disabled &&
             setPricing((p) => ({
               ...p,
               discountAllocation: {
+                ...p.discountAllocation,
                 mode: e.target.value as DiscountAllocation['mode'],
+                shares: undefined,
               },
             }))
           }
@@ -48,86 +67,98 @@ export function DiscountAllocationEditor({
           <option value="total">Once at Grand Total</option>
           <option value="section">By Section</option>
           <option value="category">By Category</option>
-        </select>
-        <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-          <label htmlFor="discount-description" className="font-medium">
-            Discount description
-          </label>
-          <input
-            id="discount-description"
-            value={pricing.discountDescription ?? ''}
-            maxLength={1000}
-            disabled={disabled}
-            placeholder="Leave blank to use template wording"
-            className="min-w-48 flex-1 rounded border px-2 py-1"
-            onChange={(e) =>
-              setPricing((p) => ({ ...p, discountDescription: e.target.value }))
-            }
-          />
-        </div>
+        </SelectField>
+        {allocation.mode === 'total' && (
+          <Surface
+            as="div"
+            variant="item"
+            className="flex flex-wrap items-center gap-2"
+          >
+            <label htmlFor="discount-description">Discount description</label>
+            <Input
+              id="discount-description"
+              value={pricing.discountDescription ?? ''}
+              maxLength={1000}
+              disabled={disabled}
+              placeholder="Leave blank to use template wording"
+              className="min-w-48 flex-1"
+              onChange={(e) =>
+                !disabled &&
+                setPricing((p) => ({
+                  ...p,
+                  discountDescription: e.target.value,
+                }))
+              }
+            />
+          </Surface>
+        )}
         {allocation.mode !== 'total' && (
-          <button
+          <Button
+            variant="ghost"
             type="button"
             disabled={disabled}
-            className="h-8 px-2 text-primary focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
             onClick={() =>
+              !disabled &&
               setPricing((p) => ({
                 ...p,
-                discountAllocation: { mode: allocation.mode },
+                discountAllocation: {
+                  ...p.discountAllocation,
+                  mode: allocation.mode,
+                  shares: undefined,
+                },
               }))
             }
           >
             Reset to price proportions
-          </button>
+          </Button>
         )}
-      </div>
+      </Surface>
       {allocation.mode !== 'total' && (
         <div className="overflow-x-auto">
-          <table
-            className="w-full min-w-[620px] table-fixed text-left text-xs"
+          <Table
+            className="w-full min-w-[880px] table-fixed text-left"
             aria-label="Discount shares"
           >
-            <thead className="bg-primary text-white">
-              <tr>
+            <TableHeader>
+              <TableRow>
                 {[
                   'Section / Category',
                   'Before discount',
                   'Discount share (%)',
                   'Discount',
                   'After discount',
+                  'Discount description',
                 ].map((label) => (
-                  <th
-                    key={label}
-                    className="border-r border-white/20 px-3 py-2 font-medium"
-                  >
-                    {label}
-                  </th>
+                  <TableHead key={label}>{label}</TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {allocation.rows.map((row) => {
                 const name =
                   row.section ||
                   (row.inclusion === 'mandatory' ? 'Mandatory' : 'Optional');
                 return (
-                  <tr key={row.key}>
-                    <th className="border-r px-3 py-1 font-normal">
+                  <TableRow key={row.key}>
+                    <TableHead variant="label" scope="row">
                       {name}
                       {row.category ? ` / ${row.category}` : ''}
-                    </th>
-                    <td className="financial-numeral border-r px-3 text-right">
+                    </TableHead>
+                    <TableCell
+                      variant="numeric"
+                      className="financial-numeral text-right"
+                    >
                       {formatSgd(row.gross)}
-                    </td>
-                    <td className="border-r bg-blue-50/30">
-                      <input
+                    </TableCell>
+                    <TableCell>
+                      <Input
                         type="number"
                         min="0"
                         max="100"
                         step="0.01"
                         disabled={disabled}
                         aria-label={`Discount share ${name}${row.category ? ` / ${row.category}` : ''}`}
-                        className={`${cell} financial-numeral text-right text-blue-700`}
+                        className={`${cell} financial-numeral text-right`}
                         placeholder={`${row.percentage.toFixed(2)}% Auto`}
                         value={
                           pricing.discountAllocation?.shares?.find(
@@ -135,10 +166,12 @@ export function DiscountAllocationEditor({
                           )?.percentage ?? ''
                         }
                         onChange={(e) => {
+                          if (disabled) return;
                           const raw = e.target.value;
                           setPricing((p) => ({
                             ...p,
                             discountAllocation: {
+                              ...p.discountAllocation,
                               mode: allocation.mode,
                               shares: [
                                 ...(p.discountAllocation?.shares ?? []).filter(
@@ -154,30 +187,63 @@ export function DiscountAllocationEditor({
                           }));
                         }}
                       />
-                    </td>
-                    <td className="financial-numeral border-r px-3 text-right">
+                    </TableCell>
+                    <TableCell
+                      variant="numeric"
+                      className="financial-numeral text-right"
+                    >
                       {formatSgd(row.discount)}
-                    </td>
-                    <td className="financial-numeral bg-accent/40 px-3 text-right font-semibold">
+                    </TableCell>
+                    <TableCell
+                      variant="numeric"
+                      className="financial-numeral text-right"
+                    >
                       {formatSgd(row.net)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell variant="editable">
+                      <Input
+                        aria-label={`Discount description ${name}${row.category ? ` / ${row.category}` : ''}`}
+                        value={
+                          row.description ?? pricing.discountDescription ?? ''
+                        }
+                        maxLength={1000}
+                        disabled={disabled}
+                        placeholder="Use template wording"
+                        className="w-full min-w-0"
+                        onChange={(e) => {
+                          if (disabled) return;
+                          const description = e.target.value;
+                          setPricing((p) => ({
+                            ...p,
+                            discountAllocation: {
+                              ...p.discountAllocation,
+                              mode: allocation.mode,
+                              descriptions: {
+                                ...p.discountAllocation?.descriptions,
+                                [row.key]: description,
+                              },
+                            },
+                          }));
+                        }}
+                      />
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
-      <p className="px-3 py-2 text-muted-foreground">
+      <Surface as="p" variant="body" tone="muted">
         {allocation.mode === 'total'
           ? 'Deduct once from all sections combined.'
           : 'Blank shares follow prices and split the remaining percentage. All Section and Category net amounts are included in Grand Total.'}
-      </p>
+      </Surface>
       {allocation.errors.map((error) => (
-        <p role="alert" key={error} className="px-3 pb-2 text-destructive">
+        <Surface role="alert" key={error} as="p" variant="body" tone="danger">
           {error}
-        </p>
+        </Surface>
       ))}
-    </section>
+    </Surface>
   );
 }

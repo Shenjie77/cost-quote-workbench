@@ -1,3 +1,5 @@
+import { layoutClassName } from '@/lib/ui-layout';
+import { useFieldVariant } from './field-surface';
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
@@ -12,23 +14,28 @@ function NativeSelect({
   size = 'default',
   ...props
 }: NativeSelectProps) {
+  const fieldVariant = useFieldVariant();
   return (
     <div
       className={cn(
         'group/native-select relative w-fit has-[select:disabled]:opacity-50',
-        className,
+        layoutClassName(className),
       )}
       data-slot="native-select-wrapper"
       data-size={size}
     >
       <select
         data-slot="native-select"
+        data-field-variant={fieldVariant}
         data-size={size}
-        className="border-input placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 dark:hover:bg-input/50 focus-visible:border-ring focus-visible:ring-ring/15 aria-invalid:ring-destructive/25 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 h-8 w-full min-w-0 appearance-none rounded-md border bg-card py-1 pr-8 pl-2.5 text-[13px] transition-colors select-none focus-visible:ring-2 aria-invalid:ring-1 data-[size=sm]:h-7 data-[size=sm]:rounded-md data-[size=sm]:py-0.5 outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
+        className={cn(
+          'ui-select appearance-none pr-8',
+          fieldVariant === 'grid' && 'ui-select-grid',
+        )}
         {...props}
       />
       <ChevronDownIcon
-        className="text-muted-foreground top-1/2 right-2.5 size-4 -translate-y-1/2 pointer-events-none absolute select-none"
+        className="text-muted-foreground top-1/2 right-3 size-4 -translate-y-1/2 pointer-events-none absolute select-none"
         aria-hidden="true"
         data-slot="native-select-icon"
       />
@@ -43,7 +50,7 @@ function NativeSelectOption({
   return (
     <option
       data-slot="native-select-option"
-      className={cn('bg-[Canvas] text-[CanvasText]', className)}
+      className={cn('bg-card text-foreground', className)}
       {...props}
     />
   );
@@ -56,7 +63,7 @@ function NativeSelectOptGroup({
   return (
     <optgroup
       data-slot="native-select-optgroup"
-      className={cn('bg-[Canvas] text-[CanvasText]', className)}
+      className={cn('bg-card text-foreground', className)}
       {...props}
     />
   );

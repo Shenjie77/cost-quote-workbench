@@ -1,4 +1,7 @@
-import type { DiscountAllocation } from './discount-allocation.ts';
+import {
+  validateDiscountDescriptions,
+  type DiscountAllocation,
+} from './discount-allocation.ts';
 import {
   validateLineGroups,
   type QuoteLineGroups,
@@ -91,6 +94,7 @@ export const calculatePricing = (
   const errors: string[] = [
     ...basis.errors,
     ...validateLineGroups(settings.lineGroups),
+    ...validateDiscountDescriptions(settings.discountAllocation),
   ];
   if (
     settings.quotationProjectName !== undefined &&

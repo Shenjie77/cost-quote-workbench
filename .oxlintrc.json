@@ -56,7 +56,15 @@
     "jsx-a11y/label-has-associated-control": [
       "error",
       {
-        "controlComponents": ["Input", "SelectTrigger", "Textarea", "Checkbox"],
+        "controlComponents": [
+          "Input",
+          "SelectTrigger",
+          "Textarea",
+          "Checkbox",
+          "SelectField",
+          "CheckInput",
+          "NativeSelect"
+        ],
         "depth": 3
       }
     ]
@@ -79,5 +87,15 @@
         ]
       }
     }
-  ]
+  ],
+  "settings": {
+    "jsx-a11y": {
+      "components": {
+        "Input": "input",
+        "SelectField": "select",
+        "CheckInput": "input",
+        "Textarea": "textarea"
+      }
+    }
+  }
 }

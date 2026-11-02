@@ -1,5 +1,12 @@
 'use client';
 
+import {
+  Surface,
+  Text,
+  Disclosure,
+  DisclosureSummary,
+} from '@/components/ui/presentation';
+import { SelectField } from '@/components/ui/select-field';
 import { editableSectionLayout } from '@/features/quote/structured-body';
 import { categoryKey } from '@/features/quote/quotation-groups';
 
@@ -518,29 +525,37 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
   const changed =
     draft && contentKey(mappingFromDraft(draft)) !== contentKey(value);
   return (
-    <section
-      className="space-y-3 rounded-md border bg-muted/10 p-3"
+    <Surface
+      as="section"
+      variant="panel"
+      padded
+      className="space-y-3"
       aria-label="Customer Excel template"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
+        <h3 className="flex items-center gap-2">
           <FileSpreadsheet className="size-4" /> Customer Excel layout
         </h3>
         {changed && (
-          <span className="text-xs font-medium text-amber-700">
+          <Text as="span" tone="warning" textRole="body-small">
             Mapping not applied
-          </span>
+          </Text>
         )}
       </div>
-      <p className="text-xs leading-5 text-muted-foreground">
+      <Text as="p" tone="muted" textRole="body-small">
         Upload a plain .xlsx workbook (up to 10 MB). Files stay in this
         workbench&apos;s local database. Without an Excel mapping, quotations
         use the standard layout. Apply validates the local workbook; save this
         master-data tab to publish the mapping.
-      </p>
-      <label className="block space-y-1 text-xs font-medium">
-        <span className="flex items-center gap-1.5">
-          <Upload className="size-3.5" /> Upload or replace workbook
+      </Text>
+      <Surface
+        as="label"
+        variant="field"
+        textRole="body-small"
+        className="block"
+      >
+        <span className="flex items-center gap-2">
+          <Upload className="size-4" /> Upload or replace workbook
         </span>
         <Input
           type="file"
@@ -553,13 +568,18 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
             if (file) void upload(file);
           }}
         />
-      </label>
+      </Surface>
       {draft && (
         <fieldset disabled={busy} className="min-w-0 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background p-2">
-            <span className="break-all text-xs font-medium">
+          <Surface
+            as="div"
+            variant="panel"
+            padded
+            className="flex flex-wrap items-center justify-between gap-2"
+          >
+            <Text as="span" textRole="body-small" className="break-all">
               {draft.fileName}
-            </span>
+            </Text>
             <Button
               size="sm"
               variant="outline"
@@ -567,7 +587,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
             >
               <Download /> Download original
             </Button>
-          </div>
+          </Surface>
           {asset && (
             <QuoteLayoutLibrary
               mapping={mappingFromDraft(draft)}
@@ -589,10 +609,15 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
             />
           )}
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block space-y-1 text-xs">
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="block"
+            >
               Worksheet
-              <select
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+              <SelectField
+                className="h-9 w-full"
                 aria-label="Template worksheet"
                 value={draft.sheetName}
                 onChange={(event) =>
@@ -608,13 +633,18 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                     columns)
                   </option>
                 ))}
-              </select>
-            </label>
-            <label className="block space-y-1 text-xs">
+              </SelectField>
+            </Surface>
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="block"
+            >
               Output mode
-              <select
+              <SelectField
                 aria-label="Quotation output mode"
-                className="h-9 w-full rounded-md border bg-background px-2"
+                className="h-9 w-full"
                 value={draft.body ? 'body' : 'legacy'}
                 onChange={(event) => {
                   if (event.target.value === 'body') {
@@ -631,8 +661,8 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               >
                 <option value="body">Structured body (Recommended)</option>
                 <option value="legacy">Legacy rows / regions</option>
-              </select>
-            </label>
+              </SelectField>
+            </Surface>
           </div>
           {draft.body ? (
             <>
@@ -655,7 +685,12 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
               </Button>
             </>
           ) : (
-            <label className="block max-w-xs space-y-1 text-xs">
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="block max-w-xs"
+            >
               Repeatable detail row *
               <Input
                 aria-label="Repeatable detail row"
@@ -667,16 +702,22 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                   setDraft({ ...draft, detailRow: event.target.value })
                 }
               />
-            </label>
+            </Surface>
           )}
-          <p className="text-xs leading-5 text-muted-foreground">
+          <Text as="p" tone="muted" textRole="body-small">
             Use original workbook coordinates. Content below the generated rows
             moves automatically. Column mappings apply to detail rows; style
             rows supply formatting only.
-          </p>
+          </Text>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {columnLabels.map(([field, label]) => (
-              <label key={field} className="block space-y-1 text-xs">
+              <Surface
+                key={field}
+                as="label"
+                variant="field"
+                textRole="body-small"
+                className="block"
+              >
                 {label}
                 <Input
                   aria-label={label}
@@ -699,35 +740,34 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                     })
                   }
                 />
-              </label>
+              </Surface>
             ))}
           </div>
           {!draft.body && (
             <>
-              <details
-                open
-                className="space-y-3 rounded-md border bg-background p-3"
-              >
-                <summary className="cursor-pointer text-xs font-medium">
+              <Disclosure open className="space-y-3">
+                <DisclosureSummary className="cursor-pointer">
                   Dynamic quotation modules
-                </summary>
-                <p className="text-xs text-muted-foreground">
+                </DisclosureSummary>
+                <Text as="p" tone="muted" textRole="body-small">
                   Use original row numbers. Rows before/after the sample detail
                   rows are retained as headings/subtotals. Actual items replace
                   all sample detail rows. An empty module removes its entire
                   region, including headings. Put project-wide totals outside
                   module regions.
-                </p>
+                </Text>
                 {(draft.regions ?? []).map((region, index) => (
-                  <div
+                  <Surface
                     key={index}
-                    className="grid gap-2 border-b pb-2 sm:grid-cols-6"
+                    as="div"
+                    variant="item"
+                    className="grid gap-2 sm:grid-cols-6"
                   >
-                    <label className="text-xs">
+                    <Surface as="label" variant="field" textRole="body-small">
                       Module
-                      <select
+                      <SelectField
                         aria-label={`Module ${index + 1} source`}
-                        className="h-9 w-full border bg-background px-1"
+                        className="h-9 w-full"
                         value={region.source}
                         onChange={(e) =>
                           setDraft({
@@ -749,10 +789,10 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                           All Optional categories
                         </option>
                         <option value="category">Custom category</option>
-                      </select>
-                    </label>
+                      </SelectField>
+                    </Surface>
                     {region.source === 'category' && (
-                      <label className="text-xs">
+                      <Surface as="label" variant="field" textRole="body-small">
                         Category title
                         <Input
                           aria-label={`Module ${index + 1} category`}
@@ -770,14 +810,14 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                             })
                           }
                         />
-                      </label>
+                      </Surface>
                     )}
                     {region.source !== 'optional' && (
-                      <label className="text-xs">
+                      <Surface as="label" variant="field" textRole="body-small">
                         Inclusion
-                        <select
+                        <SelectField
                           aria-label={`Module ${index + 1} inclusion`}
-                          className="h-9 w-full border bg-background px-1"
+                          className="h-9 w-full"
                           value={region.inclusion ?? 'mandatory'}
                           onChange={(e) =>
                             setDraft({
@@ -797,8 +837,8 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                         >
                           <option value="mandatory">Mandatory</option>
                           <option value="optional">Optional</option>
-                        </select>
-                      </label>
+                        </SelectField>
+                      </Surface>
                     )}
                     {(
                       [
@@ -808,7 +848,12 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                         ['endRow', 'Region end'],
                       ] as const
                     ).map(([key, label]) => (
-                      <label key={key} className="text-xs">
+                      <Surface
+                        key={key}
+                        as="label"
+                        variant="field"
+                        textRole="body-small"
+                      >
                         {label}
                         <Input
                           aria-label={`Module ${index + 1} ${label}`}
@@ -827,7 +872,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                             })
                           }
                         />
-                      </label>
+                      </Surface>
                     ))}
                     <Button
                       variant="outline"
@@ -841,7 +886,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                     >
                       Remove
                     </Button>
-                  </div>
+                  </Surface>
                 ))}
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -884,41 +929,38 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                     Use Book2 example mapping
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <Text as="p" tone="muted" textRole="body-small">
                   Match category titles to quotation lines (case-insensitive).
                   Each Category / Inclusion group must map to exactly one
                   region. Empty groups are removed. The Book2 example stages
                   coordinates only; review them before applying.
-                </p>
-              </details>
+                </Text>
+              </Disclosure>
             </>
           )}
-          <details
-            open
-            className="space-y-3 rounded-md border bg-background p-3"
-          >
-            <summary className="cursor-pointer text-xs font-medium">
+          <Disclosure open className="space-y-3">
+            <DisclosureSummary className="cursor-pointer">
               Cell content and placeholders
-            </summary>
-            <p className="text-xs text-muted-foreground">
+            </DisclosureSummary>
+            <Text as="p" tone="muted" textRole="body-small">
               Combine fixed text and fields, e.g. Date of quotation: {'{date}'},
               Quotation for {'{project}'}. A lone amount token stays numeric.
               Add only the cells you want to fill. All placeholders are
               optional; unmapped cells retain their existing content or
               formulas.
-            </p>
-            <p className="text-xs text-muted-foreground">
+            </Text>
+            <Text as="p" tone="muted" textRole="body-small">
               Fields:{' '}
               {
                 '{date} {quoteNumber} {client} {project} {costVersion} {currency} {documentTitle} {companyName} {companyAddress} {quoteBeforeTax} {quoteAfterTax} {servicePrice} {maintenancePrice} {optionalPrice} {grandTotal} {discount} {validityDays} {paymentTerms} {termsAndConditions} {assumptions} {documentStatus}'
               }
-            </p>
+            </Text>
             <div className="grid gap-2 sm:grid-cols-3">
-              <label className="text-xs">
+              <Surface as="label" variant="field" textRole="body-small">
                 Date format
-                <select
+                <SelectField
                   aria-label="Quotation date format"
-                  className="h-9 w-full border bg-background px-2"
+                  className="h-9 w-full"
                   value={draft.dateFormat ?? 'dd-mmm-yyyy'}
                   onChange={(e) =>
                     setDraft({
@@ -931,10 +973,15 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                   <option value="dd-mmm-yyyy">30-Sep-2026</option>
                   <option value="yyyy-mm-dd">2026-09-30</option>
                   <option value="dd/mm/yyyy">30/09/2026</option>
-                </select>
-              </label>
+                </SelectField>
+              </Surface>
               {(['companyName', 'companyAddress'] as const).map((key) => (
-                <label key={key} className="text-xs">
+                <Surface
+                  key={key}
+                  as="label"
+                  variant="field"
+                  textRole="body-small"
+                >
                   {key === 'companyName' ? 'Company name' : 'Company address'}
                   <Input
                     aria-label={key}
@@ -949,7 +996,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
                       })
                     }
                   />
-                </label>
+                </Surface>
               ))}
             </div>
             {(draft.textCells ?? []).map((cell, index) => (
@@ -1011,7 +1058,7 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
             >
               Add cell content
             </Button>
-          </details>
+          </Disclosure>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={apply} disabled={!asset}>
               Apply mapping
@@ -1045,28 +1092,28 @@ function QuoteExcelTemplateEditorSession({ value, onChange }: EditorProps) {
             </Button>
           </div>
           {draft.body && (
-            <p className="text-xs text-muted-foreground">
+            <Text as="p" tone="muted" textRole="body-small">
               Samples include the sections and categories named in the spacing
               rules so you can check their blank rows.
-            </p>
+            </Text>
           )}
         </fieldset>
       )}
       {busy && (
-        <output className="block text-xs text-muted-foreground">
+        <Text as="output" tone="muted" textRole="body-small" className="block">
           Reading local workbook…
-        </output>
+        </Text>
       )}
       {error && (
-        <p role="alert" className="text-xs leading-5 text-destructive">
+        <Text role="alert" as="p" tone="danger" textRole="body-small">
           {error}
-        </p>
+        </Text>
       )}
       {notice && (
-        <output className="block text-xs leading-5 text-muted-foreground">
+        <Text as="output" tone="muted" textRole="body-small" className="block">
           {notice}
-        </output>
+        </Text>
       )}
-    </section>
+    </Surface>
   );
 }

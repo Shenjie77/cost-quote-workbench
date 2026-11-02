@@ -48,6 +48,7 @@ const hooks = registerHooks({
     return { format: 'module', source, shortCircuit: true };
   },
 });
+const { CheckInput } = await import('../components/ui/check-input.tsx');
 
 const {
   WorkflowTemplateEditor,
@@ -411,7 +412,7 @@ test('publication preview keeps active SLA migration opt-in and completed projec
     migratedIds: [],
     onMigrationChange: (ids) => (selected = ids),
   });
-  const checkboxes = walk(tree).filter((node) => node.type === 'input');
+  const checkboxes = walk(tree).filter((node) => node.type === CheckInput);
   assert.equal(checkboxes.length, 1);
   assert.equal(checkboxes[0].props.checked, false);
   checkboxes[0].props.onChange({ target: { checked: true } });

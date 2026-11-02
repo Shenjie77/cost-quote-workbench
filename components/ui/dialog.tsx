@@ -1,9 +1,11 @@
 'use client';
 
+import { FieldSurfaceProvider } from './field-surface';
 import * as React from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 
 import { cn } from '@/lib/utils';
+import { layoutClassName } from '@/lib/ui-layout';
 import { Button } from '@/components/ui/button';
 import { XIcon } from 'lucide-react';
 
@@ -30,10 +32,7 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      className={cn(
-        'fixed inset-0 isolate z-50 bg-slate-950/30 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
-        className,
-      )}
+      className={cn('ui-dialog-overlay', layoutClassName(className))}
       {...props}
     />
   );
@@ -43,22 +42,25 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  size = 'sm',
+  variant = 'default',
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  variant?: 'default' | 'workspace';
 }) {
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
-        className={cn(
-          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 max-h-[calc(100dvh-2rem)] overflow-y-auto gap-4 rounded-lg bg-popover p-4 shadow-xl text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
-          className,
-        )}
+        data-size={size}
+        data-variant={variant}
+        className={cn('ui-dialog', layoutClassName(className))}
         {...props}
       >
-        {children}
+        <FieldSurfaceProvider value="form">{children}</FieldSurfaceProvider>
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
@@ -83,7 +85,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn('flex flex-col gap-2 pr-7', className)}
+      className={cn('ui-dialog-header', layoutClassName(className))}
       {...props}
     />
   );
@@ -100,10 +102,7 @@ function DialogFooter({
   return (
     <div
       data-slot="dialog-footer"
-      className={cn(
-        '-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-lg border-t bg-muted/50 p-4 sm:flex-row sm:justify-end',
-        className,
-      )}
+      className={cn('ui-dialog-footer', layoutClassName(className))}
       {...props}
     >
       {children}
@@ -120,10 +119,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn(
-        'font-heading text-lg leading-snug font-semibold',
-        className,
-      )}
+      className={cn('text-h3', layoutClassName(className))}
       {...props}
     />
   );
@@ -137,8 +133,8 @@ function DialogDescription({
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        'text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground',
-        className,
+        'text-body-main text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground',
+        layoutClassName(className),
       )}
       {...props}
     />

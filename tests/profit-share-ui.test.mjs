@@ -155,7 +155,7 @@ function CustomerPreviewArticle(props) {
     (node) => node.type === QuotePreviewDialog,
   );
   const dialog = QuotePreviewDialog(preview.props);
-  return elements(dialog).find((node) => node.type === 'article');
+  return elements(dialog).find((node) => (node.type === 'article' || node.props.as === 'article'));
 }
 
 test('pricing displays applied BU share, unassigned cost allocation and net Sales GP', () => {

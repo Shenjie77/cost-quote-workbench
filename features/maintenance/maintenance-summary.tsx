@@ -1,3 +1,4 @@
+import { Surface } from '@/components/ui/presentation';
 import { formatMoney } from '@/lib/money';
 /** Shared compact summary table used by maintenance entry and quotation review. */
 import {
@@ -28,14 +29,20 @@ export function MaintenanceSummary({
     result = calculateComponentMaintenance(draft);
   } catch (error) {
     return (
-      <p role="alert" className="p-3 text-xs text-destructive">
+      <Surface
+        role="alert"
+        as="p"
+        variant="body"
+        tone="danger"
+        textRole="body-small"
+      >
         {String(error)}
-      </p>
+      </Surface>
     );
   }
   return (
-    <div className="bg-muted/10">
-      <Table className="text-xs [&_td]:border [&_th]:border">
+    <Surface as="div" variant="inset">
+      <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Maintenance Total</TableHead>
@@ -50,7 +57,7 @@ export function MaintenanceSummary({
         </TableHeader>
         <TableBody>
           <TableRow>
-            <TableCell className="financial-numeral font-semibold">
+            <TableCell className="financial-numeral">
               {formatMoney(result.quote)}
             </TableCell>
             <TableCell>
@@ -64,7 +71,7 @@ export function MaintenanceSummary({
               </TableCell>
             ))}
             {serviceQuote !== undefined && (
-              <TableCell className="financial-numeral font-semibold">
+              <TableCell className="financial-numeral">
                 {formatMoney(serviceQuote + result.quote)}
               </TableCell>
             )}
@@ -72,7 +79,7 @@ export function MaintenanceSummary({
         </TableBody>
       </Table>
       {details && (
-        <Table className="min-w-[850px] text-xs [&_td]:border [&_th]:border">
+        <Table className="min-w-[850px]">
           <TableHeader>
             <TableRow>
               {[
@@ -120,6 +127,6 @@ export function MaintenanceSummary({
           </TableBody>
         </Table>
       )}
-    </div>
+    </Surface>
   );
 }

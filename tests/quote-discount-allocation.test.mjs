@@ -354,3 +354,158 @@ test('discount description overrides template wording in every allocation mode; 
     }
   }
 });
+
+test('group descriptions follow stable Section / Category keys through preview, export and history', async () => {
+  const { buildQuoteWorkbookBuffer } =
+    await import('../features/quote/export-quote-workbook.ts');
+  const { quoteHistoryRecord } =
+    await import('../features/quote/history-record.ts');
+  const schema = JSON.parse(
+    readFileSync(
+      new URL('../schemas/workspace-state.schema.json', import.meta.url),
+    ),
+  );
+  const ajv = new Ajv({ strict: false });
+  const validate = ajv.compile({
+    ...schema.properties.pricing,
+    $defs: schema.$defs,
+  });
+  const validateSnapshot = ajv.compile({
+    ...schema.$defs.quoteHistoryRecord.properties.discountAllocationSnapshot,
+    $defs: schema.$defs,
+  });
+  for (const mode of ['section', 'category']) {
+    const source = input(mode);
+    source.lines = [
+      { ...line('a', 600), section: 'Build' },
+      { ...line('b', 300), section: 'Support' },
+      { ...line('c', 100, 'Service', 'optional'), section: 'Extras' },
+    ];
+    const settings = {
+      targetGrossMargin: 50,
+      discount: 100,
+      gstPercent: 0,
+      discountDescription: 'Legacy rebate',
+      discountAllocation: {
+        mode,
+        descriptions: {
+          [discountGroupKey(
+            'mandatory',
+            mode === 'category' ? 'Service' : undefined,
+            'Build',
+          )]: 'Build concession',
+          [discountGroupKey(
+            'mandatory',
+            mode === 'category' ? 'Service' : undefined,
+            'Support',
+          )]: 'Support concession',
+          [discountGroupKey(
+            'optional',
+            mode === 'category' ? 'Service' : undefined,
+            'Extras',
+          )]: '',
+        },
+      },
+    };
+    assert.equal(validate(settings), true, JSON.stringify(validate.errors));
+    source.pricing = calculatePricing(
+      500,
+      JSON.parse(JSON.stringify(settings)),
+    );
+    const before = structuredClone(source);
+    const rows = structuredBodyRows(source, layout, quoteFieldValues(source));
+    assert.deepEqual(
+      rows
+        .filter((r) =>
+          ['Build concession', 'Support concession', 'Discount'].includes(
+            r.description,
+          ),
+        )
+        .map((r) => [r.description, r.amount]),
+      [
+        ['Build concession', 60],
+        ['Support concession', 30],
+        ['Discount', 10],
+      ],
+    );
+    assert.equal(rows.at(-1).amount, 900);
+    assert.ok(!rows.some((r) => r.description === 'Legacy rebate'));
+    for (const build of [buildCustomerWorkbook, buildQuoteWorkbookBuffer]) {
+      const book = new ExcelJS.Workbook();
+      await book.xlsx.load(await build(source));
+      const descriptions = [];
+      book.worksheets[0].eachRow((row) =>
+        descriptions.push(row.getCell(3).text),
+      );
+      assert.ok(descriptions.includes('Build concession'));
+      assert.ok(descriptions.includes('Support concession'));
+      assert.ok(descriptions.includes('Discount'));
+      assert.ok(!descriptions.includes('Legacy rebate'));
+    }
+    const history = quoteHistoryRecord(source, {
+      path: '/tmp/quote.xlsx',
+      sha256: 'test',
+    });
+    assert.equal(
+      validateSnapshot(history.discountAllocationSnapshot),
+      true,
+      JSON.stringify(validateSnapshot.errors),
+    );
+    assert.deepEqual(
+      history.discountAllocationSnapshot.rows.map((r) => r.description),
+      ['Build concession', 'Support concession', ''],
+    );
+    assert.deepEqual(source, before);
+  }
+});
+
+test('group description validation rejects malformed and overlong saved input', () => {
+  for (const descriptions of [
+    null,
+    [],
+    'invalid',
+    { key: 42 },
+    { key: 'x'.repeat(1001) },
+  ]) {
+    const settings = {
+      targetGrossMargin: 50,
+      discount: 100,
+      gstPercent: 0,
+      discountAllocation: { mode: 'category', descriptions },
+    };
+    assert.equal(calculatePricing(500, settings).valid, false);
+    assert.ok(
+      allocateQuotationDiscount(
+        lines,
+        100,
+        settings.discountAllocation,
+      ).errors.some((e) => e.includes('description')),
+    );
+  }
+});
+
+test('legacy section-name migration moves group descriptions with their allocation keys', async () => {
+  const { migrateQuoteSections } =
+    await import('../features/quote/quote-section-settings.ts');
+  const pricing = {
+    discountAllocation: {
+      mode: 'category',
+      descriptions: {
+        [discountGroupKey('mandatory', 'Service')]: 'Service rebate',
+      },
+    },
+  };
+  const template = {
+    excel: {
+      body: { sectionNames: { mandatory: 'Base', optional: 'Extras' } },
+    },
+  };
+  const migrated = migrateQuoteSections(pricing, template);
+  assert.equal(
+    migrated.discountAllocation.descriptions[
+      discountGroupKey('mandatory', 'Service', 'Base')
+    ],
+    'Service rebate',
+  );
+  assert.deepEqual(migrateQuoteSections(migrated, template), migrated);
+});
