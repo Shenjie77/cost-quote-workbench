@@ -973,38 +973,32 @@ export function PersonnelLinesTable({
                       <Save className="size-3" />
                       Save / Merge
                     </Button>
-                    <Surface
-                      as="label"
-                      variant="field"
-                      textRole="body-small"
-                      className="ml-2 inline-flex items-center"
-                    >
-                      Category
-                      <Input
-                        key={JSON.stringify(categoryValues)}
-                        name="groupCategory"
-                        aria-label={`Category for group ${title}`}
-                        defaultValue={category}
-                        placeholder={
-                          categoryValues.length > 1
-                            ? 'Mixed / 多个分类'
-                            : 'Category'
-                        }
-                        maxLength={120}
-                        disabled={locked || !onApplyGroupCategory}
-                        className="w-40"
-                        onKeyDown={(event) => {
-                          if (event.key !== 'Enter') return;
-                          event.preventDefault();
-                          if (!locked)
-                            onApplyGroupCategory?.({
-                              groupName: entry.groupName,
-                              rowIds: [...entry.rowIds],
-                              category: event.currentTarget.value,
-                            });
-                        }}
-                      />
-                    </Surface>
+                    <Input
+                      key={JSON.stringify(categoryValues)}
+                      name="groupCategory"
+                      aria-label={`Category for group ${title}`}
+                      defaultValue={category}
+                      placeholder={
+                        categoryValues.length > 1
+                          ? 'Mixed / 多个分类'
+                          : 'Category'
+                      }
+                      maxLength={120}
+                      disabled={locked || !onApplyGroupCategory}
+                      variant="grid"
+                      title={`Category for group ${title}`}
+                      className="w-40"
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter') return;
+                        event.preventDefault();
+                        if (!locked)
+                          onApplyGroupCategory?.({
+                            groupName: entry.groupName,
+                            rowIds: [...entry.rowIds],
+                            category: event.currentTarget.value,
+                          });
+                      }}
+                    />
                     <Button
                       type="button"
                       variant="ghost"
