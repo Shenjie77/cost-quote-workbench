@@ -91,6 +91,7 @@ export function QuoteLinesEditor({
   totalCost?: number;
   weightedProfitShareRate?: number;
 }) {
+  const [showDetails, setShowDetails] = useState(false);
   const [allocationError, setAllocationError] = useState('');
   const independent = pricing.manualPricingBasis === 'line-gp';
   const mode = independent
@@ -370,7 +371,15 @@ export function QuoteLinesEditor({
         variant="item"
         className="flex flex-wrap items-center gap-2"
       >
-        <h2 className="mr-auto">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowDetails((v) => !v)}
+          aria-pressed={showDetails}
+        >
+          Allocations · locks · remarks / 分摊、锁定与备注
+        </Button>
+        <h2 className="sr-only">
           Quotation details{' '}
           <Text as="span" tone="muted" textRole="body-small" className="ml-1">
             报价明细
@@ -425,18 +434,23 @@ export function QuoteLinesEditor({
           {lines.length} {lines.length === 1 ? 'line' : 'lines'}
         </Text>
       </Surface>
-      <Surface as="p" variant="body" tone="muted" textRole="body-small">
-        Weight = cost share. Quote share starts at cost weight and can be
-        adjusted. Line GP and Price determine the total; GP includes BU profit
-        share, before discount.
-        <span className="block">
-          Weight 为成本占比，Custom lines
-          可调整，其他行按原成本比例分摊余额；报价比例可调，未锁定行均分剩余比例。逐行定价后汇总总价；GP
-          含分成、未扣整单折扣。点击 Cost 可设置 Scope 和 Risk
-          分配比例，成本更新后自动重算。手动调整 Weight 后解除来源与 Risk
-          绑定，恢复按成本权重分摊。
-        </span>
-      </Surface>
+      {showDetails && (
+        <>
+          {' '}
+          <Surface as="p" variant="body" tone="muted" textRole="body-small">
+            Weight = cost share. Quote share starts at cost weight and can be
+            adjusted. Line GP and Price determine the total; GP includes BU
+            profit share, before discount.
+            <span className="block">
+              Weight 为成本占比，Custom lines
+              可调整，其他行按原成本比例分摊余额；报价比例可调，未锁定行均分剩余比例。逐行定价后汇总总价；GP
+              含分成、未扣整单折扣。点击 Cost 可设置 Scope 和 Risk
+              分配比例，成本更新后自动重算。手动调整 Weight 后解除来源与 Risk
+              绑定，恢复按成本权重分摊。
+            </span>
+          </Surface>
+        </>
+      )}
       {(allocationError || lineErrors[0]) && (
         <Surface
           role="alert"
@@ -448,49 +462,61 @@ export function QuoteLinesEditor({
           {allocationError || lineErrors[0]}
         </Surface>
       )}
-      <Text as="p" tone="muted" textRole="body-small">
-        {mode === 'group' && (
-          <>
-            Cost Groups follow the Group field in Personnel costs. Blank groups
-            use Unassigned Group; subcontract and additional costs stay
-            separate.{' '}
-          </>
-        )}
-        Category follows cost categories. Section is an optional customer-facing
-        quotation chapter, available under each category field. Grand Total
-        includes all sections; internal cost and GP include all service lines.
-        分类沿用成本 Category；Section 仅用于客户报价章节，可按需展开设置。
-        {mode !== 'manual' &&
-          ' After editing cost categories, use Refresh from Cost to update saved quotation rows. 旧报价中已保存的默认分类不会自动覆盖，请通过 Refresh from Cost 同步。'}
-      </Text>
+      {showDetails && (
+        <>
+          {' '}
+          <Text as="p" tone="muted" textRole="body-small">
+            {mode === 'group' && (
+              <>
+                Cost Groups follow the Group field in HR Cost. Blank groups use
+                Unassigned Group; subcontract and additional costs stay
+                separate.{' '}
+              </>
+            )}
+            Category follows cost categories. Section is an optional
+            customer-facing quotation chapter, available under each category
+            field. Grand Total includes all sections; internal cost and GP
+            include all service lines. 分类沿用成本 Category；Section
+            仅用于客户报价章节，可按需展开设置。
+            {mode !== 'manual' &&
+              ' After editing cost categories, use Refresh from Cost to update saved quotation rows. 旧报价中已保存的默认分类不会自动覆盖，请通过 Refresh from Cost 同步。'}
+          </Text>
+        </>
+      )}
       {/* All internal pricing controls share one grid; customer previews and files omit these internal columns. */}
       <Table
         containerClassName="max-h-[360px]"
         aria-label="Quotation details grid"
-        className="min-w-[1340px]"
+        className={showDetails ? 'min-w-[1340px]' : 'min-w-[900px]'}
       >
         <TableHeader className="sticky top-0 z-10">
           <TableRow>
-            <TableHead className="w-10">#</TableHead>
+            {showDetails && <TableHead className="w-10">#</TableHead>}
             <TableHead>Description</TableHead>
             <TableHead>Category / 成本分类</TableHead>
+
             <TableHead variant="numeric" className="w-20 text-right">
               Quantity
             </TableHead>
+
             <TableHead className="w-16">Unit</TableHead>
             <TableHead variant="numeric" className="w-28 text-right">
               Cost
             </TableHead>
-            <TableHead
-              variant="numeric"
-              className="w-20 text-right"
-              title="Allocated cost / total project cost"
-            >
-              Weight %
-            </TableHead>
-            <TableHead variant="numeric" className="w-24 text-right">
-              Quote share %
-            </TableHead>
+            {showDetails && (
+              <TableHead
+                variant="numeric"
+                className="w-20 text-right"
+                title="Allocated cost / total project cost"
+              >
+                Weight %
+              </TableHead>
+            )}
+            {showDetails && (
+              <TableHead variant="numeric" className="w-24 text-right">
+                Quote share %
+              </TableHead>
+            )}
             <TableHead variant="numeric" className="w-24 text-right">
               Target GP %
             </TableHead>
@@ -501,11 +527,15 @@ export function QuoteLinesEditor({
             >
               Price / Unit
             </TableHead>
-            <TableHead className="w-12 text-center">Lock</TableHead>
+            {showDetails && (
+              <TableHead className="w-12 text-center">Lock</TableHead>
+            )}
             <TableHead variant="numeric" className="w-28 text-right">
               Amount
             </TableHead>
-            <TableHead className="min-w-48">Remark (internal)</TableHead>
+            {showDetails && (
+              <TableHead className="min-w-48">Remark (internal)</TableHead>
+            )}
             <TableHead className="w-10">
               <span className="sr-only">Remove</span>
             </TableHead>
@@ -528,7 +558,7 @@ export function QuoteLinesEditor({
                 : actualGp;
             return (
               <TableRow key={line.id}>
-                <TableCell>{index + 1}</TableCell>
+                {showDetails && <TableCell>{index + 1}</TableCell>}
                 <TableCell>
                   <div className="flex min-w-0 items-start gap-1">
                     {editable ? (
@@ -575,6 +605,7 @@ export function QuoteLinesEditor({
                     }
                   />
                 </TableCell>
+
                 <TableCell
                   variant="numeric"
                   className="financial-numeral text-right"
@@ -593,6 +624,7 @@ export function QuoteLinesEditor({
                     line.quantity
                   )}
                 </TableCell>
+
                 <TableCell>
                   {editable ? (
                     <Input
@@ -662,45 +694,49 @@ export function QuoteLinesEditor({
                     formatSgd(costs[index] ?? 0)
                   )}
                 </TableCell>
-                <TableCell
-                  variant="numeric"
-                  className="financial-numeral text-right"
-                >
-                  {mode === 'manual' ? (
+                {showDetails && (
+                  <TableCell
+                    variant="numeric"
+                    className="financial-numeral text-right"
+                  >
+                    {mode === 'manual' ? (
+                      <QuoteNumberInput
+                        key={`cost-weight-${saved?.costWeight}-${costs[index]}`}
+                        label={`Line ${index + 1} cost weight`}
+                        percentage
+                        value={
+                          totalCost > 0
+                            ? ((costs[index] ?? 0) / totalCost) * 100
+                            : (lineCostAmounts(draftLines, 100)[index] ?? 0)
+                        }
+                        max={100}
+                        disabled={disabled || lines.length < 2}
+                        onCommit={(weight) => updateCostWeight(line.id, weight)}
+                      />
+                    ) : (
+                      <>
+                        {totalCost > 0
+                          ? (((costs[index] ?? 0) / totalCost) * 100).toFixed(2)
+                          : '0.00'}
+                        %
+                      </>
+                    )}
+                  </TableCell>
+                )}
+                {showDetails && (
+                  <TableCell>
                     <QuoteNumberInput
-                      key={`cost-weight-${saved?.costWeight}-${costs[index]}`}
-                      label={`Line ${index + 1} cost weight`}
+                      key={`share-${quoteShare(line)}`}
+                      label={`Line ${index + 1} quotation percentage`}
                       percentage
-                      value={
-                        totalCost > 0
-                          ? ((costs[index] ?? 0) / totalCost) * 100
-                          : (lineCostAmounts(draftLines, 100)[index] ?? 0)
-                      }
+                      value={quoteShare(line)}
                       max={100}
-                      disabled={disabled || lines.length < 2}
-                      onCommit={(weight) => updateCostWeight(line.id, weight)}
+                      commitUnchanged
+                      disabled={disabled}
+                      onCommit={(weight) => updateQuoteShare(line.id, weight)}
                     />
-                  ) : (
-                    <>
-                      {totalCost > 0
-                        ? (((costs[index] ?? 0) / totalCost) * 100).toFixed(2)
-                        : '0.00'}
-                      %
-                    </>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <QuoteNumberInput
-                    key={`share-${quoteShare(line)}`}
-                    label={`Line ${index + 1} quotation percentage`}
-                    percentage
-                    value={quoteShare(line)}
-                    max={100}
-                    commitUnchanged
-                    disabled={disabled}
-                    onCommit={(weight) => updateQuoteShare(line.id, weight)}
-                  />
-                </TableCell>
+                  </TableCell>
+                )}
                 <TableCell>
                   <QuoteNumberInput
                     key={`gp-${targetGp}`}
@@ -737,51 +773,55 @@ export function QuoteLinesEditor({
                     }
                   />
                 </TableCell>
-                <TableCell className="text-center">
-                  <CheckInput
-                    type="checkbox"
-                    aria-label={`Lock allocation for line ${index + 1}`}
-                    title="Preserve the locked price or quote share when adjusting quotation proportions"
-                    checked={
-                      saved?.priceFixed === true ||
-                      saved?.allocationFixed === true
-                    }
-                    disabled={disabled}
-                    onChange={(event) =>
-                      updateLine(line.id, {
-                        priceFixed: event.target.checked,
-                        allocationFixed: false,
-                      })
-                    }
-                    className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
-                  />
-                </TableCell>
+                {showDetails && (
+                  <TableCell className="text-center">
+                    <CheckInput
+                      type="checkbox"
+                      aria-label={`Lock allocation for line ${index + 1}`}
+                      title="Preserve the locked price or quote share when adjusting quotation proportions"
+                      checked={
+                        saved?.priceFixed === true ||
+                        saved?.allocationFixed === true
+                      }
+                      disabled={disabled}
+                      onChange={(event) =>
+                        updateLine(line.id, {
+                          priceFixed: event.target.checked,
+                          allocationFixed: false,
+                        })
+                      }
+                      className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
+                    />
+                  </TableCell>
+                )}
                 <TableCell
                   variant="numeric"
                   className="financial-numeral text-right"
                 >
                   {formatSgd(line.amount)}
                 </TableCell>
-                <TableCell>
-                  <Textarea
-                    aria-label={`Line ${index + 1} internal remark`}
-                    value={pricing.lineRemarks?.[line.id] ?? ''}
-                    maxLength={4000}
-                    disabled={disabled}
-                    rows={2}
-                    placeholder="Reason for price / GP"
-                    className="min-w-48"
-                    onChange={(e) =>
-                      setPricing((current) => ({
-                        ...current,
-                        lineRemarks: {
-                          ...current.lineRemarks,
-                          [line.id]: e.target.value,
-                        },
-                      }))
-                    }
-                  />
-                </TableCell>
+                {showDetails && (
+                  <TableCell>
+                    <Textarea
+                      aria-label={`Line ${index + 1} internal remark`}
+                      value={pricing.lineRemarks?.[line.id] ?? ''}
+                      maxLength={4000}
+                      disabled={disabled}
+                      rows={2}
+                      placeholder="Reason for price / GP"
+                      className="min-w-48"
+                      onChange={(e) =>
+                        setPricing((current) => ({
+                          ...current,
+                          lineRemarks: {
+                            ...current.lineRemarks,
+                            [line.id]: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </TableCell>
+                )}
                 <TableCell>
                   <Button
                     size="icon"
@@ -799,20 +839,22 @@ export function QuoteLinesEditor({
           })}
         </TableBody>
       </Table>
-      <Surface
-        as="div"
-        variant="footer"
-        textRole="body-small"
-        className="flex flex-wrap justify-end financial-numeral"
-        aria-live="polite"
-      >
-        <span>
-          Total Cost <strong>{formatSgd(totalCost)}</strong>
-        </span>
-        <span>
-          Line Total <strong>{formatSgd(currentTotal)}</strong>
-        </span>
-      </Surface>
+      {!embedded && (
+        <Surface
+          as="div"
+          variant="footer"
+          textRole="body-small"
+          className="flex flex-wrap justify-end financial-numeral"
+          aria-live="polite"
+        >
+          <span>
+            Total Cost <strong>{formatSgd(totalCost)}</strong>
+          </span>
+          <span>
+            Line Total <strong>{formatSgd(currentTotal)}</strong>
+          </span>
+        </Surface>
+      )}
       {!lines.length && (
         <Surface as="p" variant="body" tone="muted" textRole="body-small">
           Add a quotation line to set its description, quantity and selling

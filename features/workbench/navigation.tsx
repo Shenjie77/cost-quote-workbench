@@ -115,7 +115,7 @@ export const viewTitles: Record<
   calculation: {
     eyebrow: 'WORKSPACE / CALCULATIONS',
     title: 'Calculation Drafts',
-    titleZh: '',
+    titleZh: '公式草稿',
     subtitle: 'Explore formulas and keep working notes in a local spreadsheet.',
     subtitleZh: '',
   },
@@ -159,7 +159,7 @@ export const viewTitles: Record<
   workflow: {
     eyebrow: 'PROJECT / WORKFLOW',
     title: 'Project Workflow',
-    titleZh: '',
+    titleZh: '项目流程',
     subtitle: 'Work on one task at a time and keep the full process in view.',
     subtitleZh: '',
   },
@@ -191,6 +191,13 @@ export const viewTitles: Record<
     titleZh: 'Agent 每日摘要',
     subtitle: 'Every recommendation is grounded in recorded project data.',
     subtitleZh: '所有判断均来自平台记录，并保留可查看的依据。',
+  },
+  files: {
+    eyebrow: 'PROJECT / FILES',
+    title: 'Project files',
+    titleZh: '项目文件',
+    subtitle: 'Saved project archive',
+    subtitleZh: '项目文件与归档',
   },
   'master-data': {
     eyebrow: 'DATA / GLOBAL LIBRARIES',

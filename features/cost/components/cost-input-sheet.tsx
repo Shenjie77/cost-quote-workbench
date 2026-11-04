@@ -304,7 +304,7 @@ export function CostInputSheet({
         className="flex min-w-0 flex-wrap items-center justify-between"
       >
         <div className="flex flex-wrap items-center gap-2">
-          <h2>Cost Input</h2>
+          <h2>HR Cost / 人力成本</h2>
           {locked ? (
             <StatusBadge tone="gray">Locked · View only</StatusBadge>
           ) : (

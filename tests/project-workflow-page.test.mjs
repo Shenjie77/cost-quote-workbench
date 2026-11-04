@@ -138,30 +138,26 @@ const renderPage = (w, extra = {}) =>
     }),
   );
 
-test('full page puts compact references above one directly editable task with parallel navigation and history', () => {
+test('full page exposes a compact workflow worksheet and opens actions only for the selected task', () => {
   const w = workspace();
   const before = structuredClone(w);
   const html = renderPage(w);
-  const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
-  assert.match(html, /Project Workflow Page/);
-  assert.match(text, /Round V2/);
-  assert.doesNotMatch(text, /Round V1/);
-  assert.match(html, /Domain Review · Parallel/);
-  assert.equal((html.match(/aria-label="Task Owner"/g) || []).length, 1);
+  assert.match(html, /aria-label="Workflow worksheet"/);
   assert.equal(
-    (html.match(/aria-label="Task Progress Note"/g) || []).length,
-    1,
+    (html.match(/aria-label="Owner /g) || []).length,
+    w.processSteps.length,
   );
-  assert.match(html, /Complete Step/);
-  assert.match(html, /Save Update/);
-  assert.match(html, /Project Workflow Info/);
-  assert.match(html, /Edit project information/);
-  assert.ok(
-    html.indexOf('Project Workflow Info') < html.indexOf('Workflow Steps'),
+  assert.equal(
+    (html.match(/aria-label="Progress /g) || []).length,
+    w.processSteps.length,
   );
-  assert.doesNotMatch(html, /Project References/);
+  assert.doesNotMatch(html, /Current workflow task:/);
+  const expanded = renderPage(w, { focusNodeCode: 'LEGAL' });
+  assert.match(expanded, /Current workflow task:/);
+  assert.match(expanded, /Complete Step/);
+  assert.match(expanded, /Workflow Step Documents/);
   assert.match(html, /Workflow History \(Read Only\)/);
-  assert.doesNotMatch(html, /role="dialog"|节点中文/);
+  assert.match(html, /Project Workflow Info/);
   assert.deepEqual(w, before);
 });
 
@@ -366,13 +362,12 @@ test('pending parallel start and paused resume submit current inline inputs; bus
   }
 });
 
-test('narrow page uses a compact grouped selector while the long navigator is desktop-only', () => {
+test('workflow worksheet stays scrollable on narrow screens and the reusable step selector preserves navigation', () => {
   const w = workspace();
   const html = renderPage(w);
-  assert.match(html, /class="[^"]*hidden [^"]*lg:block[^>]*aria-label="Workflow Steps"|aria-label="Workflow Steps"[^>]*class="[^"]*hidden [^"]*lg:block/);
-  assert.match(html, /lg:hidden[^>]*><label[^>]*>Workflow Step/);
-  assert.match(html, /aria-label="Select Workflow Step"/);
-  assert.match(html, /<optgroup label="Domain Review · Parallel">/);
+  assert.match(html, /wb-table-scroll/);
+  assert.match(html, /aria-label="Workflow worksheet"/);
+  assert.doesNotMatch(html, /aria-label="Workflow Steps"/);
   let selected;
   const before = structuredClone(w);
   const nodes = walk(

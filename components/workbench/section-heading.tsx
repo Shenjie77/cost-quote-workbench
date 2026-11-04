@@ -1,7 +1,7 @@
+'use client';
 import type { ReactNode } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { Surface, Text } from '@/components/ui/presentation';
-
+import { useWorkbenchLanguage } from '@/features/workbench/workbench-language';
 export function SectionHeading({
   index,
   title,
@@ -9,6 +9,7 @@ export function SectionHeading({
   description,
   descriptionZh,
   action,
+  variant = 'section',
 }: {
   index?: string;
   title: string;
@@ -16,35 +17,30 @@ export function SectionHeading({
   description?: string;
   descriptionZh?: string;
   action?: ReactNode;
+  variant?: 'page' | 'section';
 }) {
+  const { label } = useWorkbenchLanguage();
   return (
-    <Surface variant="header">
+    <Surface variant={variant === 'page' ? 'page-heading' : 'header'}>
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          {index ? <Badge>{index}</Badge> : null}
-          <Text as="h2">{title}</Text>
-          {titleZh ? (
-            <Text tone="muted" textRole="body-small">
-              {titleZh}
-            </Text>
-          ) : null}
-        </div>
-        {description || descriptionZh ? (
+        <Text
+          as={variant === 'page' ? 'h1' : 'h2'}
+          title={[title, titleZh].filter(Boolean).join(' / ')}
+        >
+          {index && <span className="sr-only">{index} </span>}
+          {label(title, titleZh)}
+        </Text>
+        {(description || descriptionZh) && (
           <Text as="p" tone="muted" textRole="body-small" className="mt-1">
-            {description}
-            {descriptionZh ? (
-              <Text className={description ? 'ml-2' : undefined}>
-                {descriptionZh}
-              </Text>
-            ) : null}
+            {label(description || '', descriptionZh)}
           </Text>
-        ) : null}
+        )}
       </div>
-      {action ? (
+      {action && (
         <div className="flex max-w-full flex-wrap items-center gap-2">
           {action}
         </div>
-      ) : null}
+      )}
     </Surface>
   );
 }

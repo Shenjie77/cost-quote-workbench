@@ -94,7 +94,9 @@ function CustomerPreviewArticle(props) {
     (node) => node.type === QuotePreviewDialog,
   );
   const dialog = QuotePreviewDialog(preview.props);
-  return elements(dialog).find((node) => (node.type === 'article' || node.props.as === 'article'));
+  return elements(dialog).find(
+    (node) => node.type === 'article' || node.props.as === 'article',
+  );
 }
 
 test('quotation template entry renders a named selector and explicit Apply button', () => {
@@ -170,7 +172,7 @@ test('missing customer templates leave an actionable entry instead of hiding it'
   assert.match(markup, /<button[^>]*disabled[^>]*>[\s\S]*?Apply Template/);
 });
 
-test('quotation template entry precedes pricing and customer preview in the real page', () => {
+test('quotation template is available in supporting terms while primary pricing stays first', () => {
   let writes = 0;
   const trackWrite = () => {
     writes += 1;
@@ -268,12 +270,10 @@ test('quotation template entry precedes pricing and customer preview in the real
     announce: noop,
   };
   const markup = renderToStaticMarkup(React.createElement(QuoteView, props));
+  assert.match(markup, /id="[^"]*task-tab-terms"/);
+  assert.match(markup, /id="[^"]*task-panel-terms"[^>]*hidden/);
   assert.ok(
-    markup.indexOf('Quotation Template') < markup.indexOf('Pricing Parameters'),
-  );
-  assert.ok(
-    markup.indexOf('Quotation Template') <
-      markup.indexOf('Client Output Preview'),
+    markup.indexOf('Quotation pricing') < markup.indexOf('Quotation Template'),
   );
   assert.equal((markup.match(/id="quote-template-select"/g) || []).length, 1);
   const pricingPanel = markup.match(
@@ -292,7 +292,7 @@ test('quotation template entry precedes pricing and customer preview in the real
   );
 
   assert.match(
-    pricingPanel,
+    markup,
     /<button[^>]*aria-label="Client Output Preview 客户预览"[^>]*>[\s\S]*?Preview[\s\S]*?<\/button>/,
   );
   assert.doesNotMatch(

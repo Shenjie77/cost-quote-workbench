@@ -1,8 +1,9 @@
+import { LOCAL_API_BASE } from '../../lib/local-api.ts';
 import type { SavedQuoteLayout } from './layout-presets.ts';
 /** Binary templates remain in the local API database, separate from project JSON. */
 import type { QuoteExcelAsset } from './excel-template-types.ts';
 
-const ENDPOINT = 'http://127.0.0.1:3210/api/local/quote-template-assets';
+const ENDPOINT = `${LOCAL_API_BASE}/quote-template-assets`;
 export const MAX_QUOTE_TEMPLATE_BYTES = 10 * 1024 * 1024;
 
 /** Surfaces local validation and missing-asset failures without hiding the server's remedy. */

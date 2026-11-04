@@ -32,7 +32,7 @@ const object = (properties, required = Object.keys(properties)) => ({
   required,
   additionalProperties: false,
 });
-const sceneSchema = object({
+export const sceneSchema = object({
   id: { type: 'string', pattern: '^[a-zA-Z0-9_-]{1,60}$' },
   name: { ...string(100), minLength: 1 },
   tone: string(300),

@@ -46,6 +46,10 @@ export function Text<T extends React.ElementType = 'span'>({
 }
 
 export type SurfaceVariant =
+  | 'appbar'
+  | 'project-strip'
+  | 'page-heading'
+  | 'sheet'
   | 'shell-header'
   | 'navigation'
   | 'tab'

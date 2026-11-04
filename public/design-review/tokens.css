@@ -1,0 +1,79 @@
+/* 全局设计变量：唯一视觉源 */
+:root {
+  --bg: #f7f8fa;
+  --surface: #fff;
+  --ink: #252b35;
+  --muted: #6e7785;
+  --line: #e3e7ed;
+  --accent: #365edb;
+  --accent-soft: #eef2ff;
+  --accent-hover: #274cbd;
+  --group: #f0f3f8;
+  --success: #28775b;
+  --success-soft: #eaf5ef;
+  --warning: #8e641e;
+  --warning-soft: #fbf4e6;
+  --danger: #b34850;
+  --danger-soft: #fff0f0;
+  --font:
+    Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  --h1-size: 20px;
+  --h1-line: 28px;
+  --h1-weight: 600;
+  --h2-size: 16px;
+  --h2-line: 24px;
+  --h2-weight: 600;
+  --h3-size: 14px;
+  --h3-line: 20px;
+  --h3-weight: 600;
+  --body-size: 13px;
+  --body-line: 20px;
+  --body-weight: 400;
+  --small-size: 12px;
+  --small-line: 16px;
+  --small-weight: 400;
+  --tracking: 0;
+  --s0: 0px;
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+  --s12: 48px;
+  --s16: 64px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --shadow-card: 0 1px 2px #15223a08;
+  --shadow-dropdown: 0 8px 24px #15223a18;
+  --border: 1px;
+  --focus: 2px;
+  --control: 28px;
+  --row: 32px;
+  --nav-width: 164px;
+  --field-width: 144px;
+  --small-field: 80px;
+  --group-label: 56px;
+  --motion: 160ms ease;
+  --page-max: 1800px;
+  --z-head: 10;
+  --z-nav: 20;
+  --z-notice: 30;
+}
+:root {
+  --statement-item: 320px;
+  --statement-source: 224px;
+  --statement-width: 1056px;
+  --pricing-width: 1104px;
+  --dimension-width: 1024px;
+  --report-header: #203747;
+  --report-header-text: #ffffff;
+  --risk-bg: #eef6f5;
+}
+:root {
+  --formula-sheet-height: 640px;
+}

@@ -30,7 +30,9 @@
     "dist/**",
     "coverage/**",
     "components/ui/**",
-    "next-env.d.ts"
+    "next-env.d.ts",
+    "public/design-review/business/engine.js",
+    "public/design-review/generated/**"
   ],
   "rules": {
     "no-array-constructor": "error",
@@ -71,7 +73,9 @@
   },
   "overrides": [
     {
-      "files": ["tests/**/*.test.mjs"],
+      "files": [
+        "tests/**/*.test.mjs"
+      ],
       "rules": {
         "typescript/no-floating-promises": [
           "error",

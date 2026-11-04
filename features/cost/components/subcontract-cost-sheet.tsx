@@ -25,6 +25,7 @@ import type { SubcontractItem } from '@/features/master-data/types';
 import { YEAR_BUCKETS, roundMoney, type CostInputRow } from '../domain';
 import {
   calculateSubcontractCost,
+  copySubcontractCatalogLine,
   getSubcontractRateFactors,
   type SubcontractCost,
   type SubcontractLineBase,
@@ -52,29 +53,7 @@ const money = formatMoney;
 const yearLabel = (years: (number | null)[], index: number) =>
   `${YEAR_BUCKETS[index]}${years[index] ? ` · ${years[index]}` : ''}`;
 
-/** Catalogue values are copied once; future catalogue edits cannot reprice a BOQ. */
-export function copySubcontractCatalogLine(
-  item: SubcontractItem,
-): SubcontractLineBase {
-  if (item.currency.trim().toUpperCase() !== 'SGD')
-    throw new Error(
-      'Only SGD catalogue items can be added. Convert the price to SGD before adding this item.',
-    );
-  if (!item.unit?.trim())
-    throw new Error(
-      'This item has no unit. Complete it in Master Data → Subcontract, then refresh the catalogue.',
-    );
-  return {
-    id: id(),
-    catalogItemId: item.id,
-    code: item.code,
-    description: item.item,
-    bu: item.bu,
-    unit: item.unit,
-    unitPrice: item.unitPrice ?? null,
-    currency: 'SGD',
-  };
-}
+export { copySubcontractCatalogLine } from '../subcontract-domain';
 export function changeSubcontractMode(
   value: SubcontractCost,
   mode: SubcontractCost['mode'],

@@ -1,3 +1,4 @@
+import { HR_COST } from '../../lib/business-labels.ts';
 /** Live formulas for the simple report. Omitted source sheets retain captured inputs. */
 import type { Cell, Workbook, Worksheet } from 'exceljs';
 import type { CostExportSnapshot } from './contracts.ts';
@@ -928,7 +929,7 @@ export function linkSimpleCostFormulas(
   });
   categoryCalc.getRow(4).values = [
     'Category',
-    'Personnel',
+    HR_COST.en,
     'HQ Travel',
     'Subcontract',
     'Direct cost',

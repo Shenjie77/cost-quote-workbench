@@ -4,7 +4,8 @@ import { createUniver, LocaleType } from '@univerjs/presets';
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
 import EnUS from '@univerjs/preset-sheets-core/locales/en-US';
 import '@univerjs/preset-sheets-core/lib/index.css';
-import type { IWorkbookData } from '@univerjs/core';
+import { ICommandService, type IWorkbookData } from '@univerjs/core';
+import { registerClipboardMenuAliases } from './clipboard-compat';
 
 export function mountUniver(
   container: HTMLElement,
@@ -31,6 +32,9 @@ export function mountUniver(
       )
     : undefined;
   const workbook = univerAPI.createWorkbook(snapshot);
+  const clipboardAliases = registerClipboardMenuAliases(
+    univer.__getInjector().get(ICommandService),
+  );
   let disposed = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const capture = () => {
@@ -84,6 +88,7 @@ export function mountUniver(
       disposed = true;
       listener.dispose();
       toolbarPart?.dispose();
+      clipboardAliases.dispose();
       univer.dispose();
     },
   };

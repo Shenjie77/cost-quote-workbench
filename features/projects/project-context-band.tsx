@@ -9,6 +9,7 @@ import { ReferenceLink } from './project-reference-link';
 import { openArchiveFolder } from './project-files';
 
 export type ProjectContextActions = {
+  inShell?: boolean;
   companyUrl?: string;
   cpqUrl?: string;
   onEdit?: () => void;
@@ -29,6 +30,7 @@ export function ContextBand({
   onEdit,
   editDisabled = false,
   action,
+  inShell = false,
 }: ProjectContextActions & {
   project?: { id: string; name?: string; client: string; currency?: string };
   stage?: string;
@@ -61,6 +63,8 @@ export function ContextBand({
       setOpening(false);
     }
   };
+  if (inShell)
+    return action ? <Surface variant="toolbar">{action}</Surface> : null;
   const historical = latestCostVersion && latestCostVersion !== costVersion;
   return (
     <Surface

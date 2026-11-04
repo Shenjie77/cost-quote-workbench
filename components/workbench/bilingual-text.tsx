@@ -1,3 +1,5 @@
+'use client';
+import { useWorkbenchLanguage } from '@/features/workbench/workbench-language';
 /** Labels inherit selected-row contrast; helper text uses the same role everywhere. */
 import { Text, type Tone } from '@/components/ui/presentation';
 export function BiText({
@@ -11,6 +13,13 @@ export function BiText({
   className?: string;
   zhTone?: Tone;
 }) {
+  const { label, enabled } = useWorkbenchLanguage();
+  if (enabled)
+    return (
+      <Text className={className} title={`${en} / ${zh}`}>
+        {label(en, zh)}
+      </Text>
+    );
   return (
     <Text className={`flex min-w-0 flex-col ${className || ''}`}>
       <span>{en}</span>
@@ -21,6 +30,8 @@ export function BiText({
   );
 }
 export function BiInline({ en, zh }: { en: string; zh: string }) {
+  const { label, enabled } = useWorkbenchLanguage();
+  if (enabled) return <Text title={`${en} / ${zh}`}>{label(en, zh)}</Text>;
   return (
     <Text>
       {en}

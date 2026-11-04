@@ -66,9 +66,26 @@ scanReminders();
 const reminderTimer = setInterval(scanReminders, 60000);
 reminderTimer.unref();
 const ALLOWED_ORIGINS = new Set([
+  'http://localhost:3002',
+  'http://127.0.0.1:3002',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
 ]);
+// Explicit loopback UI origin supports isolated verification/custom local ports; defaults stay unchanged.
+if (process.env.COST_WORKBENCH_UI_ORIGIN) {
+  const ui = new URL(process.env.COST_WORKBENCH_UI_ORIGIN);
+  if (
+    ui.protocol !== 'http:' ||
+    !['127.0.0.1', 'localhost', '[::1]'].includes(ui.hostname) ||
+    ui.username ||
+    ui.password ||
+    ui.pathname !== '/' ||
+    ui.search ||
+    ui.hash
+  )
+    throw new Error('COST_WORKBENCH_UI_ORIGIN must be a loopback HTTP origin');
+  ALLOWED_ORIGINS.add(ui.origin);
+}
 
 const commonHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, If-Match',

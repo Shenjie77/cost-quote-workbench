@@ -195,7 +195,12 @@ const manualLines = () =>
   }));
 
 /** Mirror the parent’s controlled pricing state; all writes stay in this fixture. */
-function quotationHarness(Component, initial, disabled = false) {
+function quotationHarness(
+  Component,
+  initial,
+  disabled = false,
+  expanded = true,
+) {
   let pricing = structuredClone(initial);
   let writes = 0;
   const costSnapshot = makeCostSnapshot();
@@ -238,6 +243,10 @@ function quotationHarness(Component, initial, disabled = false) {
     },
   };
   const view = harness(Component, props);
+  if (expanded)
+    view
+      .button('Allocations · locks · remarks / 分摊、锁定与备注')
+      .props.onClick();
   return {
     ...view,
     get effectiveLines() {
@@ -1277,4 +1286,27 @@ test('cost amount is selectable text outside the separate scope dialog trigger',
   assert.equal(amount.props.onClick, undefined);
   const trigger = view.label('Select cost scopes for line 1');
   assert.ok(!textOf(trigger).includes('1,234.56'));
+});
+
+test('compact quotation keeps quantity and pricing visible and expands advanced inputs without writes', () => {
+  const view = quotationHarness(
+    QuoteLinesEditor,
+    targetedPricing(),
+    false,
+    false,
+  );
+  assert.ok(view.label('Line 1 quantity'));
+  assert.ok(view.label('Line 1 target GP'));
+  assert.equal(
+    elements(view.render()).some((n) =>
+      /cost weight/i.test(n.props.label || ''),
+    ),
+    false,
+  );
+  view
+    .button('Allocations · locks · remarks / 分摊、锁定与备注')
+    .props.onClick();
+  assert.ok(textOf(view.render()).includes('Weight %'));
+  assert.ok(textOf(view.render()).includes('Remark (internal)'));
+  assert.equal(view.writes, 0);
 });

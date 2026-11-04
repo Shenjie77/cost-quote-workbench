@@ -1,6 +1,4 @@
-import { WorkbenchApp } from '@/features/workbench/workbench-app';
-
-/** App Router entry point; all interactive state lives in the client workbench. */
+import { CompactEntry } from '@/components/workbench/compact-entry';
 export default function Home() {
-  return <WorkbenchApp />;
+  return <CompactEntry />;
 }

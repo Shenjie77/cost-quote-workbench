@@ -21,7 +21,13 @@
     "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.mjs",
     "test:cli": "node --disable-warning=ExperimentalWarning --test tests/cli-contract.test.mjs",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "build:design-review": "node scripts/build-design-review.mjs",
+    "prebuild": "npm run build:design-review",
+    "predev": "npm run build:design-review",
+    "pretest": "npm run build:design-review",
+    "upgrade:prepare": "node --disable-warning=ExperimentalWarning scripts/upgrade-local.mjs prepare",
+    "upgrade:verify": "node --disable-warning=ExperimentalWarning scripts/upgrade-local.mjs verify"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

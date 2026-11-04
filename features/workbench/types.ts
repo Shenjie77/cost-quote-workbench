@@ -13,6 +13,7 @@ export type ViewKey =
   | 'workflow'
   | 'cost'
   | 'calculation'
+  | 'files'
   | 'quote'
   | 'cpq'
   | 'ssr'

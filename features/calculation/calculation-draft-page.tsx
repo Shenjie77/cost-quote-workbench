@@ -11,9 +11,7 @@ export function CalculationDraftPage({
 }) {
   const [initial] = useState(initialScratchpad);
   return (
-    <div
-      className={standalone ? 'h-dvh' : 'h-[calc(100dvh-112px)] min-h-[480px]'}
-    >
+    <div className={standalone ? 'h-dvh' : 'wb-formula-workspace'}>
       <CalculationEditor
         draftId="scratchpad"
         initialDocument={initial}

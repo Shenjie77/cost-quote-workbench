@@ -11,7 +11,7 @@ import type {
   GlobalMasterDataChanges,
 } from './global-types';
 
-const API_BASE = 'http://127.0.0.1:3210/api/local';
+import { LOCAL_API_BASE as API_BASE } from '../../lib/local-api.ts';
 const endpoint = (tab: GlobalMasterDataTab) =>
   `${API_BASE}/masterdata/${encodeURIComponent(tab)}`;
 async function parse<T>(response: Response): Promise<T> {

@@ -61,6 +61,8 @@ test('each page survives refresh with the selected project, open tabs and child 
     'agent',
     'master-data',
     'workflow',
+    'calculation',
+    'files',
   ]) {
     const browser = browserFixture();
     const saved = navigation({
@@ -216,4 +218,20 @@ test('standalone master data restores without any project and closing it clears 
   clearWorkbenchNavigation(browser);
   assert.equal(readWorkbenchNavigation(browser), null);
   assert.equal(browser.history.state.frameworkEntry, 17);
+});
+
+test('review bookmarks open live modules without replacing saved project selection', () => {
+  for (const [hash, view, costView] of [
+    ['#quote', 'quote'],
+    ['#workflow', 'workflow'],
+    ['#drafts', 'calculation'],
+    ['#files', 'files'],
+    ['#summary', 'cost', 'summary'],
+    ['#subcon', 'cost', 'subcontract'],
+  ]) {
+    const restored = restoreWorkbenchNavigation(projects, navigation(), hash);
+    assert.equal(restored.view, view);
+    assert.equal(restored.projectId, 'B');
+    if (costView) assert.equal(restored.costView, costView);
+  }
 });

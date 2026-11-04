@@ -41,3 +41,6 @@ next-env.d.ts
 # Local business data must never be committed. The application recreates this
 # directory and its SQLite database during seed/startup.
 /data/
+
+# Compiled compact-front-end dependencies; rebuilt before dev/test/build.
+/public/design-review/generated/

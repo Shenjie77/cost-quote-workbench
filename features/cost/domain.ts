@@ -1,3 +1,4 @@
+import { HR_COST } from '../../lib/business-labels.ts';
 /**
  * Cost-domain types and calculations shared by the web UI, Excel exporter,
  * and local CLI. Keeping the arithmetic here prevents the three interfaces
@@ -616,7 +617,7 @@ export const buildCostStatementRows = (
     },
     {
       code: '2.3.1',
-      en: 'Labour Cost',
+      en: HR_COST.en,
       zh: '人力成本',
       level: 1,
       mode: 'subtotal',

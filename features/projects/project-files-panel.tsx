@@ -1,3 +1,12 @@
+import { BiInline } from '@/components/workbench/bilingual-text';
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Text, Surface } from '@/components/ui/presentation';
 import {
@@ -8,7 +17,6 @@ import {
   type ReactNode,
 } from 'react';
 import {
-  Download,
   FolderArchive,
   FolderOpen,
   RefreshCw,
@@ -29,6 +37,7 @@ import {
   updateArchiveSettings,
   type ArchiveSettings,
   type ProjectFileArchive,
+  type ProjectFileCategory,
   type ProjectFileFilter,
   type ProjectFileRecord,
 } from './project-files';
@@ -314,87 +323,98 @@ export function ProjectFileList({
       </Surface>
     );
   return (
-    <Surface
-      as="ul"
-      variant="footer"
-      className="max-h-80 overflow-y-auto"
-      aria-label="Archived documents"
-    >
-      {files.map((file) => (
-        <Surface
-          key={file.id}
-          as="li"
-          variant="body"
-          className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"
-        >
-          <div className="min-w-0 flex-1 basis-52">
-            <Text
-              as="p"
-              textRole="body-main"
-              className="break-words"
-              title={file.relativePath}
-            >
-              {file.originalName}
-            </Text>
-            <Text
-              as="p"
-              tone="muted"
-              textRole="body-small"
-              className="mt-1 flex flex-wrap gap-x-3 gap-y-1"
-            >
-              <span>{projectFileSizeLabel(file.sizeBytes)}</span>
+    <Table aria-label="Archived documents" className="min-w-[720px]">
+      <TableHeader>
+        <TableRow>
+          <TableHead>
+            <BiInline en="File name" zh="文件名" />
+          </TableHead>
+          {showAssociation && (
+            <>
+              <TableHead>
+                <BiInline en="Category" zh="类别" />
+              </TableHead>
+              <TableHead>
+                <BiInline en="Version / Node" zh="版本 / 节点" />
+              </TableHead>
+            </>
+          )}
+          <TableHead>
+            <BiInline en="Size" zh="大小" />
+          </TableHead>
+          <TableHead>
+            <BiInline en="Updated" zh="归档时间" />
+          </TableHead>
+          <TableHead>
+            <BiInline en="Actions" zh="操作" />
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {files.map((file) => (
+          <TableRow key={file.id}>
+            <TableCell>
+              <Text title={file.relativePath} className="break-words">
+                {file.originalName}
+              </Text>
+            </TableCell>
+            {showAssociation && (
+              <>
+                <TableCell>{file.category}</TableCell>
+                <TableCell>
+                  <Text
+                    title={[
+                      file.category,
+                      file.versionCode,
+                      file.nodeName || file.nodeCode,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  >
+                    {file.versionCode || '—'} /{' '}
+                    {file.nodeName || file.nodeCode || '—'}
+                  </Text>
+                </TableCell>
+              </>
+            )}
+            <TableCell>{projectFileSizeLabel(file.sizeBytes)}</TableCell>
+            <TableCell>
               <time dateTime={file.createdAt}>
                 {dateLabel(file.createdAt)} SGT
               </time>
-              {showAssociation && (
-                <span className="capitalize">
-                  {[
-                    file.category,
-                    file.versionCode,
-                    file.nodeName || file.nodeCode,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </span>
-              )}
-            </Text>
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-1">
-            <Surface
-              href={projectFileDownloadUrl(projectId, file.id)}
-              download={file.originalName}
-              as="a"
-              variant="body"
-              tone="primary"
-              textRole="body-small"
-              className="inline-flex min-h-8 shrink-0 items-center gap-2"
-              aria-label={`Download ${file.originalName}`}
-            >
-              <Download className="size-4" /> Download
-            </Surface>
-            <ArchiveFolderButton
-              key={JSON.stringify([projectId, file.id])}
-              projectId={projectId}
-              fileId={file.id}
-              description={`Open folder for ${file.originalName}`}
-              disabled={disabled || Boolean(deletingFileId)}
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-
-              aria-label={`Delete ${file.originalName}`}
-              disabled={disabled || Boolean(deletingFileId) || !onDelete}
-              onClick={() => onDelete?.(file)}
-            >
-              <Trash2 className="size-4" />{' '}
-              {deletingFileId === file.id ? 'Deleting…' : 'Delete'}
-            </Button>
-          </div>
-        </Surface>
-      ))}
-    </Surface>
+            </TableCell>
+            <TableCell>
+              <div className="flex items-center gap-1">
+                <a
+                  href={projectFileDownloadUrl(projectId, file.id)}
+                  download={file.originalName}
+                  aria-label={`Download ${file.originalName}`}
+                >
+                  Download
+                </a>
+                <ArchiveFolderButton
+                  projectId={projectId}
+                  fileId={file.id}
+                  description={`Open folder for ${file.originalName}`}
+                  disabled={disabled || Boolean(deletingFileId)}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`Delete ${file.originalName}`}
+                  disabled={disabled || Boolean(deletingFileId) || !onDelete}
+                  onClick={() => onDelete?.(file)}
+                >
+                  <Trash2 />
+                  {deletingFileId === file.id ? 'Deleting…' : 'Delete'}
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 
@@ -409,9 +429,12 @@ type ProjectFilesPanelProps = {
   nodeCode?: string;
   nodeName?: string;
   versionCode?: string;
+  filterCategory?: ProjectFileCategory;
   refreshKey?: number;
   onArchived?: () => void;
   onUploadingChange?: (uploading: boolean) => void;
+  embedded?: boolean;
+  toolbar?: ReactNode;
   disabled?: boolean;
 };
 
@@ -423,6 +446,8 @@ const isFileDrag = (event: DragEvent<HTMLElement>) =>
 export function ProjectFileDropzone({
   title,
   target,
+  embedded = false,
+  toolbar,
   versionCode,
   node = false,
   dragging = false,
@@ -437,6 +462,8 @@ export function ProjectFileDropzone({
 }: {
   title: string;
   target: string;
+  embedded?: boolean;
+  toolbar?: ReactNode;
   versionCode?: string;
   node?: boolean;
   dragging?: boolean;
@@ -462,11 +489,10 @@ export function ProjectFileDropzone({
     <Surface
       aria-label={node ? 'Workflow Step Documents' : 'Project File Archive'}
       as="section"
-      variant="panel"
+      variant={embedded ? 'plain' : 'sheet'}
       selected={dragging && !unavailable}
       tone={'inherit'}
       className="min-w-0 space-y-2"
-      padded
       onDragEnter={dragOver}
       onDragOver={dragOver}
       onDragLeave={(event) => {
@@ -487,8 +513,9 @@ export function ProjectFileDropzone({
         if (!unavailable) onFiles(Array.from(event.dataTransfer.files));
       }}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 flex-1 basis-48">
+      <Surface variant="toolbar">
+        {toolbar}
+        <div className={embedded ? 'sr-only' : 'min-w-0 flex-1 basis-48'}>
           <h3 className="flex flex-wrap items-center gap-2">
             {title}
             {versionCode && <Badge tone="neutral">{versionCode}</Badge>}
@@ -533,14 +560,14 @@ export function ProjectFileDropzone({
             <RefreshCw className={loading ? 'animate-spin' : ''} />
           </Button>
         </div>
-      </div>
-      <Text as="p" tone="muted" textRole="body-small">
+      </Surface>
+      <Surface as="p" variant="body" tone="muted" textRole="body-small">
         {uploading
           ? 'Files are being archived'
           : disabled
             ? 'Wait for the current update'
             : 'Drop files here · or click to browse · 50 MiB per file'}
-      </Text>
+      </Surface>
       {children}
     </Surface>
   );
@@ -550,7 +577,12 @@ export function ProjectFileDropzone({
 export function ProjectFilesPanel(props: ProjectFilesPanelProps) {
   return (
     <ProjectFilesController
-      key={JSON.stringify([props.projectId, props.nodeCode, props.versionCode])}
+      key={JSON.stringify([
+        props.projectId,
+        props.nodeCode,
+        props.versionCode,
+        props.filterCategory,
+      ])}
       {...props}
     />
   );
@@ -561,6 +593,9 @@ function ProjectFilesController({
   nodeCode,
   nodeName,
   versionCode,
+  filterCategory,
+  embedded,
+  toolbar,
   refreshKey = 0,
   onArchived,
   onUploadingChange,
@@ -605,7 +640,7 @@ function ProjectFilesController({
     let cancelled = false;
     const filter: ProjectFileFilter = isNode
       ? { category: 'workflow', nodeCode, versionCode }
-      : {};
+      : { category: filterCategory, versionCode };
     void listProjectFiles(projectId, filter)
       .then((value) => {
         if (cancelled) return;
@@ -621,7 +656,15 @@ function ProjectFilesController({
     return () => {
       cancelled = true;
     };
-  }, [projectId, nodeCode, versionCode, isNode, reload, refreshKey]);
+  }, [
+    projectId,
+    nodeCode,
+    versionCode,
+    isNode,
+    filterCategory,
+    reload,
+    refreshKey,
+  ]);
 
   /** Confirm one named document, then refresh both archive views only after deletion succeeds. */
   const remove = async (file: ProjectFileRecord) => {
@@ -677,8 +720,12 @@ function ProjectFilesController({
       );
       try {
         await archiveProjectFile(projectId, item.file, {
-          category: isNode ? 'workflow' : 'general',
-          ...(isNode ? { nodeCode, versionCode } : {}),
+          category: isNode ? 'workflow' : filterCategory || 'general',
+          ...(isNode
+            ? { nodeCode, versionCode }
+            : versionCode
+              ? { versionCode }
+              : {}),
           requestId: item.requestId,
         });
         count += 1;
@@ -722,11 +769,13 @@ function ProjectFilesController({
   };
   return (
     <ProjectFileDropzone
+      embedded={embedded}
+      toolbar={toolbar}
       title={isNode ? 'Documents' : 'Project Files'}
       target={
         isNode
           ? archive?.uploadFolder || `workflow / ${nodeName || nodeCode}`
-          : 'All project documents · Drop uploads to workflow'
+          : `${!filterCategory && !versionCode ? 'All project documents · ' : ''}Upload to ${filterCategory || 'general'}${versionCode ? ` · ${versionCode}` : ''}`
       }
       versionCode={isNode ? versionCode : undefined}
       node={isNode}

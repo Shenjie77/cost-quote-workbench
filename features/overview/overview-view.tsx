@@ -1,15 +1,23 @@
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from '@/components/ui/table';
+import { useWorkbenchLanguage } from '../workbench/workbench-language';
 import { Badge } from '@/components/ui/badge';
 import {
   Surface,
   Text,
   Disclosure,
   DisclosureSummary,
-  StatusDot,
 } from '@/components/ui/presentation';
 /** Today workspace derived entirely from persisted portfolio and review data. */
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, ChevronRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -74,6 +82,7 @@ export function OverviewView({
   onWorkflowChange?: (project: Project, workflowCode: string) => void;
   onTrackWorkflow?: (project: Project, nodeCode?: string) => void;
 }) {
+  const { label } = useWorkbenchLanguage();
   const [workflowFilter, setWorkflowFilter] = useState('all');
   const [pendingWorkflowCode, setPendingWorkflowCode] = useState<string | null>(
     null,
@@ -162,120 +171,259 @@ export function OverviewView({
   );
 
   return (
-    <Surface as="div" variant="page">
-      {/* Put actionable pending counts first and preserve published workflow order. */}
-      <Surface
-        as="section"
-        variant="panel"
-        className="overflow-hidden"
-        aria-label="Project Workflow Distribution"
-      >
-        <Surface as="div" variant="toolbar">
-          <div className="min-w-0">
-            <h2>Project Workflow Distribution</h2>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              tone="warning"
-              className="tabular-nums"
-              title="Current unresolved tasks and the next ready phase; completed rounds and projects on hold are excluded."
-            >
-              {pendingTaskCount} Pending
-            </Badge>
-            {workflowDefinitionRevision !== undefined && (
-              <Text as="span" tone="muted" textRole="body-small">
-                Published workflow · Revision {workflowDefinitionRevision}
-              </Text>
-            )}
-          </div>
+    <Surface variant="page">
+      <SectionHeading
+        variant="page"
+        title="Today"
+        titleZh="今日工作"
+        description="Handle what needs your attention, then open a project."
+        descriptionZh="先处理需要你行动的事项，再进入项目。"
+        action={
+          <Text tone="muted" textRole="body-small">
+            {digest.asOf}
+          </Text>
+        }
+      />
+      <Surface variant="sheet">
+        <Surface
+          variant="toolbar"
+          className="flex flex-wrap items-center gap-6"
+        >
+          <span>
+            {label('To follow up', '待跟进')}{' '}
+            <strong>{digest.items.length}</strong>
+          </span>
+          <span>
+            {label('Projects to follow up', '待跟进项目')}{' '}
+            <strong>{followUpProjects.length}</strong>
+          </span>
+          <span>
+            {label('Cost base', '当前成本')}{' '}
+            <strong>{formatSgd(portfolioCost)}</strong>
+          </span>
+          <span className="flex-1" />
+          <Button variant="link" onClick={() => setView('project')}>
+            {label('All projects', '全部项目')} →
+          </Button>
         </Surface>
-        {workflowDefinitionError && (
-          <Surface
-            as="output"
-            variant="item"
-            tone="warning"
-            textRole="body-small"
-            className="block"
-          >
-            {workflowDefinitionError}
-          </Surface>
-        )}
-        <WorkflowDistributionNodes
-          entries={distribution.nodes}
-          onSelect={selectPendingWorkflow}
-        />
-        {distribution.retained.length > 0 && (
-          <Surface as="div" variant="footer">
-            <Surface as="p" variant="body" tone="muted" textRole="body-small">
-              Other recorded nodes · Retained progress from earlier workflow
-              definitions
+        <Table aria-label="Today follow-ups" className="min-w-[760px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead>{label('Needs attention', '需要处理')}</TableHead>
+              <TableHead>{label('Project', '项目')}</TableHead>
+              <TableHead>{label('Due', '截止')}</TableHead>
+              <TableHead>{label('Priority', '优先级')}</TableHead>
+              <TableHead>{label('Action', '操作')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {digest.items.map((item) => {
+              const project = projects.find((p) => p.id === item.projectId);
+              const step = project?.workflowSteps?.find(
+                (n) => n.code === item.workflowNodeId,
+              );
+              return (
+                <TableRow key={item.id} data-follow-up-project={item.projectId}>
+                  <TableCell>
+                    <Text title={label(item.detail, item.detailZh)}>
+                      {label(item.title, item.titleZh)}
+                    </Text>
+                  </TableCell>
+                  <TableCell>{project?.name || item.projectId}</TableCell>
+                  <TableCell>
+                    {step?.followUpDate || step?.dueAt?.slice(0, 10) || '—'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      tone={
+                        item.severity === 'red'
+                          ? 'danger'
+                          : item.severity === 'amber'
+                            ? 'warning'
+                            : 'neutral'
+                      }
+                    >
+                      {item.severity === 'red'
+                        ? label('Urgent', '紧急')
+                        : item.severity === 'amber'
+                          ? label('Soon', '优先')
+                          : label('Routine', '常规')}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="link"
+                      aria-label={`更新流程节点 ${item.titleZh}`}
+                      onClick={() => {
+                        if (!project) return;
+                        if (onTrackWorkflow)
+                          onTrackWorkflow(project, item.workflowNodeId);
+                        else {
+                          onSelectProject(project);
+                          setView('project');
+                        }
+                      }}
+                    >
+                      {label('Open task', '去处理')} →
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {!digest.items.length && (
+              <TableRow>
+                <TableCell colSpan={5}>
+                  {label('No follow-ups due', '当前没有需要跟进的事项')}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Surface>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Surface variant="sheet">
+          <SectionHeading title="Project shortcuts" titleZh="项目快捷入口" />
+          {projects.slice(0, 4).map((project) => (
+            <Surface
+              key={project.id}
+              variant="item"
+              className="flex items-center gap-2"
+            >
+              <Text className="min-w-0 flex-1 truncate">{project.name}</Text>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenCost(project)}
+              >
+                {label('HR Cost', '人力成本')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenQuote(project)}
+              >
+                {label('Quotation', '报价')}
+              </Button>
             </Surface>
-            <WorkflowDistributionNodes
-              entries={distribution.retained}
-              onSelect={selectPendingWorkflow}
-            />
+          ))}
+        </Surface>
+        <Surface variant="sheet">
+          <SectionHeading title="Delivery checks" titleZh="交付检查" />
+          <Surface variant="item" className="flex items-center justify-between">
+            <span>{label('Pending workflow tasks', '待处理流程节点')}</span>
+            <strong>{pendingTaskCount}</strong>
           </Surface>
-        )}
-      </Surface>
-      {/* Keep portfolio totals in one scan line instead of four tall decorative cards. */}
-      <Surface
-        as="dl"
-        variant="body"
-        textRole="body-small"
-        className="flex flex-wrap items-center gap-x-6 gap-y-2"
-        aria-label="Portfolio summary"
-      >
-        <div
-          className="flex items-baseline gap-2"
-          title={`${projects.length} local projects in total / 共 ${projects.length} 个本地项目`}
+          <Surface variant="item" className="flex items-center justify-between">
+            <span>{label('Cost versions to confirm', '待确认成本版本')}</span>
+            <strong>
+              {
+                projects.filter(
+                  (p) =>
+                    p.versionState !== 'Confirmed' &&
+                    !isDigestProjectCompleted({ ...p, projectId: p.id }),
+                ).length
+              }
+            </strong>
+          </Surface>
+          <Surface variant="item">
+            <Button variant="link" onClick={() => setView('agent')}>
+              {label('Open full digest', '查看完整跟进摘要')} →
+            </Button>
+          </Surface>
+        </Surface>
+      </div>
+      <Disclosure>
+        <DisclosureSummary>
+          {label('Workflow distribution', '全站流程分布')}
+        </DisclosureSummary>{' '}
+        <Surface
+          as="section"
+          variant="panel"
+          className="overflow-hidden"
+          aria-label="Project Workflow Distribution"
         >
-          <Text as="dt" tone="muted">
-            Active Projects <span className="sr-only">进行中项目</span>
-          </Text>
-          <dd className="tabular-nums">
-            {
-              projects.filter(
-                (project) =>
-                  !project.workflowHold &&
-                  !isDigestProjectCompleted({
-                    ...project,
-                    projectId: project.id,
-                  }),
-              ).length
-            }
-          </dd>
-        </div>
-        <div
-          className="flex items-baseline gap-2"
-          title="Current selected version of each project / 按各项目当前选中版本汇总"
-        >
-          <Text as="dt" tone="muted">
-            Current Cost Base <span className="sr-only">当前成本规模</span>
-          </Text>
-          <dd className="tabular-nums">{formatSgd(portfolioCost)}</dd>
-        </div>
-        <div
-          className="flex items-baseline gap-2"
-          title="Based on workflow tasks, upcoming starts and their SLA / 按待办、待启动节点及 SLA 提醒配置判断"
-        >
-          <Text as="dt" tone="muted">
-            Projects to Follow Up <span className="sr-only">待跟进项目</span>
-          </Text>
-          <dd className="tabular-nums">{followUpProjects.length}</dd>
-        </div>
-        <div
-          className="flex items-baseline gap-2"
-          title="Manual project risk classification / 按项目风险标记统计"
-        >
-          <Text as="dt" tone="muted">
-            High-Risk Projects <span className="sr-only">高风险项目</span>
-          </Text>
-          <dd className="tabular-nums">
-            {projects.filter((project) => project.risk === 'high').length}
-          </dd>
-        </div>
-      </Surface>
-      {/* Multiple projects require a visible choice; each row opens its exact workflow node. */}
+          <Surface as="div" variant="toolbar">
+            <div className="min-w-0">
+              <h2>Project Workflow Distribution</h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                tone="warning"
+                className="tabular-nums"
+                title="Current unresolved tasks and the next ready phase; completed rounds and projects on hold are excluded."
+              >
+                {pendingTaskCount} Pending
+              </Badge>
+              {workflowDefinitionRevision !== undefined && (
+                <Text as="span" tone="muted" textRole="body-small">
+                  Published workflow · Revision {workflowDefinitionRevision}
+                </Text>
+              )}
+            </div>
+          </Surface>
+          {workflowDefinitionError && (
+            <Surface
+              as="output"
+              variant="item"
+              tone="warning"
+              textRole="body-small"
+              className="block"
+            >
+              {workflowDefinitionError}
+            </Surface>
+          )}
+          <WorkflowDistributionNodes
+            entries={distribution.nodes}
+            onSelect={selectPendingWorkflow}
+          />
+          {distribution.retained.length > 0 && (
+            <Surface as="div" variant="footer">
+              <Surface as="p" variant="body" tone="muted" textRole="body-small">
+                Other recorded nodes · Retained progress from earlier workflow
+                definitions
+              </Surface>
+              <WorkflowDistributionNodes
+                entries={distribution.retained}
+                onSelect={selectPendingWorkflow}
+              />
+            </Surface>
+          )}
+        </Surface>
+      </Disclosure>
+      <Disclosure>
+        <DisclosureSummary>
+          {label('Portfolio by workflow', '按流程筛选项目')}
+        </DisclosureSummary>
+        <Surface variant="toolbar">
+          <Select
+            value={activeWorkflowFilter}
+            onValueChange={(value) => setWorkflowFilter(value || 'all')}
+          >
+            <SelectTrigger aria-label="Filter portfolio by workflow">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All workflows / 全部流程</SelectItem>
+              {workflowOptions.map(({ step, legacy }) => (
+                <SelectItem key={step.code} value={step.code}>
+                  {step.name || step.nameZh}
+                  {legacy ? ' (recorded node)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Surface>
+        <ProjectTable
+          projects={visibleProjects}
+          onProject={(project) => {
+            onSelectProject(project);
+            setView('project');
+          }}
+          onCost={onOpenCost}
+          onQuote={onOpenQuote}
+          onTrackWorkflow={onTrackWorkflow}
+        />
+      </Disclosure>
       <Dialog
         open={Boolean(pendingWorkflow)}
         onOpenChange={(open) => {
@@ -300,200 +448,6 @@ export function OverviewView({
           )}
         </DialogContent>
       </Dialog>
-      <div className="grid min-w-0 gap-3">
-        {/* Keep follow-up actions above the full project list for immediate access. */}
-        <div className="min-w-0">
-          <Surface as="section" variant="panel" className="overflow-hidden">
-            <SectionHeading
-              index="01"
-              title="Project Follow-ups"
-              titleZh="项目跟进"
-              action={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setView('agent')}
-                >
-                  Open full digest{' '}
-                  <Text as="span" textRole="body-small">
-                    完整摘要
-                  </Text>
-                  <ArrowRight />
-                </Button>
-              }
-            />
-            {/* The digest stays beside the follow-ups it describes, without a competing sidebar card. */}
-            <Surface
-              as="div"
-              variant="toolbar"
-              tone="muted"
-              textRole="body-small"
-            >
-              <Text as="span" tone="default">
-                Daily Agent Digest · 每日摘要
-              </Text>
-              <span>
-                {followUpProjects.length} 个项目、{digest.items.length}{' '}
-                个节点需要跟进
-              </span>
-              <span className="ml-auto tabular-nums">{digest.asOf}</span>
-            </Surface>
-            <Surface as="div" variant="list">
-              {followUpProjects.length ? (
-                followUpProjects.slice(0, 4).map((group) => {
-                  const project = projects.find(
-                    (entry) => entry.id === group.projectId,
-                  );
-                  return (
-                    <Disclosure
-                      key={group.projectId}
-                      data-workflow-project-group={group.projectId}
-                      className="group"
-                      open={group.severity === 'red'}
-                    >
-                      <DisclosureSummary className="flex cursor-pointer list-none flex-wrap items-center min-h-8 gap-2">
-                        <StatusDot
-                          tone={
-                            group.severity === 'red'
-                              ? 'danger'
-                              : group.severity === 'amber'
-                                ? 'warning'
-                                : 'inherit'
-                          }
-                          className="size-2 shrink-0"
-                        />
-                        <span className="min-w-0 flex-1">
-                          {project?.name || group.projectId}
-                        </span>
-                        <Text as="span" tone="muted" textRole="body-small">
-                          {group.severity === 'red'
-                            ? '紧急'
-                            : group.severity === 'amber'
-                              ? '马上处理'
-                              : '普通跟进'}{' '}
-                          · {group.items.length} 个待办节点
-                        </Text>
-                        <ChevronRight className="size-4 group-open:rotate-90" />
-                      </DisclosureSummary>
-                      <Surface
-                        as="div"
-                        variant="body"
-                        className="mt-2 space-y-1"
-                      >
-                        {group.items.map((item) => (
-                          <Button
-                            variant="ghost"
-                            key={item.id}
-                            aria-label={`更新流程节点 ${item.titleZh}`}
-                            onClick={() => {
-                              if (!project) return;
-                              if (onTrackWorkflow)
-                                onTrackWorkflow(project, item.workflowNodeId);
-                              else {
-                                onSelectProject(project);
-                                setView('project');
-                              }
-                            }}
-                            className="block w-full text-left"
-                          >
-                            <Text
-                              as="span"
-                              textRole="body-small"
-                              className="block"
-                            >
-                              {item.titleZh}
-                            </Text>
-                            <Text
-                              as="span"
-                              tone="muted"
-                              textRole="body-small"
-                              className="mt-1 block"
-                            >
-                              {item.detailZh}
-                            </Text>
-                          </Button>
-                        ))}
-                      </Surface>
-                    </Disclosure>
-                  );
-                })
-              ) : (
-                <Surface as="div" variant="empty">
-                  No projects need follow-up / 当前没有需要跟进的项目
-                </Surface>
-              )}
-            </Surface>
-            <Button
-              variant="ghost"
-              onClick={() => setView('project')}
-              className="flex w-full items-center justify-center gap-1"
-            >
-              Open project list{' '}
-              <Text as="span" textRole="body-small">
-                查看项目列表
-              </Text>
-              <ArrowRight className="size-4" />
-            </Button>
-          </Surface>
-        </div>
-        <Surface as="section" variant="panel" className="overflow-hidden">
-          <SectionHeading
-            index="02"
-            title="Project Portfolio"
-            titleZh="项目组合"
-            action={
-              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-                <Select
-                  value={activeWorkflowFilter}
-                  onValueChange={(value) => {
-                    setWorkflowFilter(value ?? 'all');
-                  }}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className="w-full min-w-44 sm:w-52"
-                    aria-label="Filter portfolio by workflow"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">
-                      All workflows / 全部流程
-                    </SelectItem>
-                    {workflowOptions.map(({ step, legacy }) => (
-                      <SelectItem key={step.code} value={step.code}>
-                        {step.name || step.nameZh}
-                        {legacy ? ' (recorded node)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setView('project')}
-                >
-                  Open list <ChevronRight />
-                </Button>
-              </div>
-            }
-          />
-          <ProjectTable
-            projects={visibleProjects}
-            onProject={(project) => {
-              onSelectProject(project);
-              setView('project');
-            }}
-            onCost={onOpenCost}
-            onQuote={onOpenQuote}
-            onTrackWorkflow={onTrackWorkflow}
-          />
-          <Surface as="div" variant="footer" tone="muted" textRole="body-small">
-            Showing {visibleProjects.length} of {projects.length} local projects
-            / 显示 {visibleProjects.length} 个项目
-          </Surface>
-        </Surface>
-      </div>
     </Surface>
   );
 }

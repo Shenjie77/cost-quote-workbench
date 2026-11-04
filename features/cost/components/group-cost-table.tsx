@@ -1,3 +1,4 @@
+import { HR_COST } from '../../../lib/business-labels.ts';
 import { Surface, Text } from '@/components/ui/presentation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ import { roundMoney, roundQuantity } from '../domain';
 
 const measures = [
   ['mandays', 'Mandays'],
-  ['personnel', 'Personnel'],
+  ['personnel', HR_COST.en],
   ['travel', 'HQ Travel'],
   ['subcontract', 'Subcontract'],
   ['ehs', 'EHS'],

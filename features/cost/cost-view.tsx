@@ -1,3 +1,4 @@
+import { SectionHeading } from '@/components/workbench/section-heading';
 import { Badge } from '@/components/ui/badge';
 import { Surface, Text } from '@/components/ui/presentation';
 import { SelectField } from '@/components/ui/select-field';
@@ -60,7 +61,7 @@ export function CostView({
   onSelectVersion,
   onUpdateVersionState,
   costView,
-  setCostView,
+  setCostView: _setCostView,
   rows,
   setRows,
   canEditCost,
@@ -282,48 +283,6 @@ export function CostView({
       aria-label="Cost tools"
     >
       <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-        <Surface
-          as="fieldset"
-          variant="control-group"
-          className="min-w-0 max-w-full"
-          aria-label="Cost views"
-        >
-          {[
-            {
-              key: 'input' as CostViewKey,
-              label: 'Input Sheet',
-              title: 'Input Sheet',
-            },
-            {
-              key: 'subcontract' as CostViewKey,
-              label: 'Subcon',
-              title: 'Subcontract Cost',
-            },
-            {
-              key: 'summary' as CostViewKey,
-              label: 'Summary',
-              title: 'Summary',
-            },
-            {
-              key: 'compare' as CostViewKey,
-              label: 'Compare',
-              title: 'Version Comparison',
-            },
-          ].map((item) => (
-            <Button
-              key={item.key}
-              variant={costView === item.key ? 'default' : 'ghost'}
-              size="sm"
-
-              aria-label={item.title}
-              aria-pressed={costView === item.key}
-              title={item.title}
-              onClick={() => setCostView(item.key)}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </Surface>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {personnelTableView.isViewDirty && (
             <Badge tone="warning">View not saved</Badge>
@@ -370,6 +329,29 @@ export function CostView({
 
   const content = (
     <Surface as="div" variant="page" className="min-w-0">
+      <SectionHeading
+        variant="page"
+        title={
+          costView === 'input'
+            ? 'HR Cost'
+            : costView === 'subcontract'
+              ? 'Subcontract'
+              : costView === 'summary'
+                ? 'Cost summary'
+                : 'Version comparison'
+        }
+        titleZh={
+          costView === 'input'
+            ? '人力成本'
+            : costView === 'subcontract'
+              ? '分包成本'
+              : costView === 'summary'
+                ? '成本汇总'
+                : '版本对比'
+        }
+        description="Enter costs in the worksheet; delivery, annual rates and quantities use the same saved version."
+        descriptionZh="直接在工作表中录入，交付日期、年度增幅和数量均保存在当前版本。"
+      />
       {lockedReason && (
         <Surface
           as="output"

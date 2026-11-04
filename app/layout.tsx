@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { WorkbenchLanguageProvider } from '@/features/workbench/workbench-language';
 
 export const metadata: Metadata = {
   metadataBase: new URL('http://localhost:3000'),
@@ -35,7 +36,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        <WorkbenchLanguageProvider>{children}</WorkbenchLanguageProvider>
+      </body>
     </html>
   );
 }

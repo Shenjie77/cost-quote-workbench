@@ -1,3 +1,4 @@
+import { LOCAL_API_BASE } from '../../lib/local-api.ts';
 import type { IWorkbookData, ICellData } from '@univerjs/core';
 
 export type CalculationDocument = {
@@ -79,7 +80,7 @@ export function initialScratchpad(): CalculationDocument {
 }
 
 const endpoint = (id: string) =>
-  `http://127.0.0.1:3210/api/local/calculation-drafts/${encodeURIComponent(id)}`;
+  `${LOCAL_API_BASE}/calculation-drafts/${encodeURIComponent(id)}`;
 export async function loadCalculation(
   id: string,
 ): Promise<CalculationRecord | null> {

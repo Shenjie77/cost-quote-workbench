@@ -1,4 +1,5 @@
 'use client';
+import { LOCAL_API_BASE } from '../../lib/local-api.ts';
 
 import { Surface, Text } from '@/components/ui/presentation';
 import { useEffect, useState } from 'react';
@@ -11,7 +12,7 @@ type Reminder = {
   active: boolean;
   acknowledged: boolean;
 };
-const url = 'http://127.0.0.1:3210/api/local/reminders';
+const url = `${LOCAL_API_BASE}/reminders`;
 /** Keep reminder acknowledgement and exact-task navigation in a compact expandable inbox. */
 export function ReminderInbox({
   onOpen,

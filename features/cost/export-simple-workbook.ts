@@ -1,3 +1,4 @@
+import { HR_COST } from '../../lib/business-labels.ts';
 import {
   buildGroupCostSummary,
   buildGroupCostSheetLayout,
@@ -1003,7 +1004,7 @@ export function addGroupCostSheet(
     'Group / Account',
     'Level',
     'Mandays',
-    'Personnel',
+    HR_COST.en,
     'HQ Travel',
     'Subcontract',
     'EHS',

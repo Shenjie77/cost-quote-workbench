@@ -275,3 +275,37 @@
     }
   }
 }
+
+/* Approved workbench composition: fixed-purpose chrome, then one worksheet per task. */
+@layer components {
+  .ui-surface:is([data-variant='appbar'], [data-variant='project-strip']) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-5);
+    background: var(--card);
+    border-bottom: var(--border-width) solid var(--border);
+  }
+  .ui-surface[data-variant='appbar'] {
+    min-height: var(--space-12);
+    justify-content: space-between;
+  }
+  .ui-surface[data-variant='project-strip'] {
+    flex-wrap: wrap;
+    font-size: var(--type-body-small-size);
+  }
+  .ui-surface[data-variant='page-heading'] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-1) 0 var(--space-3);
+  }
+  .ui-surface[data-variant='sheet'] {
+    background: var(--card);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+}

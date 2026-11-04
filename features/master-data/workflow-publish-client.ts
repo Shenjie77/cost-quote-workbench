@@ -1,3 +1,4 @@
+import { LOCAL_API_BASE } from '../../lib/local-api.ts';
 /** Preview and publish a workflow draft with explicit global/project revisions. */
 import { LocalApiError } from '@/features/workbench/workspace-client';
 import { LOCAL_API_VERSION } from '@/features/workbench/workspace-types';
@@ -31,7 +32,7 @@ async function request<T>(
   body: Record<string, unknown>,
 ): Promise<T> {
   const response = await fetch(
-    `http://127.0.0.1:3210/api/local/workflow/${path}`,
+    `${LOCAL_API_BASE}/workflow/${path}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

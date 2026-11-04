@@ -1,3 +1,4 @@
+import { TaskTabs } from '@/components/workbench/task-tabs';
 import {
   Surface,
   Text,
@@ -38,15 +39,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { BiText } from '@/components/workbench/bilingual-text';
 import { SectionHeading } from '@/components/workbench/section-heading';
 import { StatusBadge } from '@/components/workbench/status-badge';
 import type { CostExportSnapshot } from '@/features/cost/contracts';
 import type { CostVersionState } from '@/features/cost/domain';
-import {
-  ContextBand,
-  type ProjectContextActions,
-} from '@/features/projects/project-context-band';
+import { type ProjectContextActions } from '@/features/projects/project-context-band';
 import {
   calculatePricing,
   type PricingSettings,
@@ -91,9 +88,9 @@ const newId = (prefix: string) => `${prefix}-${globalThis.crypto.randomUUID()}`;
 /** Presents project-owned pricing and exports a detached commercial snapshot. */
 export function QuoteView({
   project,
-  proposalNumber,
-  onProposalNumberChange,
-  projectContext,
+  proposalNumber: _proposalNumber,
+  onProposalNumberChange: _onProposalNumberChange,
+  projectContext: _projectContext,
   activeVersion,
   versionState,
   totalCost,
@@ -530,698 +527,743 @@ export function QuoteView({
             : undefined
         }
       />
-      <ContextBand
-        {...projectContext}
-        proposalNumber={proposalNumber}
-        onProposalNumberChange={onProposalNumberChange}
-        project={project}
-        costVersion={activeVersion}
-        versionStatus={versionState}
+      <SectionHeading
+        variant="page"
+        title="Pricing & quotation"
+        titleZh="定价与报价"
+        description="Set line GP or prices; totals and actual GP update automatically."
+        descriptionZh="逐行设置 GP 或售价，自动汇总总价及实际 GP。"
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <QuotePreviewDialog
+              project={project}
+              activeVersion={activeVersion}
+              template={template}
+              pricing={result}
+              lines={lines}
+              assumptions={effectiveQuoteAssumptions}
+              maintenanceLines={grossDocument?.maintenance}
+              maintenanceAmount={grossDocument?.maintenanceAmount}
+            />
+            <Button
+              variant="outline"
+              disabled={isApplyingRates}
+              onClick={async () =>
+                announce(
+                  (await onSave())
+                    ? 'Pricing saved / 定价已保存'
+                    : 'Pricing save failed; edits are retained / 保存失败，修改已保留',
+                )
+              }
+            >
+              <Save /> Save Pricing{' '}
+              <Text as="span" textRole="body-small">
+                保存定价
+              </Text>
+            </Button>
+            <Button
+              onClick={() => setShowExport(true)}
+              disabled={isExporting || isApplyingRates || exportInProgress}
+              title="Choose draft or final output and review export requirements"
+            >
+              {isExporting ? <Download /> : <FileCheck2 />}
+              {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
+              <Text as="span" textRole="body-small">
+                生成报价
+              </Text>
+            </Button>
+            <SimpleCostExportDialog
+              key={`${project.id}-${activeVersion}`}
+              triggerLabel="Quotation + Simple Cost"
+              title="Quotation + Simple Cost"
+              description="Cost Detail 使用当前成本版本已保存的 Cost Input 视图。Quotation Details 包含当前维保明细与含维保总价，Cost Statement 始终保留；导出不合并单元格，未选成本明细保留快照数值。"
+              requiredSheets={['Cost Statement']}
+              getSheets={() =>
+                getAvailableSimpleCostSheets(
+                  costSnapshot,
+                  personnelTableView.layout,
+                )
+              }
+              onExport={exportCombined}
+              disabled={
+                isExporting ||
+                isApplyingRates ||
+                exportInProgress ||
+                Boolean(decisionError) ||
+                costErrors.length > 0 ||
+                !result.valid
+              }
+            />
+          </div>
+        }
       />
-      <QuoteTemplatePicker
-        key={project.id}
-        templates={quoteTemplates}
-        loadCatalog={onCaptureTemplate ? loadQuoteTemplateCatalog : undefined}
-        client={project.client}
-        selectedId={selectedQuoteTemplateId}
-        onApply={applyTemplate}
-        onManage={() => onOpenMasterData('quote-templates')}
-        busy={exportInProgress}
-      />
-      <Surface
-        as="div"
-        variant="panel"
-        padded
-        className="flex flex-wrap items-center gap-2"
-      >
-        <Surface
-          htmlFor="quotation-project-name"
-          as="label"
-          variant="field"
-          textRole="body-small"
-        >
-          Quotation project name
-        </Surface>
-        <Input
-          variant="grid"
-          id="quotation-project-name"
-          className="min-w-48 flex-1"
-          maxLength={500}
-          value={pricing.quotationProjectName ?? ''}
-          placeholder={project.name}
-          disabled={exportInProgress}
-          onChange={(event) =>
-            setPricing((current) => ({
-              ...current,
-              quotationProjectName: event.target.value,
-            }))
-          }
-        />
-        <Text as="span" tone="muted" textRole="body-small">
-          Customer documents only · blank uses the project name
-        </Text>
-      </Surface>
-      <Surface
-        as="section"
-        variant="panel"
-        className="min-w-0"
-        aria-label="Quotation pricing"
-      >
-        <SectionHeading
-          index="01"
-          title="Pricing Parameters"
-          titleZh="定价参数"
-          description="Set line GP or prices; totals and actual GP update automatically."
-          descriptionZh="逐行设置 GP 或售价，自动汇总总价及实际 GP。"
-          action={
-            <div className="flex flex-wrap items-center gap-2">
-              <QuotePreviewDialog
-                project={project}
-                activeVersion={activeVersion}
-                template={template}
-                pricing={result}
-                lines={lines}
-                assumptions={effectiveQuoteAssumptions}
-                maintenanceLines={grossDocument?.maintenance}
-                maintenanceAmount={grossDocument?.maintenanceAmount}
-              />
-              <Button
-                variant="outline"
-                disabled={isApplyingRates}
-                onClick={async () =>
-                  announce(
-                    (await onSave())
-                      ? 'Pricing saved / 定价已保存'
-                      : 'Pricing save failed; edits are retained / 保存失败，修改已保留',
-                  )
-                }
-              >
-                <Save /> Save Pricing{' '}
-                <Text as="span" textRole="body-small">
-                  保存定价
-                </Text>
-              </Button>
-              <Button
-                onClick={() => setShowExport(true)}
-                disabled={isExporting || isApplyingRates || exportInProgress}
-                title="Choose draft or final output and review export requirements"
-              >
-                {isExporting ? <Download /> : <FileCheck2 />}
-                {isExporting ? 'Exporting…' : 'Generate XLSX'}{' '}
-                <Text as="span" textRole="body-small">
-                  生成报价
-                </Text>
-              </Button>
-              <SimpleCostExportDialog
-                key={`${project.id}-${activeVersion}`}
-                triggerLabel="Quotation + Simple Cost"
-                title="Quotation + Simple Cost"
-                description="Cost Detail 使用当前成本版本已保存的 Cost Input 视图。Quotation Details 包含当前维保明细与含维保总价，Cost Statement 始终保留；导出不合并单元格，未选成本明细保留快照数值。"
-                requiredSheets={['Cost Statement']}
-                getSheets={() =>
-                  getAvailableSimpleCostSheets(
-                    costSnapshot,
-                    personnelTableView.layout,
-                  )
-                }
-                onExport={exportCombined}
-                disabled={
-                  isExporting ||
-                  isApplyingRates ||
-                  exportInProgress ||
-                  Boolean(decisionError) ||
-                  costErrors.length > 0 ||
-                  !result.valid
-                }
-              />
-            </div>
-          }
-        />
-        {/* Keep editable commercial terms beside their results, following the Cost Grid cell layout. */}
-        <Table
-          className="min-w-[700px] table-fixed"
-          aria-label="Pricing parameters"
-        >
-          <TableHeader>
-            <TableRow tone="total" className="h-10">
-              <TableHead variant="label" className="whitespace-normal">
-                <BiText
-                  zhTone="inverse"
-                  en="Cost with Risk"
-                  zh="含风险项目总成本"
-                />
-              </TableHead>
-              <TableHead variant="label" className="whitespace-normal">
-                <BiText
-                  zhTone="inverse"
-                  en="Line Total"
-                  zh="明细合计（折扣前）"
-                />
-              </TableHead>
-              <TableHead variant="label" className="whitespace-normal">
-                <label htmlFor="pricing-discount">
-                  <BiText zhTone="inverse" en="Discount (SGD)" zh="折扣金额" />
-                </label>
-              </TableHead>
-              <TableHead variant="label" className="whitespace-normal">
-                <BiText zhTone="inverse" en="Quote Total" zh="最终报价" />
-              </TableHead>
-              <TableHead variant="label" className="whitespace-normal">
-                <BiText
-                  zhTone="inverse"
-                  en="Actual Sales GP"
-                  zh="销售毛利率（扣除分成）"
-                />
-              </TableHead>
-              <TableHead variant="label" className="whitespace-normal">
-                <BiText
-                  zhTone="inverse"
-                  en="Grand Total"
-                  zh="全部章节折后总报价"
-                />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow className="h-8">
-              <TableCell
-                variant="numeric"
-                className="financial-numeral text-right"
-              >
-                {formatSgd(result.cost)}
-              </TableCell>
-              <TableCell
-                variant="numeric"
-                className="financial-numeral text-right"
-              >
-                {result.valid ? formatSgd(result.listPrice) : '—'}
-              </TableCell>
-              <TableCell variant="editable">
-                <Input
-                  variant="grid"
-                  id="pricing-discount"
-                  disabled={isApplyingRates || isExporting || exportInProgress}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={pricing.discount}
-                  onChange={(event) => updateDiscount(event.target.value)}
-                  className="financial-numeral w-full min-w-0 text-right"
-                />
-              </TableCell>
-              <TableCell
-                variant="numeric"
-                className="financial-numeral text-right"
-              >
-                {formatSgd(result.quoteBeforeTax)}
-              </TableCell>
-              <TableCell
-                variant="numeric"
-                className="financial-numeral text-right"
-              >
-                <Text as="span" tone="primary" className="block">
-                  {result.valid
-                    ? `${result.grossMarginPercent.toFixed(2)}%`
-                    : '—'}
-                </Text>
-                <Text
-                  as="span"
-                  tone="muted"
-                  textRole="body-small"
-                  className="block"
+      <TaskTabs
+        items={[
+          {
+            id: 'pricing',
+            en: 'Pricing',
+            zh: '报价明细',
+            content: (
+              <>
+                {' '}
+                <Surface
+                  as="section"
+                  variant="sheet"
+                  className="min-w-0"
+                  aria-label="Quotation pricing"
                 >
-                  {result.valid ? formatSgd(result.salesGrossProfit) : '—'}
-                </Text>
-              </TableCell>
-              <TableCell
-                variant="numeric"
-                className="financial-numeral text-right"
-              >
-                {customerPreview === undefined
-                  ? '—'
-                  : formatSgd(customerPreview.total)}
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-        <DiscountAllocationEditor
-          pricing={pricing}
-          setPricing={setPricing}
-          lines={
-            grossDocument?.allLines ?? groupedLines(lines, pricing.lineGroups)
-          }
-          disabled={isExporting || exportInProgress || isApplyingRates}
-        />
-        {/* The detail editor spans the same width as the parameters that determine its prices. */}
-        <QuoteLinesEditor
-          key={`${project.id}:${activeVersion}`}
-          pricing={pricing}
-          setPricing={setPricing}
-          lines={lines}
-          costSnapshot={costSnapshot}
-          totalCost={totalCost}
-          weightedProfitShareRate={result.weightedProfitShareRate}
-          allocatedLines={result.allocatedManualLines}
-          disabled={isExporting || exportInProgress || isApplyingRates}
-          embedded
-        />
-        <Surface as="div" variant="footer" textRole="body-small">
-          <ProfitShareSummary
-            result={result}
-            masterDataRevision={pricing.profitShareMasterDataRevision}
-            onManage={() => onOpenMasterData('profit-share')}
-            applying={isApplyingRates}
-            disabled={exportInProgress || isExporting}
-            onApply={
-              onApplyProfitShare
-                ? async () => {
-                    if (
-                      applyingRates.current ||
-                      exportInProgress ||
-                      isExporting
-                    )
-                      return;
-                    applyingRates.current = true;
-                    setIsApplyingRates(true);
-                    try {
-                      announce(
-                        (await onApplyProfitShare())
-                          ? 'Latest profit share rates applied and saved.'
-                          : 'Profit share rates were not applied. The current selection is retained.',
-                      );
-                    } catch (error) {
-                      announce(
-                        `Unable to apply profit share rates: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                      );
-                    } finally {
-                      applyingRates.current = false;
-                      if (mounted.current) setIsApplyingRates(false);
+                  <QuoteLinesEditor
+                    key={`${project.id}:${activeVersion}`}
+                    pricing={pricing}
+                    setPricing={setPricing}
+                    lines={lines}
+                    costSnapshot={costSnapshot}
+                    totalCost={totalCost}
+                    weightedProfitShareRate={result.weightedProfitShareRate}
+                    allocatedLines={result.allocatedManualLines}
+                    disabled={
+                      isExporting || exportInProgress || isApplyingRates
                     }
-                  }
-                : undefined
-            }
-          />
-        </Surface>
-        {outputErrors.length > 0 ? (
-          <Surface
-            role="alert"
-            as="p"
-            variant="body"
-            tone="danger"
-            textRole="body-small"
-          >
-            Validation · 输入校验：{outputErrors[0]}
-          </Surface>
-        ) : null}
-      </Surface>
-      <Surface as="section" variant="panel" className="overflow-hidden">
-        <SectionHeading index="02" title="Maintenance" titleZh="维保报价" />
-        {grossDocument?.maintenance.length ? (
-          <Surface as="div" variant="item" className="overflow-x-auto">
-            <Surface as="h3" variant="header">
-              Maintenance quotation groups
-            </Surface>
-            <Table className="w-full min-w-[540px]">
-              <TableHeader className="text-left">
-                <TableRow>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="w-24">Equipment unit</TableHead>
-                  <TableHead>Category / 成本分类</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {grossDocument.maintenance.map((line) => (
-                  <TableRow key={line.id}>
-                    <TableCell>{line.description}</TableCell>
-                    <TableCell>
+                    embedded
+                  />
+                  <Surface
+                    variant="footer"
+                    className="flex flex-wrap items-center gap-4"
+                  >
+                    <span>
+                      Cost / 成本 <strong>{formatSgd(result.cost)}</strong>
+                    </span>
+                    <span>
+                      Line Total / 折前{' '}
+                      <strong>
+                        {result.valid ? formatSgd(result.listPrice) : '—'}
+                      </strong>
+                    </span>
+                    <label
+                      className="flex items-center gap-2"
+                      htmlFor="pricing-discount"
+                    >
+                      Discount / 折扣
                       <Input
                         variant="grid"
-                        className="w-full"
-                        aria-label={`Equipment unit for ${line.id}`}
-                        maxLength={80}
-                        disabled={exportInProgress || !onMaintenanceUnitChange}
-                        value={
-                          maintenance?.boq.find(
-                            (row) => `maintenance:${row.id}` === line.id,
-                          )?.unit ?? ''
+                        id="pricing-discount"
+                        aria-label="Discount (SGD) 折扣金额"
+                        className="w-24"
+                        disabled={
+                          isApplyingRates || isExporting || exportInProgress
                         }
-                        onChange={(event) =>
-                          onMaintenanceUnitChange?.(
-                            line.id.slice('maintenance:'.length),
-                            event.target.value,
-                          )
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={pricing.discount}
+                        onChange={(e) => updateDiscount(e.target.value)}
+                      />
+                    </label>
+                    <span>
+                      Actual Sales GP{' '}
+                      <strong>
+                        {result.valid
+                          ? `${result.grossMarginPercent.toFixed(2)}%`
+                          : '—'}
+                      </strong>
+                    </span>
+                    <span className="flex-1" />
+                    <span>
+                      Quote Total / 报价合计{' '}
+                      <strong>
+                        {customerPreview === undefined
+                          ? '—'
+                          : formatSgd(customerPreview.total)}
+                      </strong>
+                    </span>
+                  </Surface>
+                  <DiscountAllocationEditor
+                    pricing={pricing}
+                    setPricing={setPricing}
+                    lines={
+                      grossDocument?.allLines ??
+                      groupedLines(lines, pricing.lineGroups)
+                    }
+                    disabled={
+                      isExporting || exportInProgress || isApplyingRates
+                    }
+                  />
+                  {/* The detail editor spans the same width as the parameters that determine its prices. */}
+                  <Disclosure>
+                    <DisclosureSummary>
+                      BU share basis / 分成依据
+                    </DisclosureSummary>{' '}
+                    <Surface as="div" variant="footer" textRole="body-small">
+                      <ProfitShareSummary
+                        result={result}
+                        masterDataRevision={
+                          pricing.profitShareMasterDataRevision
+                        }
+                        onManage={() => onOpenMasterData('profit-share')}
+                        applying={isApplyingRates}
+                        disabled={exportInProgress || isExporting}
+                        onApply={
+                          onApplyProfitShare
+                            ? async () => {
+                                if (
+                                  applyingRates.current ||
+                                  exportInProgress ||
+                                  isExporting
+                                )
+                                  return;
+                                applyingRates.current = true;
+                                setIsApplyingRates(true);
+                                try {
+                                  announce(
+                                    (await onApplyProfitShare())
+                                      ? 'Latest profit share rates applied and saved.'
+                                      : 'Profit share rates were not applied. The current selection is retained.',
+                                  );
+                                } catch (error) {
+                                  announce(
+                                    `Unable to apply profit share rates: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                                  );
+                                } finally {
+                                  applyingRates.current = false;
+                                  if (mounted.current)
+                                    setIsApplyingRates(false);
+                                }
+                              }
+                            : undefined
                         }
                       />
-                    </TableCell>
-                    <TableCell className="w-80">
-                      <QuoteGroupFields
-                        label={line.description}
-                        disabled={exportInProgress}
-                        value={groupFor(
-                          line,
-                          pricing.lineGroups,
-                          pricing.sectionNames,
-                        )}
-                        sections={Object.values(pricing.lineGroups ?? {}).map(
-                          (g) => g.section ?? '',
-                        )}
-                        categories={Object.values(pricing.lineGroups ?? {}).map(
-                          (g) => g.category,
-                        )}
-                        onChange={(group) =>
-                          setPricing((current) => ({
-                            ...current,
-                            lineGroups: {
-                              ...current.lineGroups,
-                              [line.id]: group,
-                            },
-                          }))
-                        }
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Surface>
-        ) : null}
-        <MaintenanceSummary
-          value={maintenance ?? emptyMaintenance()}
-          serviceQuote={result.quoteBeforeTax}
-          details
-        />
-      </Surface>
-      <Surface as="section" variant="panel">
-        <SectionHeading
-          index="03"
-          title="Quote Assumptions"
-          titleZh="报价假设"
-          description="Included rows are written into the generated client workbook."
-          descriptionZh="这里只修改当前报价的假设，不回写假设库；勾选内容将进入客户报价单。"
-          action={
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onOpenMasterData('assumptions')}
-              >
-                Manage library{' '}
-                <Text as="span" textRole="body-small">
-                  管理假设库
-                </Text>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  setQuoteAssumptions((rows) => [
-                    ...rows,
-                    {
-                      id: newId('assumption'),
-                      text: 'New quotation assumption',
-                      textZh: '',
-                      included: true,
-                    },
-                  ])
-                }
-              >
-                <Plus /> Add for this quote{' '}
-                <Text as="span" textRole="body-small">
-                  本次新增
-                </Text>
-              </Button>
-            </div>
-          }
-        />
-        <AssumptionPicker
-          key={project.id}
-          library={effectiveAssumptionLibrary}
-          onSync={onSyncAssumptions}
-          disabled={exportInProgress}
-          client={project.client}
-          assumptions={effectiveQuoteAssumptions}
-          setAssumptions={setQuoteAssumptions}
-        />
-        <div className="wb-table-scroll">
-          <Table className="min-w-[640px] [&_th]:h-8">
-            <TableHeader>
-              <TableRow tone="subtotal">
-                <TableHead className="w-28">Include</TableHead>
-                <TableHead>Assumption</TableHead>
-                <TableHead className="w-20 text-center">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {effectiveQuoteAssumptions.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      type="button"
-                      onClick={() =>
-                        setQuoteAssumptions((rows) =>
-                          rows.map((row) =>
-                            row.id === item.id
-                              ? { ...row, included: !row.included }
-                              : row,
-                          ),
-                        )
-                      }
+                    </Surface>
+                  </Disclosure>
+                  {outputErrors.length > 0 ? (
+                    <Surface
+                      role="alert"
+                      as="p"
+                      variant="body"
+                      tone="danger"
+                      textRole="body-small"
                     >
-                      <StatusBadge tone={item.included ? 'green' : 'gray'}>
-                        {item.included ? 'Included' : 'Excluded'}
-                      </StatusBadge>
-                    </Button>
-                    {item.sourceAssumptionId && (
-                      <Text as="small" tone="muted" className="mt-1 block">
-                        {item.sourceText !== undefined &&
-                        (item.text !== item.sourceText ||
-                          item.textZh !== (item.sourceTextZh ?? ''))
-                          ? 'Customized'
-                          : 'Library reference'}
-                      </Text>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Textarea
-                      rows={1}
-                      className="block min-h-8 w-full resize-y [field-sizing:content]"
-                      disabled={exportInProgress}
-                      aria-label="Quotation assumption text"
-                      maxLength={2000}
-                      value={item.text}
-                      onChange={(event) =>
-                        setQuoteAssumptions((rows) =>
-                          rows.map((row) =>
-                            row.id === item.id
-                              ? { ...row, text: event.target.value }
-                              : row,
-                          ),
-                        )
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Delete quotation assumption ${item.text || item.id}`}
-                      onClick={() =>
-                        setQuoteAssumptions((rows) =>
-                          rows.filter((row) => row.id !== item.id),
-                        )
-                      }
-                    >
-                      <Trash2 />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </Surface>
-
-      <Surface as="section" variant="panel">
-        <SectionHeading
-          index="04"
-          title="Quotation History"
-          titleZh="报价历史"
-          description="Every generated file creates a frozen value reference; manual records are also supported."
-          descriptionZh="每次生成文件都会保存金额快照，也支持手工补录历史记录。"
-          action={
-            <Button size="sm" variant="outline" onClick={addManualHistory}>
-              <Plus /> Manual history / 手工补录
-            </Button>
-          }
-        />
-        {showManualHistory ? (
-          <ManualHistoryForm
-            costVersion={activeVersion}
-            templateId={template?.id || ''}
-            onCancel={() => setShowManualHistory(false)}
-            onAdd={(record) => {
-              setQuoteHistory((records) => [record, ...records]);
-              setShowManualHistory(false);
-              announce('Historical quote added / 历史报价已录入');
-            }}
-          />
-        ) : null}
-        <div className="wb-table-scroll">
-          <Table className="min-w-[1180px]">
-            <TableHeader>
-              <TableRow tone="subtotal">
-                <TableHead>Quote No.</TableHead>
-                <TableHead>Generated</TableHead>
-                <TableHead>Cost Version</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead variant="numeric" className="text-right">
-                  Cost
-                </TableHead>
-                <TableHead variant="numeric" className="text-right">
-                  Quote Total
-                </TableHead>
-                <TableHead variant="numeric" className="text-right">
-                  Sales GP
-                </TableHead>
-                <TableHead>Note</TableHead>
-                <TableHead className="w-16">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {quoteHistory.length ? (
-                quoteHistory.map((record) => (
-                  <TableRow key={record.id}>
-                    <TableCell className="financial-numeral">
-                      {record.quoteNumber}
-                      {record.templateSnapshot && (
-                        <Disclosure className="mt-1 max-w-sm">
-                          <DisclosureSummary className="cursor-pointer">
-                            Saved T&C & assumptions / 当时报价条款
-                          </DisclosureSummary>
-                          <Surface
-                            as="div"
-                            variant="body"
-                            className="space-y-2 whitespace-pre-wrap"
-                          >
-                            <p>{record.templateSnapshot.name}</p>
-                            {record.quotationProjectName && (
-                              <p>Project: {record.quotationProjectName}</p>
-                            )}
-                            <p>
-                              Validity: {record.templateSnapshot.validityDays}{' '}
-                              days
-                            </p>
-                            <p>{record.templateSnapshot.paymentTerms}</p>
-                            <p>{record.templateSnapshot.paymentTermsZh}</p>
-                            <p>{record.templateSnapshot.termsAndConditions}</p>
-                            {record.assumptionSnapshots?.map((row) => (
-                              <p key={row.id}>
-                                • {row.text}
-                                {row.textZh && (
-                                  <span className="block">{row.textZh}</span>
-                                )}
-                              </p>
-                            ))}
-                          </Surface>
-                        </Disclosure>
-                      )}
-                    </TableCell>
-                    <TableCell className="financial-numeral">
-                      {new Date(record.generatedAt).toLocaleString('en-SG')}
-                    </TableCell>
-                    <TableCell>{record.costVersion}</TableCell>
-                    <TableCell>
-                      <Select
-                        value={record.status}
-                        onValueChange={(value) =>
-                          setQuoteHistory((rows) =>
-                            rows.map((row) =>
-                              row.id === record.id
-                                ? {
-                                    ...row,
-                                    status: value as QuoteHistoryStatus,
-                                  }
-                                : row,
-                            ),
-                          )
-                        }
-                      >
-                        <SelectTrigger
+                      Validation · 输入校验：{outputErrors[0]}
+                    </Surface>
+                  ) : null}
+                </Surface>
+              </>
+            ),
+          },
+          {
+            id: 'terms',
+            en: 'Template & terms',
+            zh: '模板与条款',
+            content: (
+              <Surface variant="page">
+                {' '}
+                <QuoteTemplatePicker
+                  key={project.id}
+                  templates={quoteTemplates}
+                  loadCatalog={
+                    onCaptureTemplate ? loadQuoteTemplateCatalog : undefined
+                  }
+                  client={project.client}
+                  selectedId={selectedQuoteTemplateId}
+                  onApply={applyTemplate}
+                  onManage={() => onOpenMasterData('quote-templates')}
+                  busy={exportInProgress}
+                />
+                <Surface
+                  as="div"
+                  variant="panel"
+                  padded
+                  className="flex flex-wrap items-center gap-2"
+                >
+                  <Surface
+                    htmlFor="quotation-project-name"
+                    as="label"
+                    variant="field"
+                    textRole="body-small"
+                  >
+                    Quotation project name
+                  </Surface>
+                  <Input
+                    variant="grid"
+                    id="quotation-project-name"
+                    className="min-w-48 flex-1"
+                    maxLength={500}
+                    value={pricing.quotationProjectName ?? ''}
+                    placeholder={project.name}
+                    disabled={exportInProgress}
+                    onChange={(event) =>
+                      setPricing((current) => ({
+                        ...current,
+                        quotationProjectName: event.target.value,
+                      }))
+                    }
+                  />
+                  <Text as="span" tone="muted" textRole="body-small">
+                    Customer documents only · blank uses the project name
+                  </Text>
+                </Surface>
+                <Surface as="section" variant="panel">
+                  <SectionHeading
+                    index="03"
+                    title="Quote Assumptions"
+                    titleZh="报价假设"
+                    description="Included rows are written into the generated client workbook."
+                    descriptionZh="这里只修改当前报价的假设，不回写假设库；勾选内容将进入客户报价单。"
+                    action={
+                      <div className="flex flex-wrap gap-2">
+                        <Button
                           size="sm"
-                          className="w-24"
-                          aria-label={`Status for quotation ${record.quoteNumber}`}
+                          variant="outline"
+                          onClick={() => onOpenMasterData('assumptions')}
                         >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Draft">Draft</SelectItem>
-                          <SelectItem value="Final">Final</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell
-                      variant="numeric"
-                      className="financial-numeral text-right"
+                          Manage library{' '}
+                          <Text as="span" textRole="body-small">
+                            管理假设库
+                          </Text>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setQuoteAssumptions((rows) => [
+                              ...rows,
+                              {
+                                id: newId('assumption'),
+                                text: 'New quotation assumption',
+                                textZh: '',
+                                included: true,
+                              },
+                            ])
+                          }
+                        >
+                          <Plus /> Add for this quote{' '}
+                          <Text as="span" textRole="body-small">
+                            本次新增
+                          </Text>
+                        </Button>
+                      </div>
+                    }
+                  />
+                  <AssumptionPicker
+                    key={project.id}
+                    library={effectiveAssumptionLibrary}
+                    onSync={onSyncAssumptions}
+                    disabled={exportInProgress}
+                    client={project.client}
+                    assumptions={effectiveQuoteAssumptions}
+                    setAssumptions={setQuoteAssumptions}
+                  />
+                  <div className="wb-table-scroll">
+                    <Table className="min-w-[640px] [&_th]:h-8">
+                      <TableHeader>
+                        <TableRow tone="subtotal">
+                          <TableHead className="w-28">Include</TableHead>
+                          <TableHead>Assumption</TableHead>
+                          <TableHead className="w-20 text-center">
+                            Action
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {effectiveQuoteAssumptions.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                type="button"
+                                onClick={() =>
+                                  setQuoteAssumptions((rows) =>
+                                    rows.map((row) =>
+                                      row.id === item.id
+                                        ? { ...row, included: !row.included }
+                                        : row,
+                                    ),
+                                  )
+                                }
+                              >
+                                <StatusBadge
+                                  tone={item.included ? 'green' : 'gray'}
+                                >
+                                  {item.included ? 'Included' : 'Excluded'}
+                                </StatusBadge>
+                              </Button>
+                              {item.sourceAssumptionId && (
+                                <Text
+                                  as="small"
+                                  tone="muted"
+                                  className="mt-1 block"
+                                >
+                                  {item.sourceText !== undefined &&
+                                  (item.text !== item.sourceText ||
+                                    item.textZh !== (item.sourceTextZh ?? ''))
+                                    ? 'Customized'
+                                    : 'Library reference'}
+                                </Text>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Textarea
+                                rows={1}
+                                className="block min-h-8 w-full resize-y [field-sizing:content]"
+                                disabled={exportInProgress}
+                                aria-label="Quotation assumption text"
+                                maxLength={2000}
+                                value={item.text}
+                                onChange={(event) =>
+                                  setQuoteAssumptions((rows) =>
+                                    rows.map((row) =>
+                                      row.id === item.id
+                                        ? { ...row, text: event.target.value }
+                                        : row,
+                                    ),
+                                  )
+                                }
+                              />
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={`Delete quotation assumption ${item.text || item.id}`}
+                                onClick={() =>
+                                  setQuoteAssumptions((rows) =>
+                                    rows.filter((row) => row.id !== item.id),
+                                  )
+                                }
+                              >
+                                <Trash2 />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </Surface>
+              </Surface>
+            ),
+          },
+          {
+            id: 'maintenance',
+            en: 'Maintenance',
+            zh: '维保明细',
+            content: (
+              <>
+                {' '}
+                <Surface
+                  as="section"
+                  variant="panel"
+                  className="overflow-hidden"
+                >
+                  <SectionHeading
+                    index="02"
+                    title="Maintenance"
+                    titleZh="维保报价"
+                  />
+                  {grossDocument?.maintenance.length ? (
+                    <Surface
+                      as="div"
+                      variant="item"
+                      className="overflow-x-auto"
                     >
-                      {formatSgd(record.costAmount)}
-                    </TableCell>
-                    <TableCell
-                      variant="numeric"
-                      className="financial-numeral text-right"
-                    >
-                      {formatSgd(
-                        record.customerQuoteAmount ?? record.quoteBeforeTax,
-                      )}
-                    </TableCell>
-                    <TableCell
-                      variant="numeric"
-                      className="financial-numeral text-right"
-                    >
-                      {record.grossMarginPercent.toFixed(2)}%
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        aria-label={`Note for quotation ${record.quoteNumber}`}
-                        value={record.note}
-                        onChange={(event) =>
-                          setQuoteHistory((rows) =>
-                            rows.map((row) =>
-                              row.id === record.id
-                                ? { ...row, note: event.target.value }
-                                : row,
-                            ),
-                          )
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>
+                      <Surface as="h3" variant="header">
+                        Maintenance quotation groups
+                      </Surface>
+                      <Table className="w-full min-w-[540px]">
+                        <TableHeader className="text-left">
+                          <TableRow>
+                            <TableHead>Description</TableHead>
+                            <TableHead className="w-24">
+                              Equipment unit
+                            </TableHead>
+                            <TableHead>Category / 成本分类</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {grossDocument.maintenance.map((line) => (
+                            <TableRow key={line.id}>
+                              <TableCell>{line.description}</TableCell>
+                              <TableCell>
+                                <Input
+                                  variant="grid"
+                                  className="w-full"
+                                  aria-label={`Equipment unit for ${line.id}`}
+                                  maxLength={80}
+                                  disabled={
+                                    exportInProgress || !onMaintenanceUnitChange
+                                  }
+                                  value={
+                                    maintenance?.boq.find(
+                                      (row) =>
+                                        `maintenance:${row.id}` === line.id,
+                                    )?.unit ?? ''
+                                  }
+                                  onChange={(event) =>
+                                    onMaintenanceUnitChange?.(
+                                      line.id.slice('maintenance:'.length),
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell className="w-80">
+                                <QuoteGroupFields
+                                  label={line.description}
+                                  disabled={exportInProgress}
+                                  value={groupFor(
+                                    line,
+                                    pricing.lineGroups,
+                                    pricing.sectionNames,
+                                  )}
+                                  sections={Object.values(
+                                    pricing.lineGroups ?? {},
+                                  ).map((g) => g.section ?? '')}
+                                  categories={Object.values(
+                                    pricing.lineGroups ?? {},
+                                  ).map((g) => g.category)}
+                                  onChange={(group) =>
+                                    setPricing((current) => ({
+                                      ...current,
+                                      lineGroups: {
+                                        ...current.lineGroups,
+                                        [line.id]: group,
+                                      },
+                                    }))
+                                  }
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </Surface>
+                  ) : null}
+                  <MaintenanceSummary
+                    value={maintenance ?? emptyMaintenance()}
+                    serviceQuote={result.quoteBeforeTax}
+                    details
+                  />
+                </Surface>
+              </>
+            ),
+          },
+          {
+            id: 'history',
+            en: 'History',
+            zh: '报价历史',
+            content: (
+              <>
+                {' '}
+                <Surface as="section" variant="panel">
+                  <SectionHeading
+                    index="04"
+                    title="Quotation History"
+                    titleZh="报价历史"
+                    description="Every generated file creates a frozen value reference; manual records are also supported."
+                    descriptionZh="每次生成文件都会保存金额快照，也支持手工补录历史记录。"
+                    action={
                       <Button
-                        variant="ghost"
                         size="sm"
-                        aria-label={`Delete quotation history ${record.quoteNumber}`}
-                        onClick={() =>
-                          setQuoteHistory((rows) =>
-                            rows.filter((row) => row.id !== record.id),
-                          )
-                        }
+                        variant="outline"
+                        onClick={addManualHistory}
                       >
-                        <Trash2 /> 删除归档
+                        <Plus /> Manual history / 手工补录
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={9} className="h-20 text-center">
-                    No quotation history yet / 暂无报价历史
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </Surface>
+                    }
+                  />
+                  {showManualHistory ? (
+                    <ManualHistoryForm
+                      costVersion={activeVersion}
+                      templateId={template?.id || ''}
+                      onCancel={() => setShowManualHistory(false)}
+                      onAdd={(record) => {
+                        setQuoteHistory((records) => [record, ...records]);
+                        setShowManualHistory(false);
+                        announce('Historical quote added / 历史报价已录入');
+                      }}
+                    />
+                  ) : null}
+                  <div className="wb-table-scroll">
+                    <Table className="min-w-[1180px]">
+                      <TableHeader>
+                        <TableRow tone="subtotal">
+                          <TableHead>Quote No.</TableHead>
+                          <TableHead>Generated</TableHead>
+                          <TableHead>Cost Version</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead variant="numeric" className="text-right">
+                            Cost
+                          </TableHead>
+                          <TableHead variant="numeric" className="text-right">
+                            Quote Total
+                          </TableHead>
+                          <TableHead variant="numeric" className="text-right">
+                            Sales GP
+                          </TableHead>
+                          <TableHead>Note</TableHead>
+                          <TableHead className="w-16">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {quoteHistory.length ? (
+                          quoteHistory.map((record) => (
+                            <TableRow key={record.id}>
+                              <TableCell className="financial-numeral">
+                                {record.quoteNumber}
+                                {record.templateSnapshot && (
+                                  <Disclosure className="mt-1 max-w-sm">
+                                    <DisclosureSummary className="cursor-pointer">
+                                      Saved T&C & assumptions / 当时报价条款
+                                    </DisclosureSummary>
+                                    <Surface
+                                      as="div"
+                                      variant="body"
+                                      className="space-y-2 whitespace-pre-wrap"
+                                    >
+                                      <p>{record.templateSnapshot.name}</p>
+                                      {record.quotationProjectName && (
+                                        <p>
+                                          Project: {record.quotationProjectName}
+                                        </p>
+                                      )}
+                                      <p>
+                                        Validity:{' '}
+                                        {record.templateSnapshot.validityDays}{' '}
+                                        days
+                                      </p>
+                                      <p>
+                                        {record.templateSnapshot.paymentTerms}
+                                      </p>
+                                      <p>
+                                        {record.templateSnapshot.paymentTermsZh}
+                                      </p>
+                                      <p>
+                                        {
+                                          record.templateSnapshot
+                                            .termsAndConditions
+                                        }
+                                      </p>
+                                      {record.assumptionSnapshots?.map(
+                                        (row) => (
+                                          <p key={row.id}>
+                                            • {row.text}
+                                            {row.textZh && (
+                                              <span className="block">
+                                                {row.textZh}
+                                              </span>
+                                            )}
+                                          </p>
+                                        ),
+                                      )}
+                                    </Surface>
+                                  </Disclosure>
+                                )}
+                              </TableCell>
+                              <TableCell className="financial-numeral">
+                                {new Date(record.generatedAt).toLocaleString(
+                                  'en-SG',
+                                )}
+                              </TableCell>
+                              <TableCell>{record.costVersion}</TableCell>
+                              <TableCell>
+                                <Select
+                                  value={record.status}
+                                  onValueChange={(value) =>
+                                    setQuoteHistory((rows) =>
+                                      rows.map((row) =>
+                                        row.id === record.id
+                                          ? {
+                                              ...row,
+                                              status:
+                                                value as QuoteHistoryStatus,
+                                            }
+                                          : row,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger
+                                    size="sm"
+                                    className="w-24"
+                                    aria-label={`Status for quotation ${record.quoteNumber}`}
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Draft">Draft</SelectItem>
+                                    <SelectItem value="Final">Final</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell
+                                variant="numeric"
+                                className="financial-numeral text-right"
+                              >
+                                {formatSgd(record.costAmount)}
+                              </TableCell>
+                              <TableCell
+                                variant="numeric"
+                                className="financial-numeral text-right"
+                              >
+                                {formatSgd(
+                                  record.customerQuoteAmount ??
+                                    record.quoteBeforeTax,
+                                )}
+                              </TableCell>
+                              <TableCell
+                                variant="numeric"
+                                className="financial-numeral text-right"
+                              >
+                                {record.grossMarginPercent.toFixed(2)}%
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  aria-label={`Note for quotation ${record.quoteNumber}`}
+                                  value={record.note}
+                                  onChange={(event) =>
+                                    setQuoteHistory((rows) =>
+                                      rows.map((row) =>
+                                        row.id === record.id
+                                          ? { ...row, note: event.target.value }
+                                          : row,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  aria-label={`Delete quotation history ${record.quoteNumber}`}
+                                  onClick={() =>
+                                    setQuoteHistory((rows) =>
+                                      rows.filter(
+                                        (row) => row.id !== record.id,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  <Trash2 /> 删除归档
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={9} className="h-20 text-center">
+                              No quotation history yet / 暂无报价历史
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </Surface>
+              </>
+            ),
+          },
+        ]}
+      />
     </Surface>
   );
 }

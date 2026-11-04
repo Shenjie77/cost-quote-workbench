@@ -5,6 +5,7 @@ import {
   type MasterDataTab,
 } from '../master-data/navigation.ts';
 import { parseWorkflowPageHash } from '../projects/workflow-route.ts';
+import { workbenchEntry } from './workbench-destinations.ts';
 import type { ViewKey } from './types.ts';
 
 export const WORKBENCH_NAVIGATION_KEY = 'cost-workbench.navigation.v1';
@@ -14,6 +15,7 @@ const views: ViewKey[] = [
   'workflow',
   'cost',
   'calculation',
+  'files',
   'quote',
   'cpq',
   'maintenance',
@@ -148,6 +150,7 @@ export function restoreWorkbenchNavigation(
   const parsed = parseWorkbenchNavigation(saved);
   const ids = new Set(projects.map((project) => project.id));
   const route = parseWorkflowPageHash(hash);
+  const entry = workbenchEntry(hash);
   const requestedId = route?.projectId ?? parsed?.projectId;
   const projectId =
     requestedId && ids.has(requestedId) ? requestedId : projects[0]?.id || '';
@@ -159,10 +162,10 @@ export function restoreWorkbenchNavigation(
   const sameProject = requestedId === projectId;
   return {
     version: 1,
-    view: route ? 'workflow' : (parsed?.view ?? 'overview'),
+    view: route ? 'workflow' : (entry?.view ?? parsed?.view ?? 'overview'),
     projectId,
     openProjectIds,
-    costView: parsed?.costView ?? 'input',
+    costView: entry?.costView ?? parsed?.costView ?? 'input',
     masterDataTab: parsed?.masterDataTab ?? 'resources',
     ...(sameProject && (route?.nodeCode || parsed?.workflowNodeCode)
       ? { workflowNodeCode: route ? route.nodeCode : parsed?.workflowNodeCode }

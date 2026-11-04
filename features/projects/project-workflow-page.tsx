@@ -1,3 +1,13 @@
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from '@/components/ui/table';
+import { SectionHeading } from '@/components/workbench/section-heading';
+import { useWorkbenchLanguage } from '../workbench/workbench-language';
 import { Badge } from '@/components/ui/badge';
 import {
   Surface,
@@ -211,6 +221,8 @@ export function ProjectWorkflowPage({
   onFocusNode,
   onDirtyChange,
 }: ProjectWorkflowPageProps) {
+  const { label } = useWorkbenchLanguage();
+  const [expandedCode, setExpandedCode] = useState(focusNodeCode || '');
   const pageRef = useRef<HTMLElement>(null);
   const taskEditorRef = useRef<HTMLElement>(null);
   const [selectedCode, setSelectedCode] = useState(() =>
@@ -228,6 +240,7 @@ export function ProjectWorkflowPage({
   const [generalUploadBusy, setGeneralUploadBusy] = useState(false);
   if (focusNodeCode !== previousFocus) {
     setPreviousFocus(focusNodeCode);
+    setExpandedCode(focusNodeCode || '');
     setSelectedCode(selectWorkflowTask(workspace, focusNodeCode));
   }
   const finishedAction = workspace.processSteps.find(
@@ -302,6 +315,7 @@ export function ProjectWorkflowPage({
   }, []);
 
   const choose = (code: string) => {
+    setExpandedCode(code);
     setSelectedCode(code);
     setLocalError('');
     onFocusNode?.(code);
@@ -398,26 +412,63 @@ export function ProjectWorkflowPage({
       variant="page"
       aria-label="Project Workflow Page"
     >
-      <ProjectWorkflowHeader
-        onEditProject={onEditProject}
-        status={onHold ? 'On Hold' : complete ? 'Completed' : 'In Progress'}
-        project={project}
-        round={workspace.workflowVersion || workspace.activeVersion}
-        currency={workspace.project?.currency || 'SGD'}
-        value={references}
-        savedValue={savedReferences}
-        dirty={referencesDirty}
-        busy={disabled}
-        onChange={setReferenceDraft}
-        onSave={saveReferences}
-        onReset={() => setReferenceDraft(null)}
-        onBack={onBack}
-        onRefresh={refresh}
-        onOpenCost={onOpenCost}
-        onHold={onHold}
-        holdDisabled={complete && !onHold}
-        onSetHold={onSetHold ? setHold : undefined}
+      <SectionHeading
+        variant="page"
+        title="Project workflow"
+        titleZh="项目流程"
+        description="Record progress in the worksheet. Open a step to complete, pause or review its documents."
+        descriptionZh="在表格中登记进展，展开节点后完成、暂停或查看附件。"
+        action={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => void refresh()}
+              disabled={disabled}
+            >
+              {label('Refresh', '刷新')}
+            </Button>
+            <Button variant="outline" onClick={onOpenCost}>
+              {label('HR Cost', '人力成本')}
+            </Button>
+            {onSetHold && (
+              <Button
+                variant={onHold ? 'default' : 'outline'}
+                disabled={disabled || (complete && !onHold)}
+                onClick={() => void setHold(!onHold)}
+              >
+                {onHold
+                  ? label('Resume project', '恢复项目')
+                  : label('Hold project', '暂停项目')}
+              </Button>
+            )}
+          </>
+        }
       />
+      <Disclosure>
+        <DisclosureSummary>
+          {label('Project references', '项目资料与引用')}
+        </DisclosureSummary>{' '}
+        <ProjectWorkflowHeader
+          onEditProject={onEditProject}
+          status={onHold ? 'On Hold' : complete ? 'Completed' : 'In Progress'}
+          project={project}
+          round={workspace.workflowVersion || workspace.activeVersion}
+          currency={workspace.project?.currency || 'SGD'}
+          value={references}
+          savedValue={savedReferences}
+          dirty={referencesDirty}
+          busy={disabled}
+          onChange={setReferenceDraft}
+          onSave={saveReferences}
+          onReset={() => setReferenceDraft(null)}
+          onBack={onBack}
+          onRefresh={refresh}
+          onOpenCost={onOpenCost}
+          onHold={onHold}
+          holdDisabled={complete && !onHold}
+          onSetHold={onSetHold ? setHold : undefined}
+        />
+      </Disclosure>
       <Disclosure>
         <DisclosureSummary className="cursor-pointer">
           Project Files &amp; Archive
@@ -475,154 +526,191 @@ export function ProjectWorkflowPage({
           {localError || error}
         </Surface>
       )}
-      <div className="grid min-w-0 items-start gap-3 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]">
-        <WorkflowTaskSelect
-          steps={workspace.processSteps}
-          selectedCode={visibleCode}
-          dirtyCodes={dirtyCodes}
-          onChange={choose}
-          busy={disabled || documentsUploading}
-        />
-        <Surface
-          aria-label="Workflow Steps"
-          as="nav"
-          variant="panel"
-          padded
-          className="hidden space-y-1 lg:sticky lg:top-32 lg:block lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto"
-        >
-          <Surface
-            as="div"
-            variant="item"
-            textRole="body-small"
-            className="mb-1 flex items-center justify-between"
-          >
-            <span>Steps</span>
-            <Text as="span" tone="muted">
-              {workspace.processSteps.filter(isDone).length} /{' '}
-              {workspace.processSteps.length} resolved
-            </Text>
-          </Surface>
-          {phases.map((phase, index) => (
-            <Surface
-              key={phase.id}
-              as="div"
-              variant={phase.parallel ? 'panel' : 'plain'}
-              tone={'inherit'}
-              className={phase.parallel ? 'space-y-1' : ''}
-              padded
-            >
-              {phase.parallel && (
-                <Surface
-                  as="p"
-                  variant="body"
-                  tone="primary"
-                  textRole="body-small"
-                >
-                  {index + 1}. {phase.name} · Parallel
-                </Surface>
-              )}
-              {phase.steps.map((step) => (
-                <Button
-                  variant="ghost"
-                  key={step.code}
-                  type="button"
-                  aria-label={`Select ${step.name || step.nameZh}`}
-                  aria-current={selectedCode === step.code ? 'step' : undefined}
-                  disabled={disabled || documentsUploading}
-                  onClick={() => choose(step.code)}
-                  className="flex w-full items-start gap-2 text-left"
-                >
-                  <Badge
-                    tone={'neutral'}
-                    className="mt-1 flex size-5 shrink-0 items-center justify-center"
-                  >
-                    {step.state === 'completed' ? (
-                      <Check className="size-3" />
-                    ) : phase.parallel ? (
-                      '•'
-                    ) : (
-                      index + 1
-                    )}
-                  </Badge>
-                  <span className="min-w-0 flex-1">
-                    <Text as="span" textRole="body-small" className="block">
-                      {step.name || step.nameZh}
-                      {dirtyCodes.includes(step.code) ? ' *' : ''}
-                    </Text>
-                    <Text
-                      as="span"
-                      tone={selectedCode === step.code ? 'inherit' : 'muted'}
-                      textRole="body-small"
-                      className="mt-1 block"
+      <Surface variant="sheet">
+        <Table aria-label="Workflow worksheet" className="min-w-[960px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead>#</TableHead>
+              <TableHead>{label('Workflow step', '流程节点')}</TableHead>
+              <TableHead>{label('Status', '状态')}</TableHead>
+              <TableHead>{label('Owner', '负责人')}</TableHead>
+              <TableHead>{label('Follow-up', '跟进日期')}</TableHead>
+              <TableHead>{label('Progress note', '跟进备注')}</TableHead>
+              <TableHead>{label('Actions', '操作')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {workspace.processSteps.map((step, index) => {
+              const draft = drafts[step.code] || workflowTaskDraft(step);
+              const locked = disabled || onHold || isDone(step) || complete;
+              const change = (patch: Partial<WorkflowActionDraft>) =>
+                setDrafts((previous) => ({
+                  ...previous,
+                  [step.code]: { ...draft, ...patch },
+                }));
+              return (
+                <TableRow key={step.code}>
+                  <TableCell>{index + 1}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="link"
+                      aria-label={`Select ${step.name || step.nameZh}`}
+                      disabled={disabled}
+                      onClick={() => choose(step.code)}
+                    >
+                      {label(step.name, step.nameZh)}
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      tone={
+                        isDone(step)
+                          ? 'success'
+                          : workflowNodeActive(step)
+                            ? 'primary'
+                            : 'neutral'
+                      }
                     >
                       {stateLabels[step.state]}
-                      {step.owner ? ` · ${step.owner}` : ''}
-                    </Text>
-                  </span>
-                </Button>
-              ))}
+                    </Badge>
+                  </TableCell>
+                  <TableCell variant="editable">
+                    <Input
+                      variant="grid"
+                      aria-label={`Owner ${step.code}`}
+                      value={draft.owner}
+                      maxLength={200}
+                      disabled={locked}
+                      onChange={(e) => change({ owner: e.target.value })}
+                    />
+                  </TableCell>
+                  <TableCell variant="editable">
+                    <Input
+                      variant="grid"
+                      type="date"
+                      aria-label={`Follow-up ${step.code}`}
+                      value={draft.followUpDate}
+                      disabled={locked}
+                      onChange={(e) => change({ followUpDate: e.target.value })}
+                    />
+                  </TableCell>
+                  <TableCell variant="editable">
+                    <Input
+                      variant="grid"
+                      aria-label={`Progress ${step.code}`}
+                      value={draft.note}
+                      maxLength={10000}
+                      disabled={locked}
+                      onChange={(e) => change({ note: e.target.value })}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={
+                          locked ||
+                          !draft.owner.trim() ||
+                          !workflowTaskIsDirty(step, draft)
+                        }
+                        onClick={() =>
+                          void run({
+                            nodeCode: step.code,
+                            action: 'update',
+                            owner: draft.owner,
+                            note: draft.note,
+                            followUpDate: draft.followUpDate,
+                            fields: draft.fields,
+                          }).catch(() => {})
+                        }
+                      >
+                        {label('Save', '保存')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabled}
+                        onClick={() => {
+                          if (expandedCode === step.code) setExpandedCode('');
+                          else choose(step.code);
+                        }}
+                      >
+                        {expandedCode === step.code
+                          ? label('Collapse', '收起')
+                          : label('Actions & files', '执行与附件')}
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+        {expandedCode === visibleCode && (
+          <div className="min-w-0 space-y-3">
+            <Surface
+              ref={taskEditorRef}
+              tabIndex={-1}
+              aria-label={`Current workflow task: ${selected?.name || selected?.nameZh || 'Not selected'}`}
+              as="section"
+              className="scroll-mt-32"
+            >
+              {selected ? (
+                <WorkflowTaskEditor
+                  compact
+                  key={selected.code}
+                  step={selected}
+                  value={drafts[selected.code] || workflowTaskDraft(selected)}
+                  onChange={(value) =>
+                    setDrafts((previous) => ({
+                      ...previous,
+                      [selected.code]: value,
+                    }))
+                  }
+                  onAction={run}
+                  onReset={() =>
+                    setDrafts((previous) => {
+                      const next = { ...previous };
+                      delete next[selected.code];
+                      return next;
+                    })
+                  }
+                  blockers={workflowActionBlockers(workspace, selected.code)}
+                  canAdvance={workflowTaskCanAdvance(workspace, selected.code)}
+                  parallel={phases.some(
+                    (phase) =>
+                      phase.parallel &&
+                      phase.steps.some((step) => step.code === selected.code),
+                  )}
+                  complete={complete}
+                  onHold={onHold}
+                  busy={disabled || onHold}
+                />
+              ) : (
+                <Surface as="p" variant="empty">
+                  No workflow steps are configured.
+                </Surface>
+              )}
             </Surface>
-          ))}
-        </Surface>
-        <div className="min-w-0 space-y-3">
-          <Surface
-            ref={taskEditorRef}
-            tabIndex={-1}
-            aria-label={`Current workflow task: ${selected?.name || selected?.nameZh || 'Not selected'}`}
-            as="section"
-            className="scroll-mt-32"
-          >
-            {selected ? (
-              <WorkflowTaskEditor
-                key={selected.code}
-                step={selected}
-                value={drafts[selected.code] || workflowTaskDraft(selected)}
-                onChange={(value) =>
-                  setDrafts((previous) => ({
-                    ...previous,
-                    [selected.code]: value,
-                  }))
+            {selected && (
+              <ProjectFilesPanel
+                projectId={project.id}
+                disabled={busy || working}
+                nodeCode={selected.code}
+                nodeName={selected.name || selected.nameZh}
+                versionCode={
+                  workspace.workflowVersion || workspace.activeVersion
                 }
-                onAction={run}
-                onReset={() =>
-                  setDrafts((previous) => {
-                    const next = { ...previous };
-                    delete next[selected.code];
-                    return next;
-                  })
-                }
-                blockers={workflowActionBlockers(workspace, selected.code)}
-                canAdvance={workflowTaskCanAdvance(workspace, selected.code)}
-                parallel={phases.some(
-                  (phase) =>
-                    phase.parallel &&
-                    phase.steps.some((step) => step.code === selected.code),
-                )}
-                complete={complete}
-                onHold={onHold}
-                busy={disabled || onHold}
+                refreshKey={filesRevision}
+                onArchived={() => setFilesRevision((value) => value + 1)}
+                onUploadingChange={setNodeUploadBusy}
               />
-            ) : (
-              <Surface as="p" variant="empty">
-                No workflow steps are configured.
-              </Surface>
             )}
-          </Surface>
-          {selected && (
-            <ProjectFilesPanel
-              projectId={project.id}
-              disabled={busy || working}
-              nodeCode={selected.code}
-              nodeName={selected.name || selected.nameZh}
-              versionCode={workspace.workflowVersion || workspace.activeVersion}
-              refreshKey={filesRevision}
-              onArchived={() => setFilesRevision((value) => value + 1)}
-              onUploadingChange={setNodeUploadBusy}
-            />
-          )}
-          <ProjectWorkflowHistory workspace={workspace} />
-        </div>
-      </div>
+          </div>
+        )}
+      </Surface>
+      <ProjectWorkflowHistory workspace={workspace} />
     </Surface>
   );
 }
@@ -697,6 +785,7 @@ export function WorkflowTaskFields({
   parallel = false,
   busy = false,
   canAdvance = true,
+  compact = false,
 }: {
   step: WorkflowStep;
   value: WorkflowActionDraft;
@@ -706,6 +795,7 @@ export function WorkflowTaskFields({
   parallel?: boolean;
   busy?: boolean;
   canAdvance?: boolean;
+  compact?: boolean;
 }) {
   const active = workflowNodeActive(step);
   const missingFields = (step.requiredFields || []).filter(
@@ -790,42 +880,49 @@ export function WorkflowTaskFields({
           Reset Changes
         </Button>
       </Surface>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Surface
-          as="label"
-          variant="field"
-          textRole="body-small"
-          className="block"
-        >
-          Owner
-          <Input
-            aria-label="Task Owner"
-            value={value.owner}
-            maxLength={200}
-            disabled={busy}
-            onChange={(event) =>
-              onChange({ ...value, owner: event.target.value })
-            }
-          />
-        </Surface>
-        <Surface
-          as="label"
-          variant="field"
-          textRole="body-small"
-          className="block"
-        >
-          {step.state === 'paused' ? 'Planned Resume Date' : 'Next Follow-up'}
-          <Input
-            aria-label="Task Follow-up"
-            type="date"
-            value={value.followUpDate}
-            disabled={busy}
-            onChange={(event) =>
-              onChange({ ...value, followUpDate: event.target.value })
-            }
-          />
-        </Surface>
-      </div>
+      {!compact && (
+        <>
+          {' '}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="block"
+            >
+              Owner
+              <Input
+                aria-label="Task Owner"
+                value={value.owner}
+                maxLength={200}
+                disabled={busy}
+                onChange={(event) =>
+                  onChange({ ...value, owner: event.target.value })
+                }
+              />
+            </Surface>
+            <Surface
+              as="label"
+              variant="field"
+              textRole="body-small"
+              className="block"
+            >
+              {step.state === 'paused'
+                ? 'Planned Resume Date'
+                : 'Next Follow-up'}
+              <Input
+                aria-label="Task Follow-up"
+                type="date"
+                value={value.followUpDate}
+                disabled={busy}
+                onChange={(event) =>
+                  onChange({ ...value, followUpDate: event.target.value })
+                }
+              />
+            </Surface>
+          </div>
+        </>
+      )}
       {(step.requiredFields || []).length > 0 && (
         <Surface as="div" variant="body" className="space-y-2">
           <Text as="p" textRole="body-small">
@@ -856,24 +953,31 @@ export function WorkflowTaskFields({
           ))}
         </Surface>
       )}
-      <Surface
-        as="label"
-        variant="field"
-        textRole="body-small"
-        className="block"
-      >
-        Progress Note
-        <Textarea
-          aria-label="Task Progress Note"
-          rows={3}
-          maxLength={10000}
-          value={value.note}
-          disabled={busy}
-          placeholder="Record the latest progress, decision, or company-platform reference."
-          className="w-full resize-y"
-          onChange={(event) => onChange({ ...value, note: event.target.value })}
-        />
-      </Surface>
+      {!compact && (
+        <>
+          {' '}
+          <Surface
+            as="label"
+            variant="field"
+            textRole="body-small"
+            className="block"
+          >
+            Progress Note
+            <Textarea
+              aria-label="Task Progress Note"
+              rows={3}
+              maxLength={10000}
+              value={value.note}
+              disabled={busy}
+              placeholder="Record the latest progress, decision, or company-platform reference."
+              className="w-full resize-y"
+              onChange={(event) =>
+                onChange({ ...value, note: event.target.value })
+              }
+            />
+          </Surface>
+        </>
+      )}
       {active && step.required && (
         <Surface
           as="label"
@@ -917,6 +1021,7 @@ export function WorkflowTaskFields({
 }
 
 function WorkflowTaskEditor({
+  compact = false,
   step,
   value,
   onChange,
@@ -929,6 +1034,7 @@ function WorkflowTaskEditor({
   onHold,
   busy,
 }: {
+  compact?: boolean;
   step: WorkflowStep;
   value: WorkflowActionDraft;
   onChange: (value: WorkflowActionDraft) => void;
@@ -1068,6 +1174,7 @@ function WorkflowTaskEditor({
           </Surface>
         ) : (
           <WorkflowTaskFields
+            compact={compact}
             step={step}
             value={value}
             onChange={onChange}

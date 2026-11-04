@@ -11,7 +11,7 @@
     letter-spacing: var(--type-body-small-tracking);
     border: var(--border-width) solid var(--input);
     border-radius: var(--radius-sm);
-    min-height: var(--control-md);
+    min-height: var(--control-sm);
     padding: var(--space-1) var(--space-2);
     transition:
       color var(--motion-duration) var(--motion-ease),
@@ -51,7 +51,7 @@
     border-color: var(--border);
   }
   .ui-button-navigation {
-    min-height: var(--control-lg);
+    min-height: var(--control-md);
     color: var(--sidebar-foreground);
     background: transparent;
     border-color: transparent;
@@ -467,4 +467,11 @@
   .ui-table-cell:has(> div > .ui-button) {
     padding-block: var(--space-0);
   }
+}
+
+.wb-formula-workspace {
+  height: calc(
+    100dvh - var(--workbench-header-height, var(--space-16)) - var(--space-8)
+  );
+  min-height: var(--formula-workspace-min-height);
 }

@@ -130,12 +130,11 @@ test('held workflow is visibly paused and read-only while existing progress and 
   assert.match(html, /aria-label="Project On Hold"/);
   assert.match(html, /aria-checked="true"/);
   assert.match(html, /Workflow monitoring and reminders are paused/);
-  assert.match(html, /SLA Due · Timing Paused/);
-  assert.match(html, /Monitoring Paused/);
+
   assert.match(html, /Awaiting Review/);
   assert.match(html, /Waiting for TD plan/);
   const owner = [...html.matchAll(/<input\b[^>]*>/g)].find(([tag]) =>
-    tag.includes('aria-label="Task Owner"'),
+    tag.includes('aria-label="Owner '),
   )?.[0];
   assert.match(owner || '', /disabled=""/);
   const select = [...html.matchAll(/<select\b[^>]*>/g)].find(([tag]) =>

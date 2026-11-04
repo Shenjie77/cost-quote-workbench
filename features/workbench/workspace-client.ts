@@ -5,7 +5,7 @@ import {
   type LocalWorkspaceIndexItem,
   type WorkspaceRecord,
 } from './workspace-types';
-const API_BASE = 'http://127.0.0.1:3210/api/local';
+import { LOCAL_API_BASE as API_BASE } from '../../lib/local-api.ts';
 
 /** Lists locally persisted projects for the project switcher. */
 export async function listLocalWorkspaces(): Promise<

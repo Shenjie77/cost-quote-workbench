@@ -172,6 +172,7 @@ test('node uploads and all-project archives remain accessible on held, completed
       }));
     const before = JSON.stringify(workspace);
     const html = render(ProjectWorkflowPage, {
+      focusNodeCode: workspace.processSteps[0].code,
       project,
       workspace,
       onAction: async () => {},
@@ -665,6 +666,7 @@ test('workflow loading disables both node and general upload controls until the 
   const project = projectRecord('FILES-SWITCH', 'Changing project', 'Client');
   const workspace = createBlankWorkspace(project, 'input_preparation');
   const html = render(ProjectWorkflowPage, {
+    focusNodeCode: workspace.processSteps[0].code,
     project,
     workspace,
     busy: true,
@@ -802,4 +804,57 @@ test('global archive folder saves use their own revision without project data an
     client.updateArchiveSettings('/another', 7),
     (error) => error.status === 409 && /Reload/.test(error.message),
   );
+});
+
+test('standalone archive filters bind both queries and uploads to category/version without node metadata', async (t) => {
+  const previousWindow = globalThis.window;
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  t.after(() => {
+    globalThis.window = previousWindow;
+  });
+  const reads = [],
+    writes = [],
+    busy = [];
+  let finish;
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (options?.method === 'POST') {
+      writes.push({ url: new URL(url), body: options.body });
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    }
+    reads.push(new URL(url));
+    return response({
+      projectId: 'PROJECT A',
+      projectPath: '/archive/PROJECT A',
+      files: [],
+    });
+  });
+  const controller = ProjectFilesPanel({
+    projectId: 'PROJECT A',
+    filterCategory: 'cost',
+    versionCode: 'V2',
+    onUploadingChange: (value) => busy.push(value),
+  });
+  const harness = componentHarness(controller.type, controller.props);
+  t.after(() => harness.unmount());
+  harness.render();
+  await settleRequests();
+  assert.equal(reads[0].searchParams.get('category'), 'cost');
+  assert.equal(reads[0].searchParams.get('versionCode'), 'V2');
+  const file = new File(['exact contents'], 'verification.txt');
+  harness.render().props.onFiles([file]);
+  assert.equal(harness.render().props.uploading, true);
+  assert.equal(writes[0].url.searchParams.get('category'), 'cost');
+  assert.equal(writes[0].url.searchParams.get('versionCode'), 'V2');
+  assert.equal(writes[0].url.searchParams.has('nodeCode'), false);
+  assert.equal(writes[0].body, file);
+  assert.deepEqual(busy, [true]);
+  finish(response(record({ category: 'cost', versionCode: 'V2' })));
+  await settleRequests();
+  harness.render();
+  await settleRequests();
+  assert.deepEqual(busy, [true, false]);
+  assert.equal(reads.length, 2);
+  assert.equal(reads[1].searchParams.get('category'), 'cost');
 });

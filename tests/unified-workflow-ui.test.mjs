@@ -281,8 +281,8 @@ test('overview uses workflow filters and follow-ups instead of separate statuses
     }),
   );
   assert.match(html, /Project Workflow Distribution/);
-  assert.match(html, /项目跟进/);
-  assert.match(html, /当前没有需要跟进的项目/);
+  assert.match(html, /Today follow-ups/);
+  assert.match(html, /当前没有需要跟进的事项/);
   assert.doesNotMatch(
     html,
     /Project Status Distribution|Urgent Reviews|Open review queue|All statuses|Current Status/,

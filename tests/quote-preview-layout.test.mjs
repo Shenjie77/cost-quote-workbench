@@ -73,7 +73,6 @@ const { QuoteLinesEditor } =
   await import('../features/quote/quote-lines-editor.tsx');
 const { Dialog, DialogTrigger, DialogContent, DialogFooter } =
   await import('../components/ui/dialog.tsx');
-const { Table } = await import('../components/ui/table.tsx');
 const { SectionHeading } =
   await import('../components/workbench/section-heading.tsx');
 const { QuoteNumberInput } =
@@ -85,7 +84,12 @@ const walk = (node) =>
   Array.isArray(node)
     ? node.flatMap(walk)
     : React.isValidElement(node)
-      ? [node, ...walk(node.props.children), ...walk(node.props.action)]
+      ? [
+          node,
+          ...walk(node.props.children),
+          ...walk(node.props.action),
+          ...walk(node.props.items?.map((item) => item.content)),
+        ]
       : [];
 
 /** Read native labels without rendering controlled inputs or invoking their browser effects. */
@@ -246,31 +250,26 @@ test('internal combined export is available without a customer template and resp
   assert.equal(writes(), 0);
 });
 
-test('pricing occupies one full-width section with the input grid before the detail editor', () => {
+test('pricing puts the editable worksheet first and keeps supporting tasks in separate tabs', () => {
   const { props, writes } = fixture();
   const view = harness(QuoteView, props)();
-  const panel = React.Children.toArray(view.props.children).find(
+  const nodes = walk(view);
+  const panel = nodes.find(
     (node) => node.props['aria-label'] === 'Quotation pricing',
   );
-  assert.ok(panel, 'pricing is a direct page section, not a sidebar column');
+  assert.ok(panel);
   const children = React.Children.toArray(panel.props.children);
-  assert.ok(
-    children.findIndex((node) => node.type === Table) <
-      children.findIndex((node) => node.type === QuoteLinesEditor),
+  assert.equal(children[0].type, QuoteLinesEditor);
+  const tabs = nodes.find((node) =>
+    node.props.items?.some((item) => item.id === 'pricing'),
   );
-  const nodes = walk(view);
   assert.deepEqual(
-    nodes
-      .filter((node) => node.type === SectionHeading)
-      .map((node) => node.props.title),
-    [
-      'Pricing Parameters',
-      'Maintenance',
-      'Quote Assumptions',
-      'Quotation History',
-    ],
+    tabs.props.items.map((item) => item.id),
+    ['pricing', 'terms', 'maintenance', 'history'],
   );
-  const heading = children.find((node) => node.type === SectionHeading);
+  const heading = nodes.find(
+    (node) => node.type === SectionHeading && node.props.variant === 'page',
+  );
   assert.ok(
     walk(heading.props.action).some((node) => node.type === QuotePreviewDialog),
   );
@@ -471,7 +470,7 @@ test('quotation summary displays computed GP without whole-quote GP or tax input
     false,
   );
   const pageText = [
-    textOf(render()),
+    ...nodes.map((node) => textOf(node)),
     ...nodes.map((node) => node.props.en || ''),
   ].join(' ');
   assert.match(pageText, /Actual Sales GP/);

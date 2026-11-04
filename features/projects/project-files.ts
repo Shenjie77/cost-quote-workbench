@@ -1,7 +1,7 @@
 /** File archives use small, dedicated endpoints, independently of cost/workflow writes. */
 import { LOCAL_API_VERSION } from '../workbench/workspace-types.ts';
 
-const API_BASE = 'http://127.0.0.1:3210/api/local';
+import { LOCAL_API_BASE as API_BASE } from '../../lib/local-api.ts';
 export const MAX_PROJECT_FILE_BYTES = 50 * 1024 * 1024;
 export type ProjectFileCategory =
   | 'general'

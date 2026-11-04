@@ -1,8 +1,14 @@
 'use client';
 
+import { LanguageSwitch, useWorkbenchLanguage } from './workbench-language';
+import { ProjectFilesPage } from '../projects/project-files-page';
+import {
+  workbenchEntry,
+  workbenchDestinations,
+} from './workbench-destinations';
 import { WorkspaceHeader } from '@/components/workbench/workspace-header';
 
-import { Surface, Text, StatusDot } from '@/components/ui/presentation';
+import { Surface, Text } from '@/components/ui/presentation';
 /**
  * Client-side composition root. It owns session state so switching views never
  * resets drafts; feature modules remain presentation/application boundaries.
@@ -213,7 +219,7 @@ import {
   resolveNewProjectId,
   type NewProjectInput,
 } from '@/features/workbench/project-creation';
-import { navItems, viewTitles } from '@/features/workbench/navigation';
+import { viewTitles } from '@/features/workbench/navigation';
 import {
   WORKSPACE_SCHEMA_VERSION,
   getLocalWorkspace,
@@ -320,6 +326,7 @@ function ProjectSessionApp({
   masterDataTab: MasterDataTab;
   setMasterDataTab: (tab: MasterDataTab) => void;
 }) {
+  const { label } = useWorkbenchLanguage();
   // Bootstrap renders this session only after the authoritative project index is loaded.
   // Restore identity before useLocalWorkspace starts, avoiding a temporary load/save of another project.
   const [initialNavigation] = useState(() =>
@@ -329,6 +336,14 @@ function ProjectSessionApp({
       typeof window === 'undefined' ? '' : window.location.hash,
     ),
   );
+  useEffect(() => {
+    if (workbenchEntry(window.location.hash))
+      window.history.replaceState(
+        window.history.state,
+        '',
+        window.location.pathname + window.location.search,
+      );
+  }, []);
   // Project, workflow, and version state stay here so view changes cannot reset drafts.
   const [projectList, setProjectList] = useState<Project[]>(initialProjects);
   const [masterDataRevisions, setMasterDataRevisions] =
@@ -410,6 +425,12 @@ function ProjectSessionApp({
   const versionTransitionRef = useRef(false);
   const [isVersionTransitioning, setVersionTransitioning] = useState(false);
   const quoteExportingRef = useRef(false);
+  const archiveBusyRef = useRef(false);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const onArchiveBusyChange = useCallback((busy: boolean) => {
+    archiveBusyRef.current = busy;
+    setArchiveBusy(busy);
+  }, []);
   const costConfigurationSaveRef = useRef<(() => Promise<boolean>) | null>(
     null,
   );
@@ -558,20 +579,6 @@ function ProjectSessionApp({
     globalMasterData.tabs['profit-share']?.record?.items,
   );
   const title = viewTitles[activeView];
-  const projectScopedView = activeView === 'cost' || activeView === 'quote';
-  const pageEyebrow = projectScopedView
-    ? `${activeView === 'cost' ? 'COST' : 'PRICING'} / ${activeProject.name}`
-    : title.eyebrow;
-  const pageSubtitle =
-    activeView === 'workflow'
-      ? workflowTarget?.project.name || title.subtitle
-      : projectScopedView
-        ? activeProject.name
-        : title.subtitle;
-  const pageSubtitleZh = projectScopedView
-    ? activeProject.nameZh
-    : title.subtitleZh;
-
   /** Applies one database snapshot without coupling the API to child views. */
   const hydrateWorkspace = useCallback((input: WorkbenchWorkspace) => {
     const workspace = migrateVersionWorkflows(input);
@@ -1367,9 +1374,9 @@ function ProjectSessionApp({
 
   /** Reset session state before loading or creating another project. */
   const selectProject = async (project: Project): Promise<boolean> => {
-    if (quoteExportingRef.current) {
+    if (quoteExportingRef.current || archiveBusyRef.current) {
       setNotice(
-        'Wait for quotation export before switching projects. / 请等待报价导出完成后切换项目。',
+        'Wait for export or upload to finish before switching projects. / 请等待导出或上传完成后切换项目。',
       );
       return false;
     }
@@ -1570,6 +1577,7 @@ function ProjectSessionApp({
     };
     if (
       quoteExportingRef.current ||
+      archiveBusyRef.current ||
       switchingRef.current ||
       versionTransitionRef.current ||
       !isReady
@@ -1616,6 +1624,7 @@ function ProjectSessionApp({
       !target ||
       switchingRef.current ||
       quoteExportingRef.current ||
+      archiveBusyRef.current ||
       !isReady
     )
       return;
@@ -1704,6 +1713,10 @@ function ProjectSessionApp({
 
   /** Route legacy views through Project List and keep dedicated workflow URLs synchronized. */
   const navigate = (view: ViewKey) => {
+    if (archiveBusyRef.current) {
+      setNotice('Wait for file upload to finish / 请等待文件上传完成');
+      return;
+    }
     if (view === 'workflow') {
       void openProjectWorkflow(activeProject);
       return;
@@ -2282,6 +2295,7 @@ function ProjectSessionApp({
   const editProjectInformation = (project: Project) => {
     if (
       quoteExportingRef.current ||
+      archiveBusyRef.current ||
       switchingRef.current ||
       versionTransitionRef.current ||
       !isReady
@@ -2301,6 +2315,7 @@ function ProjectSessionApp({
     })();
   };
   const projectContext = {
+    inShell: true,
     companyUrl: ssr.companyUrl,
     cpqUrl: ssr.cpqUrl,
     onEdit: () => editProjectInformation(activeProject),
@@ -2348,6 +2363,16 @@ function ProjectSessionApp({
           setDeleteTarget(project);
           setDeleteError('');
         }}
+      />
+    );
+  else if (activeView === 'files')
+    content = (
+      <ProjectFilesPage
+        key={activeProjectId}
+        projectId={activeProjectId}
+        versions={synchronizedVersions.map((v) => v.code)}
+        steps={processSteps}
+        onBusyChange={onArchiveBusyChange}
       />
     );
   else if (activeView === 'calculation') content = <CalculationDraftPage />;
@@ -2665,7 +2690,6 @@ function ProjectSessionApp({
       inert={isProjectSwitching}
       aria-busy={isProjectSwitching}
       as="div"
-      variant="inset"
       tone="default"
       className="min-h-dvh"
     >
@@ -2683,90 +2707,83 @@ function ProjectSessionApp({
       {/* Shared chrome delegates all navigation and persistence effects to this session. */}
       <WorkbenchSidebar
         activeView={activeView}
-        reviews={allReviewGates}
+        costView={costView}
+        onCostView={(next) => {
+          if (archiveBusyRef.current) return;
+          setCostView(next);
+          navigate('cost');
+        }}
         onNavigate={navigate}
         onDownloadBackup={downloadWorkspaceBackup}
       />
       <div className="wb-shell-main">
         <WorkspaceHeader>
+          <Surface as="div" variant="appbar">
+            <div className="flex min-w-0 items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden"
+                onClick={() => setMobileNavOpen((open) => !open)}
+                aria-label="Open navigation"
+                aria-expanded={mobileNavOpen}
+                aria-controls="mobile-workbench-navigation"
+              >
+                {mobileNavOpen ? <X /> : <Menu />}
+              </Button>
+              <Text tone="muted" textRole="body-small">
+                {label('Workbench', '工作平台')}
+              </Text>
+              <Text tone="muted">/</Text>
+              <Text textRole="h3" className="truncate">
+                {label(title.title, title.titleZh)}
+              </Text>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <LanguageSwitch />
+              {activeView !== 'master-data' &&
+                activeView !== 'workflow' &&
+                activeView !== 'calculation' && (
+                  <WorkspaceToolbar
+                    persistenceStatus={persistenceStatus}
+                    activeView={activeView}
+                    displayDate={displayDate}
+                    newVersionDisabled={!isReady || isVersionTransitioning}
+                    onSave={() =>
+                      !isReady
+                        ? retryLoad()
+                        : activeView === 'cost' &&
+                            costConfigurationSaveRef.current
+                          ? void costConfigurationSaveRef.current()
+                          : void saveNow()
+                    }
+                    onBackupAndReload={async () => {
+                      await downloadWorkspaceBackup();
+                      onEmpty();
+                    }}
+                    onNewVersion={createNewCostVersion}
+                  />
+                )}
+
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Open project follow-up reminders"
+                onClick={() => navigate('agent')}
+              >
+                <Bell />
+              </Button>
+            </div>
+          </Surface>
           <Surface
             as="div"
-            variant="body"
-            className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-x-3"
+            variant="project-strip"
+            aria-label="Current project"
           >
-            <Button
-              variant="outline"
-              size="icon"
-              className="lg:hidden"
-              onClick={() => setMobileNavOpen((open) => !open)}
-              aria-label="Open navigation"
-              aria-expanded={mobileNavOpen}
-              aria-controls="mobile-workbench-navigation"
-            >
-              {mobileNavOpen ? <X /> : <Menu />}
-            </Button>
-            <div className="min-w-0 basis-full">
-              <p className="sr-only">{pageEyebrow}</p>
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2">
-                <h1 className="truncate">{title.title}</h1>
-                <Text
-                  as="span"
-                  tone="muted"
-                  textRole="body-small"
-                  className="hidden shrink-0 xl:inline"
-                >
-                  {title.titleZh}
-                </Text>
-                {activeProjectId && activeView !== 'master-data' && (
-                  <div className="flex flex-wrap items-center gap-1">
-                    {(['cost', 'quotation', 'workflow'] as const).map(
-                      (category) => (
-                        <ArchiveFolderButton
-                          key={category}
-                          projectId={activeProjectId}
-                          category={category}
-                          label={
-                            category === 'cost'
-                              ? 'Cost'
-                              : category === 'quotation'
-                                ? 'Quotation'
-                                : 'Workflow'
-                          }
-                          description={`Open ${category} folder`}
-                        />
-                      ),
-                    )}
-                  </div>
-                )}
-                <p className="sr-only">{pageSubtitle}</p>
-              </div>
-              <p className="sr-only">{pageSubtitleZh}</p>
-            </div>
-            {activeView !== 'master-data' &&
-              activeView !== 'workflow' &&
-              activeView !== 'calculation' && (
-                <WorkspaceToolbar
-                  persistenceStatus={persistenceStatus}
-                  activeView={activeView}
-                  displayDate={displayDate}
-                  newVersionDisabled={!isReady || isVersionTransitioning}
-                  onSave={() =>
-                    !isReady
-                      ? retryLoad()
-                      : activeView === 'cost' &&
-                          costConfigurationSaveRef.current
-                        ? void costConfigurationSaveRef.current()
-                        : void saveNow()
-                  }
-                  onBackupAndReload={async () => {
-                    await downloadWorkspaceBackup();
-                    onEmpty();
-                  }}
-                  onNewVersion={createNewCostVersion}
-                />
-              )}
-            <div className="order-last w-full min-w-0 md:order-none md:w-[230px] xl:w-[280px]">
+            <Text tone="muted">{label('Project', '项目')}</Text>
+            <div className="w-full min-w-0 sm:w-72">
               <ProjectSearch
+                showSelected
                 projects={portfolioProjects}
                 activeProjectId={activeProjectId}
                 onSelect={selectSearchProject}
@@ -2776,39 +2793,60 @@ function ProjectSessionApp({
                   isVersionTransitioning ||
                   workflowSaving ||
                   workflowLoading ||
-                  quoteExporting
+                  quoteExporting ||
+                  archiveBusy
                 }
               />
             </div>
-            <div className="sr-only">
-              <StatusDot tone="success" className="size-2" />
-              Local Data{' '}
-              <Text as="span" textRole="body-small">
-                本地数据
-              </Text>
-            </div>
-            <div className="ml-auto flex items-center gap-2 sm:ml-0">
-              <Button
-                variant="outline"
-                size="icon"
 
-                aria-label="Open project follow-up reminders"
-                onClick={() => navigate('agent')}
-              >
-                <Bell aria-hidden="true" />
-              </Button>
-              <Button
-                size="sm"
-
-                onClick={() => setPanel({ type: 'new-project' })}
-              >
-                <Plus aria-hidden="true" />
-                New Project{' '}
-                <Text as="span" className="sr-only sm:not-sr-only">
-                  新建项目
-                </Text>
-              </Button>
+            <Text className="truncate" tone="muted">
+              {ssr.proposalNumber || activeProjectId}
+            </Text>
+            <Text>
+              {activeVersion} ·{' '}
+              {synchronizedVersions.find((v) => v.code === activeVersion)
+                ?.state || 'Draft'}
+            </Text>
+            <div className="flex-1" />
+            <div className="flex items-center gap-1">
+              <ArchiveFolderButton
+                projectId={activeProjectId}
+                label={label('Project', '项目')}
+                description="Open project folder"
+              />
+              {(['cost', 'quotation', 'workflow'] as const).map(
+                (category, i) => (
+                  <ArchiveFolderButton
+                    key={category}
+                    projectId={activeProjectId}
+                    category={category}
+                    label={label(
+                      ['Cost', 'Quote', 'Workflow'][i],
+                      ['成本', '报价', '流程'][i],
+                    )}
+                    description={`Open ${category} folder`}
+                  />
+                ),
+              )}
             </div>
+            <Text tone="muted">SGD</Text>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={archiveBusy}
+              onClick={() => editProjectInformation(activeProject)}
+            >
+              {label('Project info', '项目资料')}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={archiveBusy}
+              onClick={() => setPanel({ type: 'new-project' })}
+            >
+              <Plus />
+              {label('New project', '新建项目')}
+            </Button>
           </Surface>
           {mobileNavOpen ? (
             <Surface
@@ -2818,25 +2856,32 @@ function ProjectSessionApp({
               variant="footer"
               className="grid grid-cols-2 sm:grid-cols-3 lg:hidden"
             >
-              {navItems.map((item) => (
+              {workbenchDestinations.map((item) => (
                 <Button
-                  key={item.key}
-                  variant={activeView === item.key ? 'default' : 'outline'}
+                  key={item.id}
+                  variant={activeView === item.view ? 'default' : 'outline'}
                   size="sm"
                   className="justify-start"
-                  onClick={() => navigate(item.key)}
-                  aria-current={activeView === item.key ? 'page' : undefined}
+                  onClick={() => {
+                    if (archiveBusyRef.current) return;
+                    if (item.costView) setCostView(item.costView);
+                    navigate(item.view);
+                  }}
+                  aria-current={activeView === item.view ? 'page' : undefined}
                 >
-                  {item.label}
-                  <span className="sr-only">{item.labelZh}</span>
+                  {label(item.en, item.zh)}
                 </Button>
               ))}
             </Surface>
           ) : null}
-          {activeView === 'project' ||
-          activeView === 'cost' ||
-          activeView === 'workflow' ||
-          activeView === 'quote' ? (
+          {openProjectIds.length > 1 &&
+          (activeView === 'project' ||
+            activeView === 'cost' ||
+            activeView === 'workflow' ||
+            activeView === 'quote' ||
+            activeView === 'files' ||
+            activeView === 'cpq' ||
+            activeView === 'maintenance') ? (
             <OpenProjectTabs
               projects={portfolioProjects}
               openProjectIds={openProjectIds}
@@ -2847,7 +2892,8 @@ function ProjectSessionApp({
                 isVersionTransitioning ||
                 workflowSaving ||
                 workflowLoading ||
-                quoteExporting
+                quoteExporting ||
+                archiveBusy
               }
               onSelect={async (project) => {
                 if (activeView === 'workflow') {
@@ -2897,45 +2943,43 @@ function ProjectSessionApp({
               (!isReady || isVersionTransitioning)
             }
           >
-            {activeView !== 'master-data' &&
-              activeView !== 'workflow' &&
-              activeView !== 'calculation' && (
-                <ReminderInbox
-                  refreshKey={JSON.stringify(
-                    portfolioProjects.map((project) => [
-                      project.id,
-                      project.workflowVersion,
-                      project.workflowHold,
-                      project.currentWorkflowStepCode,
-                      project.workflowSteps?.map((step) => [
-                        step.code,
-                        step.state,
-                        step.updatedAt,
-                        step.reminderEnabled,
-                        step.dueAt,
-                        step.followUpDate,
-                      ]),
+            {activeView === 'agent' && (
+              <ReminderInbox
+                refreshKey={JSON.stringify(
+                  portfolioProjects.map((project) => [
+                    project.id,
+                    project.workflowVersion,
+                    project.workflowHold,
+                    project.currentWorkflowStepCode,
+                    project.workflowSteps?.map((step) => [
+                      step.code,
+                      step.state,
+                      step.updatedAt,
+                      step.reminderEnabled,
+                      step.dueAt,
+                      step.followUpDate,
                     ]),
-                  )}
-                  onOpen={(projectId, view, nodeCode) => {
-                    const project = portfolioProjects.find(
-                      (p) => p.id === projectId,
-                    );
-                    if (project) {
-                      if (
-                        view === 'project' ||
-                        view === 'ssr' ||
-                        view === 'reviews'
-                      )
-                        void openProjectWorkflow(project, nodeCode);
-                      else
-                        void selectProject(project).then((ok) => {
-                          if (ok) setActiveView(view);
-                        });
-                    }
-                  }}
-                />
-              )}
+                  ]),
+                )}
+                onOpen={(projectId, view, nodeCode) => {
+                  const project = portfolioProjects.find(
+                    (p) => p.id === projectId,
+                  );
+                  if (project) {
+                    if (
+                      view === 'project' ||
+                      view === 'ssr' ||
+                      view === 'reviews'
+                    )
+                      void openProjectWorkflow(project, nodeCode);
+                    else
+                      void selectProject(project).then((ok) => {
+                        if (ok) setActiveView(view);
+                      });
+                  }
+                }}
+              />
+            )}
             {(activeView === 'cpq' || activeView === 'maintenance') && (
               <ContextBand
                 {...projectContext}

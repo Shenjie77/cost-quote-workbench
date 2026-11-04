@@ -17,6 +17,7 @@ type ProjectSearchProps = {
   activeProjectId: string;
   onSelect: (project: Project) => Promise<boolean>;
   disabled?: boolean;
+  showSelected?: boolean;
 };
 
 /** A compact combobox switches the active project through the caller without changing any page filter. */
@@ -25,6 +26,7 @@ export function ProjectSearch({
   activeProjectId,
   onSelect,
   disabled = false,
+  showSelected = false,
 }: ProjectSearchProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -187,7 +189,7 @@ export function ProjectSearch({
           autoComplete="off"
           placeholder="Proposal / project / workflow / tag…"
           className="w-full min-w-0 disabled:cursor-not-allowed"
-          value={query}
+          value={showSelected && !open ? projects.find(project=>project.id===activeProjectId)?.name || query : query}
           disabled={disabled}
           readOnly={busy}
           onFocus={() => {

@@ -1,5 +1,6 @@
 /** Version-owned subcontract BOQs. Catalogue edits never change these snapshots. */
 import { roundMoney, roundQuantity } from './domain.ts';
+import type { SubcontractItem } from '../master-data/types.ts';
 
 export type SubcontractLineBase = {
   category?: string;
@@ -368,4 +369,28 @@ export function validateSubcontractCost(
       );
   }
   return issues;
+}
+
+/** Catalogue values are copied once; future catalogue edits cannot reprice a BOQ. */
+export function copySubcontractCatalogLine(
+  item: SubcontractItem,
+): SubcontractLineBase {
+  if (item.currency.trim().toUpperCase() !== 'SGD')
+    throw new Error(
+      'Only SGD catalogue items can be added. Convert the price to SGD before adding this item.',
+    );
+  if (!item.unit?.trim())
+    throw new Error(
+      'This item has no unit. Complete it in Master Data → Subcontract, then refresh the catalogue.',
+    );
+  return {
+    id: globalThis.crypto.randomUUID(),
+    catalogItemId: item.id,
+    code: item.code,
+    description: item.item,
+    bu: item.bu,
+    unit: item.unit,
+    unitPrice: item.unitPrice ?? null,
+    currency: 'SGD',
+  };
 }

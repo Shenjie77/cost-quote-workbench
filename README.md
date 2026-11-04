@@ -168,6 +168,10 @@ does not contain the local `data/` directory, environment files, build output,
 or dependency folders. Never add quotation records or company data to source
 control; use an approved internal backup location for the SQLite database.
 
+## Update an existing customer installation
+
+Use the [local Git upgrade and rollback guide](docs/local-upgrade.md). Preserve the existing database, project archives and environment files; do not rerun the initial seed during an upgrade. The production entry `/` now loads the approved compact page at `/design-review/index.html` directly. That page connects to the existing local workspace API; `?demo=1` explicitly selects isolated sample data. Existing calculations and exporters are bundled beneath the compact UI, without embedding the old business pages. See the [design system and integration notes](docs/design-review.md).
+
 ## Validate the project
 
 ```bash

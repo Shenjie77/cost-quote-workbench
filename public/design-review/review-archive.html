@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>项目工作平台 · 全站交互审核</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="design.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="navigation">
+        <a class="brand" href="#today"
+          ><span class="brand-symbol">W</span
+          ><span>项目工作平台<small>Design review · 03</small></span></a
+        >
+        <nav id="navigation" aria-label="全站导航"></nav>
+        <div class="review-note">
+          <span class="status-dot"></span>独立审核原型<small
+            >示例数据 · 不连接正式项目</small
+          >
+        </div>
+      </aside>
+      <div class="workspace">
+        <header class="appbar">
+          <button
+            class="icon-button mobile-menu"
+            data-action="menu"
+            aria-label="展开导航"
+          >
+            ☰
+          </button>
+          <div class="breadcrumb" id="breadcrumb"></div>
+          <div class="appbar-actions">
+            <div class="segments" aria-label="Language">
+              <button class="segment" data-action="language" data-language="zh">
+                中文</button
+              ><button
+                class="segment"
+                data-action="language"
+                data-language="en"
+              >
+                English
+              </button>
+            </div>
+            <span class="save-status" id="save-status">演示数据</span
+            ><button class="button quiet" data-action="help">使用说明</button
+            ><span class="avatar" title="当前操作人">JL</span>
+          </div>
+        </header>
+        <div class="project-strip">
+          <label class="inline-field"
+            ><span>项目</span
+            ><select
+              id="project-choice"
+              data-user-content
+              aria-label="切换项目"
+            >
+              <option>园区网络升级</option>
+              <option>区域设备维保</option>
+              <option>数据中心迁移</option>
+            </select></label
+          ><span class="divider"></span
+          ><span id="project-reference">PRJ-2027-018</span
+          ><span class="badge neutral">V1 · 草稿</span
+          ><span class="grow"></span>
+          <div id="folder-shortcuts"></div>
+          <span class="muted">SGD</span
+          ><span class="project-person">负责人 · 林嘉</span>
+        </div>
+        <main id="main" tabindex="-1"></main>
+        <footer class="app-footer">
+          <span>交互审核版：修改仅影响当前演示，金额不作为正式报价依据。</span
+          ><button data-action="reset" class="text-button">重置演示</button>
+        </footer>
+      </div>
+    </div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <datalist id="category-options" data-user-content></datalist>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

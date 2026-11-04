@@ -112,16 +112,15 @@ const props = (project) => ({
   onTrackWorkflow: noop,
 });
 
-test('Today counts parallel tasks as one project and expands its highest urgency group', () => {
+test('Today counts parallel tasks once per project and exposes both tasks in the worksheet', () => {
   const html = renderToStaticMarkup(
     React.createElement(OverviewView, props(p())),
   );
   assert.equal(
-    (html.match(/data-workflow-project-group="PARALLEL-UI"/g) || []).length,
-    1,
+    (html.match(/data-follow-up-project="PARALLEL-UI"/g) || []).length,
+    2,
   );
-  assert.match(html, /data-workflow-project-group="PARALLEL-UI"[^>]*open/);
-  assert.match(html, /2 个待办节点/);
+  assert.match(html, /待跟进项目[\s\S]*?<strong>1<\/strong>/);
   assert.match(html, /更新流程节点 Parallel Delivery · URGENT 项/);
   assert.match(html, /更新流程节点 Parallel Delivery · NORMAL 项/);
   assert.doesNotMatch(html, /更新流程节点 Parallel Delivery · MUTED 项/);
@@ -146,7 +145,7 @@ test('Agent displays normal, immediate and urgent groups without resurrecting ol
     React.createElement(OverviewView, props(done)),
   );
   assert.doesNotMatch(completed, /data-workflow-project-group=/);
-  assert.match(completed, /当前没有需要跟进的项目/);
+  assert.match(completed, /当前没有需要跟进的事项/);
 });
 
 test('Today keeps an untimed next phase visible and does not expose future pending tasks', () => {
@@ -159,7 +158,7 @@ test('Today keeps an untimed next phase visible and does not expose future pendi
   const html = renderToStaticMarkup(
     React.createElement(OverviewView, props(ready)),
   );
-  assert.match(html, /data-workflow-project-group="PARALLEL-UI"/);
+  assert.match(html, /data-follow-up-project="PARALLEL-UI"/);
   assert.match(html, /更新流程节点 Parallel Delivery · READY 项/);
   assert.match(html, /待启动\/待登记，尚未开始计时/);
   assert.doesNotMatch(html, /更新流程节点 Parallel Delivery · FUTURE 项/);
@@ -250,12 +249,12 @@ test('Today leads with pending tasks without counting completed or held projects
   assert.match(distribution, /DONE: 0 pending tasks/);
   assert.match(distribution, /1 Pending/);
   assert.ok(
-    html.indexOf('Project Workflow Distribution') <
-      html.indexOf('Active Projects'),
+    html.indexOf('Today follow-ups') <
+      html.indexOf('Project Workflow Distribution'),
   );
   for (const name of ['Active project', 'Held project', 'Finished project'])
     assert.ok(html.includes(name));
-  assert.match(html, /Showing 3 of 3 local projects/);
+  assert.equal((html.match(/data-follow-up-project=/g) || []).length, 1);
 });
 
 test('a distribution tile with one pending project opens that exact node without altering workflow data', () => {
